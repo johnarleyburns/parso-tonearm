@@ -82,4 +82,11 @@ final class JamendoGenreTreeTests: XCTestCase {
             XCTAssertFalse(node.tag.isEmpty)
         }
     }
+
+    func testHumanizedGenreMapsTaxonomyKeysAndPassesOthersThrough() {
+        XCTAssertEqual(JamendoGenreTree.humanizedGenre("subgenre:electronic:progressivehouse"), "Progressive House")
+        XCTAssertEqual(JamendoGenreTree.humanizedGenre("genre:rock"), JamendoGenreTree.roots.first { $0.path == "rock" }?.name)
+        XCTAssertEqual(JamendoGenreTree.humanizedGenre("Classic Rock"), "Classic Rock")
+        XCTAssertEqual(JamendoGenreTree.humanizedGenre("subgenre:nope:nope"), "subgenre:nope:nope")
+    }
 }

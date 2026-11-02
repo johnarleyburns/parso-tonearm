@@ -93,8 +93,9 @@ struct StarterCatalogAdapter: Sendable {
         guard !artist.isEmpty else { throw invalid("artist") }
         let artwork = (row["artwork_url"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let artworkURL = artwork.isEmpty ? nil : URL(string: artwork).flatMap { $0.scheme != nil ? $0 : nil }
-        let genre = (row["genre"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !genre.isEmpty else { throw invalid("genre") }
+        let rawGenre = (row["genre"] as String?)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !rawGenre.isEmpty else { throw invalid("genre") }
+        let genre = JamendoGenreTree.humanizedGenre(rawGenre)
         guard let duration = row["duration"] as Double?, duration.isFinite, duration > 0 else { throw invalid("duration") }
         guard let bpm = row["bpm"] as Double?, bpm.isFinite, bpmRange.contains(bpm) else { throw invalid("bpm") }
         guard let rawKey = row["camelot"] as String?, BlendTraits.parseCamelot(rawKey) != nil else { throw invalid("camelot") }

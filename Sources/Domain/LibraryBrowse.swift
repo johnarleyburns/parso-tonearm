@@ -109,7 +109,7 @@ public enum LibraryBrowse {
 
     private static func albumSections(_ rows: [TrackRow]) -> [Section] {
         let grouped = group(rows) { row in
-            let albumTitle = row.album?.title.nilIfBlank ?? String(localized: "Unknown Album", bundle: .module)
+            let albumTitle = row.album?.title.nilIfBlank.map(JamendoGenreTree.humanizedGenre) ?? String(localized: "Unknown Album", bundle: .module)
             let key = row.album?.id.map { "id:\($0)" }
                 ?? "fallback:\(identityKey(albumTitle)):\(identityKey(artistDisplayName(row)))"
             return (key, albumTitle)
@@ -147,8 +147,8 @@ public enum LibraryBrowse {
 
     private static func genreSections(_ rows: [TrackRow]) -> [Section] {
         let grouped = group(rows) { row in
-            let genre = row.track.genre?.nilIfBlank
-                ?? row.album?.genre?.nilIfBlank
+            let genre = row.track.genre?.nilIfBlank.map(JamendoGenreTree.humanizedGenre)
+                ?? row.album?.genre?.nilIfBlank.map(JamendoGenreTree.humanizedGenre)
                 ?? String(localized: "Unknown Genre", bundle: .module)
             return (identityKey(genre), genre)
         }

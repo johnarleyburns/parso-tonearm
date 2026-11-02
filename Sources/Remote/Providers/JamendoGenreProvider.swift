@@ -147,6 +147,32 @@ public struct JamendoGenreNode: Codable, Equatable, Hashable, Sendable, Identifi
 /// "boom-bap" never appeared anywhere in the sampled data or under any
 /// spelling tried, and has been dropped rather than kept as a dead entry.
 public enum JamendoGenreTree {
+    /// Starter taxonomy id (`genre:top` / `subgenre:top:leaf`, as emitted by
+    /// `generate_taxonomy.py`) → human name.
+    private static let displayNamesByTaxonomyKey: [String: String] = {
+        var map: [String: String] = [:]
+        for node in all {
+            let parts = node.path.split(separator: "/").map(String.init)
+            if parts.count == 1 {
+                map["genre:\(parts[0])"] = node.name
+            } else if parts.count == 2 {
+                map["subgenre:\(parts[0]):\(parts[1])"] = node.name
+            }
+        }
+        return map
+    }()
+
+    /// The human label for a stored Starter taxonomy key, or nil when it is not one.
+    public static func displayName(forTaxonomyKey key: String) -> String? {
+        displayNamesByTaxonomyKey[key]
+    }
+
+    /// Display text for a stored genre: taxonomy keys become their human name; anything else
+    /// (ordinary ID3 genres) passes through unchanged.
+    public static func humanizedGenre(_ raw: String) -> String {
+        displayName(forTaxonomyKey: raw.trimmingCharacters(in: .whitespaces)) ?? raw
+    }
+
     public static let roots: [JamendoGenreNode] = [
         .init(name: String(localized: "Blues", bundle: .module), path: "blues", children: [
         ]),
