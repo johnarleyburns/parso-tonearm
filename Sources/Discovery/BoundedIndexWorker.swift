@@ -486,7 +486,7 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         func beatTime(_ beat: Int) -> Double { phase + Double(beat) * period }
         let profile = TransitionProfile(
             beatPeriodSeconds: period, beatPhaseSeconds: phase, beatConfidence: grid.isConstantTempo ? 0.8 : 0.4,
-            barPhase: structure.barPhase, phrasePhase: structure.phrasePhase,
+            barPhase: structure.barPhase,
             dropSeconds: structure.drops.map(beatTime), exitSeconds: structure.exits.map(beatTime),
             bassPresentFromStart: structure.bassLevelsDB.isEmpty ? nil : structure.bassPresentFromStart(silenceBeat: 0))
         do {

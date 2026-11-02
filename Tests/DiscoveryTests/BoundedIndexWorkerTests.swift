@@ -434,7 +434,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let wav = dir.appendingPathComponent("drop.wav")
         let duration = 150.0
-        try writeKickStepWAV(seconds: duration, stepAtSeconds: 140, to: wav)
+        try writeKickStepWAV(seconds: duration, stepAtSeconds: 120, quietAmplitude: 0.4, to: wav)
 
         let (trackId, assetId) = try await seedTrackWithAsset(queue, fileURL: wav, durationSec: duration)
         let jobs = IndexJobRepository(writer: queue)
@@ -459,8 +459,8 @@ final class BoundedIndexWorkerTests: XCTestCase {
             XCTUnwrap(payload, "a best-effort transition profile should still be written"))
         XCTAssertNotNil(profile.beatPeriodSeconds)
         XCTAssertNotNil(profile.beatPhaseSeconds)
-        XCTAssertFalse(profile.dropSeconds.isEmpty || profile.exitSeconds.isEmpty,
-                       "the real kick-band step at 140s should surface as a drop or a bass exit")
+        XCTAssertFalse(profile.dropSeconds.isEmpty && profile.exitSeconds.isEmpty,
+                       "the real kick-band step at 120s should surface as a drop or a bass exit")
     }
 
     // MARK: - small async helpers
