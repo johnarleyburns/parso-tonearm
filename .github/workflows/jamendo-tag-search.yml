@@ -1,0 +1,40 @@
+name: Jamendo tag search (ad-hoc)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact Jamendo tag to search (must match a node in jamendo_taxonomy_v1.json)
+        required: true
+        type: string
+      limit:
+        description: Max raw results to request from the API before eligibility filtering
+        required: false
+        type: number
+        default: 40
+
+concurrency:
+  group: jamendo-tag-search
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    env:
+      JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          [ -n "$JAMENDO_CLIENT_ID" ] || { echo "Jamendo credential is not configured"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/jamendo-search"
+          python3 -I tools/starter-catalog/search_tag.py --tag "${{ inputs.tag }}" --limit "${{ inputs.limit }}" \
+            --out "$RUNNER_TEMP/jamendo-search/${{ inputs.tag }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jamendo-search-${{ inputs.tag }}
+          path: ${{ runner.temp }}/jamendo-search/
+          retention-days: 3
