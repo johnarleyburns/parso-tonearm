@@ -164,7 +164,7 @@ public enum StarterLibraryWriter {
                                                                            energy: track.energy,
                                                                            analysisScopeSeconds: track.analysisScopeSeconds))
                 try db.execute(sql: """
-                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [
                         "test", track.id, track.id, "test", "test", track.title, track.artist, track.genre,
                         track.license, track.durationSec, track.streamURL, track.bpm, track.key, track.energy,

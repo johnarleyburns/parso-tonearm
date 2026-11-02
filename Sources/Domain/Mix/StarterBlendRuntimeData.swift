@@ -1,7 +1,7 @@
 // Generated for StarterBlendPack.v2 from real audio analysis of the mirrored tracks
 // (tools/starter-blends/ has no v2 generator yet; this file's shape matches what
-// generate-runtime-data.py emits). Facts (bpm from the starter catalog; beat phase and
-// RMS loudness measured from the actual source audio) were fed through
+// generate-runtime-data.py emits). Tempo from the starter catalog, plus beat phase and
+// RMS loudness measured from the actual source audio, were fed through
 // CatalogEdgePlanner.plan verbatim — no values invented. Do not edit by hand.
 import Foundation
 
