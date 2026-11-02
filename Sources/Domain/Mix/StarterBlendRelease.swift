@@ -56,6 +56,16 @@ public struct StarterTrackFacts: Codable, Sendable, Equatable {
     public let beatPhase: Double
     public let rmsDB: Double
 
+    public init(id: String, durationSeconds: Double, bpm: Double, beatPeriod: Double, beatPhase: Double,
+                rmsDB: Double) {
+        self.id = id
+        self.durationSeconds = durationSeconds
+        self.bpm = bpm
+        self.beatPeriod = beatPeriod
+        self.beatPhase = beatPhase
+        self.rmsDB = rmsDB
+    }
+
     public func beatTime(_ beat: Int) -> Double { beatPhase + Double(beat) * beatPeriod }
 }
 

@@ -1,0 +1,474 @@
+{
+  "tracks": [
+    {
+      "id": "1059819",
+      "bpm": 130.04710623536369,
+      "beatPeriod": 0.46137128104496195,
+      "beatPhase": 0.05249553314817135,
+      "durationSeconds": 181.05532879818594,
+      "rmsDB": -10.535882082769579
+    },
+    {
+      "id": "1174818",
+      "bpm": 86.64913073387758,
+      "beatPeriod": 0.6924478005933594,
+      "beatPhase": 0.32923020394178804,
+      "durationSeconds": 274.02190476190475,
+      "rmsDB": -16.035029709703863
+    },
+    {
+      "id": "1204663",
+      "bpm": 80.0008048742245,
+      "beatPeriod": 0.7499924543800612,
+      "beatPhase": 0.6733786848072563,
+      "durationSeconds": 250.33278911564625,
+      "rmsDB": -11.906597422194952
+    },
+    {
+      "id": "1204670",
+      "bpm": 83.02554484538823,
+      "beatPeriod": 0.72266915094304,
+      "beatPhase": 0.6501587301587302,
+      "durationSeconds": 229.94721088435375,
+      "rmsDB": -11.424079291750724
+    },
+    {
+      "id": "1246367",
+      "bpm": 80.21383759995007,
+      "beatPeriod": 0.7480006167918009,
+      "beatPhase": 0.46439909297052157,
+      "durationSeconds": 183.7439909297052,
+      "rmsDB": -21.362147535162674
+    },
+    {
+      "id": "1337398",
+      "bpm": 84.99518160368753,
+      "beatPeriod": 0.7059223695734406,
+      "beatPhase": 0.6965986394557823,
+      "durationSeconds": 267.92326530612246,
+      "rmsDB": -18.34921611371929
+    },
+    {
+      "id": "1353514",
+      "bpm": 112.01692340095039,
+      "beatPeriod": 0.5356333505539836,
+      "beatPhase": 0.30303785414899087,
+      "durationSeconds": 193.92857142857142,
+      "rmsDB": -12.008305213960139
+    },
+    {
+      "id": "1393688",
+      "bpm": 63.84322115357926,
+      "beatPeriod": 0.9398022047738769,
+      "beatPhase": 0.9017489483697254,
+      "durationSeconds": 240.03845804988663,
+      "rmsDB": -7.535134032575394
+    },
+    {
+      "id": "1406396",
+      "bpm": 75.00278446921679,
+      "beatPeriod": 0.7999703000976671,
+      "beatPhase": 0.05160196112002724,
+      "durationSeconds": 239.75106575963719,
+      "rmsDB": -14.058149580535195
+    },
+    {
+      "id": "1428775",
+      "bpm": 90.05237232639641,
+      "beatPeriod": 0.6662789491267254,
+      "beatPhase": 0.16963941822021344,
+      "durationSeconds": 294.4533333333333,
+      "rmsDB": -18.150404803824387
+    },
+    {
+      "id": "1458069",
+      "bpm": 71.01626235448764,
+      "beatPeriod": 0.8448769058064698,
+      "beatPhase": 0.6965986394557823,
+      "durationSeconds": 276.44,
+      "rmsDB": -13.145948629186053
+    },
+    {
+      "id": "1555047",
+      "bpm": 110.00469662075537,
+      "beatPeriod": 0.5454312574203252,
+      "beatPhase": 0.1180011878029319,
+      "durationSeconds": 296.7273015873016,
+      "rmsDB": -11.338004077020209
+    },
+    {
+      "id": "1585553",
+      "bpm": 80.0046118159518,
+      "beatPeriod": 0.7499567667177511,
+      "beatPhase": 0.06965986394557823,
+      "durationSeconds": 175.0477551020408,
+      "rmsDB": -12.910355717465903
+    },
+    {
+      "id": "1589557",
+      "bpm": 62.54001791247541,
+      "beatPeriod": 0.9593857181807949,
+      "beatPhase": 0.545684151197309,
+      "durationSeconds": 295.91510204081635,
+      "rmsDB": -14.468929696278288
+    },
+    {
+      "id": "1629934",
+      "bpm": 73.90676089374533,
+      "beatPeriod": 0.8118337114822435,
+      "beatPhase": 0.6355857876718962,
+      "durationSeconds": 209.45455782312925,
+      "rmsDB": -12.206776331809326
+    },
+    {
+      "id": "1832242",
+      "bpm": 96.0047846360195,
+      "beatPeriod": 0.6249688515783508,
+      "beatPhase": 0.5804988662131519,
+      "durationSeconds": 243.0316553287982,
+      "rmsDB": -13.748737746762574
+    },
+    {
+      "id": "2016794",
+      "bpm": 129.9820367452652,
+      "beatPeriod": 0.4616022452209005,
+      "beatPhase": 0.07271804149014793,
+      "durationSeconds": 221.5387755102041,
+      "rmsDB": -10.928237730989462
+    },
+    {
+      "id": "2020849",
+      "bpm": 94.19188346758588,
+      "beatPeriod": 0.6369975606300272,
+      "beatPhase": 0.4234123205980457,
+      "durationSeconds": 253.0,
+      "rmsDB": -10.93356181970637
+    },
+    {
+      "id": "20237",
+      "bpm": 109.9866534303118,
+      "beatPeriod": 0.5455207348227606,
+      "beatPhase": 0.0349781313903913,
+      "durationSeconds": 263.99809523809523,
+      "rmsDB": -12.340783037505943
+    },
+    {
+      "id": "222565",
+      "bpm": 129.99985851935958,
+      "beatPeriod": 0.4615389638371399,
+      "beatPhase": 0.049300038430433846,
+      "durationSeconds": 287.7643537414966,
+      "rmsDB": -12.620933081603297
+    },
+    {
+      "id": "2232438",
+      "bpm": 87.92203592472909,
+      "beatPeriod": 0.6824227779639519,
+      "beatPhase": 0.626938775510204,
+      "durationSeconds": 202.61396825396827,
+      "rmsDB": -12.554386825767128
+    },
+    {
+      "id": "26742",
+      "bpm": 95.35448581888018,
+      "beatPeriod": 0.6292310160841956,
+      "beatPhase": 0.3586584776583006,
+      "durationSeconds": 251.97201814058957,
+      "rmsDB": -14.954507302354594
+    },
+    {
+      "id": "296235",
+      "bpm": 113.32923738870913,
+      "beatPeriod": 0.5294308987027361,
+      "beatPhase": 0.2136076500500984,
+      "durationSeconds": 304.56303854875284,
+      "rmsDB": -16.311621998458968
+    },
+    {
+      "id": "29872",
+      "bpm": 60.0,
+      "beatPeriod": 1.0,
+      "beatPhase": 0.2786394557823129,
+      "durationSeconds": 188.8041723356009,
+      "rmsDB": -16.599880439062776
+    },
+    {
+      "id": "337997",
+      "bpm": 82.17130077313021,
+      "beatPeriod": 0.7301819423019263,
+      "beatPhase": 0.44367239657528557,
+      "durationSeconds": 251.16299319727892,
+      "rmsDB": -11.602148530581864
+    },
+    {
+      "id": "375191",
+      "bpm": 130.07329757028324,
+      "beatPeriod": 0.46127838011933125,
+      "beatPhase": 0.012482851404761242,
+      "durationSeconds": 218.7101133786848,
+      "rmsDB": -12.25642041706192
+    },
+    {
+      "id": "398173",
+      "bpm": 64.97185581358569,
+      "beatPeriod": 0.9234767769624633,
+      "beatPhase": 0.8857453668883636,
+      "durationSeconds": 326.841179138322,
+      "rmsDB": -18.225940010271387
+    },
+    {
+      "id": "501673",
+      "bpm": 74.67632527397049,
+      "beatPeriod": 0.8034674949506904,
+      "beatPhase": 0.6733786848072563,
+      "durationSeconds": 329.05727891156465,
+      "rmsDB": -15.765069366764152
+    },
+    {
+      "id": "7475",
+      "bpm": 109.99581287515174,
+      "beatPeriod": 0.5454753088474527,
+      "beatPhase": 0.3022466612166592,
+      "durationSeconds": 402.0142403628118,
+      "rmsDB": -17.731080173593373
+    },
+    {
+      "id": "785424",
+      "bpm": 68.48946090983102,
+      "beatPeriod": 0.8760471932899615,
+      "beatPhase": 0.2786394557823129,
+      "durationSeconds": 178.9092970521542,
+      "rmsDB": -18.07800029930726
+    },
+    {
+      "id": "81744",
+      "bpm": 129.54995616225187,
+      "beatPeriod": 0.4631418008729727,
+      "beatPhase": 0.2089795918367347,
+      "durationSeconds": 275.4545578231293,
+      "rmsDB": -11.675646830567633
+    },
+    {
+      "id": "878019",
+      "bpm": 64.61149180882369,
+      "beatPeriod": 0.9286273744852008,
+      "beatPhase": 0.3949100404807856,
+      "durationSeconds": 343.2316553287982,
+      "rmsDB": -16.76429732712874
+    },
+    {
+      "id": "946",
+      "bpm": 109.9731308178132,
+      "beatPeriod": 0.5455878136214827,
+      "beatPhase": 0.3374194279735494,
+      "durationSeconds": 241.6873015873016,
+      "rmsDB": -14.20928256941221
+    },
+    {
+      "id": "951",
+      "bpm": 129.8759531242172,
+      "beatPeriod": 0.46197928528473803,
+      "beatPhase": 0.03531899307744374,
+      "durationSeconds": 199.60027210884354,
+      "rmsDB": -13.18763987858709
+    },
+    {
+      "id": "957463",
+      "bpm": 60.0,
+      "beatPeriod": 1.0,
+      "beatPhase": 0.8126984126984127,
+      "durationSeconds": 197.84054421768707,
+      "rmsDB": -17.562439326546517
+    },
+    {
+      "id": "98135",
+      "bpm": 67.9983903758841,
+      "beatPeriod": 0.882373827796948,
+      "beatPhase": 0.2089795918367347,
+      "durationSeconds": 370.9842176870748,
+      "rmsDB": -12.246303591223572
+    }
+  ],
+  "edges": [
+    {
+      "blendID": "starter.morning-light",
+      "edge": 1,
+      "outgoingTrackID": "1174818",
+      "incomingTrackID": "2232438"
+    },
+    {
+      "blendID": "starter.morning-light",
+      "edge": 2,
+      "outgoingTrackID": "2232438",
+      "incomingTrackID": "1428775"
+    },
+    {
+      "blendID": "starter.morning-light",
+      "edge": 3,
+      "outgoingTrackID": "1428775",
+      "incomingTrackID": "2020849"
+    },
+    {
+      "blendID": "starter.morning-light",
+      "edge": 4,
+      "outgoingTrackID": "2020849",
+      "incomingTrackID": "26742"
+    },
+    {
+      "blendID": "starter.morning-light",
+      "edge": 5,
+      "outgoingTrackID": "26742",
+      "incomingTrackID": "1832242"
+    },
+    {
+      "blendID": "starter.deep-focus",
+      "edge": 1,
+      "outgoingTrackID": "98135",
+      "incomingTrackID": "785424"
+    },
+    {
+      "blendID": "starter.deep-focus",
+      "edge": 2,
+      "outgoingTrackID": "785424",
+      "incomingTrackID": "1458069"
+    },
+    {
+      "blendID": "starter.deep-focus",
+      "edge": 3,
+      "outgoingTrackID": "1458069",
+      "incomingTrackID": "1629934"
+    },
+    {
+      "blendID": "starter.deep-focus",
+      "edge": 4,
+      "outgoingTrackID": "1629934",
+      "incomingTrackID": "501673"
+    },
+    {
+      "blendID": "starter.deep-focus",
+      "edge": 5,
+      "outgoingTrackID": "501673",
+      "incomingTrackID": "1406396"
+    },
+    {
+      "blendID": "starter.night-drive",
+      "edge": 1,
+      "outgoingTrackID": "946",
+      "incomingTrackID": "20237"
+    },
+    {
+      "blendID": "starter.night-drive",
+      "edge": 2,
+      "outgoingTrackID": "20237",
+      "incomingTrackID": "7475"
+    },
+    {
+      "blendID": "starter.night-drive",
+      "edge": 3,
+      "outgoingTrackID": "7475",
+      "incomingTrackID": "1555047"
+    },
+    {
+      "blendID": "starter.night-drive",
+      "edge": 4,
+      "outgoingTrackID": "1555047",
+      "incomingTrackID": "1353514"
+    },
+    {
+      "blendID": "starter.night-drive",
+      "edge": 5,
+      "outgoingTrackID": "1353514",
+      "incomingTrackID": "296235"
+    },
+    {
+      "blendID": "starter.acoustic-evening",
+      "edge": 1,
+      "outgoingTrackID": "1204663",
+      "incomingTrackID": "1585553"
+    },
+    {
+      "blendID": "starter.acoustic-evening",
+      "edge": 2,
+      "outgoingTrackID": "1585553",
+      "incomingTrackID": "1246367"
+    },
+    {
+      "blendID": "starter.acoustic-evening",
+      "edge": 3,
+      "outgoingTrackID": "1246367",
+      "incomingTrackID": "337997"
+    },
+    {
+      "blendID": "starter.acoustic-evening",
+      "edge": 4,
+      "outgoingTrackID": "337997",
+      "incomingTrackID": "1204670"
+    },
+    {
+      "blendID": "starter.acoustic-evening",
+      "edge": 5,
+      "outgoingTrackID": "1204670",
+      "incomingTrackID": "1337398"
+    },
+    {
+      "blendID": "starter.upbeat-energy",
+      "edge": 1,
+      "outgoingTrackID": "81744",
+      "incomingTrackID": "951"
+    },
+    {
+      "blendID": "starter.upbeat-energy",
+      "edge": 2,
+      "outgoingTrackID": "951",
+      "incomingTrackID": "2016794"
+    },
+    {
+      "blendID": "starter.upbeat-energy",
+      "edge": 3,
+      "outgoingTrackID": "2016794",
+      "incomingTrackID": "222565"
+    },
+    {
+      "blendID": "starter.upbeat-energy",
+      "edge": 4,
+      "outgoingTrackID": "222565",
+      "incomingTrackID": "1059819"
+    },
+    {
+      "blendID": "starter.upbeat-energy",
+      "edge": 5,
+      "outgoingTrackID": "1059819",
+      "incomingTrackID": "375191"
+    },
+    {
+      "blendID": "starter.rainy-day",
+      "edge": 1,
+      "outgoingTrackID": "29872",
+      "incomingTrackID": "957463"
+    },
+    {
+      "blendID": "starter.rainy-day",
+      "edge": 2,
+      "outgoingTrackID": "957463",
+      "incomingTrackID": "1589557"
+    },
+    {
+      "blendID": "starter.rainy-day",
+      "edge": 3,
+      "outgoingTrackID": "1589557",
+      "incomingTrackID": "1393688"
+    },
+    {
+      "blendID": "starter.rainy-day",
+      "edge": 4,
+      "outgoingTrackID": "1393688",
+      "incomingTrackID": "878019"
+    },
+    {
+      "blendID": "starter.rainy-day",
+      "edge": 5,
+      "outgoingTrackID": "878019",
+      "incomingTrackID": "398173"
+    }
+  ]
+}
