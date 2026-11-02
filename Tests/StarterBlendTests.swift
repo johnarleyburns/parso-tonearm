@@ -50,27 +50,31 @@ final class StarterBlendTests: XCTestCase {
             XCTAssertLessThan(s.incomingStart, inc.durationSeconds)
             XCTAssertGreaterThan(s.incomingTempo, 0.9); XCTAssertLessThan(s.incomingTempo, 1.1)
         }
-        XCTAssertEqual(styles[.bassSwap], 30)
-        XCTAssertEqual(styles[.doubleDrop], nil)
-        XCTAssertEqual(styles[.phraseCut], nil)
+        // Real drop/bass-exit structure (StarterBlendEdgePlanner, ParsoAudioAnalysis.DropDetector):
+        // most edges land a real doubleDrop or phraseCut; CatalogEdgePlanner's plain bassSwap is
+        // the fallback for the few pairs where neither track's structure gave a usable point.
+        XCTAssertEqual(styles[.doubleDrop], 17)
+        XCTAssertEqual(styles[.phraseCut], 11)
+        XCTAssertEqual(styles[.bassSwap], 2)
     }
 
     func testPlanValuesAreCopiedExactly() throws {
-        // v2 is bassSwap-only (CatalogEdgePlanner-computed from real audio analysis, no hand-tuned
-        // doubleDrop/phraseCut data is available for the re-curated tracks).
+        // v2 edges come from StarterBlendEdgePlanner (real DropDetector structure against each
+        // track's full audio, DropAwareEdgePlanner, CatalogEdgePlanner bassSwap fallback) — not
+        // hand-tuned, but no longer bassSwap-only either.
         let first = try XCTUnwrap(StarterBlendCatalog.blends[0].edgePlans.first)
-        XCTAssertEqual(first.style, .bassSwap)
+        XCTAssertEqual(first.style, .doubleDrop)
         XCTAssertEqual(first.tempo, 0.9855223417262398)
         XCTAssertEqual(first.incomingGain, 0.6698350299104915)
-        XCTAssertEqual(first.overlapBeats, 32)
-        XCTAssertEqual(first.outgoingSwapBeat, 368)
-        XCTAssertEqual(first.incomingSwapBeat, 16)
-        XCTAssertEqual(first.blendStartSeconds, 244.0708560128043)
-        XCTAssertEqual(first.swapSeconds, 255.15002082229805)
-        XCTAssertEqual(first.blendEndSeconds, 266.22918563179184)
-        XCTAssertEqual(first.incomingOffsetSeconds, 243.4347072935251)
+        XCTAssertEqual(first.overlapBeats, 64)
+        XCTAssertEqual(first.outgoingSwapBeat, 256)
+        XCTAssertEqual(first.incomingSwapBeat, 32)
+        XCTAssertEqual(first.blendStartSeconds, 155.4375375368543)
+        XCTAssertEqual(first.swapSeconds, 177.5958671558418)
+        XCTAssertEqual(first.blendEndSeconds, 199.7541967748293)
+        XCTAssertEqual(first.incomingOffsetSeconds, 145.79956740986142)
         let last = try XCTUnwrap(StarterBlendCatalog.blends[5].edgePlans.last)
-        XCTAssertEqual(last.style, .bassSwap)
+        XCTAssertEqual(last.style, .doubleDrop)
         XCTAssertEqual(last.outgoingTrackID, "878019")
         XCTAssertEqual(last.incomingTrackID, "398173")
     }

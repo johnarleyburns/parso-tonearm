@@ -131,7 +131,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
         XCTAssertEqual(player.index, 1, "the stream advanced the queue at the planned handoff")
         let key = TransitionEdgeKey(from: player.queueOccurrences[0], to: player.queueOccurrences[1])
         let snapshot = try XCTUnwrap(player.transitionExecution.snapshot(for: key))
-        XCTAssertEqual(snapshot.executedStyle, .bassSwap)
+        XCTAssertEqual(snapshot.executedStyle, .doubleDrop)
         XCTAssertTrue(snapshot.isTerminal || snapshot.phase == .handedOff)
         XCTAssertNotNil(snapshot.handoffFrame)
         // Starter definitions carry no per-track facts, so the row's duration is whatever the catalog supplied (none here).
@@ -168,14 +168,16 @@ final class StarterBlendProductionPathTests: XCTestCase {
             }
         }
         XCTAssertEqual(executed, 30)
-        // v2 is bassSwap-only, so these are no longer the zero-overlap phraseCut spot checks v1 had;
-        // they pin the same two edges' real, CatalogEdgePlanner-computed schedule instead.
+        // v2 edges now carry real doubleDrop/phraseCut structure (StarterBlendEdgePlanner); pin
+        // one of each style's real, DropAwareEdgePlanner/CatalogEdgePlanner-computed schedule.
         let night = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.night-drive" && $0.edge == 5 })
-        XCTAssertEqual(night.schedule()?.outgoingStart, 163.13557642256)
-        XCTAssertEqual(night.schedule()?.incomingStart, 0.2136076500500913)
+        XCTAssertEqual(night.style, .doubleDrop)
+        XCTAssertEqual(night.schedule()?.outgoingStart, 154.0298094631423)
+        XCTAssertEqual(night.schedule()?.incomingStart, 72.74564077232493)
         let rainy = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.rainy-day" && $0.edge == 1 })
-        XCTAssertEqual(rainy.schedule()?.outgoingStart, 144.27863945578233)
-        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.8126984126984098)
+        XCTAssertEqual(rainy.style, .phraseCut)
+        XCTAssertEqual(rainy.schedule()?.outgoingStart, 147.27863945578233)
+        XCTAssertEqual(rainy.schedule()?.incomingStart, 0.8126984126984127)
     }
 
     func testIncompleteLegacyPlanFallsBackTruthfullyWithoutReplanning() async throws {

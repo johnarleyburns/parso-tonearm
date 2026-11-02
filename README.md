@@ -166,6 +166,30 @@ WatchApp/
   Views/         SwiftUI views for watch (Now Playing, Up Next, browse, storage)
 ```
 
+Offline/dev-only tooling lives in `tools/` (none of it runs at app runtime or in the normal
+`swift test` gate):
+
+```
+tools/
+  starter-shards/   Jamendo starter-pack shard build + validate + assemble (build_shard.py,
+                     assemble_starter.py, shardlib.py) — produces the bundled Mood Starter catalog.
+  starter-blends/   Starter Blends: structure-input.json (the fixed 6-blend/30-edge track
+                     sequence + curated StarterTrackFacts) feeds Sources/Tools/StarterBlendEdgePlanner
+                     (real DropDetector/DropAwareEdgePlanner edge planning, run via
+                     .github/workflows/regen-starter-blend-edges.yml); generate-runtime-data.py is the
+                     older v1-era translator, kept for reference.
+  blend-lab/        The original hand-run Python reference for drop/bass-exit/phrase detection
+                     (structure.py, djmix.py) that Sources/Domain/Mix/DropAwareEdgePlanner.swift and
+                     ParsoAudioAnalysis.DropDetector port into the app. Superseded for anything
+                     automatic — kept because it's still the clearest place to read the algorithm.
+  starter-catalog/  Generates tools/starter-catalog/jamendo_taxonomy_v1.json from
+                     Sources/Remote/Providers/JamendoGenreProvider.swift (the sole genre/subgenre
+                     authority — see CLAUDE.md).
+  clap-coreml/      CLAP audio/text encoder export + Core ML conversion for on-device embeddings.
+  demucs-coreml/    Demucs stem-separation model export + Core ML conversion.
+  starter-expand/   Expands the starter-pack candidate pool ahead of shard generation.
+```
+
 ## Apple Watch
 
 Platterhead includes a standalone watchOS 11 app (`guru.parso.tonearm.watchkitapp`) that
