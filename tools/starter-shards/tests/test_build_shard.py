@@ -136,7 +136,7 @@ class ShardTests(unittest.TestCase):
         with self.assertRaisesRegex(S.ShardError, '128'):
             S.validate_payload(p, FP)
         p['embedding'] = [0.0] * 128
-        p['transitionProfile'] = {'blob': 'x' * 5000}
+        p['transitionProfile'] = {'blob': 'x' * 17000}
         with self.assertRaisesRegex(S.ShardError, 'Profile'):
             S.validate_payload(p, FP)
         self.analyze = lambda e, path: {'embedding': [0.0] * 127, 'transitionProfile': {}}

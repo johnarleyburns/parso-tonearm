@@ -58,6 +58,8 @@ struct BuiltInAnalyzer {
                     entries[index]["key"] = analysis.key
                     entries[index]["energy"] = analysis.energy
                     entries[index]["analysisScopeSeconds"] = analysis.scopeSeconds
+                    entries[index]["dropSeconds"] = analysis.dropSeconds
+                    entries[index]["exitSeconds"] = analysis.exitSeconds
                 } else {
                     entries[index]["analysisUnavailable"] = true
                 }
@@ -75,6 +77,11 @@ struct BuiltInAnalyzer {
     struct Entry: Sendable { let id: String; let streamURL: String?; let duration: Double? }
     struct Analysis: Sendable {
         let bpm: Double?; let key: String?; let energy: Double?; let scopeSeconds: Double
+        /// Real drop/bass-exit timestamps (absolute track seconds) within the analyzed window,
+        /// for DropAwareEdgePlanner — `nil` when there was no beat grid to detect them against,
+        /// empty (not nil) when there was a grid but genuinely no event found.
+        let dropSeconds: [Double]?
+        let exitSeconds: [Double]?
     }
 
     /// `BUILTIN_ANALYZER_AUDIO_DIR`: read `<dir>/<id>.mp3` when it is there instead of
@@ -113,7 +120,20 @@ struct BuiltInAnalyzer {
             let start = max(0, duration / 2 - scope / 2)
             guard let pcm = try? reader.readWindow(url: temp, startSeconds: start, windowSeconds: scope),
                   !pcm.isEmpty else { return nil }
-            let musical = musicalStages(AnalysisAudio(sampleRate: reader.targetSampleRate, channels: [pcm]))
+            let audio = AnalysisAudio(sampleRate: reader.targetSampleRate, channels: [pcm])
+            let musical = musicalStages(audio)
+            // Real drop/bass-exit detection against the window's own beat grid (cheap: it's
+            // already computed for `energy` above) — no extra decode, no extra window.
+            var dropSeconds: [Double]?
+            var exitSeconds: [Double]?
+            if let grid = musical.beatGrid {
+                let (drops, exits, _) = DropDetector.dropsAndExits(audio, beatSamples: grid.beatSamples)
+                func toSeconds(_ localBeatIndex: Int) -> Double {
+                    start + Double(grid.beatSamples[localBeatIndex]) / audio.sampleRate
+                }
+                dropSeconds = drops.compactMap { $0 < grid.beatSamples.count ? toSeconds($0) : nil }
+                exitSeconds = exits.compactMap { $0 < grid.beatSamples.count ? toSeconds($0) : nil }
+            }
             if verify {
                 let full = FullAnalysis.run(AnalysisAudio(sampleRate: reader.targetSampleRate, channels: [pcm]))
                 let fullEnergy = full.energy.map { Double($0.scalar) }
@@ -121,7 +141,8 @@ struct BuiltInAnalyzer {
                     say("  MISMATCH \(entry.id): full \(String(describing: full.bpm)) \(full.key?.camelot.code ?? "-") \(String(describing: fullEnergy)) vs \(String(describing: musical.bpm)) \(musical.key ?? "-") \(String(describing: musical.energy))")
                 }
             }
-            return Analysis(bpm: musical.bpm, key: musical.key, energy: musical.energy, scopeSeconds: scope)
+            return Analysis(bpm: musical.bpm, key: musical.key, energy: musical.energy, scopeSeconds: scope,
+                           dropSeconds: dropSeconds, exitSeconds: exitSeconds)
         }.value
     }
 
@@ -132,7 +153,9 @@ struct BuiltInAnalyzer {
     /// `FullAnalysis.runInternal`'s tempo → beat grid → key → energy stages, line for line, without
     /// the loudness (true-peak oversampling), phrase and waveform stages Build a Mix doesn't use —
     /// those were ~80% of the time, putting the 4,017-track run at five hours.
-    static func musicalStages(_ pcm: AnalysisAudio) -> (bpm: Double?, key: String?, energy: Double?) {
+    static func musicalStages(
+        _ pcm: AnalysisAudio
+    ) -> (bpm: Double?, key: String?, energy: Double?, beatGrid: BeatGrid?) {
         let stft = STFTConfig()
         let kernel = STFTKernel(config: stft)
         let spectra = kernel.spectra(pcm.mono)
@@ -171,7 +194,7 @@ struct BuiltInAnalyzer {
                                              frameRateHz: 1 / hopSeconds, sampleRate: stft.sampleRate)
             energy = Double(EnergyAnalyzer.scalar(curve))
         }
-        return (bpm, key?.camelot.code, energy)
+        return (bpm, key?.camelot.code, energy, beatGrid)
     }
 
     /// Progress for the person running the tool (stdout, unbuffered).

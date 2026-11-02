@@ -4,7 +4,7 @@ import hashlib, json, math, os, re, sqlite3
 SCHEMA_VERSION = 1
 GENERATOR_VERSION = '1'
 DIMENSIONS = 128
-MAX_PROFILE_BYTES = 4096
+MAX_PROFILE_BYTES = 16384
 MAX_PROFILE_KEYS = 64
 STATUS_COMPLETE, STATUS_INCOMPLETE = 'complete', 'incomplete'
 ENTRY_FIELDS = ('provider', 'providerTrackID', 'streamURL', 'sourceRevision', 'title', 'artist',
