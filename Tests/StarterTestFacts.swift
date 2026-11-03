@@ -1,7 +1,7 @@
 import Foundation
 @testable import TonearmCore
 
-/// Test-only analysis of the 36 Starter tracks, used to synthesize audio and to seed catalog rows.
+/// Test-only analysis of the 54 Starter tracks, used to synthesize audio and to seed catalog rows.
 /// Production starter definitions carry no per-track facts; catalog data is authoritative there.
 enum StarterTestFacts {
     static let all: [StarterTrackFacts] = [
@@ -41,6 +41,24 @@ enum StarterTestFacts {
         StarterTrackFacts(id: "1393688", durationSeconds: 240.03845804988663, bpm: 63.84322115357926, beatPeriod: 0.9398022047738769, beatPhase: 0.9017489483697254, rmsDB: -7.535134032575394),
         StarterTrackFacts(id: "878019", durationSeconds: 343.2316553287982, bpm: 64.61149180882369, beatPeriod: 0.9286273744852008, beatPhase: 0.3949100404807856, rmsDB: -16.76429732712874),
         StarterTrackFacts(id: "398173", durationSeconds: 326.841179138322, bpm: 64.97185581358569, beatPeriod: 0.9234767769624633, beatPhase: 0.8857453668883636, rmsDB: -18.225940010271387),
+        StarterTrackFacts(id: "1834219", durationSeconds: 246.0, bpm: 117.45383522727273, beatPeriod: 0.5108390022675736, beatPhase: 0.4643990929705223, rmsDB: -10.364242035950348),
+        StarterTrackFacts(id: "1834794", durationSeconds: 324.0, bpm: 117.45383522727273, beatPeriod: 0.5108390022675736, beatPhase: 0.02321995464852611, rmsDB: -14.477887735507549),
+        StarterTrackFacts(id: "1833213", durationSeconds: 224.26208616780045, bpm: 123.046875, beatPeriod: 0.4876190476190476, beatPhase: 0.02321995464852611, rmsDB: -11.78244926587337),
+        StarterTrackFacts(id: "1694453", durationSeconds: 283.81555555555553, bpm: 123.046875, beatPeriod: 0.4876190476190476, beatPhase: 0.25541950113378686, rmsDB: -12.688703708671376),
+        StarterTrackFacts(id: "1871435", durationSeconds: 220.28190476190477, bpm: 129.19921875, beatPeriod: 0.46439909297052157, beatPhase: 0.2089795918367347, rmsDB: -10.954569248760183),
+        StarterTrackFacts(id: "1848620", durationSeconds: 227.3437641723356, bpm: 129.19921875, beatPeriod: 0.46439909297052157, beatPhase: 0.04643990929705211, rmsDB: -10.838038276441928),
+        StarterTrackFacts(id: "1896376", durationSeconds: 185.37931972789116, bpm: 72.51154081933733, beatPeriod: 0.827454489616903, beatPhase: 0.03018066314584733, rmsDB: -10.795870308391834),
+        StarterTrackFacts(id: "1676541", durationSeconds: 162.22707482993198, bpm: 72.9628853924906, beatPeriod: 0.822335899645976, beatPhase: 0.16253968253968254, rmsDB: -10.94984773383633),
+        StarterTrackFacts(id: "1897489", durationSeconds: 189.72975056689341, bpm: 74.0043950754232, beatPeriod: 0.8107626572563654, beatPhase: 0.04837566473909938, rmsDB: -14.220484713320594),
+        StarterTrackFacts(id: "1641226", durationSeconds: 132.01668934240362, bpm: 75.00250314045883, beatPeriod: 0.7999733007261997, beatPhase: 0.05536098648065213, rmsDB: -10.65402078624276),
+        StarterTrackFacts(id: "1334054", durationSeconds: 255.06666666666666, bpm: 78.19811244552481, beatPeriod: 0.7672819473973599, beatPhase: 0.20079203986874017, rmsDB: -12.445262814892068),
+        StarterTrackFacts(id: "1593988", durationSeconds: 149.6960544217687, bpm: 80.00803754179265, beatPeriod: 0.7499246556154895, beatPhase: 0.03779096369286439, rmsDB: -12.975573336528312),
+        StarterTrackFacts(id: "1912687", durationSeconds: 179.01174603174604, bpm: 114.99312791352246, beatPeriod: 0.5217703100060155, beatPhase: 0.16253968253968254, rmsDB: -13.316479427010428),
+        StarterTrackFacts(id: "1932670", durationSeconds: 190.2792290249433, bpm: 116.02171878297231, beatPeriod: 0.5171445538764573, beatPhase: 0.5108390022675737, rmsDB: -11.838548912435648),
+        StarterTrackFacts(id: "1958457", durationSeconds: 251.01845804988662, bpm: 119.98656737854823, beatPeriod: 0.5000559755218656, beatPhase: 0.08957201627988454, rmsDB: -13.267994399518965),
+        StarterTrackFacts(id: "1247238", durationSeconds: 245.94984126984127, bpm: 121.00560123705768, beatPeriod: 0.49584481533591307, beatPhase: 0.038214141580186656, rmsDB: -12.33295189456953),
+        StarterTrackFacts(id: "1295439", durationSeconds: 201.984126984127, bpm: 126.01399291333871, beatPeriod: 0.47613759879240314, beatPhase: 0.11609977324263039, rmsDB: -10.76678369922709),
+        StarterTrackFacts(id: "1179546", durationSeconds: 212.81251700680272, bpm: 127.94878544265225, beatPeriod: 0.46893762838329184, beatPhase: 0.24634243030824632, rmsDB: -14.632881893235275),
     ]
     static let byID: [String: StarterTrackFacts] = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
 }

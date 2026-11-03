@@ -176,7 +176,7 @@ final class StarterStreamPlayerTests: XCTestCase {
         return (player, run)
     }
 
-    func testEveryOneOfTheThirtySuppliedEdgesIsExecutedByTheStreamingRenderer() async throws {
+    func testEveryOneOfTheFortyFiveSuppliedEdgesIsExecutedByTheStreamingRenderer() async throws {
         var executed = 0
         for blend in StarterBlendCatalog.blends {
             for i in 0..<5 {
@@ -253,7 +253,7 @@ final class StarterStreamPlayerTests: XCTestCase {
                 executed += 1
             }
         }
-        XCTAssertEqual(executed, 30)
+        XCTAssertEqual(executed, 45)
     }
 
     func testStartsOnlyAfterTheFirstBufferFills() async throws {

@@ -3,7 +3,7 @@ import GRDB
 
 /// Which kind of source a catalog row plays from.
 public enum BlendCatalogSourceKind: String, Codable, Sendable, Equatable {
-    /// An immutable asset on the pinned Starter Release (the 36 mirrored IDs only).
+    /// An immutable asset on the pinned Starter Release (the 54 mirrored IDs only).
     case starterRelease
     /// A Jamendo catalog track: provider `jamendo` plus a stable track ID.
     case jamendo
@@ -61,7 +61,7 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     }
 
     /// The explicit source of this row. A Starter row yields only the pinned Release asset of one of the
-    /// 36 mirrored IDs; a Jamendo row yields provider identity plus its cached URL. A Release locator is
+    /// 54 mirrored IDs; a Jamendo row yields provider identity plus its cached URL. A Release locator is
     /// never produced for a non-starter ID, and a Jamendo locator never for a Starter ID.
     public func audioLocator(in pack: StarterBlendPack = .v2) -> AudioLocator? {
         switch sourceKind {
@@ -78,7 +78,7 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
         }
     }
 
-    /// Catalog key of a session track ID: the 36 mirrored Starter IDs live under the pack tag, every
+    /// Catalog key of a session track ID: the 54 mirrored Starter IDs live under the pack tag, every
     /// other ID is an ordinary Jamendo catalog row.
     public static func catalogKey(forTrackID id: String, pack: StarterBlendPack) -> String {
         pack.contains(trackID: id) ? key(pack: pack, trackID: id) : jamendoKey(trackID: id)

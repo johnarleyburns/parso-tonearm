@@ -15,5 +15,12 @@
 # tools/starter-shards/assemble_starter.py (see .github/workflows/assemble-starter-pack.yml). To
 # publish a new build, upload it under a new release tag (never replace bytes at a URL a build
 # already resolves) and update these rows.
+#
+# starter-v4-128c7155029a adds a standalone 6-track micro-batch (progressive house, for the
+# Berlin Club Starter Blend — not part of the frozen manifest-v1.json cohort, which has zero
+# candidates for that tag) on top of the original 881-track cohort, unchanged byte-for-byte.
+# Built via .github/workflows/build-starter-micro-shard.yml against
+# Config/starter-batches/micro/{manifest-berlin-club,batch-berlin-club-micro}.json, merged with
+# tools/starter-shards/assemble_starter.py's own track_row()/logical_hash() (not reimplemented).
 
-https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-v4-80c96bcd19aa/starter.sqlite  60373ebf7a5e0f045b44440ffcd0e7973604fc7fa65c66ff0f79c0c623961187  starter.sqlite
+https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-v4-128c7155029a/starter.sqlite  f1ed4d6ae7f3f90931058941e5286acc8e1b39060b01775a0ffa04c18ed0bd6b  starter.sqlite

@@ -33,7 +33,7 @@ public struct StarterBlend: Identifiable, Sendable, Equatable {
 
 public enum StarterBlendCatalog {
     public static let pack = StarterBlendPack.v2
-    /// The 36 mirrored Starter Pack track IDs (the only IDs with a Release asset).
+    /// The 54 mirrored Starter Pack track IDs (the only IDs with a Release asset).
     public static var starterTrackIDs: Set<String> { Set(blends.flatMap(\.trackIDs)) }
     public static let creditsURL = URL(string: "https://www.jamendo.com/about")!
     public static let attribution = "Music from Jamendo, used under the owner's direct licensing agreement with Jamendo."
@@ -41,8 +41,10 @@ public enum StarterBlendCatalog {
     private static let epoch = Date(timeIntervalSince1970: 1_767_225_600)
 
     /// v2: re-curated from the v4 native Jamendo starter pipeline (Config/starter-batches/) after
-    /// v1's tracks fell out of the bundled starter catalog. Same six moods, same structure (6 tracks
-    /// each); facts/edge plans (StarterBlendRuntimeData) are real audio analysis, not invented.
+    /// v1's tracks fell out of the bundled starter catalog, then extended with three more genre
+    /// blends (Berlin Club/progressive house, Groove City/hip-hop, Disco Boogie/disco). Same
+    /// structure throughout (6 tracks each); facts/edge plans (StarterBlendRuntimeData) are real
+    /// audio analysis, not invented.
     public static let blends: [StarterBlend] = [
         make(0, "starter.morning-light", "Morning Light", "Gentle and bright, slow to mid tempo",
              "sunrise.fill", 0.10, ["1174818", "2232438", "1428775", "2020849", "26742", "1832242"]),
@@ -55,7 +57,13 @@ public enum StarterBlendCatalog {
         make(4, "starter.upbeat-energy", "Upbeat Energy", "Driving and positive, fast tempo",
              "bolt.fill", 0.95, ["81744", "951", "2016794", "222565", "1059819", "375191"]),
         make(5, "starter.rainy-day", "Rainy Day", "Soft piano and ambient textures, very slow",
-             "cloud.rain.fill", 0.55, ["29872", "957463", "1589557", "1393688", "878019", "398173"])
+             "cloud.rain.fill", 0.55, ["29872", "957463", "1589557", "1393688", "878019", "398173"]),
+        make(6, "starter.berlin-club", "Berlin Club", "Deep, driving four-on-the-floor, mid to fast tempo",
+             "waveform", 0.83, ["1834219", "1834794", "1833213", "1694453", "1871435", "1848620"]),
+        make(7, "starter.groove-city", "Groove City", "Laid-back beats and bass, mid tempo",
+             "headphones", 0.25, ["1896376", "1676541", "1897489", "1641226", "1334054", "1593988"]),
+        make(8, "starter.disco-boogie", "Disco Boogie", "Four-on-the-floor funk and strings, mid to fast tempo",
+             "sparkles", 0.90, ["1912687", "1932670", "1958457", "1247238", "1295439", "1179546"])
     ]
 
     public static func blend(id: String) -> StarterBlend? { blends.first { $0.id == id } }

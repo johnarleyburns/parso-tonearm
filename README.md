@@ -173,8 +173,12 @@ Offline/dev-only tooling lives in `tools/` (none of it runs at app runtime or in
 tools/
   starter-shards/   Jamendo starter-pack shard build + validate + assemble (build_shard.py,
                      assemble_starter.py, shardlib.py) — produces the bundled Mood Starter catalog.
-  starter-blends/   Starter Blends: structure-input.json (the fixed 6-blend/30-edge track
-                     sequence + curated StarterTrackFacts) feeds Sources/Tools/StarterBlendEdgePlanner
+                     merge_micro_shard.py merges a standalone micro-batch (one that doesn't belong
+                     in the frozen manifest-v1.json cohort — see .github/workflows/
+                     build-starter-micro-shard.yml and Config/starter-batches/micro/) into a copy
+                     of an already-assembled starter.sqlite without touching its existing rows.
+  starter-blends/   Starter Blends: structure-input.json (the fixed 9-blend/45-edge track
+                     sequence + already-measured track facts) feeds Sources/Tools/StarterBlendEdgePlanner
                      (real DropDetector/DropAwareEdgePlanner edge planning, run via
                      .github/workflows/regen-starter-blend-edges.yml); generate-runtime-data.py is the
                      older v1-era translator, kept for reference.
@@ -184,7 +188,8 @@ tools/
                      automatic — kept because it's still the clearest place to read the algorithm.
   starter-catalog/  Generates tools/starter-catalog/jamendo_taxonomy_v1.json from
                      Sources/Remote/Providers/JamendoGenreProvider.swift (the sole genre/subgenre
-                     authority — see CLAUDE.md).
+                     authority — see CLAUDE.md). search_tag.py is an ad-hoc single-tag Jamendo
+                     search (metadata only) for curating a new blend/cohort addition.
   clap-coreml/      CLAP audio/text encoder export + Core ML conversion for on-device embeddings.
   demucs-coreml/    Demucs stem-separation model export + Core ML conversion.
   starter-expand/   Expands the starter-pack candidate pool ahead of shard generation.

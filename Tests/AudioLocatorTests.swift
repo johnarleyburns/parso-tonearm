@@ -25,7 +25,7 @@ final class AudioLocatorTests: XCTestCase {
         let pack = StarterBlendPack.v2
         XCTAssertEqual(pack.locator(trackID: "337997"),
                        .starterRelease(packTag: "starter-blends-aac-v2", assetName: "337997.m4a"))
-        XCTAssertEqual(StarterBlendCatalog.starterTrackIDs.count, 36)
+        XCTAssertEqual(StarterBlendCatalog.starterTrackIDs.count, 54)
         XCTAssertNil(pack.assetURL(trackID: "999999999"))
         XCTAssertNil(pack.locator(trackID: "999999999"))
     }

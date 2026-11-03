@@ -106,9 +106,9 @@ final class BlendCatalogTests: XCTestCase {
         let version = try adapter.contentVersion()
         let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
         let entries = try adapter.resolve(trackIDs: ids)
-        XCTAssertEqual(entries.count, 36)
+        XCTAssertEqual(entries.count, 54)
         let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
-        XCTAssertEqual(rows.count, 36)
+        XCTAssertEqual(rows.count, 54)
         for entry in entries {
             let row = try XCTUnwrap(rows.first { $0.trackID == entry.trackID }, entry.catalogID)
             XCTAssertEqual(row.genre, entry.genre)
@@ -148,7 +148,7 @@ final class BlendCatalogTests: XCTestCase {
         XCTAssertEqual(row?.state, .blendEligible, "progress made by indexing is kept")
         XCTAssertEqual(row?.beatPeriod, 0.5)
         let count = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag).count
-        XCTAssertEqual(count, 36)
+        XCTAssertEqual(count, 54)
     }
 
     /// Copies the real catalog and applies `mutate`, so failures are exercised against actual data.
@@ -166,7 +166,7 @@ final class BlendCatalogTests: XCTestCase {
         let adapter = try StarterCatalogAdapter.bundled()
         let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
         let entries = try adapter.resolve(trackIDs: ids)
-        XCTAssertEqual(entries.count, 36)
+        XCTAssertEqual(entries.count, 54)
         XCTAssertEqual(entries.map(\.trackID), ids)
         XCTAssertTrue(entries.allSatisfy { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
         XCTAssertTrue(entries.allSatisfy { !$0.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
@@ -270,7 +270,7 @@ final class BlendCatalogTests: XCTestCase {
     func testFreshInstallSeedsTheCatalogAndSuppliedPlans() async throws {
         let store = try LibraryStore(inMemory: true)
         let tracks = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
-        XCTAssertEqual(tracks.count, 36)
+        XCTAssertEqual(tracks.count, 54)
         for blend in StarterBlendCatalog.blends {
             for plan in blend.edgePlans {
                 let stored = try await store.blendCatalogEdgePlan(

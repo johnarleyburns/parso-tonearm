@@ -6,7 +6,7 @@ private final class StartLog {
     var requests: [StarterPlayRequest] = []
 }
 
-/// The six revised Starter packs: exact ids, order and the 30 supplied edge plans.
+/// The nine Starter packs: exact ids, order and the 45 supplied edge plans.
 @MainActor
 final class StarterBlendTests: XCTestCase {
     static let expected: [(id: String, tracks: [String])] = [
@@ -15,16 +15,19 @@ final class StarterBlendTests: XCTestCase {
         ("starter.night-drive", ["946", "20237", "7475", "1555047", "1353514", "296235"]),
         ("starter.acoustic-evening", ["1204663", "1585553", "1246367", "337997", "1204670", "1337398"]),
         ("starter.upbeat-energy", ["81744", "951", "2016794", "222565", "1059819", "375191"]),
-        ("starter.rainy-day", ["29872", "957463", "1589557", "1393688", "878019", "398173"])
+        ("starter.rainy-day", ["29872", "957463", "1589557", "1393688", "878019", "398173"]),
+        ("starter.berlin-club", ["1834219", "1834794", "1833213", "1694453", "1871435", "1848620"]),
+        ("starter.groove-city", ["1896376", "1676541", "1897489", "1641226", "1334054", "1593988"]),
+        ("starter.disco-boogie", ["1912687", "1932670", "1958457", "1247238", "1295439", "1179546"])
     ]
 
-    func testSixRevisedPacksAre36UniqueTracksAndThirtyOrderedEdges() {
+    func testNineRevisedPacksAre54UniqueTracksAndFortyFiveOrderedEdges() {
         XCTAssertEqual(StarterBlendCatalog.blends.map(\.id), Self.expected.map(\.id))
         XCTAssertEqual(StarterBlendCatalog.blends.map(\.trackIDs), Self.expected.map(\.tracks))
         let all = StarterBlendCatalog.blends.flatMap(\.trackIDs)
-        XCTAssertEqual(all.count, 36)
-        XCTAssertEqual(Set(all).count, 36)
-                XCTAssertEqual(StarterBlendRuntimeData.edges.count, 30)
+        XCTAssertEqual(all.count, 54)
+        XCTAssertEqual(Set(all).count, 54)
+                XCTAssertEqual(StarterBlendRuntimeData.edges.count, 45)
         for blend in StarterBlendCatalog.blends {
             XCTAssertEqual(blend.pack, .v2)
             XCTAssertEqual(blend.edgePlans.count, 5, blend.id)
@@ -53,9 +56,9 @@ final class StarterBlendTests: XCTestCase {
         // Real drop/bass-exit structure (StarterBlendEdgePlanner, ParsoAudioAnalysis.DropDetector):
         // most edges land a real doubleDrop or phraseCut; CatalogEdgePlanner's plain bassSwap is
         // the fallback for the few pairs where neither track's structure gave a usable point.
-        XCTAssertEqual(styles[.doubleDrop], 17)
-        XCTAssertEqual(styles[.phraseCut], 11)
-        XCTAssertEqual(styles[.bassSwap], 2)
+        XCTAssertEqual(styles[.doubleDrop], 27)
+        XCTAssertEqual(styles[.phraseCut], 14)
+        XCTAssertEqual(styles[.bassSwap], 4)
     }
 
     func testPlanValuesAreCopiedExactly() throws {

@@ -139,7 +139,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
     }
 
     /// Drives every supplied edge of every blend through the production player and bounded renderer.
-    func testAllThirtySuppliedEdgesExecuteThroughTheProductionRenderer() async throws {
+    func testAllFortyFiveSuppliedEdgesExecuteThroughTheProductionRenderer() async throws {
         var executed = 0
         for blend in StarterBlendCatalog.blends {
             for i in 0..<5 {
@@ -167,7 +167,7 @@ final class StarterBlendProductionPathTests: XCTestCase {
                 executed += 1
             }
         }
-        XCTAssertEqual(executed, 30)
+        XCTAssertEqual(executed, 45)
         // v2 edges now carry real doubleDrop/phraseCut structure (StarterBlendEdgePlanner); pin
         // one of each style's real, DropAwareEdgePlanner/CatalogEdgePlanner-computed schedule.
         let night = try XCTUnwrap(StarterBlendRuntimeData.edges.first { $0.blendID == "starter.night-drive" && $0.edge == 5 })

@@ -211,7 +211,7 @@ final class CatalogSourceOpenerTests: XCTestCase {
             XCTAssertEqual(legacy.sourceKind, .jamendo)
             XCTAssertEqual(legacy.providerTrackID, "777")
             XCTAssertEqual(legacy.cachedURL, "https://example.test/777.mp3")
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track WHERE sourceKind = 'starterRelease'"), 36)
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track WHERE sourceKind = 'starterRelease'"), 54)
         }
     }
 
