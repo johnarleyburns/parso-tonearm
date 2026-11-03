@@ -1,0 +1,81 @@
+name: Build starter micro-shard
+
+# For a small, source-controlled addition to the bundled starter catalog that doesn't fit the
+# frozen manifest-v1.json cohort (e.g. a new genre with no existing candidates at all): builds one
+# shard from a standalone catalog+batch pair via the same real pipeline (CLAP embedding +
+# BuiltInAnalyzer) as the main 9 batches, independent of manifest-v1.json's hash/ordering. Never
+# publishes a release or touches Config/starter.lock — the shard is a build artifact for manual
+# review and merge into a starter.sqlite copy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_path:
+        description: Path to the standalone batch JSON (must be in canonical form)
+        required: true
+        type: string
+      catalog_path:
+        description: Path to the standalone catalog JSON this batch validates against
+        required: true
+        type: string
+      shard_name:
+        description: Output file base name (no extension)
+        required: true
+        type: string
+
+concurrency:
+  group: build-starter-micro-shard
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    env:
+      MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
+      EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          test -f "${{ inputs.batch_path }}"
+          test -f "${{ inputs.catalog_path }}"
+          test -n "$EMBEDDING_SPACE_FINGERPRINT"
+      - name: Build analysis tools and fetch pinned model
+        run: |
+          set -euo pipefail
+          swift build -c release --product BuiltInEmbedder
+          swift build -c release --product BuiltInAnalyzer
+          MODEL_LOCK="$RUNNER_TEMP/starter-audio.models.lock"
+          awk '/^[[:space:]]*#/ || /^[[:space:]]*$/ || /CLAPAudioEncoder\.mlpackage/ { print }' \
+            Config/models.lock > "$MODEL_LOCK"
+          MODELS_LOCK="$MODEL_LOCK" scripts/fetch-models.sh
+          mkdir -p "$RUNNER_TEMP/micro-shard" "$RUNNER_TEMP/micro-audio"
+      - name: Build the micro-shard
+        run: |
+          set -euo pipefail
+          TMPDIR="$RUNNER_TEMP/micro-audio" python3 -I tools/starter-shards/build_shard.py \
+            --batch "${{ inputs.batch_path }}" --catalog "${{ inputs.catalog_path }}" \
+            --model-dir "$MODEL_DIR" --embedding-space-fingerprint "$EMBEDDING_SPACE_FINGERPRINT" \
+            --output "$RUNNER_TEMP/micro-shard/${{ inputs.shard_name }}.sqlite"
+      - name: Require a complete zero-failure shard
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP/micro-shard/${{ inputs.shard_name }}.sqlite" <<'PY'
+          import sqlite3, sys
+          db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+          meta = dict(db.execute("SELECT key, value FROM shard_meta"))
+          failures = db.execute("SELECT count(*) FROM shard_failure").fetchone()[0]
+          assert meta.get("status") == "complete", meta
+          assert meta.get("fatal_failure_count") == "0" and failures == 0, (meta, failures)
+          PY
+      - name: Upload micro-shard artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-micro-shard-${{ inputs.shard_name }}
+          path: ${{ runner.temp }}/micro-shard/
+          retention-days: 7
