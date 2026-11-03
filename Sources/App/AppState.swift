@@ -15,42 +15,12 @@ enum PendingImport: Equatable {
     case folder, files, smbFolder
 }
 
-struct MixBuilderRequest: Identifiable {
-    let id = UUID()
-    let rows: [TrackRow]
-    let lockedFirst: Int64?
-    let sourcePlaylist: Playlist?
-    /// Build a Mix from Listen (or the Mac's Build a Mix… command) picks its
-    /// own source — genre, playlist or all tracks — rather than mixing `rows`.
-    let picksSource: Bool
-
-    init(rows: [TrackRow], lockedFirst: Int64?, sourcePlaylist: Playlist? = nil,
-         picksSource: Bool = false) {
-        self.rows = rows
-        self.lockedFirst = lockedFirst
-        self.sourcePlaylist = sourcePlaylist
-        self.picksSource = picksSource
-    }
-}
-
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
     /// One preparation coordinator shared by Settings, Up Next and Mix
     /// Preview. Its published state is the status surface for every action.
     let transitionPrepService: TransitionPrepService
-    /// The one persistent store of saved blends (My Music > Saved Blends).
-    let blendRepository = BlendRepository(url: AppState.blendsFileURL)
-    /// Queue signature (track IDs in order) -> the blend id it was saved as, so
-    /// tapping Save Blend again for the same active queue is idempotent.
-    @Published var savedBlendIDsByQueue: [[Int64]: UUID] = [:]
-    private static var blendsFileURL: URL {
-        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                 appropriateFor: nil, create: true))
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Blends", isDirectory: true).appendingPathComponent("blends.json")
-    }
-
     /// Restored from the last launch (real report: "when I enter Platterhead it doesn't return to
     /// where I was, it starts from scratch" — the tab always reset to `.listen`, nothing persisted
     /// it). The playback queue/position already survive relaunch
@@ -68,6 +38,14 @@ final class AppState: ObservableObject {
     // tab. The versioned key prevents an old Settings raw value from opening
     // an unrelated new tab after the navigation change.
     private static let lastTabKey = "lastActiveTab.v6"
+    /// The one persistent index of recorded mixes (My Music > Mixes).
+    let mixRecordingRepository = MixRecordingRepository(indexURL: AppState.mixesIndexURL)
+    private static var mixesIndexURL: URL {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                                 appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("Tonearm/Mixes", isDirectory: true).appendingPathComponent("index.json")
+    }
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
@@ -101,7 +79,6 @@ final class AppState: ObservableObject {
     @Published var showAddSource = false
     @Published var showAddRemoteLibrary = false
     @Published var showCreatePlaylist = false
-    @Published var mixBuilderRequest: MixBuilderRequest?
     /// Bumped by the Mac's Edit › Find (⌘F) to focus the toolbar search field.
     @Published var macSearchFocusRequest = 0
     /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
@@ -137,7 +114,6 @@ final class AppState: ObservableObject {
     // Watch
     @Published var watchSessionState: WatchSessionDisplayState = .unsupported
     @Published var showWatchSettings = false
-    @Published var showBlendLab = false
     @Published var watchTransferActiveCount: Int = 0
     /// Watch track IDs (`PhoneWatchID` stable strings) the watch has reported as installed.
     @Published var watchInstalledTrackIDs: Set<String> = []
@@ -363,11 +339,3 @@ extension Notification.Name {
         "tonearm.musicalMetadataDidChange")
 }
 
-extension AppState {
-    /// Build a Mix as offered on Mood: the builder picks its own source
-    /// (genre, playlist or all tracks) from the music the listener owns.
-    func requestBuildAMix() {
-        mixBuilderRequest = MixBuilderRequest(
-            rows: allTracks.isEmpty ? recentlyPlayed : allTracks, lockedFirst: nil, picksSource: true)
-    }
-}

@@ -13,8 +13,6 @@ struct FindView: View {
     @State private var mixKey: String?
     @State private var soundSearchRows: [TrackRow]?
     @State private var soundSearchRevision = 0
-    @State private var savedBlends: [BlendDocument] = []
-    @State private var selectedBlend: BlendDocument?
 
     private var filter: MyMusicFilter {
         guard mode == .mix else { return .init() }
@@ -46,9 +44,6 @@ struct FindView: View {
                     }
                     .fixedSize(horizontal: false, vertical: true)
 
-                if mode == .all, !blendResults.isEmpty {
-                    blendResultsSection
-                }
                 if hasSearchInput {
                 LibraryView(ownsNavigationStack: false,
                             externalMode: $browseMode,
@@ -71,56 +66,10 @@ struct FindView: View {
             .largeNavigationTitle()
             .rootTabChrome(.find)
         }
-        .sheet(item: $selectedBlend) { blend in
-            BlendDetailView(blend: blend)
-        }
-        .task(id: appState.searchText) {
-            guard LibrarySearchPolicy.shouldSearch(appState.searchText) else { return }
-            savedBlends = await appState.blendRepository.load().blends
-        }
         .task(id: appState.didLoadLibraryOnce) {
             guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
         }
-    }
-
-    private var blendResults: [FindBlendSearch.Result] {
-        FindBlendSearch.results(query: appState.searchText, saved: savedBlends)
-    }
-
-    /// Saved blends matching the query. Selecting never touches the library: opens detail.
-    private var blendResultsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Blends")
-            ForEach(blendResults) { result in
-                switch result {
-                case .saved(let blend):
-                    Button { selectedBlend = blend } label: {
-                        blendRow(title: blend.title, kind: "Saved blend",
-                                 detail: "\(blend.occurrences.count) tracks")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("find.blend.saved")
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
-        .accessibilityIdentifier("find.blends")
-    }
-
-    private func blendRow(title: String, kind: LocalizedStringKey, detail: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Typography.callout).foregroundStyle(Palette.ink)
-                Text(detail).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
-            }
-            Spacer(minLength: 8)
-            Text(kind).font(Typography.caption).foregroundStyle(Palette.inkSecondary)
-        }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 
     private var findScopePicker: some View {

@@ -38,41 +38,6 @@ struct UpNextView: View {
                 set: { selectedEdge = $0?.key })
     }
 
-    private var queueSignature: [Int64] { player.queue.map(\.id) }
-    private var isQueueSaved: Bool { appState.savedBlendIDsByQueue[queueSignature] != nil }
-
-    private var saveBlendButton: some View {
-        Button {
-            let rows = player.queue
-            let signature = queueSignature
-            var origin = BlendDocument.Origin.manualQueue
-            var plan: MixPlan?
-            if case .mix(let mixPlan) = player.queueSource { origin = .blendLab; plan = mixPlan }
-            let id = appState.savedBlendIDsByQueue[signature] ?? UUID()
-            let doc = BlendReplay.document(from: rows, plan: plan,
-                                           title: rows.first?.track.title ?? String(localized: "Blend"),
-                                           origin: origin, id: id)
-            Task {
-                do {
-                    try await appState.blendRepository.save(doc)
-                    appState.savedBlendIDsByQueue[signature] = id
-                    AccessibilityNotification.Announcement(String(localized: "Blend saved")).post()
-                } catch {
-                    AccessibilityNotification.Announcement(String(localized: "Could not save blend")).post()
-                }
-            }
-        } label: {
-            Image(systemName: isQueueSaved ? "checkmark.circle.fill" : "square.and.arrow.down")
-                .font(Typography.caption)
-                .foregroundStyle(Palette.inkSecondary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isQueueSaved ? "Saved Blend" : "Save Blend")
-        .accessibilityIdentifier("np.saveBlend")
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
@@ -89,10 +54,6 @@ struct UpNextView: View {
                 }
 
                 keepPlayingToggle
-
-                if !player.isAmbient, player.queue.count > 1 {
-                    saveBlendButton
-                }
 
                 if !player.keepPlayingAutoAddedTrackIDs.isEmpty {
                     Button {
