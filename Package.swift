@@ -11,8 +11,7 @@ let package = Package(
         .library(name: "TonearmWatchProtocol", targets: ["TonearmWatchProtocol"]),
         .library(name: "TonearmWatchCore", targets: ["TonearmWatchCore"]),
         .executable(name: "BuiltInAnalyzer", targets: ["BuiltInAnalyzer"]),
-        .executable(name: "BuiltInEmbedder", targets: ["BuiltInEmbedder"]),
-        .executable(name: "StarterBlendEdgePlanner", targets: ["StarterBlendEdgePlanner"])
+        .executable(name: "BuiltInEmbedder", targets: ["BuiltInEmbedder"])
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
@@ -225,16 +224,6 @@ let package = Package(
                 .product(name: "ParsoAudioNeural", package: "parso-audio-engine")
             ],
             path: "Sources/Tools/BuiltInEmbedder",
-            swiftSettings: [.swiftLanguageMode(.v6)]
-        ),
-        .executableTarget(
-            name: "StarterBlendEdgePlanner",
-            dependencies: [
-                "TonearmCore",
-                "StarterGeneratorSupport",
-                .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine")
-            ],
-            path: "Sources/Tools/StarterBlendEdgePlanner",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
