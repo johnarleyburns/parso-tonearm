@@ -23,9 +23,10 @@ struct LoadedDeckInfo: Equatable {
 
 enum DJDeckSide { case left, right }
 
-/// Owns the one `DJEngine` for the manual DJ console: real load/play/pause/volume/PFL (Workstream
-/// G); split-cue output routing and REC land in later commits. Platter, tempo, EQ and isolator
-/// stay purely cosmetic (DJConsoleView/DeckView/MixerView) — nothing here drives them.
+/// Owns the one `DJEngine` for the manual DJ console: real load/play/pause/volume/PFL and
+/// single-output split-cue routing (`MasterOutputRoute`, from the engine's 1.5.0 release); REC
+/// lands in a later commit. Platter, tempo, EQ and isolator stay purely cosmetic
+/// (DJConsoleView/DeckView/MixerView) — nothing here drives them.
 @MainActor
 final class DJConsoleModel: ObservableObject {
     @Published private(set) var leftState: DeckLoadState = .empty
@@ -107,6 +108,9 @@ final class DJConsoleModel: ObservableObject {
     }
 
     /// Mutually exclusive, like a real mixer's PFL cluster — selecting one clears the other.
+    /// Clearing the only engaged PFL while a split is selected resets the route to `.stereo`:
+    /// `.splitLeft`/`.splitRight` only mean something with a PFL-selected deck feeding them, so
+    /// this never leaves the output silently routing an undefined cue signal.
     func togglePFL(_ side: DJDeckSide) {
         switch side {
         case .left:
@@ -120,7 +124,16 @@ final class DJConsoleModel: ObservableObject {
             engine.mixer.channelB.cuePFL = rightPFL
             engine.mixer.channelA.cuePFL = leftPFL
         }
+        if !leftPFL && !rightPFL { outputRoute = .stereo }
     }
+
+    /// Single-output "split cue": `.splitLeft`/`.splitRight` only make sense once a channel's
+    /// PFL is engaged (there would otherwise be no cue signal to route) — the UI disables those
+    /// two options until then rather than silently producing an undefined mix.
+    @Published var outputRoute: MasterOutputRoute = .stereo {
+        didSet { engine.masterOutputRoute = outputRoute }
+    }
+    var hasPFLSelection: Bool { leftPFL || rightPFL }
 
     func state(_ side: DJDeckSide) -> DeckLoadState { side == .left ? leftState : rightState }
     func info(_ side: DJDeckSide) -> LoadedDeckInfo? { side == .left ? leftInfo : rightInfo }

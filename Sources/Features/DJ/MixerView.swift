@@ -1,9 +1,11 @@
+import ParsoDJEngine
 import SwiftUI
 
-/// The center mixer: monitoring row, EQ (3 channels), isolator, channel volumes + meter —
-/// matching the mockup. Channel volume knobs and each channel's PFL button are real this pass
-/// (Workstream G); Split L/Split R/Stereo (Workstream H) and REC (Workstream I) land next.
-/// Monitoring, EQ and isolator stay static, wired up later one at a time.
+/// The center mixer: monitoring row, EQ (3 channels), isolator, channel volumes + meter, and the
+/// output-route control — matching the mockup, plus the route control the mockup predates.
+/// Channel volume knobs, each channel's PFL button, and the output route are real this pass
+/// (Workstreams G/H); REC (Workstream I) lands next. Monitoring, EQ and isolator stay static,
+/// wired up later one at a time.
 struct MixerView: View {
     @EnvironmentObject private var model: DJConsoleModel
 
@@ -13,9 +15,42 @@ struct MixerView: View {
             eqBlock
             isolatorBlock
             channelVolumesRow
+            outputRouteControl
         }
         .padding(.horizontal, 6)
         .accessibilityIdentifier("dj.mixer")
+    }
+
+    /// Single-output "split cue": PFL a channel first, then Split L/Split R sends that deck to
+    /// one ear and the master to the other. Disabled (and visually dimmed) until a PFL is
+    /// engaged, rather than letting the control silently produce an undefined mix.
+    private var outputRouteControl: some View {
+        VStack(spacing: 4) {
+            Text("OUTPUT").font(.system(size: 8, weight: .bold)).foregroundStyle(.white.opacity(0.5))
+            HStack(spacing: 4) {
+                routeButton("Stereo", .stereo)
+                routeButton("Split L", .splitLeft)
+                routeButton("Split R", .splitRight)
+            }
+        }
+        .accessibilityIdentifier("dj.mixer.outputRoute")
+    }
+
+    private func routeButton(_ title: String, _ route: MasterOutputRoute) -> some View {
+        let enabled = route == .stereo || model.hasPFLSelection
+        let active = model.outputRoute == route
+        return Button {
+            model.outputRoute = route
+        } label: {
+            Text(title).font(.system(size: 8, weight: .bold))
+                .padding(.horizontal, 6).padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .background(active ? Color(red: 0x56 / 255, green: 0xb7 / 255, blue: 1) : .white.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 6))
+                .foregroundStyle(active ? .black : .white.opacity(enabled ? 1 : 0.35))
+        }
+        .disabled(!enabled)
+        .accessibilityIdentifier("dj.mixer.outputRoute.\(title.replacingOccurrences(of: " ", with: ""))")
     }
 
     private var monitoringRow: some View {
