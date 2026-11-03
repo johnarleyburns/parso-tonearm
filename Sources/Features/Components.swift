@@ -262,14 +262,6 @@ struct TrackContextMenu: ViewModifier {
             Button { player.appendToQueue(row) } label: {
                 Label("Add to Queue", systemImage: "text.badge.plus")
             }
-            Button {
-                let seed = row.track.id.map { id in
-                    [row] + appState.allTracks.filter { $0.track.id != id }
-                } ?? appState.allTracks
-                appState.mixBuilderRequest = MixBuilderRequest(rows: seed, lockedFirst: row.track.id)
-            } label: {
-                Label("Start a Mix From This Track", systemImage: "waveform.path.ecg")
-            }
             Divider()
             Button {
                 appState.artworkChangeTrackRow = row

@@ -306,12 +306,6 @@ struct PlaylistDetailView: View {
                     }
                     .disabled(!hasAnalyzedBPM)
                     Button {
-                        appState.mixBuilderRequest = MixBuilderRequest(
-                            rows: trackRows, lockedFirst: nil, sourcePlaylist: currentPlaylist)
-                    } label: {
-                        Label("Mix This Playlist", systemImage: "waveform.path.ecg")
-                    }
-                    Button {
                         Task { await appState.download(rows: trackRows) }
                     } label: {
                         Label("Download All", systemImage: "arrow.down.circle")

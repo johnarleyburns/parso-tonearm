@@ -98,7 +98,7 @@ mkdir -p Config
     echo "targets: {}"
   else
     echo "targets:"
-    for target in Tonearm TonearmMac; do
+    for target in Tonearm; do
       echo "  $target:"
       echo "    sources:"
       for package in "${present_clap[@]}"; do

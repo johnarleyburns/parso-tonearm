@@ -32,7 +32,6 @@ struct ListenView: View {
                 favorites
                 statsCard(appState.listeningStats)
                     .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
-                BlendLabEntryButton()
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 160)
@@ -368,9 +367,7 @@ struct MoodView: View {
                 .frame(minHeight: Self.moodSectionMinHeight, alignment: .top)
                 .padding(.top, 18)
                 if moodReady != true || moodModel == nil {
-                    MoodActionRow(canPlay: false, starting: false,
-                                  canMakeMix: appState.didLoadLibraryOnce,
-                                  onPlay: {}, onMakeMix: { appState.requestBuildAMix() })
+                    MoodActionRow(canPlay: false, starting: false, onPlay: {})
                 }
             }
             .padding(.horizontal, 16)
@@ -565,13 +562,7 @@ private struct MoodEntryPointSection: View {
                     .accessibilityIdentifier("mood.matchingTracks")
             }
 
-            MoodActionRow(canPlay: !moodModel.results.isEmpty, starting: startingPlayback,
-                          canMakeMix: appState.didLoadLibraryOnce, onPlay: onPlay) {
-                if moodModel.results.isEmpty { appState.requestBuildAMix() }
-                else {
-                    appState.mixBuilderRequest = MixBuilderRequest(rows: moodModel.results.map(\.track), lockedFirst: nil)
-                }
-            }
+            MoodActionRow(canPlay: !moodModel.results.isEmpty, starting: startingPlayback, onPlay: onPlay)
 
             Group {
                 if !moodModel.results.isEmpty {
@@ -685,28 +676,17 @@ private struct MoodEntryPointSection: View {
 private struct MoodActionRow: View {
     let canPlay: Bool
     let starting: Bool
-    let canMakeMix: Bool
     let onPlay: () -> Void
-    let onMakeMix: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button(action: onPlay) {
-                Label(starting ? "Starting…" : "Play", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity).frame(height: 44)
-                    .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(Palette.accentOnFill)
-            }
-            .buttonStyle(.plain).disabled(starting || !canPlay)
-            .accessibilityIdentifier("mood.play")
-            Button(action: onMakeMix) {
-                Label("Make a Mix", systemImage: "waveform.path.ecg")
-                    .frame(maxWidth: .infinity).frame(height: 44)
-                    .glassSurface(cornerRadius: 12)
-            }
-            .buttonStyle(.plain).disabled(!canMakeMix)
-            .accessibilityIdentifier("mood.makeMix")
+        Button(action: onPlay) {
+            Label(starting ? "Starting…" : "Play", systemImage: "play.fill")
+                .frame(maxWidth: .infinity).frame(height: 44)
+                .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(Palette.accentOnFill)
         }
+        .buttonStyle(.plain).disabled(starting || !canPlay)
+        .accessibilityIdentifier("mood.play")
         .font(Typography.callout)
     }
 }

@@ -3,10 +3,8 @@ import TonearmCore
 import UniformTypeIdentifiers
 
 /// Every app-wide sheet, importer and picker that `AppState` can request —
-/// Add Music, Build a Mix, new playlist, sources/servers, the
-/// file importer, custom-artwork picker and metadata editor. Shared by the
-/// iPhone `RootView` and the Mac `MacRootView` so a flow added for one
-/// platform can never silently be missing from the other.
+/// Add Music, new playlist, sources/servers, the file importer,
+/// custom-artwork picker and metadata editor.
 struct AppPresentations: ViewModifier {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
@@ -25,22 +23,6 @@ struct AppPresentations: ViewModifier {
             .sheet(isPresented: $appState.showCreatePlaylist) {
                 CreatePlaylistSheet()
                     .macSheetFrame(minWidth: 420, minHeight: 480)
-            }
-            .sheet(isPresented: $appState.showBlendLab) {
-                BlendLabView(appState: appState)
-                    .macSheetFrame(minWidth: 560, minHeight: 640)
-            }
-            .sheet(item: $appState.mixBuilderRequest) { request in
-                MixBuilderSheet(rows: request.rows, lockedFirst: request.lockedFirst,
-                                sourcePlaylist: request.sourcePlaylist,
-                                picksSource: request.picksSource)
-                    // Sheets presented by a modifier do not reliably inherit environment
-                    // objects attached inside the presenting root's content tree. MixPreviewView
-                    // reads this service while rendering every transition row; inject it at the
-                    // sheet boundary so mood/genre-generated mixes cannot crash SwiftUI with a
-                    // missing EnvironmentObject during the first preview render.
-                    .environmentObject(appState.transitionPrepService)
-                    .macSheetFrame(minWidth: 560, minHeight: 640)
             }
             #if os(iOS)
             .sheet(isPresented: $appState.showWatchSettings) {
