@@ -6,7 +6,7 @@ import AVFoundation
 /// preview, current-deck and incoming-deck load goes through. Removing the provider or
 /// coordinator call from the player makes these fail.
 @MainActor
-final class SmartBlendProductionAdmissionTests: XCTestCase {
+final class LiveMixProductionAdmissionTests: XCTestCase {
     private var dir: URL!
     private var dirName = ""
     private var coordinator: ResourceCoordinator!
@@ -28,7 +28,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
 
     override func tearDown() async throws {
         AudioPlayer.shared.queue = []
-        AudioPlayer.shared.releaseSmartBlendReservation()
+        AudioPlayer.shared.releaseLiveMixReservation()
         AudioPlayer.shared.audioCapabilities = .shared
         AudioPlayer.shared.resourceCoordinator = .shared
         try? FileManager.default.removeItem(at: dir)
@@ -128,7 +128,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
     func testMonoChannelCountComesFromProbeNotStereoDefault() async throws {
         let player = makePlayer([try pcmFile("mono.wav", channels: 1)])
         _ = await admit(player, index: 0)
-        let caps = player.smartBlendCapabilities(at: 0)
+        let caps = player.liveMixCapabilities(at: 0)
         XCTAssertEqual(caps.channelCount, 1)
         XCTAssertEqual(caps.availability, .available)
         XCTAssertEqual(caps.provenance, .headerProbe)
@@ -151,7 +151,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
         for i in 0..<3 {
             let decision = await admit(player, index: i)
             XCTAssertEqual(decision, .allowLiveMix, "index \(i)")
-            XCTAssertFalse(player.smartBlendCapabilities(at: i).boundedRandomAccessActive,
+            XCTAssertFalse(player.liveMixCapabilities(at: i).boundedRandomAccessActive,
                            "a SEEKTABLE is not the capability decision")
         }
         let corrupt = await admit(player, index: 3)
@@ -201,7 +201,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
         player.resourceCoordinator = tight
         let decision = await admit(player, index: 0)
         XCTAssertEqual(decision, .gaplessFallback(reason: .memoryPressure))
-        XCTAssertNil(player.smartBlendReservation)
+        XCTAssertNil(player.liveMixReservation)
         XCTAssertTrue(tight.snapshot().reservations.isEmpty)
     }
 
@@ -209,7 +209,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
         let wav = try pcmFile("Private Name.wav", channels: 2)
         let player = makePlayer([wav])
         _ = await admit(player, index: 0)
-        let caps = player.smartBlendCapabilities(at: 0)
+        let caps = player.liveMixCapabilities(at: 0)
         for text in [caps.sourceID, String(describing: caps), "\(TransitionFallbackStatus(decision: .defer(reason: .preparingDetails)).message)"] {
             XCTAssertFalse(text.contains("Private Name"))
             XCTAssertFalse(text.contains(dir.path))

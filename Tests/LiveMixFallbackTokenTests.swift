@@ -5,7 +5,7 @@ import XCTest
 /// occurrence/generation, never recursing into the rejected mixer and never touching the
 /// global "Everywhere" preference.
 @MainActor
-final class SmartBlendFallbackTokenTests: XCTestCase {
+final class LiveMixFallbackTokenTests: XCTestCase {
     private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil, title: "S",
                              addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
                              licenseText: nil, memberCapHit: false)
@@ -24,7 +24,7 @@ final class SmartBlendFallbackTokenTests: XCTestCase {
         p.stopMixDecks()
         p.queue = duplicate ? [row(1), row(1)] : [row(1), row(2)]
         p.index = 0
-        p.smartBlendFallback = nil
+        p.liveMixFallback = nil
         return p
     }
 
@@ -35,48 +35,48 @@ final class SmartBlendFallbackTokenTests: XCTestCase {
 
     func testTokenBoundToOccurrenceIsConsumedOnceWithoutReenteringMixer() {
         let p = player()
-        let token = SmartBlendFallbackToken(occurrence: p.queueOccurrences[0], generation: p.mixDecksQueueGeneration)
-        p.smartBlendFallbackToken = token
+        let token = LiveMixFallbackToken(occurrence: p.queueOccurrences[0], generation: p.mixDecksQueueGeneration)
+        p.liveMixFallbackToken = token
         XCTAssertFalse(p.loadCurrentOnMixDecks(row: p.queue[0], autoplay: false))
-        XCTAssertNil(p.smartBlendFallbackToken, "consumed exactly once")
-        XCTAssertNil(p.smartBlendFallback, "the rejected mixer admission was not re-entered")
+        XCTAssertNil(p.liveMixFallbackToken, "consumed exactly once")
+        XCTAssertNil(p.liveMixFallback, "the rejected mixer admission was not re-entered")
     }
 
     func testDuplicateTrackOccurrenceIsDistinctFromItsTwin() {
         let p = player(duplicate: true)
         // The token is for the second A; the first A must not consume it as a match.
-        p.smartBlendFallbackToken = SmartBlendFallbackToken(occurrence: p.queueOccurrences[1],
+        p.liveMixFallbackToken = LiveMixFallbackToken(occurrence: p.queueOccurrences[1],
                                                             generation: p.mixDecksQueueGeneration)
         p.index = 0
         _ = p.loadCurrentOnMixDecks(row: p.queue[0], autoplay: false)
-        XCTAssertNotNil(p.smartBlendFallback, "A at slot 0 is a different occurrence and goes through admission")
+        XCTAssertNotNil(p.liveMixFallback, "A at slot 0 is a different occurrence and goes through admission")
     }
 
     func testQueueReplacementInvalidatesToken() {
         let p = player()
-        p.smartBlendFallbackToken = SmartBlendFallbackToken(occurrence: p.queueOccurrences[0],
+        p.liveMixFallbackToken = LiveMixFallbackToken(occurrence: p.queueOccurrences[0],
                                                             generation: p.mixDecksQueueGeneration)
         p.replaceQueueOccurrences()
         _ = p.loadCurrentOnMixDecks(row: p.queue[0], autoplay: false)
-        XCTAssertNotNil(p.smartBlendFallback, "a stale token is ignored; the new generation is admitted afresh")
+        XCTAssertNotNil(p.liveMixFallback, "a stale token is ignored; the new generation is admitted afresh")
     }
 
     func testStopAndSeekInvalidateToken() {
         let p = player()
-        let token = SmartBlendFallbackToken(occurrence: p.queueOccurrences[0], generation: p.mixDecksQueueGeneration)
-        p.smartBlendFallbackToken = token
+        let token = LiveMixFallbackToken(occurrence: p.queueOccurrences[0], generation: p.mixDecksQueueGeneration)
+        p.liveMixFallbackToken = token
         p.stopMixDecks()
-        XCTAssertNil(p.smartBlendFallbackToken)
-        p.smartBlendFallbackToken = token
+        XCTAssertNil(p.liveMixFallbackToken)
+        p.liveMixFallbackToken = token
         p.seek(to: 1)
-        XCTAssertNil(p.smartBlendFallbackToken)
+        XCTAssertNil(p.liveMixFallbackToken)
     }
 
     func testLateDenialWithoutDecksIsIgnoredAndLeavesEverywherePreference() {
         let p = player()
         let before = UserDefaults.standard.object(forKey: "smartTransitionsEverywhere")
         p.mixDecksDenied(index: 0, decision: .gaplessFallback(reason: .preparationFailed))
-        XCTAssertNil(p.smartBlendFallbackToken)
+        XCTAssertNil(p.liveMixFallbackToken)
         XCTAssertEqual(UserDefaults.standard.object(forKey: "smartTransitionsEverywhere") as? Bool, before as? Bool)
     }
 
