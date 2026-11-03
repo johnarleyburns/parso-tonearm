@@ -46,11 +46,16 @@ final class AppState: ObservableObject {
     private static let lastTabKey = "lastActiveTab.v6"
     /// The one persistent index of recorded mixes (My Music > Mixes).
     let mixRecordingRepository = MixRecordingRepository(indexURL: AppState.mixesIndexURL)
-    private static var mixesIndexURL: URL {
+    /// Where recorded-mix FLAC files live; shared by the index URL below, `MixDetailView`'s
+    /// playback path, and the DJ console's REC save path.
+    static var mixesDirectoryURL: URL {
         let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                                  appropriateFor: nil, create: true))
             ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Tonearm/Mixes", isDirectory: true).appendingPathComponent("index.json")
+        return base.appendingPathComponent("Tonearm/Mixes", isDirectory: true)
+    }
+    private static var mixesIndexURL: URL {
+        mixesDirectoryURL.appendingPathComponent("index.json")
     }
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []

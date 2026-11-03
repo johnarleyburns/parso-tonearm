@@ -1,5 +1,6 @@
 import Foundation
 import ParsoAudioAnalysis
+import ParsoAudioCore
 import ParsoDJEngine
 import TonearmCore
 
@@ -23,9 +24,16 @@ struct LoadedDeckInfo: Equatable {
 
 enum DJDeckSide { case left, right }
 
-/// Owns the one `DJEngine` for the manual DJ console: real load/play/pause/volume/PFL and
-/// single-output split-cue routing (`MasterOutputRoute`, from the engine's 1.5.0 release); REC
-/// lands in a later commit. Platter, tempo, EQ and isolator stay purely cosmetic
+/// A finished REC take waiting on a name before it's moved into Mixes — or discarded.
+struct PendingMixRecording: Equatable {
+    var tempURL: URL
+    var durationSec: Double
+    var suggestedTitle: String
+}
+
+/// Owns the one `DJEngine` for the manual DJ console: real load/play/pause/volume/PFL,
+/// single-output split-cue routing (`MasterOutputRoute`, from the engine's 1.5.0 release), and
+/// REC → FLAC → Mixes. Platter, tempo, EQ and isolator stay purely cosmetic
 /// (DJConsoleView/DeckView/MixerView) — nothing here drives them.
 @MainActor
 final class DJConsoleModel: ObservableObject {
@@ -43,9 +51,14 @@ final class DJConsoleModel: ObservableObject {
     }
     @Published private(set) var leftPFL = false
     @Published private(set) var rightPFL = false
+    @Published private(set) var isRecording = false
+    @Published var pendingRecording: PendingMixRecording?
+    @Published var recordingError: String?
 
     let engine = DJEngine()
     private(set) var isRunning = false
+    private var recorder: MixRecorder?
+    private var recordingTempURL: URL?
 
     /// Starts the engine's own `AVAudioEngine` graph. The caller (DJConsoleView) is responsible
     /// for pausing ordinary playback first — this is a second, independent audio engine, and
@@ -65,6 +78,16 @@ final class DJConsoleModel: ObservableObject {
 
     func stop() {
         guard isRunning else { return }
+        // Closing the console mid-recording discards the take rather than finalizing it: there's
+        // no naming prompt to show once this model is torn down, and leaving the native record
+        // tap running past engine teardown is not safe.
+        if isRecording {
+            isRecording = false
+            try? engine.stopRecording()
+            if let tempURL = recordingTempURL { try? FileManager.default.removeItem(at: tempURL) }
+            recorder = nil
+            recordingTempURL = nil
+        }
         engine.stop()
         isRunning = false
     }
@@ -134,6 +157,82 @@ final class DJConsoleModel: ObservableObject {
         didSet { engine.masterOutputRoute = outputRoute }
     }
     var hasPFLSelection: Bool { leftPFL || rightPFL }
+
+    /// REC: tap to start (the button turns into a red dot), tap again to stop. Stopping always
+    /// finalizes to a temp FLAC file and hands off via `pendingRecording` so the caller can show a
+    /// naming prompt — nothing is saved into Mixes until the user confirms a title.
+    func toggleRecording() {
+        if isRecording { stopRecording() } else { startRecording() }
+    }
+
+    private func startRecording() {
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tonearm-mix-\(UUID().uuidString)")
+            .appendingPathExtension("flac")
+        guard let recorder = try? MixRecorder(codec: .flacDelivery(bitDepth: 24, compression: 5, tags: []),
+                                               url: tempURL) else {
+            recordingError = "Couldn't start recording."
+            return
+        }
+        self.recorder = recorder
+        recordingTempURL = tempURL
+        engine.startRecording(recorder)
+        isRecording = true
+    }
+
+    private func stopRecording() {
+        guard isRecording, let tempURL = recordingTempURL else { return }
+        isRecording = false
+        recordingTempURL = nil
+        defer { recorder = nil }
+        do {
+            try engine.stopRecording()
+        } catch {
+            recordingError = "Couldn't save the recording: \(error.localizedDescription)"
+            try? FileManager.default.removeItem(at: tempURL)
+            return
+        }
+        // Honest "nothing recorded" check (CLAUDE.md: no silent background work) — a near-empty
+        // take is never saved as if it were a real mix.
+        guard let metadata = try? FLACHeaderProbe.probe(url: tempURL), metadata.durationSeconds >= 1 else {
+            recordingError = "Nothing was recorded — play something on at least one deck, then try REC again."
+            try? FileManager.default.removeItem(at: tempURL)
+            return
+        }
+        let suggestedTitle = leftInfo?.title ?? rightInfo?.title
+            ?? "Mix \(Date().formatted(date: .abbreviated, time: .shortened))"
+        pendingRecording = PendingMixRecording(tempURL: tempURL, durationSec: metadata.durationSeconds,
+                                                suggestedTitle: suggestedTitle)
+    }
+
+    /// Moves the finished take into Mixes and indexes it. `pendingRecording` is cleared
+    /// synchronously here (not inside the `Task`) so the naming alert's dismissal can never race a
+    /// second, redundant discard of the same temp file.
+    func savePendingRecording(title: String, into repository: MixRecordingRepository) {
+        guard let pending = pendingRecording else { return }
+        pendingRecording = nil
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = trimmed.isEmpty ? pending.suggestedTitle : trimmed
+        Task { @MainActor [weak self] in
+            do {
+                let directory = AppState.mixesDirectoryURL
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let fileName = "\(UUID().uuidString).flac"
+                try FileManager.default.moveItem(at: pending.tempURL, to: directory.appendingPathComponent(fileName))
+                let document = MixRecordingDocument(title: resolvedTitle, durationSec: pending.durationSec,
+                                                     fileRelPath: fileName)
+                try await repository.save(document)
+            } catch {
+                self?.recordingError = "Couldn't save the mix: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func discardPendingRecording() {
+        guard let pending = pendingRecording else { return }
+        pendingRecording = nil
+        try? FileManager.default.removeItem(at: pending.tempURL)
+    }
 
     func state(_ side: DJDeckSide) -> DeckLoadState { side == .left ? leftState : rightState }
     func info(_ side: DJDeckSide) -> LoadedDeckInfo? { side == .left ? leftInfo : rightInfo }

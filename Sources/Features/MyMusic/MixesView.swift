@@ -75,11 +75,7 @@ struct MixDetailView: View {
     @State private var isPlaying = false
 
     private var fileURL: URL {
-        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                  appropriateFor: nil, create: true))
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Tonearm/Mixes", isDirectory: true)
-            .appendingPathComponent(mix.fileRelPath)
+        AppState.mixesDirectoryURL.appendingPathComponent(mix.fileRelPath)
     }
 
     var body: some View {

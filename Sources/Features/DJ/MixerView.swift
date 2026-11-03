@@ -3,9 +3,9 @@ import SwiftUI
 
 /// The center mixer: monitoring row, EQ (3 channels), isolator, channel volumes + meter, and the
 /// output-route control — matching the mockup, plus the route control the mockup predates.
-/// Channel volume knobs, each channel's PFL button, and the output route are real this pass
-/// (Workstreams G/H); REC (Workstream I) lands next. Monitoring, EQ and isolator stay static,
-/// wired up later one at a time.
+/// Channel volume knobs, each channel's PFL button, the output route, and REC are real
+/// (Workstreams G/H/I). The HOUSE/BOOTH monitor knobs, EQ and isolator stay static, wired up
+/// later one at a time.
 struct MixerView: View {
     @EnvironmentObject private var model: DJConsoleModel
 
@@ -56,13 +56,31 @@ struct MixerView: View {
     private var monitoringRow: some View {
         HStack(spacing: 10) {
             monitorKnob(label: "HOUSE")
-            Text("REC")
-                .font(.system(size: 9, weight: .bold))
-                .frame(width: 36, height: 28)
-                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                .foregroundStyle(.white.opacity(0.5))
+            recordButton
             monitorKnob(label: "BOOTH")
         }
+    }
+
+    /// Tap to start — the button turns into a red dot while recording. Tap again to stop; the
+    /// naming prompt that follows lives on `DJConsoleView` (it needs `appState`'s repository).
+    private var recordButton: some View {
+        Button {
+            model.toggleRecording()
+        } label: {
+            Group {
+                if model.isRecording {
+                    Circle().fill(.red).frame(width: 10, height: 10)
+                } else {
+                    Text("REC").font(.system(size: 9, weight: .bold))
+                }
+            }
+            .frame(width: 36, height: 28)
+            .background(model.isRecording ? Color.red.opacity(0.18) : .white.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 8))
+            .foregroundStyle(model.isRecording ? .red : .white.opacity(0.5))
+        }
+        .accessibilityIdentifier("dj.mixer.rec")
+        .accessibilityLabel(model.isRecording ? "Stop recording" : "Start recording")
     }
 
     private func monitorKnob(label: String) -> some View {

@@ -6,14 +6,15 @@ import TonearmCore
 /// `AppTab.dj` is selected (RootView.swift intercepts that selection rather than ever rendering
 /// this as inline tab content).
 ///
-/// LOAD, play/pause, channel volume and PFL are real (Workstream G); Split L/Split R/Stereo and
-/// REC land in later commits. The platter, tempo knob, EQ, isolator, monitoring row and meters
-/// stay purely cosmetic for now, wired up later one at a time, per the mockup at
+/// LOAD, play/pause, channel volume, PFL, split-cue routing and REC → FLAC → Mixes are all real
+/// (Workstreams G/H/I). The platter, tempo knob, EQ, isolator, monitoring row and meters stay
+/// purely cosmetic for now, wired up later one at a time, per the mockup at
 /// ~/Downloads/djmockup.html.
 struct DJConsoleView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @StateObject private var model = DJConsoleModel()
+    @State private var recordingTitle = ""
 
     var body: some View {
         GeometryReader { _ in
@@ -55,6 +56,31 @@ struct DJConsoleView: View {
         }
         .onDisappear {
             model.stop()
+        }
+        .onChange(of: model.pendingRecording) { _, pending in
+            recordingTitle = pending?.suggestedTitle ?? ""
+        }
+        .alert("Save Mix", isPresented: Binding(
+            get: { model.pendingRecording != nil },
+            set: { shown in if !shown { model.discardPendingRecording() } }
+        )) {
+            TextField("Mix name", text: $recordingTitle)
+            Button("Save") {
+                model.savePendingRecording(title: recordingTitle, into: appState.mixRecordingRepository)
+            }
+            Button("Discard", role: .destructive) {
+                model.discardPendingRecording()
+            }
+        } message: {
+            Text(model.pendingRecording.map { "Recorded \(MixesView.duration($0.durationSec))." } ?? "")
+        }
+        .alert("Recording Issue", isPresented: Binding(
+            get: { model.recordingError != nil },
+            set: { shown in if !shown { model.recordingError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.recordingError ?? "")
         }
     }
 }

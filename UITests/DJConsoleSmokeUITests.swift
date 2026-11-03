@@ -58,4 +58,22 @@ final class DJConsoleSmokeUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [left], timeout: 5), .completed,
                        "Picking a track should move the deck out of its empty state")
     }
+
+    func testRecordButtonTogglesToRedDotAndBackWithoutSaving() throws {
+        launch()
+        app.tabBars.buttons["DJ"].tap()
+        XCTAssertTrue(app.otherElements["dj.console"].waitForExistence(timeout: 10))
+
+        let rec = app.buttons["dj.mixer.rec"]
+        XCTAssertTrue(rec.waitForExistence(timeout: 5))
+        XCTAssertEqual(rec.label, "Start recording")
+        rec.tap()
+        XCTAssertEqual(rec.label, "Stop recording", "Tapping REC should flip it into the recording state")
+
+        // No track was loaded onto either deck, so stopping should hit the "nothing recorded"
+        // path rather than opening the save-mix naming alert — asserted by hand per CLAUDE.md's
+        // UI-regression policy for anything beyond this basic state-flip round trip.
+        rec.tap()
+        XCTAssertEqual(rec.label, "Start recording")
+    }
 }
