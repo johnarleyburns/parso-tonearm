@@ -190,7 +190,7 @@ final class BlendCatalogTests: XCTestCase {
         }
         try queue.write { try LibraryStore.seedStarterCatalog($0, catalog: adapter) }
         try queue.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 35, "every id but the absent one")
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 53, "every id but the absent one")
             XCTAssertNil(try BlendCatalogTrack.fetchOne(db, key: BlendCatalogTrack.key(pack: .v2, trackID: last)))
             // No edge touching the absent track is a dangling reference into a row that was never written.
             let edges = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_edge WHERE fromKey LIKE ? OR toKey LIKE ?",
