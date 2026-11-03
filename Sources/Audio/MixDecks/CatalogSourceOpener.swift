@@ -3,15 +3,13 @@ import Foundation
 import AudioToolbox
 
 /// Opens the bounded range-backed deck source for a catalog track from its durable `AudioLocator`:
-/// a Starter row reads only its pinned Release asset (Jamendo is never consulted); a Jamendo row
-/// resolves through `JamendoLocatorResolver` (refresh when absent/expired, once after an invalid
-/// locator, bounded transient backoff). Everything here runs on the open queue, never the render
-/// callback, and there is no whole-file or resident-decoder fallback.
+/// a Jamendo row resolves through `JamendoLocatorResolver` (refresh when absent/expired, once after
+/// an invalid locator, bounded transient backoff). Everything here runs on the open queue, never the
+/// render callback, and there is no whole-file or resident-decoder fallback.
 struct CatalogSourceOpener: Sendable {
     typealias RangeOpen = @Sendable (_ url: URL, _ fileType: AudioFileTypeID, _ cancellation: StarterCancellation) throws
         -> any StarterDeckSource
 
-    var pack: StarterBlendPack = .v2
     var lookup: @Sendable (_ catalogKey: String) async -> BlendCatalogTrack?
     var resolver: JamendoLocatorResolver
     var openRange: RangeOpen
@@ -51,41 +49,25 @@ struct CatalogSourceOpener: Sendable {
 
     func open(trackID: String, cancellation: StarterCancellation) async throws -> any StarterDeckSource {
         let (key, locator) = try await locate(trackID)
-        switch locator {
-        case .starterRelease:
-            guard let url = pack.assetURL(for: locator) else { throw ReleaseRangeError.permanent("not a Starter asset") }
-            return try await offload { try openRange(url, kAudioFileM4AType, cancellation) }
-        case .jamendo:
-            let refreshed = RefreshedLocator()
-            var tracking = resolver
-            let refresh = resolver.refresh
-            tracking.refresh = { id in
-                let value = try await refresh(id)
-                refreshed.set(value.url, value.expiry)
-                return value
-            }
-            let source = try await tracking.open(locator) { url in
-                do { return try await offload { try openRange(url, kAudioFileMP3Type, cancellation) } }
-                catch { throw Self.classify(error) }
-            }
-            if let value = refreshed.value { Task { await persist(key, value.url, value.expiry) } }
-            return source
+        let refreshed = RefreshedLocator()
+        var tracking = resolver
+        let refresh = resolver.refresh
+        tracking.refresh = { id in
+            let value = try await refresh(id)
+            refreshed.set(value.url, value.expiry)
+            return value
         }
+        let source = try await tracking.open(locator) { url in
+            do { return try await offload { try openRange(url, kAudioFileMP3Type, cancellation) } }
+            catch { throw Self.classify(error) }
+        }
+        if let value = refreshed.value { Task { await persist(key, value.url, value.expiry) } }
+        return source
     }
 
     private func locate(_ trackID: String) async throws -> (key: String, locator: AudioLocator) {
-        if pack.contains(trackID: trackID) {
-            let key = BlendCatalogTrack.key(pack: pack, trackID: trackID)
-            // A stored row must agree; with none, the pinned asset is the only possible source.
-            if let row = await lookup(key) {
-                guard let locator = row.audioLocator(in: pack) else { throw ReleaseRangeError.permanent("no usable source") }
-                return (key, locator)
-            }
-            guard let locator = pack.locator(trackID: trackID) else { throw URLError(.unsupportedURL) }
-            return (key, locator)
-        }
         let key = BlendCatalogTrack.jamendoKey(trackID: trackID)
-        guard let row = await lookup(key), let locator = row.audioLocator(in: pack),
+        guard let row = await lookup(key), let locator = row.audioLocator(),
               case .jamendo = locator else { throw ReleaseRangeError.permanent("no usable source") }
         return (key, locator)
     }

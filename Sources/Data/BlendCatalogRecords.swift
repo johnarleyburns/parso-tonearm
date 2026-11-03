@@ -44,8 +44,6 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     public static let jamendoPackTag = "jamendo"
     public static func jamendoKey(trackID: String) -> String { "\(jamendoPackTag):\(trackID)" }
 
-    public static func key(pack: StarterBlendPack, trackID: String) -> String { "\(pack.releaseTag):\(trackID)" }
-
     public var trackID: String { String(catalogKey.split(separator: ":", maxSplits: 1).last ?? "") }
 
     /// Genre, subgenre and key, when the required ones are stored and valid.
@@ -60,48 +58,31 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
         state >= .blendEligible && (facts?.isBlendReady ?? false) && traits != nil
     }
 
-    /// The explicit source of this row. A Starter row yields only the pinned Release asset of one of the
-    /// 54 mirrored IDs; a Jamendo row yields provider identity plus its cached URL. A Release locator is
-    /// never produced for a non-starter ID, and a Jamendo locator never for a Starter ID.
-    public func audioLocator(in pack: StarterBlendPack = .v2) -> AudioLocator? {
-        switch sourceKind {
-        case .starterRelease?:
-            guard packTag == pack.releaseTag else { return nil }
-            return pack.locator(trackID: trackID)
-        case .jamendo?:
-            guard let id = providerTrackID, !id.isEmpty, !pack.contains(trackID: id),
-                  !pack.contains(trackID: trackID) else { return nil }
-            let url = cachedURL.flatMap(URL.init(string:)).flatMap { pack.owns($0) ? nil : $0 }
-            return .jamendo(trackID: id, cachedURL: url, expiry: cachedURLExpiry)
-        case nil:
-            return nil
-        }
-    }
-
-    /// Catalog key of a session track ID: the 54 mirrored Starter IDs live under the pack tag, every
-    /// other ID is an ordinary Jamendo catalog row.
-    public static func catalogKey(forTrackID id: String, pack: StarterBlendPack) -> String {
-        pack.contains(trackID: id) ? key(pack: pack, trackID: id) : jamendoKey(trackID: id)
+    /// The explicit source of this row: Jamendo provider identity plus its cached URL. A legacy
+    /// `.starterRelease` row (seeded before the curated-blend feature was removed) resolves the same
+    /// way — the track is genuinely Jamendo-sourced, and the pinned Release mirror it used to read
+    /// from no longer exists — falling back to `trackID` for identity since those rows were seeded
+    /// with no `providerTrackID`.
+    public func audioLocator() -> AudioLocator? {
+        guard sourceKind != nil else { return nil }
+        let id = providerTrackID?.isEmpty == false ? providerTrackID! : trackID
+        guard !id.isEmpty else { return nil }
+        let url = cachedURL.flatMap(URL.init(string:))
+        return .jamendo(trackID: id, cachedURL: url, expiry: cachedURLExpiry)
     }
 
     /// Source-aware Keep Playing admission: eligible state, complete planner facts, canonical genre and
-    /// valid Camelot key (all persisted), and a real `AudioLocator` - a verified mirrored asset for a
-    /// Starter ID, or a Jamendo provider identity whose numeric ID matches the row for any other.
-    /// Never consults a model, the network, or a GitHub URL for a Jamendo row.
-    public func keepPlayingLocator(in pack: StarterBlendPack) -> AudioLocator? {
-        guard isSelectable, let locator = audioLocator(in: pack) else { return nil }
-        switch locator {
-        case .starterRelease:
-            return packTag == pack.releaseTag && catalogKey == Self.key(pack: pack, trackID: trackID) ? locator : nil
-        case .jamendo(let id, _, _):
-            guard packTag == Self.jamendoPackTag, catalogKey == Self.jamendoKey(trackID: id),
-                  Int64(id) != nil else { return nil }
-            return locator
-        }
+    /// valid Camelot key (all persisted), and a real Jamendo `AudioLocator` whose numeric ID matches the
+    /// row. Never consults a model, the network, or an unverified URL.
+    public func keepPlayingLocator() -> AudioLocator? {
+        guard isSelectable, let locator = audioLocator(), case .jamendo(let id, _, _) = locator,
+              packTag == Self.jamendoPackTag, catalogKey == Self.jamendoKey(trackID: id),
+              Int64(id) != nil else { return nil }
+        return locator
     }
 
-    public func isKeepPlayingCandidate(in pack: StarterBlendPack) -> Bool {
-        keepPlayingLocator(in: pack) != nil
+    public func isKeepPlayingCandidate() -> Bool {
+        keepPlayingLocator() != nil
     }
 
     /// The stored facts, when complete.

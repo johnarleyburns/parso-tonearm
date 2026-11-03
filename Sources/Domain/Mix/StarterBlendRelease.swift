@@ -1,51 +1,5 @@
 import Foundation
 
-/// The immutable, versioned origin of Starter Blend audio. Never a runtime Jamendo stream: every
-/// asset is an AAC-LC M4A on a pinned GitHub Release, mirrored from Jamendo under the owner's
-/// direct licensing agreement with Jamendo (not gated by an individual track's CC variant).
-public struct StarterBlendPack: Codable, Sendable, Equatable, Hashable {
-    /// Stable identity of the pack as saved with a blend (`starter-blends-aac-v1`).
-    public let releaseTag: String
-    public let version: Int
-    public let audioFormat: String
-
-    public static let v1 = StarterBlendPack(releaseTag: "starter-blends-aac-v1", version: 1,
-                                            audioFormat: "aac-lc-128k-m4a")
-    /// v2: tracks mirrored from the v4 native Jamendo starter pipeline (`Config/starter-batches/`),
-    /// replacing v1's tracks that are no longer in the bundled starter catalog.
-    public static let v2 = StarterBlendPack(releaseTag: "starter-blends-aac-v2", version: 2,
-                                            audioFormat: "aac-lc-128k-m4a")
-
-    /// Whether `trackID` is one of the mirrored Starter Pack assets. Only these exist on the release.
-    public func contains(trackID: String) -> Bool {
-        StarterBlendCatalog.starterTrackIDs.contains(trackID)
-    }
-
-    /// The release asset for a mirrored Starter track: `…/releases/download/<tag>/<trackID>.m4a`.
-    /// Nil for any other catalog ID: a Starter Release URL is never built for a general catalog track.
-    public func assetURL(trackID: String) -> URL? {
-        guard contains(trackID: trackID) else { return nil }
-        return URL(string: "https://github.com/johnarleyburns/parso-tonearm/releases/download/\(releaseTag)/\(trackID).m4a")!
-    }
-
-    /// The explicit source for a Starter track (nil when it is not a mirrored asset).
-    public func locator(trackID: String) -> AudioLocator? {
-        contains(trackID: trackID) ? .starterRelease(packTag: releaseTag, assetName: "\(trackID).m4a") : nil
-    }
-
-    /// The pinned asset URL for a Starter locator; nil for a Jamendo locator, another pack or any asset
-    /// name that is not `<mirrored id>.m4a`.
-    public func assetURL(for locator: AudioLocator) -> URL? {
-        guard case .starterRelease(let tag, let asset) = locator, tag == releaseTag, asset.hasSuffix(".m4a") else { return nil }
-        return assetURL(trackID: String(asset.dropLast(4)))
-    }
-
-    /// Whether `url` is an asset of this pack (what the Starter path is allowed to read).
-    public func owns(_ url: URL) -> Bool {
-        url.absoluteString.hasPrefix("https://github.com/johnarleyburns/parso-tonearm/releases/download/\(releaseTag)/")
-    }
-}
-
 /// Facts the blender needs about a track, from the release's analysis. Time is source seconds;
 /// beat `k` of the grid is at `beatPhase + k * beatPeriod`.
 public struct StarterTrackFacts: Codable, Sendable, Equatable {
@@ -72,8 +26,8 @@ public struct StarterTrackFacts: Codable, Sendable, Equatable {
 @available(*, deprecated, renamed: "BlendEdgePlan")
 public typealias StarterEdgePlan = BlendEdgePlan
 
-/// A concrete, immutable plan for any directed blend edge (fixed, saved or catalog-derived), copied verbatim from the source-controlled
-/// supplied edge plans (`StarterBlendRuntimeData`); the release carries only AAC bytes. No runtime planner exists: playback executes these values.
+/// A concrete, immutable plan for any directed blend edge (fixed, saved or catalog-derived). Playback
+/// executes these values directly; nothing here re-derives or guesses a plan at render time.
 public struct BlendEdgePlan: Codable, Sendable, Equatable {
     public enum Style: String, Codable, Sendable, Equatable {
         case bassSwap = "bass-swap"

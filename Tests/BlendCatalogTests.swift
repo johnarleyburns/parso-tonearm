@@ -54,231 +54,37 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testKeepPlayingCandidateRequiresEligibilityFactsTraitsAndAMirroredLocator() throws {
-        let pack = StarterBlendPack.v2
-        let real = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
-        let url = try XCTUnwrap(pack.assetURL(trackID: real)).absoluteString
-        func make(_ id: String, state: BlendCatalogState = .blendEligible, source: String?) -> BlendCatalogTrack {
-            var row = BlendCatalogTrack(catalogKey: BlendCatalogTrack.key(pack: pack, trackID: id), packTag: pack.releaseTag,
+        func make(_ id: String, state: BlendCatalogState = .blendEligible, providerTrackID: String?) -> BlendCatalogTrack {
+            var row = BlendCatalogTrack(catalogKey: BlendCatalogTrack.jamendoKey(trackID: id),
+                              packTag: BlendCatalogTrack.jamendoPackTag,
                               state: state, durationSeconds: 240, bpm: 100, beatPeriod: 0.6, beatPhase: 0.2, rmsDB: -12,
-                              updatedAt: Date(), genre: "Electronic", subgenre: "Synthwave", camelotKey: "8A",
-                              sourceURL: source)
-            row.sourceKind = source == nil ? nil : .starterRelease
+                              updatedAt: Date(), genre: "Electronic", subgenre: "Synthwave", camelotKey: "8A")
+            row.sourceKind = providerTrackID == nil ? nil : .jamendo
+            row.providerTrackID = providerTrackID
             return row
         }
-        // Seeded and unindexed: never a candidate, even though the catalog gave it a key and a source.
-        XCTAssertFalse(make(real, state: .unindexed, source: url).isKeepPlayingCandidate(in: pack))
-        let row = make(real, source: url)
-        XCTAssertTrue(row.isKeepPlayingCandidate(in: pack))
-        XCTAssertEqual(row.keepPlayingLocator(in: pack), pack.locator(trackID: real))
+        // Seeded and unindexed: never a candidate, even with a complete source.
+        XCTAssertFalse(make("4242", state: .unindexed, providerTrackID: "4242").isKeepPlayingCandidate())
+        let row = make("4242", providerTrackID: "4242")
+        XCTAssertTrue(row.isKeepPlayingCandidate())
+        XCTAssertEqual(row.keepPlayingLocator(), .jamendo(trackID: "4242", cachedURL: nil, expiry: nil))
         // Each missing or invalid fact rejects.
-        var bad = row; bad.camelotKey = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "missing key")
-        bad = row; bad.camelotKey = "13A"; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "invalid key")
-        bad = row; bad.genre = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "missing genre")
-        bad = row; bad.beatPeriod = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "incomplete planner facts")
-        bad = row; bad.sourceKind = nil; bad.sourceURL = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "no source")
-        bad = row; bad.sourceKind = .jamendo; bad.providerTrackID = real
-        XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "a Jamendo source is never a Starter asset")
-        var jamendo = BlendCatalogTrack(catalogKey: BlendCatalogTrack.jamendoKey(trackID: "4242"), packTag: BlendCatalogTrack.jamendoPackTag,
-                                        state: .blendEligible, durationSeconds: 240, bpm: 100, beatPeriod: 0.6, beatPhase: 0.2,
-                                        rmsDB: -12, updatedAt: Date(), genre: "Electronic", subgenre: nil, camelotKey: "8A")
-        jamendo.sourceKind = .jamendo; jamendo.providerTrackID = "4242"
-        XCTAssertEqual(jamendo.keepPlayingLocator(in: pack), .jamendo(trackID: "4242", cachedURL: nil, expiry: nil),
-                       "an ordinary Jamendo row needs no GitHub URL")
-        jamendo.providerTrackID = ""; XCTAssertNil(jamendo.keepPlayingLocator(in: pack), "no provider identity")
-        jamendo.providerTrackID = "4243"; XCTAssertNil(jamendo.keepPlayingLocator(in: pack), "identity must match the row")
-        XCTAssertNil(bad.audioLocator(in: pack), "and a Starter ID never resolves through Jamendo")
-        bad = row; bad.state = .unindexed; XCTAssertFalse(bad.isKeepPlayingCandidate(in: pack), "not eligible")
-        // A synthetic / unmirrored ID has no locator and no Release URL.
-        let synthetic = make("999999999", source: "https://github.com/johnarleyburns/parso-tonearm/releases/download/\(pack.releaseTag)/999999999.m4a")
-        XCTAssertTrue(synthetic.isSelectable)
-        XCTAssertNil(synthetic.keepPlayingLocator(in: pack))
-        XCTAssertFalse(synthetic.isKeepPlayingCandidate(in: pack))
+        var bad = row; bad.camelotKey = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "missing key")
+        bad = row; bad.camelotKey = "13A"; XCTAssertFalse(bad.isKeepPlayingCandidate(), "invalid key")
+        bad = row; bad.genre = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "missing genre")
+        bad = row; bad.beatPeriod = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "incomplete planner facts")
+        bad = row; bad.sourceKind = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "no source")
+        bad = row; bad.providerTrackID = ""; XCTAssertFalse(bad.isKeepPlayingCandidate(), "no provider identity")
+        bad = row; bad.providerTrackID = "4243"; XCTAssertFalse(bad.isKeepPlayingCandidate(), "identity must match the row")
+        bad = row; bad.state = .unindexed; XCTAssertFalse(bad.isKeepPlayingCandidate(), "not eligible")
+        // A legacy row seeded with no providerTrackID falls back to the catalog key's own track ID.
+        var legacy = row; legacy.providerTrackID = nil
+        XCTAssertEqual(legacy.keepPlayingLocator(), .jamendo(trackID: "4242", cachedURL: nil, expiry: nil))
     }
 
     func testCatalogPlannerRejectsBPMOutsideTolerance() {
         XCTAssertNotNil(CatalogEdgePlanner.plan(blendID: "t", edge: 1, outgoing: facts("a", bpm: 100), incoming: facts("b", bpm: 104)))
         XCTAssertNil(CatalogEdgePlanner.plan(blendID: "t", edge: 1, outgoing: facts("a", bpm: 100), incoming: facts("b", bpm: 130)))
-    }
-
-    func testStarterSeedComesFromTheCatalogDatabase() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let adapter = try StarterCatalogAdapter.bundled()
-        let version = try adapter.contentVersion()
-        let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
-        let entries = try adapter.resolve(trackIDs: ids)
-        XCTAssertEqual(entries.count, 54)
-        let rows = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
-        XCTAssertEqual(rows.count, 54)
-        for entry in entries {
-            let row = try XCTUnwrap(rows.first { $0.trackID == entry.trackID }, entry.catalogID)
-            XCTAssertEqual(row.genre, entry.genre)
-            XCTAssertFalse(entry.genre.isEmpty)
-            XCTAssertEqual(row.durationSeconds, entry.durationSeconds)
-            XCTAssertEqual(row.bpm, entry.bpm)
-            XCTAssertTrue(StarterCatalogAdapter.bpmRange.contains(try XCTUnwrap(row.bpm)))
-            XCTAssertEqual(row.camelotKey, entry.camelot)
-            XCTAssertEqual(row.catalogID, entry.catalogID)
-            XCTAssertTrue(entry.catalogID.hasPrefix("jamendo-"))
-            XCTAssertNotNil(BlendTraits.parseCamelot(try XCTUnwrap(row.camelotKey)))
-            XCTAssertEqual(row.sourceURL, StarterBlendPack.v2.assetURL(trackID: entry.trackID)?.absoluteString)
-            XCTAssertEqual(row.analysisVersion, "starter-v4:\(version)")
-            // Beat grid and loudness are not in the catalog: never invented, so the row stays unindexed.
-            XCTAssertEqual(row.state, .unindexed)
-            XCTAssertNil(row.beatPeriod); XCTAssertNil(row.beatPhase); XCTAssertNil(row.rmsDB)
-            XCTAssertFalse(row.isSelectable)
-        }
-    }
-
-    func testStarterSeedIsIdempotentAndRefreshesStaleCatalogFacts() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let key = BlendCatalogTrack.key(pack: .v2, trackID: StarterBlendCatalog.blends[0].trackIDs[0])
-        try await store.dbQueue.write { db in
-            var row = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key))
-            row.bpm = 1; row.genre = "Stale"; row.camelotKey = "1A"; row.state = .blendEligible
-            row.beatPeriod = 0.5; row.beatPhase = 0.1; row.rmsDB = -10
-            try row.update(db)
-            try LibraryStore.seedStarterCatalog(db)
-            try LibraryStore.seedStarterCatalog(db)
-        }
-        let row = try await store.blendCatalogTrack(key: key)
-        let fresh = try StarterCatalogAdapter.bundled().resolve(trackIDs: [StarterBlendCatalog.blends[0].trackIDs[0]])[0]
-        XCTAssertEqual(row?.bpm, fresh.bpm)
-        XCTAssertEqual(row?.genre, fresh.genre)
-        XCTAssertEqual(row?.camelotKey, fresh.camelot)
-        XCTAssertEqual(row?.state, .blendEligible, "progress made by indexing is kept")
-        XCTAssertEqual(row?.beatPeriod, 0.5)
-        let count = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag).count
-        XCTAssertEqual(count, 54)
-    }
-
-    /// Copies the real catalog and applies `mutate`, so failures are exercised against actual data.
-    private func mutatedCatalog(_ mutate: (Database) throws -> Void) throws -> StarterCatalogAdapter {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
-        let copy = dir.appendingPathComponent("catalog.sqlite")
-        try FileManager.default.copyItem(at: try XCTUnwrap(StarterLibrary.bundledURL), to: copy)
-        try DatabaseQueue(path: copy.path).write { try mutate($0) }
-        return StarterCatalogAdapter(url: copy)
-    }
-
-    func testStarterCatalogAdapterResolvesRealPlaybackMetadataForAllPackTracks() throws {
-        let adapter = try StarterCatalogAdapter.bundled()
-        let ids = StarterBlendCatalog.blends.flatMap(\.trackIDs)
-        let entries = try adapter.resolve(trackIDs: ids)
-        XCTAssertEqual(entries.count, 54)
-        XCTAssertEqual(entries.map(\.trackID), ids)
-        XCTAssertTrue(entries.allSatisfy { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-        XCTAssertTrue(entries.allSatisfy { !$0.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-    }
-
-    /// A track legitimately absent from the bundled catalog (an ever-changing, independently-
-    /// published asset) is tolerated: seeding retries without it and writes every other valid id,
-    /// rather than failing library init over a `StarterBlend` reference the catalog has moved past.
-    func testStarterSeedToleratesAnAbsentTrackAndSeedsEveryOtherOne() throws {
-        let last = StarterBlendCatalog.blends[5].trackIDs[5]
-        let adapter = try mutatedCatalog { try $0.execute(sql: "DELETE FROM starter_track WHERE id = ?", arguments: ["jamendo-\(last)"]) }
-        let queue = try DatabaseQueue()
-        try queue.write { db in
-            try db.execute(sql: """
-                CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
-                    bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
-                    sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
-                CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
-                """)
-        }
-        try queue.write { try LibraryStore.seedStarterCatalog($0, catalog: adapter) }
-        try queue.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 53, "every id but the absent one")
-            XCTAssertNil(try BlendCatalogTrack.fetchOne(db, key: BlendCatalogTrack.key(pack: .v2, trackID: last)))
-            // No edge touching the absent track is a dangling reference into a row that was never written.
-            let edges = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_edge WHERE fromKey LIKE ? OR toKey LIKE ?",
-                                         arguments: ["%:\(last)", "%:\(last)"])
-            XCTAssertEqual(edges, 0)
-        }
-    }
-
-    func testStarterSeedFailsAtomicallyOnABadCatalog() throws {
-        let first = StarterBlendCatalog.blends[0].trackIDs[0], last = StarterBlendCatalog.blends[5].trackIDs[5]
-        let cases: [(String, (Database) throws -> Void, StarterCatalogError)] = [
-            ("title", { try $0.execute(sql: "UPDATE starter_track SET title = '  ' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
-             .invalid(id: "jamendo-\(last)", reason: "title")),
-            ("artist", { try $0.execute(sql: "UPDATE starter_track SET artist = '' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
-             .invalid(id: "jamendo-\(last)", reason: "artist")),
-            ("bpm", { try $0.execute(sql: "UPDATE starter_track SET bpm = NULL WHERE id = ?", arguments: ["jamendo-\(last)"]) },
-             .invalid(id: "jamendo-\(last)", reason: "bpm")),
-            ("camelot", { try $0.execute(sql: "UPDATE starter_track SET camelot = '13A' WHERE id = ?", arguments: ["jamendo-\(last)"]) },
-             .invalid(id: "jamendo-\(last)", reason: "camelot")),
-            ("version", { try $0.execute(sql: "UPDATE starter_meta SET value = '99' WHERE key = 'format_version'") },
-             .incompatibleVersion("99"))]
-        for (name, mutate, expected) in cases {
-            let adapter = try mutatedCatalog(mutate)
-            let queue = try DatabaseQueue()
-            try queue.write { db in
-                try db.execute(sql: """
-                    CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
-                        bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                        camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
-                        sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
-                    CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
-                    """)
-            }
-            XCTAssertThrowsError(try queue.write { try LibraryStore.seedStarterCatalog($0, catalog: adapter) }, name) {
-                XCTAssertEqual($0 as? StarterCatalogError, expected, name)
-            }
-            let rows = try queue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM blend_catalog_track") }
-            XCTAssertEqual(rows, 0, "\(name): nothing is written, not even the valid ids like \(first)")
-        }
-    }
-
-    func testStarterSeedRollsBackEverythingWhenAnEdgeWriteFails() throws {
-        let queue = try DatabaseQueue()
-        try queue.write { db in
-            try db.execute(sql: """
-                CREATE TABLE blend_catalog_track (catalogKey TEXT PRIMARY KEY, packTag TEXT, state TEXT, durationSeconds REAL,
-                    bpm REAL, beatPeriod REAL, beatPhase REAL, rmsDB REAL, updatedAt DATETIME, genre TEXT, subgenre TEXT,
-                    camelotKey TEXT, sourceURL TEXT, analysisVersion TEXT, catalogID TEXT,
-                        sourceKind TEXT, providerTrackID TEXT, cachedURL TEXT, cachedURLExpiry DATETIME);
-                CREATE TABLE blend_catalog_edge (fromKey TEXT, toKey TEXT, packTag TEXT, planJSON BLOB, PRIMARY KEY (fromKey, toKey));
-                CREATE TRIGGER fail_edge BEFORE INSERT ON blend_catalog_edge BEGIN SELECT RAISE(ABORT, 'injected'); END;
-                """)
-        }
-        XCTAssertThrowsError(try queue.write { try LibraryStore.seedStarterCatalog($0) })
-        try queue.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 0)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_edge"), 0)
-        }
-    }
-
-    func testStarterSeedSourceDoesNotReadRuntimeFactsOrHardCodedTraits() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(contentsOf: root.appendingPathComponent("Sources/Data/LibraryStore+BlendCatalog.swift"), encoding: .utf8)
-        let body = String(source[source.range(of: "static func seedStarterCatalog")!.lowerBound...].prefix(2500))
-        XCTAssertFalse(body.contains("StarterBlendRuntimeData.tracks"))
-        XCTAssertTrue(body.contains("StarterCatalogAdapter"))
-    }
-
-    func testStarterSeedRejectsADuplicatedTrackID() throws {
-        let adapter = try StarterCatalogAdapter.bundled()
-        let id = StarterBlendCatalog.blends[0].trackIDs[0]
-        XCTAssertThrowsError(try adapter.resolve(trackIDs: [id, id])) {
-            XCTAssertEqual($0 as? StarterCatalogError, .duplicated(["jamendo-\(id)"]))
-        }
-    }
-
-    func testFreshInstallSeedsTheCatalogAndSuppliedPlans() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let tracks = try await store.blendCatalogTracks(atLeast: .unindexed, packTag: StarterBlendPack.v2.releaseTag)
-        XCTAssertEqual(tracks.count, 54)
-        for blend in StarterBlendCatalog.blends {
-            for plan in blend.edgePlans {
-                let stored = try await store.blendCatalogEdgePlan(
-                    from: BlendCatalogTrack.key(pack: .v2, trackID: plan.outgoingTrackID),
-                    to: BlendCatalogTrack.key(pack: .v2, trackID: plan.incomingTrackID))
-                XCTAssertEqual(stored, plan, "\(blend.id) edge \(plan.edge) survives persistence exactly")
-            }
-        }
     }
 
     func testLifecycleMovesForwardOneStepAtATime() async throws {

@@ -430,7 +430,6 @@ extension Schema {
                     t.add(column: "cachedURLExpiry", .datetime)
                 }
                 try LibraryStore.backfillCatalogSources(db)
-                try LibraryStore.seedStarterCatalog(db)
             }
         }
         if shouldRegister("v39", upTo: target) {

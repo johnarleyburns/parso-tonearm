@@ -75,8 +75,6 @@ public struct BlendDocument: Codable, Sendable, Equatable, Identifiable {
     public var generation: Int
     public var occurrences: [Occurrence]
     public var edges: [Edge]
-    /// The immutable release this blend's audio and edge plans belong to (Starter Blends).
-    public var pack: StarterBlendPack?
 
     public init(id: UUID = UUID(), title: String, artworkReference: String? = nil,
                 origin: Origin, now: Date = Date(), occurrences: [Occurrence],

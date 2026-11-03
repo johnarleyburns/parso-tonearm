@@ -6,20 +6,15 @@ final class FindBlendSearchTests: XCTestCase {
         XCTAssertTrue(FindBlendSearch.results(query: "  ", saved: []).isEmpty)
     }
 
-    func testStarterMatchesTitleCaseInsensitively() {
-        let results = FindBlendSearch.results(query: "rainy", saved: [])
-        XCTAssertEqual(results.map(\.id), ["starter.starter.rainy-day"])
-    }
-
     func testNoMatchIsEmptyAndDeterministic() {
         XCTAssertTrue(FindBlendSearch.results(query: "zzzqqq", saved: []).isEmpty)
     }
 
-    func testSavedBlendsPrecedeStarters() throws {
-        var doc = try XCTUnwrap(StarterBlendCatalog.blends.first).document
-        doc.title = "Morning Mix"
+    func testSavedBlendMatchingTitleIsReturned() {
+        let doc = BlendDocument(title: "Morning Mix", origin: .manualQueue, occurrences: [])
         let results = FindBlendSearch.results(query: "morning", saved: [doc])
-        guard case .saved = results.first else { return XCTFail("saved first") }
-        XCTAssertEqual(results.count, 2)
+        guard case .saved(let blend) = results.first else { return XCTFail("expected a saved match") }
+        XCTAssertEqual(blend.title, "Morning Mix")
+        XCTAssertEqual(results.count, 1)
     }
 }

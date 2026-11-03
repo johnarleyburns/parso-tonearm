@@ -8,99 +8,25 @@ public enum BlendCatalogError: Error, Equatable {
 }
 
 extension LibraryStore {
-    /// Resolves the pack's tracks from the versioned starter catalog (`starter-v4.sqlite`) and stores
-    /// catalog id, genre, duration, BPM, Camelot key and provenance for each. Idempotent; the v36
-    /// migration calls it so a fresh install already holds the catalog (no download, no model).
-    /// Every id is validated before anything is written, so a bad catalog changes nothing. Beat grid,
-    /// phase and loudness are not in the catalog and are never invented: a new row stays `.unindexed`
-    /// until normal indexing supplies them, and an existing row keeps the state and grid it reached.
-    ///
-    /// The bundled catalog is an ever-changing, independently-published asset (plan: resilient
-    /// Jamendo starter pipeline): a track a `StarterBlend` references can legitimately be absent
-    /// from the catalog currently bundled. That must never fail library init, so a `.missing` result
-    /// is retried once with exactly those ids dropped; any other resolve failure (duplicated,
-    /// invalid, incompatible format, unavailable catalog) still fails the migration, since those
-    /// signal real corruption rather than a catalog that has simply moved on.
-    static func seedStarterCatalog(_ db: Database, pack: StarterBlendPack = .v2, now: Date = Date(),
-                                   catalog: StarterCatalogAdapter? = nil) throws {
-        let adapter = try catalog ?? StarterCatalogAdapter.bundled()
-        let requested = StarterBlendCatalog.blends.flatMap(\.trackIDs)
-        let entries: [StarterCatalogEntry]
-        do {
-            entries = try adapter.resolve(trackIDs: requested)
-        } catch StarterCatalogError.missing(let missingCatalogIDs) {
-            let missingTrackIDs = Set(missingCatalogIDs.map {
-                $0.hasPrefix(StarterCatalogAdapter.catalogIDPrefix)
-                    ? String($0.dropFirst(StarterCatalogAdapter.catalogIDPrefix.count)) : $0
-            })
-            entries = try adapter.resolve(trackIDs: requested.filter { !missingTrackIDs.contains($0) })
-        }
-        let provenance = "starter-v4:\(try adapter.contentVersion())"
-        try db.inSavepoint {
-            try writeStarterCatalog(db, entries: entries, pack: pack, now: now, provenance: provenance)
-            return .commit
-        }
-    }
-
-    /// The writes of `seedStarterCatalog`, run inside one savepoint so a failure leaves nothing behind.
-    private static func writeStarterCatalog(_ db: Database, entries: [StarterCatalogEntry], pack: StarterBlendPack,
-                                            now: Date, provenance: String) throws {
-        let resolvedTrackIDs = Set(entries.map(\.trackID))
-        for entry in entries {
-            // Only mirrored Starter assets have a Release URL; other catalog IDs are never seeded here.
-            guard let assetURL = pack.assetURL(trackID: entry.trackID) else { continue }
-            let key = BlendCatalogTrack.key(pack: pack, trackID: entry.trackID)
-            var record = try BlendCatalogTrack.fetchOne(db, key: key)
-                ?? BlendCatalogTrack(catalogKey: key, packTag: pack.releaseTag, state: .unindexed, durationSeconds: nil,
-                                     bpm: nil, beatPeriod: nil, beatPhase: nil, rmsDB: nil, updatedAt: now)
-            record.packTag = pack.releaseTag
-            record.durationSeconds = entry.durationSeconds
-            record.bpm = entry.bpm
-            record.genre = entry.genre
-            record.subgenre = nil
-            record.camelotKey = entry.camelot
-            record.catalogID = entry.catalogID
-            record.sourceURL = assetURL.absoluteString
-            record.sourceKind = .starterRelease
-            record.providerTrackID = nil
-            record.cachedURL = nil
-            record.cachedURLExpiry = nil
-            record.analysisVersion = provenance
-            record.updatedAt = now
-            try record.save(db)
-        }
-        for plan in StarterBlendRuntimeData.edges {
-            // Both endpoints must have actually resolved: an edge to a track the catalog no longer
-            // carries would be a dangling reference, not a playable transition.
-            guard resolvedTrackIDs.contains(plan.outgoingTrackID), resolvedTrackIDs.contains(plan.incomingTrackID) else { continue }
-            try BlendCatalogEdge(fromKey: BlendCatalogTrack.key(pack: pack, trackID: plan.outgoingTrackID),
-                                 toKey: BlendCatalogTrack.key(pack: pack, trackID: plan.incomingTrackID),
-                                 packTag: pack.releaseTag, planJSON: JSONEncoder().encode(plan)).save(db)
-        }
-    }
-
-    /// Gives every pre-v38 row an explicit source: mirrored Starter assets become `.starterRelease`; any
-    /// other row is a Jamendo track whose old `sourceURL` is demoted to refreshable cache data (a
-    /// GitHub Release URL is dropped, never kept as a Jamendo locator).
-    static func backfillCatalogSources(_ db: Database, pack: StarterBlendPack = .v2) throws {
+    /// Gives every pre-v38 row an explicit source: every row is an ordinary Jamendo track, whose old
+    /// `sourceURL` is demoted to refreshable cache data — unless it is a GitHub Release URL (the
+    /// retired pinned Starter asset mirror), which is never a valid Jamendo stream and is dropped.
+    static func backfillCatalogSources(_ db: Database) throws {
         for var row in try BlendCatalogTrack.fetchAll(db) where row.sourceKind == nil {
-            if row.packTag == pack.releaseTag, pack.contains(trackID: row.trackID) {
-                row.sourceKind = .starterRelease
-            } else {
-                row.sourceKind = .jamendo
-                row.providerTrackID = row.catalogID?.replacingOccurrences(of: "jamendo-", with: "") ?? row.trackID
-                if let old = row.sourceURL, !pack.owns(URL(string: old) ?? URL(fileURLWithPath: "/")),
-                   URL(string: old)?.scheme?.hasPrefix("http") == true { row.cachedURL = old }
+            row.sourceKind = .jamendo
+            row.providerTrackID = row.catalogID?.replacingOccurrences(of: "jamendo-", with: "") ?? row.trackID
+            if let old = row.sourceURL, let url = URL(string: old), url.scheme?.hasPrefix("http") == true,
+               url.host != "github.com" {
+                row.cachedURL = old
             }
             try row.update(db)
         }
     }
 
     /// Adds a general catalog track (provider `jamendo`, stable ID) at `.unindexed`, keeping any row it has.
-    /// A Starter Pack ID is never registered this way: it has only its pinned Release asset.
     public func upsertJamendoCatalogTrack(trackID: String, cachedURL: URL?,
                                           expiry: Date? = nil, at date: Date = Date()) throws {
-        guard !trackID.isEmpty, !StarterBlendPack.v2.contains(trackID: trackID) else { return }
+        guard !trackID.isEmpty else { return }
         try dbQueue.write { db in
             let key = BlendCatalogTrack.jamendoKey(trackID: trackID)
             var row = try BlendCatalogTrack.fetchOne(db, key: key)
@@ -109,7 +35,7 @@ extension LibraryStore {
                                      beatPhase: nil, rmsDB: nil, updatedAt: date)
             row.sourceKind = .jamendo
             row.providerTrackID = trackID
-            if let cachedURL, !StarterBlendPack.v2.owns(cachedURL) {
+            if let cachedURL {
                 row.cachedURL = cachedURL.absoluteString
                 row.cachedURLExpiry = expiry
             }

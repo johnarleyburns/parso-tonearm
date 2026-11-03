@@ -85,11 +85,10 @@ struct FindView: View {
     }
 
     private var blendResults: [FindBlendSearch.Result] {
-        FindBlendSearch.results(query: appState.searchText, saved: savedBlends, starters: [])
+        FindBlendSearch.results(query: appState.searchText, saved: savedBlends)
     }
 
-    /// Saved and starter blends matching the query. Selecting never touches
-    /// the library: saved blends open detail, starter blends play.
+    /// Saved blends matching the query. Selecting never touches the library: opens detail.
     private var blendResultsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: "Blends")
@@ -102,10 +101,6 @@ struct FindView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("find.blend.saved")
-                case .starter:
-                    // Never produced: `starters: []` above. Kept only so this switch stays
-                    // exhaustive until Workstream D removes the `.starter` case entirely.
-                    EmptyView()
                 }
             }
         }

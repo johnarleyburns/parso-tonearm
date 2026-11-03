@@ -21,24 +21,6 @@ final class AudioLocatorTests: XCTestCase {
         })
     }
 
-    func testStarterUsesPinnedReleaseAndNonStarterHasNoReleaseURL() {
-        let pack = StarterBlendPack.v2
-        XCTAssertEqual(pack.locator(trackID: "337997"),
-                       .starterRelease(packTag: "starter-blends-aac-v2", assetName: "337997.m4a"))
-        XCTAssertEqual(StarterBlendCatalog.starterTrackIDs.count, 54)
-        XCTAssertNil(pack.assetURL(trackID: "999999999"))
-        XCTAssertNil(pack.locator(trackID: "999999999"))
-    }
-
-    func testStarterLocatorNeverResolvesThroughJamendo() async {
-        let r = Counter()
-        do {
-            _ = try await resolver(refreshes: r).open(.starterRelease(packTag: "t", assetName: "a.m4a")) { $0 }
-            XCTFail()
-        } catch { XCTAssertEqual(error as? JamendoResolveError, .permanent) }
-        XCTAssertEqual(r.value, 0)
-    }
-
     func testValidCachedURLIsUsedWithoutRefresh() async throws {
         let r = Counter()
         let url = try await resolver(refreshes: r).open(

@@ -1,10 +1,8 @@
 import Foundation
 
-/// Where a track's audio bytes come from. Durable identity is the provider + stable ID (or the pinned
-/// release asset); a Jamendo URL is refreshable cache data and never identity.
+/// Where a track's audio bytes come from. Durable identity is the provider + stable ID; a cached
+/// URL is refreshable cache data and never identity.
 public enum AudioLocator: Sendable, Equatable {
-    /// An immutable, mirrored Starter Pack asset on the pinned GitHub Release.
-    case starterRelease(packTag: String, assetName: String)
     /// A Jamendo catalog track. `cachedURL` may be stale; `expiry` says when it should be refreshed.
     case jamendo(trackID: String, cachedURL: URL?, expiry: Date?)
 
@@ -67,7 +65,7 @@ public struct JamendoLocatorResolver: Sendable {
     public func open<T: Sendable>(_ locator: AudioLocator, now: Date = Date(),
                                   _ open: @Sendable (URL) async throws -> T) async throws -> T {
         guard case .jamendo(let trackID, let cached, let expiry) = locator else {
-            throw JamendoResolveError.permanent   // a Starter asset never resolves through Jamendo
+            throw JamendoResolveError.permanent
         }
         var refreshed = false
         var url: URL

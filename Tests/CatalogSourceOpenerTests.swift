@@ -51,20 +51,6 @@ final class CatalogSourceOpenerTests: XCTestCase {
         try await Task.detached { try opener.openBlocking(trackID: id, cancellation: StarterCancellation()) }.value
     }
 
-    func testStarterRowOpensThePinnedReleaseAssetAndNeverTouchesJamendo() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let id = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
-        let log = Log()
-        _ = try await open(opener(store, log: log) { _ in }, id)
-        XCTAssertEqual(log.urls, [StarterBlendPack.v2.assetURL(trackID: id)])
-        XCTAssertEqual(log.types, [kAudioFileM4AType])
-        XCTAssertEqual(log.refreshes, 0)
-        let fetched = try await store.blendCatalogTrack(key: BlendCatalogTrack.key(pack: .v2, trackID: id))
-        let row = try XCTUnwrap(fetched)
-        XCTAssertEqual(row.sourceKind, .starterRelease)
-        XCTAssertEqual(row.audioLocator(), .starterRelease(packTag: "starter-blends-aac-v2", assetName: "\(id).m4a"))
-    }
-
     func testJamendoRowWithNoCachedURLResolvesThroughTheResolverAndPersistsIt() async throws {
         let store = try await jamendoStore(cached: nil)
         let log = Log()
@@ -72,7 +58,6 @@ final class CatalogSourceOpenerTests: XCTestCase {
         XCTAssertEqual(log.refreshes, 1)
         XCTAssertEqual(log.urls, [fresh])
         XCTAssertEqual(log.types, [kAudioFileMP3Type])
-        XCTAssertTrue(log.urls.allSatisfy { !StarterBlendPack.v2.owns($0) }, "never a Starter Release URL")
         try await waitForCachedURL(store, fresh)
     }
 
@@ -149,34 +134,13 @@ final class CatalogSourceOpenerTests: XCTestCase {
         XCTAssertEqual(log.refreshes, 0)
     }
 
-    func testUnknownAndNonMirroredIDsNeverBuildAReleaseURL() async throws {
+    func testUnknownIDsNeverResolve() async throws {
         let store = try LibraryStore(inMemory: true)
         let log = Log()
         let o = opener(store, log: log) { _ in }
         do { _ = try await open(o, "999999999"); XCTFail() } catch { XCTAssertTrue(error is ReleaseRangeError) }
         XCTAssertTrue(log.urls.isEmpty)
         XCTAssertEqual(log.refreshes, 0)
-        XCTAssertNil(StarterBlendPack.v2.assetURL(for: .starterRelease(packTag: "starter-blends-aac-v2", assetName: "999999999.m4a")))
-        XCTAssertNil(StarterBlendPack.v2.assetURL(for: .jamendo(trackID: "1", cachedURL: nil, expiry: nil)))
-        // A Starter ID is never registered as a Jamendo row, nor accepted if one is forced in.
-        let starter = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.first)
-        try await store.upsertJamendoCatalogTrack(trackID: starter, cachedURL: nil)
-        let none = try await store.blendCatalogTrack(key: BlendCatalogTrack.jamendoKey(trackID: starter))
-        XCTAssertNil(none)
-        let seeded = try await store.blendCatalogTrack(key: BlendCatalogTrack.key(pack: .v2, trackID: starter))
-        var forged = try XCTUnwrap(seeded)
-        forged.sourceKind = .jamendo; forged.providerTrackID = starter
-        XCTAssertNil(forged.audioLocator())
-        var release = forged; release.sourceKind = .starterRelease; release.packTag = "other"
-        XCTAssertNil(release.audioLocator())
-    }
-
-    func testJamendoRowNeverCarriesAReleaseURLAsItsCache() {
-        var row = BlendCatalogTrack(catalogKey: BlendCatalogTrack.jamendoKey(trackID: "7"), packTag: "jamendo", state: .unindexed,
-                                    durationSeconds: nil, bpm: nil, beatPeriod: nil, beatPhase: nil, rmsDB: nil, updatedAt: Date())
-        row.sourceKind = .jamendo; row.providerTrackID = "7"
-        row.cachedURL = "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v2/7.m4a"
-        XCTAssertEqual(row.audioLocator(), .jamendo(trackID: "7", cachedURL: nil, expiry: nil))
     }
 
     func testClassifyMapsRangeFailuresForTheResolver() {
@@ -190,10 +154,8 @@ final class CatalogSourceOpenerTests: XCTestCase {
     func testMigrationBackfillsSourceIdentityAndDemotesURLsToCache() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v37").migrate(queue)
-        let starter = try XCTUnwrap(StarterBlendCatalog.starterTrackIDs.sorted().first)
         try queue.write { db in
-            for (key, tag, url) in [("starter-blends-aac-v2:\(starter)", "starter-blends-aac-v2", "https://example.test/old.m4a"),
-                                    ("starter-blends-aac-v2:555", "starter-blends-aac-v2", "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v2/555.m4a"),
+            for (key, tag, url) in [("starter-blends-aac-v2:555", "starter-blends-aac-v2", "https://github.com/johnarleyburns/parso-tonearm/releases/download/starter-blends-aac-v2/555.m4a"),
                                     ("legacy:777", "legacy", "https://example.test/777.mp3")] {
                 try db.execute(sql: "INSERT INTO blend_catalog_track (catalogKey, packTag, state, updatedAt, sourceURL) VALUES (?, ?, 'unindexed', ?, ?)",
                                arguments: [key, tag, Date(), url])
@@ -201,17 +163,17 @@ final class CatalogSourceOpenerTests: XCTestCase {
         }
         try Schema.migrator().migrate(queue)
         try queue.read { db in
-            let starterRow = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: "starter-blends-aac-v2:\(starter)"))
-            XCTAssertEqual(starterRow.sourceKind, .starterRelease)
-            XCTAssertNil(starterRow.cachedURL)
-            let foreign = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: "starter-blends-aac-v2:555"))
-            XCTAssertEqual(foreign.sourceKind, .jamendo, "a non-mirrored ID is never a Starter asset")
-            XCTAssertNil(foreign.cachedURL, "a Release URL is not kept as a Jamendo locator")
+            // Every pre-v38 row becomes an ordinary Jamendo row now — there is no more curated-blend
+            // pack to distinguish, and seeding (which used to add 54 more rows) no longer runs.
+            let formerStarter = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: "starter-blends-aac-v2:555"))
+            XCTAssertEqual(formerStarter.sourceKind, .jamendo)
+            XCTAssertEqual(formerStarter.providerTrackID, "555")
+            XCTAssertNil(formerStarter.cachedURL, "a GitHub Release URL is never kept as a Jamendo locator")
             let legacy = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: "legacy:777"))
             XCTAssertEqual(legacy.sourceKind, .jamendo)
             XCTAssertEqual(legacy.providerTrackID, "777")
             XCTAssertEqual(legacy.cachedURL, "https://example.test/777.mp3")
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track WHERE sourceKind = 'starterRelease'"), 54)
+            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM blend_catalog_track"), 2, "seeding no longer adds rows")
         }
     }
 
