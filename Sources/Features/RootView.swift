@@ -1,5 +1,6 @@
 import SwiftUI
 import TonearmCore
+import UIKit
 
 /// The iPhone shell (tab bar + mini player).
 #if os(iOS)
@@ -46,6 +47,23 @@ struct RootView: View {
         .modifier(AppPresentations())
         .onChange(of: appState.watchManagement.banner == nil) { _, empty in
             if empty { transferBannerDismissed = false }
+        }
+        .onChange(of: appState.tab) { old, new in
+            // The DJ tab never renders inline content: selecting it presents a full-screen
+            // cover instead, and the tab bar underneath keeps showing whichever tab was
+            // active before (AppPresentations.swift owns the actual .fullScreenCover).
+            if new == .dj {
+                appState.showDJConsole = true
+                appState.tab = old
+            }
+        }
+        .onChange(of: appState.showDJConsole) { _, active in
+            guard let delegate = UIApplication.shared.delegate as? TonearmAppDelegate else { return }
+            delegate.landscapeLocked = active
+            UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.windows.first { $0.isKeyWindow }?.rootViewController }
+                .first?
+                .setNeedsUpdateOfSupportedInterfaceOrientations()
         }
     }
 
@@ -95,6 +113,12 @@ struct RootView: View {
             }
                 .tabItem { Label("Mood", systemImage: "sparkles") }
                 .tag(AppTab.mood)
+            // Never actually shown: selecting .dj is intercepted above to present a
+            // full-screen cover instead, so this content is a placeholder TabView requires
+            // for every tag it declares — no NavigationStack/rootTabChrome needed.
+            Color.clear
+                .tabItem { Label("DJ", systemImage: "slider.horizontal.3") }
+                .tag(AppTab.dj)
             FindView()
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)

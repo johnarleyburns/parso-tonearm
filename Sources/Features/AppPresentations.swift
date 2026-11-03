@@ -25,6 +25,9 @@ struct AppPresentations: ViewModifier {
                     .macSheetFrame(minWidth: 420, minHeight: 480)
             }
             #if os(iOS)
+            .fullScreenCover(isPresented: $appState.showDJConsole) {
+                DJConsoleView()
+            }
             .sheet(isPresented: $appState.showWatchSettings) {
                 WatchSettingsView()
             }

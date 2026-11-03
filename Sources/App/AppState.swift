@@ -4,11 +4,17 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Four iPhone root tabs — My Music is browsing-only, while Mood and Find own
+/// Five iPhone root tabs — My Music is browsing-only, while Mood and Find own
 /// their dedicated discovery/search flows. Settings is presented from Listen
-/// rather than occupying a browsing tab.
+/// rather than occupying a browsing tab. `dj` is appended last (not inserted
+/// before `find`, its visual position) so existing cases' raw values —
+/// persisted under `lastTabKey` — never shift; RootView's TabView body order,
+/// not this enum's declaration order, controls visual placement. `dj` never
+/// renders inline tab content: selecting it is intercepted to present a full-
+/// screen cover instead (RootView.swift), so it needs no NavigationStack/
+/// rootTabChrome of its own.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, mood, find
+    case listen, myMusic, mood, find, dj
 }
 
 enum PendingImport: Equatable {
@@ -111,6 +117,10 @@ final class AppState: ObservableObject {
     @Published var pickedFolder: URL?
     @Published var pickedFolderBookmark: Data?
     @Published var pendingImport: PendingImport?
+    /// The manual DJ console's full-screen cover. Set (and immediately followed by reverting
+    /// `tab` to whatever it was before) when `AppTab.dj` is selected — RootView.swift intercepts
+    /// that selection rather than ever rendering inline tab content for it.
+    @Published var showDJConsole = false
     // Watch
     @Published var watchSessionState: WatchSessionDisplayState = .unsupported
     @Published var showWatchSettings = false
