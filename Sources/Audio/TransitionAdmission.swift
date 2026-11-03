@@ -57,12 +57,12 @@ public enum TransitionAdmissionReason: String, Sendable, Equatable, CaseIterable
 }
 
 public enum TransitionAdmissionDecision: Sendable, Equatable {
-    case allowSmartBlend
+    case allowLiveMix
     case allowSafeCrossfade
     case gaplessFallback(reason: TransitionAdmissionReason)
     case `defer`(reason: TransitionAdmissionReason)
 
-    public var allowsWholeTrackMixing: Bool { self == .allowSmartBlend }
+    public var allowsWholeTrackMixing: Bool { self == .allowLiveMix }
     public var reason: TransitionAdmissionReason? {
         switch self {
         case .gaplessFallback(let reason), .defer(let reason): return reason
@@ -211,7 +211,7 @@ public enum TransitionAdmissionController {
         if let available = system.availableBytes, peak + config.requiredHeadroomBytes > available {
             return .gaplessFallback(reason: .memoryPressure)
         }
-        return .allowSmartBlend
+        return .allowLiveMix
     }
 }
 

@@ -10,7 +10,7 @@ final class TransitionAdmissionTests: XCTestCase {
 
     func testOrdinaryPairAdmitted() {
         XCTAssertEqual(TransitionAdmissionController.decide(outgoing: meta(240), incoming: meta(240), system: roomy),
-                       .allowSmartBlend)
+                       .allowLiveMix)
     }
 
     func testHiResAndHourLongDenied() {
@@ -23,9 +23,9 @@ final class TransitionAdmissionTests: XCTestCase {
     func testDecisionUsesDecodedCharacteristics() {
         // Same duration: only rate differs, so the decision differs.
         XCTAssertEqual(TransitionAdmissionController.decide(outgoing: nil, incoming: meta(240, 44_100), system: roomy),
-                       .allowSmartBlend)
+                       .allowLiveMix)
         XCTAssertNotEqual(TransitionAdmissionController.decide(outgoing: nil, incoming: meta(240, 192_000), system: roomy),
-                          .allowSmartBlend)
+                          .allowLiveMix)
     }
 
     func testUnknownOrMalformedMetadataDenied() {
@@ -39,7 +39,7 @@ final class TransitionAdmissionTests: XCTestCase {
 
     func testCombinedPeakDeniesJointlyUnsafePair() {
         let one = meta(420)
-        XCTAssertEqual(TransitionAdmissionController.decide(outgoing: nil, incoming: one, system: roomy), .allowSmartBlend)
+        XCTAssertEqual(TransitionAdmissionController.decide(outgoing: nil, incoming: one, system: roomy), .allowLiveMix)
         let pair = TransitionAdmissionController.decide(outgoing: one, incoming: one, system: roomy)
         let single = TransitionAdmissionController.estimatedPeakBytes(outgoing: nil, incoming: one)!
         let both = TransitionAdmissionController.estimatedPeakBytes(outgoing: one, incoming: one)!
@@ -47,7 +47,7 @@ final class TransitionAdmissionTests: XCTestCase {
         var config = TransitionAdmissionConfig()
         config.absoluteCapBytes = (single + both) / 2
         XCTAssertEqual(TransitionAdmissionController.decide(outgoing: nil, incoming: one, system: roomy, config: config),
-                       .allowSmartBlend)
+                       .allowLiveMix)
         XCTAssertEqual(TransitionAdmissionController.decide(outgoing: one, incoming: one, system: roomy, config: config),
                        .gaplessFallback(reason: .decodedMemoryBudget))
         _ = pair

@@ -45,7 +45,7 @@ extension AudioPlayer: MixDeckHost {
         }
         // Nothing is decoded (not even on queue restore, paused) unless the whole-track mixer is admitted.
         let admission = mixDecksAdmission(index: index, outgoing: nil)
-        guard admission == .allowSmartBlend else {
+        guard admission == .allowLiveMix else {
             mixDecksLog.notice("smart blend not admitted for current track, playing normally: \(String(describing: admission), privacy: .public)")
             releaseSmartBlendReservation()
             smartBlendFallback = TransitionFallbackStatus(decision: admission)
@@ -346,14 +346,14 @@ extension AudioPlayer: MixDeckHost {
         let incoming = smartBlendCapabilities(at: target)
         let outgoingCaps = outgoing.flatMap { queue.indices.contains($0) ? smartBlendCapabilities(at: $0) : nil }
         let decision = AudioAssetCapabilityService.decide(outgoing: outgoingCaps, incoming: incoming)
-        guard decision == .allowSmartBlend else { return decision }
+        guard decision == .allowLiveMix else { return decision }
         guard let bytes = AudioAssetCapabilityService.reservationBytes(outgoing: outgoingCaps, incoming: incoming) else {
             return .gaplessFallback(reason: .unavailableMetadata)
         }
         switch resourceCoordinator.reserve(.blendPreparation, bytes: bytes) {
         case .success(let reservation):
             smartBlendReservation = reservation
-            return .allowSmartBlend
+            return .allowLiveMix
         case .failure(let denial):
             switch denial {
             case .absoluteCap: return .gaplessFallback(reason: .decodedMemoryBudget)

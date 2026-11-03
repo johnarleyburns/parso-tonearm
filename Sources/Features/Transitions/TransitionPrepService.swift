@@ -136,7 +136,7 @@ final class TransitionPrepService: ObservableObject {
             if cellularBlocked && path.usesInterfaceType(.cellular) { return .waitingForWiFi }
         }
         let metadata = TransitionTrackMetadata(durationSec: row.track.durationSec, sampleRate: row.track.sampleRate)
-        guard TransitionDecodeBudget.admission(outgoing: nil, incoming: metadata) == .allowSmartBlend else {
+        guard TransitionDecodeBudget.admission(outgoing: nil, incoming: metadata) == .allowLiveMix else {
             // This track plays normally; it just gets no planned blend ahead of time.
             return .failed(String(localized: "Too long to prepare on this device"))
         }

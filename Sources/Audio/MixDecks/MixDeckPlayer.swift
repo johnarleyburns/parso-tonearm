@@ -44,7 +44,7 @@ protocol MixDeckHost: AnyObject, Sendable {
 }
 
 extension MixDeckHost {
-    func mixDecksAdmission(index: Int, outgoing: Int?) -> TransitionAdmissionDecision { .allowSmartBlend }
+    func mixDecksAdmission(index: Int, outgoing: Int?) -> TransitionAdmissionDecision { .allowLiveMix }
     func mixDecksDenied(index: Int, decision: TransitionAdmissionDecision) {}
 }
 
@@ -298,7 +298,7 @@ final class MixDeckPlayer {
             return
         }
         let admission = host.mixDecksAdmission(index: index, outgoing: nil)
-        guard admission == .allowSmartBlend else {
+        guard admission == .allowLiveMix else {
             cancelPlanning()
             dropLoads(keeping: [])
             output.stop()
@@ -428,7 +428,7 @@ final class MixDeckPlayer {
                                     index: nextIndex, trackID: track.trackID)
         if planning == target { return }
         let admission = host.mixDecksAdmission(index: nextIndex, outgoing: host.mixDecksCurrentIndex)
-        guard admission == .allowSmartBlend else {
+        guard admission == .allowLiveMix else {
             cancelPlanning()
             upcoming = nil
             dropLoads(keeping: [current.trackID])

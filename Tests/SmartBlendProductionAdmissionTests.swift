@@ -101,7 +101,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
         XCTAssertEqual(player.mixDecksAdmission(index: 0, outgoing: nil), .defer(reason: .preparingDetails))
         XCTAssertTrue(coordinator.snapshot().reservations.isEmpty, "nothing reserved before details are known")
         let decision = await admit(player, index: 0)
-        XCTAssertEqual(decision, .allowSmartBlend)
+        XCTAssertEqual(decision, .allowLiveMix)
         XCTAssertGreaterThan(service.lookupCount, 0)
         XCTAssertEqual(coordinator.snapshot().reservations.count, 1)
         XCTAssertEqual(coordinator.snapshot().reservations.first?.kind, .blendPreparation)
@@ -119,7 +119,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
         let player = makePlayer([try pcmFile("a.wav", channels: 2), try pcmFile("b.aiff", channels: 2)])
         _ = await admit(player, index: 0)
         let decision = await admit(player, index: 1, outgoing: 0)
-        XCTAssertEqual(decision, .allowSmartBlend)
+        XCTAssertEqual(decision, .allowLiveMix)
         XCTAssertEqual(coordinator.snapshot().reservations.count, 1)
         let peak = coordinator.snapshot().totalBytes
         XCTAssertGreaterThan(peak, 96 * 1_024 * 1_024)   // measured peak includes the safety reserve
@@ -150,7 +150,7 @@ final class SmartBlendProductionAdmissionTests: XCTestCase {
                                  garbage, missing])
         for i in 0..<3 {
             let decision = await admit(player, index: i)
-            XCTAssertEqual(decision, .allowSmartBlend, "index \(i)")
+            XCTAssertEqual(decision, .allowLiveMix, "index \(i)")
             XCTAssertFalse(player.smartBlendCapabilities(at: i).boundedRandomAccessActive,
                            "a SEEKTABLE is not the capability decision")
         }
