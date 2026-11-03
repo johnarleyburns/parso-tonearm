@@ -55,8 +55,11 @@ jobs:
           MODELS_LOCK="$MODEL_LOCK" scripts/fetch-models.sh
           mkdir -p "$RUNNER_TEMP/micro-shard" "$RUNNER_TEMP/micro-audio"
       - name: Build the micro-shard
+        env:
+          JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
         run: |
           set -euo pipefail
+          [ -n "$JAMENDO_CLIENT_ID" ] || { echo "Jamendo runner credential is not configured"; exit 1; }
           TMPDIR="$RUNNER_TEMP/micro-audio" python3 -I tools/starter-shards/build_shard.py \
             --batch "${{ inputs.batch_path }}" --catalog "${{ inputs.catalog_path }}" \
             --model-dir "$MODEL_DIR" --embedding-space-fingerprint "$EMBEDDING_SPACE_FINGERPRINT" \
