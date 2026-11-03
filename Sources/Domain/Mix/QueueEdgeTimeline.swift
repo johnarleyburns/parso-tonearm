@@ -38,7 +38,7 @@ public struct QueueEdgeTimeline: Sendable, Equatable {
         kindLabel = switch kind {
         case .phrase: String(localized: "Phrase", bundle: .module)
         case .beat: String(localized: "Beat", bundle: .module)
-        case .other: (presentation.actualStyle ?? presentation.plannedStyle ?? .smartBlend).label
+        case .other: (presentation.actualStyle ?? presentation.plannedStyle)?.label ?? String(localized: "Blend", bundle: .module)
         case .fallback: String(localized: "Fallback", bundle: .module)
         case .unplanned: String(localized: "Not planned yet", bundle: .module)
         }
@@ -66,7 +66,7 @@ public struct QueueEdgeTimeline: Sendable, Equatable {
         case .failed: String(localized: "Failed", bundle: .module)
         case .stopped: String(localized: "Stopped", bundle: .module)
         case .unknown: String(localized: "Availability unknown", bundle: .module)
-        case .unavailable: String(localized: "Smart blend unavailable", bundle: .module)
+        case .unavailable: String(localized: "Blend unavailable", bundle: .module)
         case .notPlanned: String(localized: "Planned when up next", bundle: .module)
         }
 

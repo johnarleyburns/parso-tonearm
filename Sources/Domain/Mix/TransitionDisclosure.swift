@@ -27,10 +27,11 @@ public struct TransitionDisclosure: Sendable, Equatable {
     /// nil when there is no blend to disclose (the no-transition fallback).
     public init?(_ presentation: TransitionPresentation, position: Double) {
         guard presentation.isBlendingNow, presentation.phase != .fallback,
-              presentation.outgoingTrackID != nil, presentation.incomingTrackID != nil else { return nil }
+              presentation.outgoingTrackID != nil, presentation.incomingTrackID != nil,
+              let style = presentation.actualStyle ?? presentation.plannedStyle else { return nil }
         outgoingTrackID = presentation.outgoingTrackID
         incomingTrackID = presentation.incomingTrackID
-        matchType = (presentation.actualStyle ?? presentation.plannedStyle ?? .smartBlend).label
+        matchType = style.label
         if presentation.phase == .outgoingTail {
             section = .incoming
             overlapProgress = presentation.overlapRange == nil ? nil : 1

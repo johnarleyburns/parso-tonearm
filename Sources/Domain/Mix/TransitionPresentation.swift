@@ -4,8 +4,6 @@ import Foundation
 /// `TransitionStyle` so styles the engine may add later still render honestly.
 public enum TransitionDisplayStyle: String, Sendable, Equatable, CaseIterable {
     case phraseBlend, beatMatched, bassSwap, doubleDrop, plainCrossfade, gapless
-    /// An engine style this build does not know by name.
-    case smartBlend
 
     public init(_ style: TransitionStyle) {
         switch style {
@@ -13,19 +11,6 @@ public enum TransitionDisplayStyle: String, Sendable, Equatable, CaseIterable {
         case .beatmatchedBlend: self = .beatMatched
         case .phraseFade: self = .phraseBlend
         case .plainCrossfade: self = .plainCrossfade
-        }
-    }
-
-    /// Unknown names map to the generic "Smart blend" rather than failing.
-    public init(rawEngineStyle: String) {
-        switch rawEngineStyle {
-        case "gapless": self = .gapless
-        case "beatmatchedBlend": self = .beatMatched
-        case "phraseFade": self = .phraseBlend
-        case "plainCrossfade": self = .plainCrossfade
-        case "bassSwap": self = .bassSwap
-        case "doubleDrop": self = .doubleDrop
-        default: self = .smartBlend
         }
     }
 
@@ -37,7 +22,6 @@ public enum TransitionDisplayStyle: String, Sendable, Equatable, CaseIterable {
         case .doubleDrop: String(localized: "Double drop", bundle: .module)
         case .plainCrossfade: String(localized: "Plain crossfade", bundle: .module)
         case .gapless: String(localized: "Gapless continuation", bundle: .module)
-        case .smartBlend: String(localized: "Smart blend", bundle: .module)
         }
     }
 
@@ -50,7 +34,6 @@ public enum TransitionDisplayStyle: String, Sendable, Equatable, CaseIterable {
         case .doubleDrop: String(localized: "double drop blend", bundle: .module)
         case .plainCrossfade: String(localized: "plain crossfade", bundle: .module)
         case .gapless: String(localized: "gapless continuation", bundle: .module)
-        case .smartBlend: String(localized: "smart blend, details unavailable", bundle: .module)
         }
     }
 
@@ -230,7 +213,7 @@ public struct TransitionPresentation: Sendable, Equatable {
 
     public var isFallback: Bool { phase == .fallback }
 
-    private var styleLabel: String { (actualStyle ?? plannedStyle)?.label ?? TransitionDisplayStyle.smartBlend.label }
+    private var styleLabel: String { (actualStyle ?? plannedStyle)?.label ?? String(localized: "Blend", bundle: .module) }
 
     private var preparationLabel: String? {
         switch preparation {
@@ -267,7 +250,7 @@ public struct TransitionPresentation: Sendable, Equatable {
         if actualStyle?.overlaps == false {
             return String(localized: "Sequential handoff, no blend", bundle: .module)
         }
-        return String(localized: "No smart blend plan for this transition", bundle: .module)
+        return String(localized: "No blend plan for this transition", bundle: .module)
     }
 
     /// The queue connector text, e.g. "Phrase-matched · 12 s · Ready".
@@ -277,9 +260,9 @@ public struct TransitionPresentation: Sendable, Equatable {
         case .notPlanned:
             return String(localized: "Transition planned when up next", bundle: .module)
         case .fallback:
-            return String(localized: "Continuous playback — smart blend unavailable", bundle: .module)
+            return String(localized: "Continuous playback — blend unavailable", bundle: .module)
         case .preparing:
-            let head = plannedStyle?.label ?? String(localized: "Smart blend", bundle: .module)
+            let head = plannedStyle?.label ?? String(localized: "Blend", bundle: .module)
             return "\(head) · " + String(localized: "Preparing", bundle: .module)
         case .ready, .overlap, .outgoingTail:
             var parts = [styleLabel]
@@ -314,7 +297,7 @@ public struct TransitionPresentation: Sendable, Equatable {
         case .noEdge: return String(localized: "No next transition", bundle: .module)
         case .notPlanned: return String(localized: "Transition planned when up next", bundle: .module)
         case .fallback:
-            return String(localized: "Next transition, continuous playback. Smart blend unavailable", bundle: .module)
+            return String(localized: "Next transition, continuous playback. Blend unavailable", bundle: .module)
         case .overlap, .outgoingTail:
             if let outgoingTitle, let incomingTitle {
                 var text = String(localized: "Blending", bundle: .module) + " \(outgoingTitle) "
@@ -322,9 +305,12 @@ public struct TransitionPresentation: Sendable, Equatable {
                 if let secondsRemaining { text += "; \(Self.spoken(secondsRemaining)) " + String(localized: "remaining", bundle: .module) }
                 return text
             }
-            return String(localized: "Blending now", bundle: .module) + ", " + (actualStyle ?? .smartBlend).spokenLabel
+            let fallbackSpoken = String(localized: "blend", bundle: .module)
+            return String(localized: "Blending now", bundle: .module) + ", " + (actualStyle?.spokenLabel ?? fallbackSpoken)
         case .preparing, .ready:
-            var text = String(localized: "Next transition", bundle: .module) + ", " + (actualStyle ?? plannedStyle ?? .smartBlend).spokenLabel
+            let fallbackSpoken = String(localized: "blend", bundle: .module)
+            var text = String(localized: "Next transition", bundle: .module) + ", "
+                + ((actualStyle ?? plannedStyle)?.spokenLabel ?? fallbackSpoken)
             if let until = secondsUntilOverlap { text += " " + String(localized: "in", bundle: .module) + " \(Self.spoken(until))" }
             return text
         }

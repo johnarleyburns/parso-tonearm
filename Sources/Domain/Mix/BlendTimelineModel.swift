@@ -49,10 +49,11 @@ public struct BlendTimelineModel: Sendable, Equatable {
     public init?(_ p: TransitionPresentation, position: Double) {
         guard p.showsConnector, p.phase == .preparing || p.phase == .ready || p.isBlendingNow,
               p.actualStyle?.overlaps ?? p.plannedStyle?.overlaps ?? true,
-              let range = p.overlapRange, range.upperBound > range.lowerBound else { return nil }
+              let range = p.overlapRange, range.upperBound > range.lowerBound,
+              let style = p.actualStyle ?? p.plannedStyle else { return nil }
         let d = range.upperBound - range.lowerBound
         duration = d
-        styleLabel = (p.actualStyle ?? p.plannedStyle ?? .smartBlend).label
+        styleLabel = style.label
         outgoing = Self.points(from: range.lowerBound, duration: d)
         incoming = p.entryTime.map { Self.points(from: $0, duration: d) } ?? []
         if p.phase == .outgoingTail || position >= range.upperBound {

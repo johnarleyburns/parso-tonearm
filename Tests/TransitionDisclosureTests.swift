@@ -25,9 +25,9 @@ final class TransitionDisclosureTests: XCTestCase {
     }
 
     func testUnknownTimingOmitsProgress() throws {
-        let d = try XCTUnwrap(TransitionDisclosure(overlap(nil, style: .smartBlend), position: 5))
+        let d = try XCTUnwrap(TransitionDisclosure(overlap(nil), position: 5))
         XCTAssertNil(d.overlapProgress)
-        XCTAssertEqual(d.spokenSummary, "Overlap, Smart blend")
+        XCTAssertEqual(d.spokenSummary, "Overlap, Beat-matched")
     }
 
     func testProgressClampsAndNoTransitionFallbackHasNoDisclosure() {

@@ -34,8 +34,8 @@ final class TransitionPresentationTests: XCTestCase {
     func testMissingPlanFallsBackTruthfully() {
         let p = TransitionPresentation.make(plan: nil, preparation: .failed("x"))
         XCTAssertTrue(p.isFallback)
-        XCTAssertEqual(p.connectorLabel, "Continuous playback — smart blend unavailable")
-        XCTAssertEqual(p.fallbackDetail, "No smart blend plan for this transition")
+        XCTAssertEqual(p.connectorLabel, "Continuous playback — blend unavailable")
+        XCTAssertEqual(p.fallbackDetail, "No blend plan for this transition")
         XCTAssertNil(p.secondsUntilOverlap)
         XCTAssertFalse(p.fallbackDetail?.contains("/") ?? false)
     }
@@ -56,9 +56,7 @@ final class TransitionPresentationTests: XCTestCase {
         XCTAssertEqual(head, 0.5, accuracy: 0.001)
     }
 
-    func testUnknownStyleAndMissingTimingDoNotCrash() {
-        XCTAssertEqual(TransitionDisplayStyle(rawEngineStyle: "quantumMorph"), .smartBlend)
-        XCTAssertEqual(TransitionDisplayStyle.smartBlend.label, "Smart blend")
+    func testMissingTimingDoesNotCrash() {
         let p = TransitionPresentation.make(plan: plan(.phraseFade, exit: 0, overlap: 0), preparation: nil, position: 5)
         XCTAssertNil(p.overlapRange)
         XCTAssertTrue(p.diagramSegments.isEmpty)

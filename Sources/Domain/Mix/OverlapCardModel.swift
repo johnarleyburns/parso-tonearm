@@ -31,9 +31,10 @@ public struct OverlapCardModel: Sendable, Equatable {
     public init?(_ p: TransitionPresentation, snapshot: TransitionExecutionSnapshot?, position: Double) {
         guard p.isBlendingNow, let out = p.outgoingTrackID, let inc = p.incomingTrackID else { return nil }
         if let snapshot, !snapshot.executedAsOverlap { return nil }
+        guard let style = p.actualStyle ?? p.plannedStyle else { return nil }
         outgoingTrackID = out
         incomingTrackID = inc
-        executedStyle = p.actualStyle ?? p.plannedStyle ?? .smartBlend
+        executedStyle = style
         var duration: Double?
         if let snapshot, snapshot.overlapFrames > 0, snapshot.sampleRate > 0 {
             duration = Double(snapshot.overlapFrames) / snapshot.sampleRate

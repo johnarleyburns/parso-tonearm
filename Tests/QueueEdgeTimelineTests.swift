@@ -32,7 +32,7 @@ final class QueueEdgeTimelineTests: XCTestCase {
         XCTAssertEqual(t.availability, .unavailable)
         XCTAssertNil(t.outgoingBoundary)
         XCTAssertNil(t.incomingBoundary)
-        XCTAssertEqual(t.summary, "Fallback · Smart blend unavailable")
+        XCTAssertEqual(t.summary, "Fallback · Blend unavailable")
     }
 
     func testUnknownTimingOmitsBoundariesAndSaysSo() {
