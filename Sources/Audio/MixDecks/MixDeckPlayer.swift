@@ -277,7 +277,7 @@ final class MixDeckPlayer {
         scheduled = nil
         current = nil
         if let safety, !safety.enter(.startingCurrent) {
-            host.mixDecksCouldNotPlay(index: index, reason: "Smart Blend safety journal unavailable")
+            host.mixDecksCouldNotPlay(index: index, reason: "Mix safety journal unavailable")
             return
         }
         do { try output.reset() } catch {
@@ -306,7 +306,7 @@ final class MixDeckPlayer {
             return
         }
         if let safety, !safety.enter(.decodingCurrent) {
-            host.mixDecksCouldNotPlay(index: index, reason: "Smart Blend safety journal unavailable")
+            host.mixDecksCouldNotPlay(index: index, reason: "Mix safety journal unavailable")
             return
         }
         host.mixDecksLoading(true)

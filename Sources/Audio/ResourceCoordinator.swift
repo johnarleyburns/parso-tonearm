@@ -1,6 +1,6 @@
 import Foundation
 
-/// Named owner of memory in the Smart Blend pipeline. Every heavy allocation is made under one.
+/// Named owner of memory in the live-mix pipeline. Every heavy allocation is made under one.
 public enum ResourceKind: String, Sendable, Equatable, CaseIterable {
     case liveDecode, blendPreparation, queuePreview, audition, resample, tempoRender
     case deckA, deckB, deckC, outgoingTail

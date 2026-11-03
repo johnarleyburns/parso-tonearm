@@ -1,6 +1,6 @@
 import Foundation
 
-/// Typed availability of a source for Smart Blend. Distinct outcomes: a supported file is never
+/// Typed availability of a source for live mixing. Distinct outcomes: a supported file is never
 /// marked unsupported just because a probe has not finished or the file is momentarily unreadable.
 public enum AudioAssetAvailability: Equatable, Sendable {
     case available
@@ -14,7 +14,7 @@ public enum AudioAssetAvailability: Equatable, Sendable {
 /// Where the technical facts came from.
 public enum AudioAssetProvenance: String, Equatable, Sendable { case headerProbe, none }
 
-/// The one authoritative description of an audio source for every Smart Blend entry point.
+/// The one authoritative description of an audio source for every live-mix entry point.
 /// Technical fields come only from the probe; there are no stereo or DB-derived defaults.
 public struct AudioAssetCapabilities: Equatable, Sendable {
     /// Opaque identity (never a title, path or URL).
@@ -46,7 +46,7 @@ public struct AudioAssetCapabilities: Equatable, Sendable {
     }
 }
 
-/// Production owner of capability lookups. Every Smart Blend path asks this; it routes local files
+/// Production owner of capability lookups. Every live-mix path asks this; it routes local files
 /// through the resolver/lease (via the metadata provider) and cached/app-owned files by URL.
 public final class AudioAssetCapabilityService: @unchecked Sendable {
     public static let shared = AudioAssetCapabilityService()

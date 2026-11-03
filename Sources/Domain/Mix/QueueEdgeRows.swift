@@ -73,7 +73,7 @@ public struct QueueEdgeRow: Sendable, Equatable, Identifiable {
 /// attached only to the edge whose track IDs it names; every other edge is "planned when up next".
 public enum QueueEdgeResolver {
     public static func rows(trackIDs: [Int64?], currentIndex: Int, repeatMode: RepeatMode,
-                            smartBlendEnabled: Bool, live: TransitionPresentation,
+                            smartTransitionsEnabled: Bool, live: TransitionPresentation,
                             occurrences: [QueueOccurrenceID] = [],
                             snapshot: (Int) -> TransitionExecutionSnapshot? = { _ in nil },
                             noBlend: Set<TransitionEdgeKey> = []) -> [QueueEdgeRow] {
@@ -97,7 +97,7 @@ public enum QueueEdgeResolver {
             var isActive = false
             if skipsBlend {
                 reason = String(localized: "Playing without a blend", bundle: .module)
-            } else if !smartBlendEnabled {
+            } else if !smartTransitionsEnabled {
                 reason = String(localized: "Smart transitions are off", bundle: .module)
             } else if repeatMode == .one && i == currentIndex {
                 reason = String(localized: "Repeating this track", bundle: .module)

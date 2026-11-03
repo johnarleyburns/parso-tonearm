@@ -68,27 +68,6 @@ public enum BlendReplay {
         }
     }
 
-    /// The replay request for a saved Starter Blend, built only from what the document persisted:
-    /// its pack identity, ordered release track ids and each edge's concrete plan. Nil for any
-    /// other document, or one whose pack/plans are incomplete (it then replays as a plain queue).
-    public static func starterRequest(for document: BlendDocument) -> StarterPlayRequest? {
-        guard document.origin == .starter, let pack = document.pack else { return nil }
-        let prefix = "\(pack.releaseTag):"
-        let ids = document.occurrences.compactMap { occurrence -> String? in
-            guard let sync = occurrence.source.syncID, sync.hasPrefix(prefix) else { return nil }
-            return String(sync.dropFirst(prefix.count))
-        }
-        let plans = document.edges.compactMap(\.plan)
-        guard ids.count == document.occurrences.count, ids.count > 1, plans.count == ids.count - 1,
-              zip(plans, zip(ids, ids.dropFirst())).allSatisfy({
-                  $0.outgoingTrackID == $1.0 && $0.incomingTrackID == $1.1 }) else { return nil }
-        let blendID = StarterBlendCatalog.blends.first { $0.document.id == document.id }?.id ?? document.title
-        guard let rows = try? StarterBlendPlayback.rows(blendID: blendID, title: document.title, trackIDs: ids, pack: pack),
-              rows.count == ids.count else { return nil }
-        return StarterPlayRequest(blendID: blendID, pack: pack, occurrenceIDs: document.occurrences.map(\.id), rows: rows,
-                                  trackIDs: ids, edgePlans: plans)
-    }
-
     /// The queue to hand to the player: playable rows only, in saved order.
     /// Skipped occurrences are the caller's to surface (`entries`), never
     /// replaced by another track.

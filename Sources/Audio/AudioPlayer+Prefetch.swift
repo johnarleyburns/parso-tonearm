@@ -19,7 +19,7 @@ extension AudioPlayer {
             prefetchLoaders.removeValue(forKey: trackId)
             prefetchedURLs.removeValue(forKey: trackId)
         }
-        if mixDecks != nil || starterStream != nil {
+        if mixDecks != nil {
             // The mix decks download whole tracks themselves (into this cache); a partial
             // warm of the same entry here would race their write.
             upcoming.forEach { bridge.prefetchArtwork(for: $0) }

@@ -113,7 +113,7 @@ final class TransitionAdmissionTests: XCTestCase {
     func testReasonsArePrivacySafeAndAccessible() {
         for reason in TransitionAdmissionReason.allCases {
             XCTAssertFalse(reason.accessibilityLabel.isEmpty)
-            XCTAssertTrue(reason.message.contains("smart blend unavailable"))
+            XCTAssertTrue(reason.message.contains("blend unavailable"))
         }
     }
 }

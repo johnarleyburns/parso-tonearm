@@ -48,7 +48,6 @@ extension AudioPlayer {
         case .one: .off
         }
         mixDecks?.upcomingChanged()
-        starterStream?.edgePolicyChanged()
     }
 
     public func toggleShuffle() {

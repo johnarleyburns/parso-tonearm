@@ -28,30 +28,30 @@ public enum TransitionAdmissionReason: String, Sendable, Equatable, CaseIterable
     /// Concise, honest wording for queue / Now Playing surfaces.
     public var message: String {
         switch self {
-        case .preparingDetails: "Continuous playback — smart blend unavailable until track details are read."
-        case .unsupportedFormat: "Continuous playback — smart blend unavailable: unsupported format."
-        case .temporarilyUnreadable: "Continuous playback — smart blend unavailable: audio unreadable, retry later."
+        case .preparingDetails: "Continuous playback — blend unavailable until track details are read."
+        case .unsupportedFormat: "Continuous playback — blend unavailable: unsupported format."
+        case .temporarilyUnreadable: "Continuous playback — blend unavailable: audio unreadable, retry later."
         case .decodedMemoryBudget, .memoryPressure:
-            "Continuous playback — smart blend unavailable: not enough safe memory on this device."
-        default: "Continuous playback — smart blend unavailable on this device."
+            "Continuous playback — blend unavailable: not enough safe memory on this device."
+        default: "Continuous playback — blend unavailable on this device."
         }
     }
 
     /// Spoken label: the result and the reason category.
     public var accessibilityLabel: String {
         switch self {
-        case .unavailableMetadata: return "Continuous playback. Smart blend unavailable: track details not known yet."
-        case .decodedMemoryBudget: return "Continuous playback. Smart blend unavailable: track too large to blend on this device."
-        case .memoryPressure: return "Continuous playback. Smart blend unavailable: device memory is low."
-        case .thermalPolicy: return "Continuous playback. Smart blend unavailable: device is warm."
-        case .lowPowerPolicy: return "Continuous playback. Smart blend unavailable: Low Power Mode."
-        case .unavailableSource: return "Continuous playback. Smart blend unavailable: audio source not available."
-        case .deadline: return "Continuous playback. Smart blend unavailable: next track was not ready in time."
-        case .preparationFailed: return "Continuous playback. Smart blend unavailable: could not prepare the next track."
-        case .cancelled: return "Continuous playback. Smart blend cancelled."
-        case .preparingDetails: return "Continuous playback. Smart blend unavailable: reading track details."
-        case .unsupportedFormat: return "Continuous playback. Smart blend unavailable: unsupported format."
-        case .temporarilyUnreadable: return "Continuous playback. Smart blend unavailable: audio unreadable, retry later."
+        case .unavailableMetadata: return "Continuous playback. Blend unavailable: track details not known yet."
+        case .decodedMemoryBudget: return "Continuous playback. Blend unavailable: track too large to blend on this device."
+        case .memoryPressure: return "Continuous playback. Blend unavailable: device memory is low."
+        case .thermalPolicy: return "Continuous playback. Blend unavailable: device is warm."
+        case .lowPowerPolicy: return "Continuous playback. Blend unavailable: Low Power Mode."
+        case .unavailableSource: return "Continuous playback. Blend unavailable: audio source not available."
+        case .deadline: return "Continuous playback. Blend unavailable: next track was not ready in time."
+        case .preparationFailed: return "Continuous playback. Blend unavailable: could not prepare the next track."
+        case .cancelled: return "Continuous playback. Blend cancelled."
+        case .preparingDetails: return "Continuous playback. Blend unavailable: reading track details."
+        case .unsupportedFormat: return "Continuous playback. Blend unavailable: unsupported format."
+        case .temporarilyUnreadable: return "Continuous playback. Blend unavailable: audio unreadable, retry later."
         }
     }
 }

@@ -46,7 +46,7 @@ struct SavedBlendsView: View {
 
     private func reload() async {
         let snapshot = await appState.blendRepository.load()
-        blends = StarterBlendCatalog.mergingStarterBlends(into: snapshot.blends); issues = snapshot.issues; didLoad = true
+        blends = snapshot.blends; issues = snapshot.issues; didLoad = true
     }
 
     static func describe(_ issue: BlendRepository.LoadIssue) -> String {
@@ -84,14 +84,14 @@ struct BlendDetailView: View {
                     ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         VStack(alignment: .leading, spacing: 2) {
                             Text(entry.row?.track.title ?? entry.occurrence.source.title)
-                            if blend.pack == nil, let status = Self.statusLabel(entry.status) {
+                            if let status = Self.statusLabel(entry.status) {
                                 Text(status).font(Typography.caption).foregroundStyle(.red)
                                 Button("Remove from blend", role: .destructive) { remove(entry) }
                                     .font(Typography.caption)
                             }
                             if index < blend.edges.count {
                                 Text(blend.edges[index].plan.map { "→ \($0.style.rawValue)" }
-                                     ?? blend.edges[index].requestedStyle.map { "→ \($0)" } ?? "→ Smart blend")
+                                     ?? blend.edges[index].requestedStyle.map { "→ \($0)" } ?? "→ Blend")
                                     .font(Typography.caption).foregroundStyle(Palette.inkSecondary)
                             }
                         }
@@ -100,9 +100,7 @@ struct BlendDetailView: View {
                 }
                 Section {
                     Button("Play") { play() }.accessibilityIdentifier("blenddetail.play")
-                    if !StarterBlendCatalog.isBuiltIn(blend) {
-                        Button("Remove Saved Blend", role: .destructive) { confirmRemove = true }
-                    }
+                    Button("Remove Saved Blend", role: .destructive) { confirmRemove = true }
                 }
             }
             .navigationTitle(blend.title)
@@ -120,13 +118,6 @@ struct BlendDetailView: View {
     }
 
     private func play() {
-        if let request = BlendReplay.starterRequest(for: blend) {
-            message = nil
-            player.playStarterBlend(request)
-            let id = blend.id
-            Task { try? await appState.blendRepository.markPlayed(id: id) }
-            return
-        }
         let all = entries
         let queue = BlendReplay.playableQueue(all)
         let skipped = all.count - queue.count

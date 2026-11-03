@@ -32,7 +32,6 @@ struct ListenView: View {
                 favorites
                 statsCard(appState.listeningStats)
                     .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
-                StarterBlendsSection()
                 BlendLabEntryButton()
             }
             .padding(.horizontal, 16)

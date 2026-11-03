@@ -40,7 +40,7 @@ final class QueueEdgeTimelineActionsTests: XCTestCase {
     private func edges() -> [QueueEdgeRow] {
         QueueEdgeResolver.rows(
             trackIDs: player.queue.map(\.track.id), currentIndex: player.index, repeatMode: player.repeatMode,
-            smartBlendEnabled: player.smartTransitionsEnabled, live: player.transitionPresentation,
+            smartTransitionsEnabled: player.smartTransitionsEnabled, live: player.transitionPresentation,
             occurrences: player.queueOccurrences,
             snapshot: { self.player.transitionExecutionSnapshot(afterQueueIndex: $0) }, noBlend: player.noBlendEdges)
     }

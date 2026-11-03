@@ -12,7 +12,7 @@ final class QueueEdgeRowsTests: XCTestCase {
     private func rows(_ ids: [Int64], at index: Int = 0, repeat mode: RepeatMode = .off, on: Bool = true,
                       live: TransitionPresentation) -> [QueueEdgeRow] {
         QueueEdgeResolver.rows(trackIDs: ids, currentIndex: index, repeatMode: mode,
-                               smartBlendEnabled: on, live: live)
+                               smartTransitionsEnabled: on, live: live)
     }
 
     func testRepeatedIDsGetDistinctKeysAndOnlyActiveEdgeIsLive() {
@@ -85,7 +85,7 @@ final class QueueEdgeRowsTests: XCTestCase {
     private func fallbackRows(_ snapshot: TransitionExecutionSnapshot?, slot: Int = 0) -> [QueueEdgeRow] {
         let a = QueueOccurrenceID(), b = QueueOccurrenceID()
         return QueueEdgeResolver.rows(
-            trackIDs: [1, 2], currentIndex: 0, repeatMode: .off, smartBlendEnabled: true,
+            trackIDs: [1, 2], currentIndex: 0, repeatMode: .off, smartTransitionsEnabled: true,
             live: TransitionPresentation(phase: .fallback), occurrences: [a, b],
             snapshot: { requested in
                 XCTAssertEqual(requested, slot)

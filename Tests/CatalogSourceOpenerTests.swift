@@ -215,22 +215,6 @@ final class CatalogSourceOpenerTests: XCTestCase {
         }
     }
 
-    func testResolutionRunsOffTheRenderCallbackAndHasNoWholeFileFallback() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        func text(_ path: String) throws -> String { try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8) }
-        let opener = try text("Sources/Audio/MixDecks/CatalogSourceOpener.swift")
-        for forbidden in ["Data(contentsOf", ".download(", "AVAudioFile", "AVAudioPCMBuffer"] {
-            XCTAssertFalse(opener.contains(forbidden), forbidden)
-        }
-        for render in ["Sources/Audio/MixDecks/BoundedDeckBuffer.swift", "Sources/Audio/MixDecks/BoundedDeckMixer.swift"] {
-            let source = try text(render)
-            XCTAssertFalse(source.contains("CatalogSourceOpener") || source.contains("JamendoLocatorResolver"), render)
-        }
-        let stream = try text("Sources/Audio/AudioPlayer+StarterStream.swift")
-        XCTAssertTrue(stream.contains("CatalogSourceOpener.live()"), "the shipping stream opens through the locator")
-        XCTAssertFalse(stream.contains("ReleaseRangeReader(url: assetURL)"))
-    }
-
     private func waitForCachedURL(_ store: LibraryStore, _ url: URL) async throws {
         let key = BlendCatalogTrack.jamendoKey(trackID: jamendoID)
         for _ in 0..<100 {

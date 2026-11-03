@@ -30,7 +30,9 @@ struct CatalogSourceOpener: Sendable {
             persist: { key, url, expiry in try? await LibraryStore.shared.updateCachedLocator(key: key, url: url, expiry: expiry) })
     }
 
-    /// Blocking entry for `StarterStreamPlayer.SourceFactory` (called on its open queue).
+    /// Blocking entry point for a caller running on its own dedicated open queue (synchronous deck
+    /// renderers); `open(trackID:cancellation:)` is the async equivalent. Currently unused — kept as
+    /// the byte-range-opening mechanism for the upcoming manual DJ console's deck loading.
     func openBlocking(trackID: String, cancellation: StarterCancellation) throws -> any StarterDeckSource {
         do {
             return try Self.runBlocking(cancellation) { try await self.open(trackID: trackID, cancellation: cancellation) }

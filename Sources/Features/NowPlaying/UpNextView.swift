@@ -26,7 +26,7 @@ struct UpNextView: View {
     private var edgeRows: [QueueEdgeRow] {
         QueueEdgeResolver.rows(
             trackIDs: player.queue.map(\.track.id), currentIndex: player.index,
-            repeatMode: player.repeatMode, smartBlendEnabled: player.smartTransitionsEnabled,
+            repeatMode: player.repeatMode, smartTransitionsEnabled: player.smartTransitionsEnabled,
             live: player.transitionPresentation, occurrences: player.queueOccurrences,
             snapshot: { player.transitionExecutionSnapshot(afterQueueIndex: $0) },
             noBlend: player.noBlendEdges)
@@ -49,11 +49,9 @@ struct UpNextView: View {
             var plan: MixPlan?
             if case .mix(let mixPlan) = player.queueSource { origin = .blendLab; plan = mixPlan }
             let id = appState.savedBlendIDsByQueue[signature] ?? UUID()
-            // A Starter Blend saves as itself: pack identity and every edge's concrete plan.
-            let doc = player.activeStarterBlendID.flatMap { StarterBlendCatalog.blend(id: $0)?.document }
-                ?? BlendReplay.document(from: rows, plan: plan,
-                                        title: rows.first?.track.title ?? String(localized: "Blend"),
-                                        origin: origin, id: id)
+            let doc = BlendReplay.document(from: rows, plan: plan,
+                                           title: rows.first?.track.title ?? String(localized: "Blend"),
+                                           origin: origin, id: id)
             Task {
                 do {
                     try await appState.blendRepository.save(doc)

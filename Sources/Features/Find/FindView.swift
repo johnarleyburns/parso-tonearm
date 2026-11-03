@@ -85,7 +85,7 @@ struct FindView: View {
     }
 
     private var blendResults: [FindBlendSearch.Result] {
-        FindBlendSearch.results(query: appState.searchText, saved: savedBlends)
+        FindBlendSearch.results(query: appState.searchText, saved: savedBlends, starters: [])
     }
 
     /// Saved and starter blends matching the query. Selecting never touches
@@ -102,13 +102,10 @@ struct FindView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("find.blend.saved")
-                case .starter(let blend):
-                    Button { Task { await appState.starterBlends.play(blend) } } label: {
-                        blendRow(title: blend.title, kind: "Starter blend", detail: blend.summary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Plays this starter blend")
-                    .accessibilityIdentifier("find.blend.\(blend.id)")
+                case .starter:
+                    // Never produced: `starters: []` above. Kept only so this switch stays
+                    // exhaustive until Workstream D removes the `.starter` case entirely.
+                    EmptyView()
                 }
             }
         }

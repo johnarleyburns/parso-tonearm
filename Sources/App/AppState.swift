@@ -153,11 +153,6 @@ final class AppState: ObservableObject {
     @AppStorage("prefetchDepth") var prefetchDepth = 2
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
-    /// Listen's starter-blend Play. Owned here, not by the view, so a recreated
-    /// `ListenView` shares the same in-flight guard and never starts twice.
-    let starterBlends = StarterBlendPlayback(start: { request in
-        AudioPlayer.shared.playStarterBlend(request)
-    })
 
     /// "Keep Playing" (main-library queue continuation, C01–C09 CLAP reuse):
     /// on by default. Settings-level detail lives alongside `keepPlayingBatchSize`;
@@ -183,7 +178,6 @@ final class AppState: ObservableObject {
     init(store: LibraryStore = .shared) {
         self.store = store
         self.transitionPrepService = TransitionPrepService()
-        AudioPlayer.shared.starterStatusHandler = { [weak self] status in self?.starterBlends.apply(status) }
         if let saved = UserDefaults.standard.object(forKey: Self.lastTabKey) as? Int,
             let restored = AppTab(rawValue: saved)
         {

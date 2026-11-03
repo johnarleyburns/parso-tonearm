@@ -5,7 +5,7 @@ import ParsoAudioStreaming
 import Combine
 import Network
 
-struct SmartBlendFallbackToken: Equatable, Sendable {
+struct LiveMixFallbackToken: Equatable, Sendable {
     let occurrence: QueueOccurrenceID
     let generation: Int
 }
@@ -153,8 +153,8 @@ public final class AudioPlayer: ObservableObject {
     /// `transitionPlan` stays the A→B edge; the next B→C plan waits in `deferredTransitionPlan`.
     @Published public internal(set) var isOutgoingTransitionTailAudible = false
     var deferredTransitionPlan: (plan: TransitionPlan?, state: GridPrepState)?
-    /// Set while an edge plays continuously because a smart blend was not admitted.
-    @Published public internal(set) var smartBlendFallback: TransitionFallbackStatus?
+    /// Set while an edge plays continuously because a live mix was not admitted.
+    @Published public internal(set) var liveMixFallback: TransitionFallbackStatus?
 
     /// Smart transitions is a playback setting, not just a Settings toggle.
     /// The app mirrors the preference here at launch and whenever the toggle
@@ -229,32 +229,19 @@ public final class AudioPlayer: ObservableObject {
     /// One ordinary-player fallback, bound to the denied queue occurrence and the queue generation it
     /// was issued in. The next mix-deck load of that occurrence is skipped once (no recursion into the
     /// rejected mixer); replacement, seek, stop or any other load invalidates it.
-    var smartBlendFallbackToken: SmartBlendFallbackToken?
-    /// The one capability authority and the one reservation authority for Smart Blend.
+    var liveMixFallbackToken: LiveMixFallbackToken?
+    /// The one capability authority and the one reservation authority for live mixing.
     var audioCapabilities = AudioAssetCapabilityService.shared
     var resourceCoordinator = ResourceCoordinator.shared
     /// Held while an admitted whole-track decode/analysis may allocate; released exactly once
     /// (idempotent) on replacement, denial, stop or fallback.
-    var smartBlendReservation: ResourceCoordinator.Reservation?
+    var liveMixReservation: ResourceCoordinator.Reservation?
     var preloadedNextTrackId: Int64?
     var preloadedNextLoader: CachingResourceLoader?
     var loadedSourceSampleRate: Double = 0
     var crossfadePlayer: AVPlayer?
     /// Mix queues play here instead of on `player` (AudioPlayer+MixDecks.swift).
     var mixDecks: MixDeckPlayer?
-    /// Starter Blends stream on their own bounded decks (AudioPlayer+StarterStream.swift).
-    var starterStream: StarterStreamPlayer?
-    var starterSession: StarterSession?
-    var pendingStarterSession: StarterSession?
-    /// Test seam: replaces the release byte-range sources (and the audio device) with procedural ones.
-    var starterSourceFactoryOverride: StarterStreamPlayer.SourceFactory?
-    /// Metadata seam for catalog rows Keep Playing appends (the bundled starter catalog by default).
-    var keepPlayingMetadataResolver: StarterBlendPlayback.MetadataResolver = StarterBlendPlayback.bundledResolver
-    /// What the Starter path is doing now; nil outside a starter session.
-    @Published public internal(set) var starterStatus: StarterStreamStatus? {
-        didSet { if let starterStatus, starterStatus != oldValue { starterStatusHandler?(starterStatus) } }
-    }
-    public var starterStatusHandler: (@MainActor (StarterStreamStatus) -> Void)?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
@@ -343,7 +330,6 @@ public final class AudioPlayer: ObservableObject {
 
     public func play(tracks: [TrackRow], startAt start: Int, source: QueueSource = .none) {
         shutdownLoopPlayer()
-        adoptPendingStarterSession()
         // Real, repeated report: "I click on a track I've played before and
         // nothing happens." Root cause found by reading loadCurrent
         // (AudioPlayer+Loading.swift): it reuses `preloadedNextItem`
@@ -469,13 +455,6 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
-        if let starterStream {
-            if isPlaying { starterStream.pause() } else { starterStream.resume() }
-            isPlaying.toggle()
-            updateNowPlaying()
-            return
-        }
-        if restartEndedStarterSession() { return }
         if isPlaying {
             player.pause()
         } else {
@@ -543,7 +522,6 @@ public final class AudioPlayer: ObservableObject {
             sleepAtEndOfTrack = false
         }
         mixDecks?.upcomingChanged()
-        starterStream?.edgePolicyChanged()
     }
 
     public func next() {
@@ -551,7 +529,7 @@ public final class AudioPlayer: ObservableObject {
         guard !queue.isEmpty else { return }
         if repeatMode == .one {
             seek(to: 0)
-            if let mixDecks { mixDecks.resume() } else if let starterStream { starterStream.resume() } else { player.play() }
+            if let mixDecks { mixDecks.resume() } else { player.play() }
             return
         }
         if index < queue.count - 1 {
@@ -573,7 +551,6 @@ public final class AudioPlayer: ObservableObject {
                 }
             }
             mixDecks?.pause()
-            starterStream?.pause()
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }
         loadCurrent(autoplay: true)
@@ -597,15 +574,7 @@ public final class AudioPlayer: ObservableObject {
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation
-        smartBlendFallbackToken = nil
-        if let starterStream {
-            starterStream.seek(to: seconds)
-            currentTime = seconds
-            updateNowPlayingTime()
-            persist(reason: .userSeek)
-            bridge.publishSnapshot(self)
-            return
-        }
+        liveMixFallbackToken = nil
         if let mixDecks {
             endOutgoingTransitionTail()
             mixDecks.seek(to: seconds)
@@ -646,7 +615,6 @@ public final class AudioPlayer: ObservableObject {
 
     func clearQueuePlayback() {
         cancelCatalogPlaybackLoad()
-        endStarterSession()
         stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()

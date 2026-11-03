@@ -16,8 +16,6 @@ extension AudioPlayer: MixDeckHost {
     /// "Use for everything" is on, and auditions.
     var wantsMixDecks: Bool {
         guard !isAmbient else { return false }
-        // Starter Blends never use the resident whole-track decks, not even for their sequential fallback.
-        guard starterSession == nil else { return false }
         if plainRestoreAfterRecovery, isRestoring { return false }
         if auditionRequested || isMixQueue { return true }
         guard smartTransitionsEnabled else { return false }
@@ -38,23 +36,23 @@ extension AudioPlayer: MixDeckHost {
     /// be created, and the caller plays it on AVPlayer instead.
     func loadCurrentOnMixDecks(row: TrackRow, autoplay: Bool) -> Bool {
         // An edge denied moments ago is not retried: that would re-enter the unsafe backend.
-        if let token = smartBlendFallbackToken {
-            smartBlendFallbackToken = nil
+        if let token = liveMixFallbackToken {
+            liveMixFallbackToken = nil
             if token.generation == transitionExecution.generation,
                token.occurrence == mixDecksOccurrence(at: index) { return false }
         }
         // Nothing is decoded (not even on queue restore, paused) unless the whole-track mixer is admitted.
         let admission = mixDecksAdmission(index: index, outgoing: nil)
         guard admission == .allowLiveMix else {
-            mixDecksLog.notice("smart blend not admitted for current track, playing normally: \(String(describing: admission), privacy: .public)")
-            releaseSmartBlendReservation()
-            smartBlendFallback = TransitionFallbackStatus(decision: admission)
+            mixDecksLog.notice("live mix not admitted for current track, playing normally: \(String(describing: admission), privacy: .public)")
+            releaseLiveMixReservation()
+            liveMixFallback = TransitionFallbackStatus(decision: admission)
             return false
         }
-        smartBlendFallback = nil
+        liveMixFallback = nil
         // Durable sentinel first: a kill during the decode or mixer start must be attributable.
         guard transitionSafety.enter(.startingCurrent) else {
-            mixDecksLog.error("smart blend safety journal unavailable, playing normally")
+            mixDecksLog.error("mix safety journal unavailable, playing normally")
             return false
         }
         if mixDecks == nil {
@@ -102,8 +100,8 @@ extension AudioPlayer: MixDeckHost {
     }
 
     func stopMixDecks() {
-        releaseSmartBlendReservation()
-        smartBlendFallbackToken = nil
+        releaseLiveMixReservation()
+        liveMixFallbackToken = nil
         guard let mixDecks else { return }
         mixDecks.stop()
         self.mixDecks = nil
@@ -173,7 +171,7 @@ extension AudioPlayer: MixDeckHost {
         guard let from = queueOccurrences.firstIndex(of: key.from), let to = mixDecksSuccessor(of: from),
               queueOccurrences[to] == key.to, transitionExecution.snapshot(for: key)?.isTerminal == true else { return false }
         noBlendEdges.remove(key)
-        smartBlendFallbackToken = nil
+        liveMixFallbackToken = nil
         if from == index {
             mixDecks?.upcomingChanged()
             preloadNextItem(allowingMixDecks: true)
@@ -315,7 +313,7 @@ extension AudioPlayer: MixDeckHost {
     }
 
     /// Capabilities of the queue row's source from the one authority; never DB duration/rate or a stereo default.
-    func smartBlendCapabilities(at i: Int) -> AudioAssetCapabilities {
+    func liveMixCapabilities(at i: Int) -> AudioAssetCapabilities {
         let row = queue[i]
         let id = row.asset.map { "asset-\($0.id ?? $0.trackId)" } ?? "track-\(row.track.id ?? -1)"
         guard let asset = row.asset, let source = mixTrackSource(for: asset) else {
@@ -331,20 +329,20 @@ extension AudioPlayer: MixDeckHost {
         }
     }
 
-    func releaseSmartBlendReservation() {
-        smartBlendReservation?.release()
-        smartBlendReservation = nil
+    func releaseLiveMixReservation() {
+        liveMixReservation?.release()
+        liveMixReservation = nil
     }
 
     func mixDecksAdmission(index target: Int, outgoing: Int?) -> TransitionAdmissionDecision {
         // A new request replaces any earlier reservation first, so duplicates never stack.
-        releaseSmartBlendReservation()
+        releaseLiveMixReservation()
         guard queue.indices.contains(target) else { return .gaplessFallback(reason: .unavailableSource) }
         audioCapabilities.onChange = { [weak self] in
             Task { @MainActor [weak self] in self?.mixDecks?.upcomingChanged() }
         }
-        let incoming = smartBlendCapabilities(at: target)
-        let outgoingCaps = outgoing.flatMap { queue.indices.contains($0) ? smartBlendCapabilities(at: $0) : nil }
+        let incoming = liveMixCapabilities(at: target)
+        let outgoingCaps = outgoing.flatMap { queue.indices.contains($0) ? liveMixCapabilities(at: $0) : nil }
         let decision = AudioAssetCapabilityService.decide(outgoing: outgoingCaps, incoming: incoming)
         guard decision == .allowLiveMix else { return decision }
         guard let bytes = AudioAssetCapabilityService.reservationBytes(outgoing: outgoingCaps, incoming: incoming) else {
@@ -352,7 +350,7 @@ extension AudioPlayer: MixDeckHost {
         }
         switch resourceCoordinator.reserve(.blendPreparation, bytes: bytes) {
         case .success(let reservation):
-            smartBlendReservation = reservation
+            liveMixReservation = reservation
             return .allowLiveMix
         case .failure(let denial):
             switch denial {
@@ -364,21 +362,21 @@ extension AudioPlayer: MixDeckHost {
     }
 
     func mixDecksDenied(index deniedIndex: Int, decision: TransitionAdmissionDecision) {
-        releaseSmartBlendReservation()
+        releaseLiveMixReservation()
         // A late denial for a slot that no longer exists, or when the decks are gone, is obsolete.
         guard mixDecks != nil, let deniedOccurrence = mixDecksOccurrence(at: deniedIndex) else { return }
-        smartBlendFallback = TransitionFallbackStatus(decision: decision)
+        liveMixFallback = TransitionFallbackStatus(decision: decision)
         if let from = mixDecksOccurrence(at: index), let to = mixDecksOccurrence(at: deniedIndex), deniedIndex != index {
             transitionExecution.record(TransitionEdgeKey(from: from, to: to), generation: transitionExecution.generation,
-                                       .denied(.admissionDenied(smartBlendFallback?.message ?? ""),
-                                               readiness: .failed(smartBlendFallback?.message ?? "")))
+                                       .denied(.admissionDenied(liveMixFallback?.message ?? ""),
+                                               readiness: .failed(liveMixFallback?.message ?? "")))
         }
         transitionPlan = nil
-        transitionPrepState = .failed(smartBlendFallback?.message ?? "")
+        transitionPrepState = .failed(liveMixFallback?.message ?? "")
         // Per-edge only: the "Everywhere" preference is untouched.
-        let token = SmartBlendFallbackToken(occurrence: deniedOccurrence, generation: transitionExecution.generation)
+        let token = LiveMixFallbackToken(occurrence: deniedOccurrence, generation: transitionExecution.generation)
         guard deniedIndex == index else {
-            smartBlendFallbackToken = token
+            liveMixFallbackToken = token
             // Prepare the denied upcoming track on the normal player now, so the handoff
             // does not wait for next() to build it.
             preloadNextItem(allowingMixDecks: true)
@@ -389,9 +387,9 @@ extension AudioPlayer: MixDeckHost {
         let resume = isPlaying
         let position = mixDecks?.currentSeconds ?? currentTime
         stopMixDecks()
-        smartBlendFallbackToken = token // after stop, which invalidates; consumed by the load below
+        liveMixFallbackToken = token // after stop, which invalidates; consumed by the load below
         loadCurrent(autoplay: resume)
-        smartBlendFallbackToken = nil
+        liveMixFallbackToken = nil
         if position > 0.5 {
             player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
             currentTime = position
@@ -402,7 +400,7 @@ extension AudioPlayer: MixDeckHost {
         let title = queue.indices.contains(failedIndex) ? queue[failedIndex].track.title : "?"
         // Diagnostics carry an opaque load ID only: no title, path, URL or error text.
         mixDecksLog.error("mix decks: skipping load \(UUID().uuidString.prefix(8), privacy: .public): playback error")
-        releaseSmartBlendReservation()
+        releaseLiveMixReservation()
         networkSkipMessage = String(localized: "Skipped \(title): \(reason)", bundle: .module)
         guard failedIndex == index else { return }
         next()
