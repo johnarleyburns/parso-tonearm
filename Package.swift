@@ -22,7 +22,7 @@ let package = Package(
         // parenthesis, previously hashed to a different cache key than the
         // one callers computed from the same raw URL, causing eviction/
         // offline-lookup mismatches — "shows cached, play does nothing").
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.4.0")
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.5.0")
     ],
     targets: [
         .target(
@@ -40,6 +40,9 @@ let package = Package(
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
                          condition: .when(platforms: [.iOS, .macOS])),
                 .product(name: "ParsoAudioCore", package: "parso-audio-engine",
+                         condition: .when(platforms: [.iOS, .macOS])),
+                // Manual two-deck DJ console (Sources/Features/DJ).
+                .product(name: "ParsoDJEngine", package: "parso-audio-engine",
                          condition: .when(platforms: [.iOS, .macOS]))
             ],
             path: ".",
