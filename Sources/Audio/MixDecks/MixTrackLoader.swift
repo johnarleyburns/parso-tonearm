@@ -7,18 +7,23 @@ import ParsoAudioAnalysis
 /// Where a mix track's whole audio comes from. The mix decks play decoded PCM
 /// (a blend needs any point of the track at once, sample-exact), so a stream
 /// is downloaded completely before it can join a mix.
-enum MixTrackSource: Sendable, Equatable {
+///
+/// Public: the manual DJ console (Sources/Features/DJ, the app target — a separate module from
+/// this one) reuses this same resolve/download/decode path for its own deck loading, via
+/// `AudioPlayer.mixTrackSource(for:)` and `MixTrackLoader.load`.
+public enum MixTrackSource: Sendable, Equatable {
     case file(URL, container: AudioContainer, securityScoped: Bool)
     /// `cacheKey`: the stream cache entry the downloaded file is kept under, so the
     /// track isn't downloaded again (nil: not cacheable).
     case remote(URL, headers: [String: String], container: AudioContainer, cacheKey: String?)
 }
 
-/// A decoded mix track at the mix decks' sample rate, and its blend analysis.
-struct MixTrackAudio: Sendable {
-    let trackID: Int64
-    let audio: PCMBuffer
-    let analysis: BlendTrackAnalysis
+/// A decoded mix track at the mix decks' sample rate, and its blend analysis. Public for the same
+/// reason as `MixTrackSource` above.
+public struct MixTrackAudio: Sendable {
+    public let trackID: Int64
+    public let audio: PCMBuffer
+    public let analysis: BlendTrackAnalysis
 }
 
 enum MixTrackLoaderError: Error, LocalizedError, Equatable {
@@ -50,13 +55,17 @@ enum MixTrackLoaderError: Error, LocalizedError, Equatable {
 
 /// Downloads (when remote), decodes and analyses one mix track off the main
 /// actor. Progress goes to `progress` so the prep state is always real.
-enum MixTrackLoader {
-    enum Stage: Sendable, Equatable {
+///
+/// `MixTrackLoader`/`.Stage`/`.load` are public for the same cross-module reason as
+/// `MixTrackSource`/`MixTrackAudio` above; the decode/download/cache internals below stay
+/// internal — only the top-level entry point is a public API.
+public enum MixTrackLoader {
+    public enum Stage: Sendable, Equatable {
         case downloading(Double)
         case analyzing
     }
 
-    static func load(trackID: Int64, source: MixTrackSource, approximateBPM: Double?, sampleRate: Double,
+    public static func load(trackID: Int64, source: MixTrackSource, approximateBPM: Double?, sampleRate: Double,
                      progress: @escaping @Sendable (Stage) -> Void) async throws -> MixTrackAudio {
         let decoded: PCMBuffer
         switch source {

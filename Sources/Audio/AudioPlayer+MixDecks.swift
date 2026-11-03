@@ -456,7 +456,9 @@ extension AudioPlayer: MixDeckHost {
 
     /// Where the mix decks read an asset: the same choices as `buildItem`
     /// (Opus CAF, bundled, complete cache, stream, bookmark, managed file).
-    func mixTrackSource(for asset: Asset) -> MixTrackSource? {
+    /// Public: the manual DJ console (a separate app-target module) resolves its own deck loads
+    /// through this same path, then decodes with `MixTrackLoader.load`.
+    public func mixTrackSource(for asset: Asset) -> MixTrackSource? {
         if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
             let caf = AudioCache.cafURL(forRemoteOpus: opusURL)
             if FileManager.default.fileExists(atPath: caf.path) {
