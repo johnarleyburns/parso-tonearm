@@ -70,6 +70,20 @@ internal_qa_for_build() {
   HTTP_CODE=200
 }
 
+# Closing is the owner's own policy (not a QA pass): once a build lands
+# (ready-for-qa, below) the issue closes automatically, and a human doing QA
+# reopens it by adding qa-failed if it doesn't hold up — reconcile_issue's own
+# qa-failed check above already short-circuits before this ever runs again
+# for a build that failed. Idempotent: a no-op once already closed, so the
+# comment is posted only on the transition.
+close_landed_issue() {
+  local issue=$1 version=$2 build=$3 state
+  state=$(gh issue view "$issue" --repo "$repo" --json state --jq .state)
+  if [[ "$state" == "OPEN" ]]; then
+    gh issue close "$issue" --repo "$repo" --comment "Closed automatically: TestFlight build $version ($build) landed and is ready for human QA. Add \`qa-failed\` to reopen and start a repair cycle if it doesn't hold up." >/dev/null
+  fi
+}
+
 reconcile_issue() {
   local issue=$1 marker bundle version build status_marker comments delivery body app_id build_id state groups_count availability detail existing
   comments="$tmp/comments-$issue"
@@ -134,15 +148,18 @@ reconcile_issue() {
               status='Apple processing completed; tester-group distribution is confirmed.'
               detail="App Store Connect reports $groups_count assigned tester group(s)."
     gh issue edit "$issue" --repo "$repo" --add-label testflight-uploaded --add-label testflight-distribution-confirmed --add-label ready-for-qa --remove-label testflight-processing --remove-label testflight-access-unverified --remove-label ai-ready >/dev/null
+    close_landed_issue "$issue" "$version" "$build"
             else
               status='Apple processing completed; tester-group membership was not reported.'
               detail='The build is ready for human QA. Group reporting is separate observability and does not block QA readiness.'
     gh issue edit "$issue" --repo "$repo" --add-label testflight-uploaded --add-label ready-for-qa --add-label testflight-access-unverified --remove-label testflight-processing --remove-label testflight-distribution-confirmed --remove-label ai-ready >/dev/null
+    close_landed_issue "$issue" "$version" "$build"
             fi
           else
             status='Apple processing completed; tester-group access could not be verified.'
             detail="The build is ready for human QA. App Store Connect beta-group lookup returned HTTP $HTTP_CODE; the reconciler will retry."
     gh issue edit "$issue" --repo "$repo" --add-label testflight-uploaded --add-label ready-for-qa --add-label testflight-access-unverified --remove-label testflight-processing --remove-label testflight-distribution-confirmed --remove-label ai-ready >/dev/null
+    close_landed_issue "$issue" "$version" "$build"
           fi
         fi
       fi
