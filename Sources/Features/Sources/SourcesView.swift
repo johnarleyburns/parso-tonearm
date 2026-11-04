@@ -345,31 +345,41 @@ struct ProviderInstancesView: View {
     }
 
     var body: some View {
-        List {
-            ForEach(matches) { source in
-                NavigationLink(value: source) {
-                    SourceRow(source: source)
-                }
-                .accessibilityIdentifier("Source \(source.title)")
-                .contextMenu {
-                    Button("Play") { Task { await appState.playSource(source) } }
-                    Button("Remove", role: .destructive) {
-                        Task { await appState.deleteSource(source) }
+        // A plain ScrollView/VStack, not `List` — matching SourcesView's own catalog list
+        // instead (a real report: `List` draws its own disclosure chevron on every
+        // `NavigationLink` row *in addition to* `SourceRow`'s own, so each row showed two).
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(matches) { source in
+                    NavigationLink(value: source) {
+                        SourceRow(source: source)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("Source \(source.title)")
+                    .contextMenu {
+                        Button("Play") { Task { await appState.playSource(source) } }
+                        Button("Remove", role: .destructive) {
+                            Task { await appState.deleteSource(source) }
+                        }
+                    }
+                    Divider().overlay(Palette.hairline)
                 }
-                .listRowBackground(Color.clear)
-            }
-            Button { connectingConnector = connector } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus.circle").foregroundStyle(Palette.accent)
-                    Text("Connect Another \(connector.title) Library").font(Typography.callout)
+                Button { connectingConnector = connector } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle").foregroundStyle(Palette.accent)
+                        Text("Connect Another \(connector.title) Library").font(Typography.callout)
+                        Spacer()
+                    }
+                    .padding(.vertical, 9)
+                    .contentShape(Rectangle())
+                    .foregroundStyle(Palette.ink)
                 }
-                .foregroundStyle(Palette.ink)
+                .buttonStyle(.plain)
             }
-            .listRowBackground(Color.clear)
+            .padding(.horizontal, 18)
+            .padding(.bottom, 40)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .foregroundStyle(Palette.ink)
         .background(Palette.sourcesBackground.ignoresSafeArea())
         .navigationTitle(connector.title)
         .sheet(item: $connectingConnector) { connector in
