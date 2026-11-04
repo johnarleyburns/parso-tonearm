@@ -46,6 +46,11 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
             let close = app.buttons["Close Add Remote Library"]
             if close.waitForExistence(timeout: 2) { close.tap() }
         }
+        // The Libraries screen now shows one row per known provider, connected or not
+        // (SourcesView.swift); a just-connected archive.org library is one level deeper,
+        // inside that provider's own instance list.
+        let connectorRow = app.buttons["Remote Library iaPublicList"]
+        XCTAssertTrue(connectorRow.waitForExistence(timeout: 30)); connectorRow.tap()
         let collection = app.element("Source \(collectionName)")
         XCTAssertTrue(collection.waitForExistence(timeout: 30))
         collection.tap()
@@ -74,7 +79,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         fill("Add Remote Library PASSWORD", creds["PH_TEST_ARCHIVE_ORG_PASSWORD"]!)
         app.buttons["Add archive.org Library"].tap()
         XCTAssertFalse(app.alerts.firstMatch.waitForExistence(timeout: 3))
-        playFirstRemoteTrack()
+        playFirstRemoteTrack("iaPrivateList")
     }
 
     // MARK: - Subsonic
@@ -102,6 +107,9 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         app.buttons["Connect Subsonic"].tap()
         let close = app.buttons["Close Add Remote Library"]
         if close.waitForExistence(timeout: 3) { close.tap() }
+        // One level deeper now — Libraries lists providers, not instances directly.
+        let connectorRow = app.buttons["Remote Library subsonic"]
+        XCTAssertTrue(connectorRow.waitForExistence(timeout: 30)); connectorRow.tap()
         let source = app.element("Source demo.navidrome.org")
         XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
         let artist = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "remote.node.")).firstMatch
@@ -165,7 +173,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         fill("Add Remote Library USERNAME", creds["PH_TEST_WEBDAV_USERNAME"]!)
         fill("Add Remote Library PASSWORD", creds["PH_TEST_WEBDAV_PASSWORD"]!)
         app.buttons["Connect WebDAV"].tap()
-        playFirstRemoteTrack()
+        playFirstRemoteTrack("webDAV")
     }
 
     /// D-12 · SMB against the local Samba container.
@@ -213,7 +221,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         fill("Add Remote Library SERVER URL", creds["PH_TEST_PLEX_SERVER_URL"]!)
         fill("Add Remote Library PLEX TOKEN", creds["PH_TEST_PLEX_CLAIM_TOKEN"]!)
         app.buttons["Connect Plex"].tap()
-        playFirstRemoteTrack()
+        playFirstRemoteTrack("plex")
     }
 
     // MARK: - Cloud drives
@@ -243,12 +251,16 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10)); field.tap(); app.typeText(value)
     }
 
-    private func playFirstRemoteTrack() {
+    private func playFirstRemoteTrack(_ connectorID: String) {
         if app.buttons["Close Add Remote Library"].waitForExistence(timeout: 5) {
             app.buttons["Close Add Remote Library"].tap()
         }
         app.buttons["Settings"].tap()
         app.waitFor("settings.musicLibraries").tap()
+        // The Libraries screen lists one row per known provider, connected or not
+        // (SourcesView.swift) — the just-connected instance is one level deeper now.
+        let connectorRow = app.buttons["Remote Library \(connectorID)"]
+        XCTAssertTrue(connectorRow.waitForExistence(timeout: 30)); connectorRow.tap()
         let source = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "Source ")).firstMatch
         XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
         for _ in 0..<3 {

@@ -10,9 +10,14 @@ struct AddServerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var oauthCoordinator = OAuthSignInCoordinator()
 
-    @State private var selectedConnectorID: String = RemoteConnectorCatalog.connector(byID: "iaPublicList")?.id
-        ?? RemoteConnectorCatalog.all.first?.id
-        ?? ""
+    /// When set, this sheet is scoped to exactly one provider — opened from that provider's own
+    /// row in the Libraries tab (SourcesView.swift), not the global "+" menu. The provider picker
+    /// is hidden and `selectedConnectorID` stays pinned to it: "the library connect dialog for
+    /// that particular remote library," never the combined multi-provider picker this same sheet
+    /// still serves when opened from the + menu with `fixedConnector` left nil.
+    let fixedConnector: RemoteConnector?
+
+    @State private var selectedConnectorID: String
     @State private var urlText = ""
     @State private var username = ""
     @State private var password = ""
@@ -23,16 +28,26 @@ struct AddServerSheet: View {
     @State private var showGuide = false
     @State private var showGenrePicker = false
 
+    init(fixedConnector: RemoteConnector? = nil) {
+        self.fixedConnector = fixedConnector
+        _selectedConnectorID = State(initialValue: fixedConnector?.id
+            ?? RemoteConnectorCatalog.connector(byID: "iaPublicList")?.id
+            ?? RemoteConnectorCatalog.all.first?.id
+            ?? "")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text("Add Remote Library")
+            Text(fixedConnector == nil ? "Add Remote Library" : "Connect \(connector.title)")
                 .font(Typography.headline).padding(.top, 12)
             Text(connector.subtitle)
                 .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
                 .multilineTextAlignment(.center).padding(.top, 5)
 
-            providerPicker.padding(.top, 16)
+            if fixedConnector == nil {
+                providerPicker.padding(.top, 16)
+            }
             guideButton.padding(.top, 10)
             fields.padding(.top, 16)
 

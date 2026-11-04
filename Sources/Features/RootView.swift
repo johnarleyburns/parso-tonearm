@@ -95,6 +95,9 @@ struct RootView: View {
             }
                 .tabItem { Label("Mood", systemImage: "sparkles") }
                 .tag(AppTab.mood)
+            SourcesView()
+                .tabItem { Label("Libraries", systemImage: "externaldrive.connected.to.line.below") }
+                .tag(AppTab.libraries)
             FindView()
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)

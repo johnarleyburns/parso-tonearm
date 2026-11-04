@@ -4,11 +4,14 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Four iPhone root tabs — My Music is browsing-only, while Mood and Find own
-/// their dedicated discovery/search flows. Settings is presented from Listen
-/// rather than occupying a browsing tab.
+/// Five iPhone root tabs — My Music is browsing-only, while Mood, Find and Libraries own
+/// their dedicated discovery/search/connection flows. Settings is presented from Listen
+/// rather than occupying a browsing tab. `libraries` is appended last (not inserted before
+/// `find`, its visual position) so existing cases' raw values — persisted under `lastTabKey`
+/// — never shift; RootView's TabView body order, not this enum's declaration order,
+/// controls visual placement.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, mood, find
+    case listen, myMusic, mood, find, libraries
 }
 
 enum PendingImport: Equatable {
