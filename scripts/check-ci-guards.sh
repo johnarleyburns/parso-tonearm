@@ -166,6 +166,7 @@ for dir in "${UI_DIRS[@]}"; do
     | grep -v '"tonearm"' \
     | grep -v '"TonearmOAuthClientIDs' \
     | grep -v '"TonearmOAuthClientSecrets' \
+    | grep -v '"TonearmGoogleDriveReversedClientID' \
     | grep -v '"TonearmShareExtension"' \
     | grep -v 'appendingPathComponent("Tonearm' \
     | grep -v 'PROVISIONING_PROFILE_SPECIFIER' \
