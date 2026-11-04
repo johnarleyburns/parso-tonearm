@@ -59,7 +59,7 @@ final class ItemResolverTests: XCTestCase {
 
     func testPrefersFLACOverMP3WhenPreferFLACIsTrue() {
         let files = [file("song.mp3", format: "VBR MP3"), file("song.flac", format: "Free Lossless Audio")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1, "both files are the same logical track (same basename stem)")
         XCTAssertEqual(tracks.first?.codec, "FLAC")
         XCTAssertEqual(tracks.first?.altFlacURL, nil, "the chosen file already is the FLAC — no separate alt needed")
@@ -67,7 +67,7 @@ final class ItemResolverTests: XCTestCase {
 
     func testPrefersMP3OverFLACWhenPreferFLACIsFalse() {
         let files = [file("song.mp3", format: "VBR MP3"), file("song.flac", format: "Free Lossless Audio")]
-        let tracks = FileSelectionPolicy(preferFLAC: false).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: false).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.codec, "MP3")
         XCTAssertNotNil(tracks.first?.altFlacURL, "the FLAC variant is still offered as an upgrade path")
@@ -75,7 +75,7 @@ final class ItemResolverTests: XCTestCase {
 
     func testDistinctTracksAreNotCollapsedByFormat() {
         let files = [file("01 intro.mp3"), file("02 verse.mp3")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 2, "different basenames are different logical tracks")
     }
 
@@ -85,13 +85,13 @@ final class ItemResolverTests: XCTestCase {
             file("01 real track_sample.mp3"),
             file("item-identifier_disc1side1.flac"),
         ]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item-identifier")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item-identifier", itemArtist: nil)
         XCTAssertEqual(tracks.map(\.title), ["real track"])
     }
 
     func testNonAudioExtensionsAreExcluded() {
         let files = [file("cover.jpg"), file("notes.txt"), file("track.mp3")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
     }
 
@@ -100,7 +100,7 @@ final class ItemResolverTests: XCTestCase {
     /// before first play rather than stream it directly.
     func testOpusOnlyGroupYieldsARemuxFlaggedTrack() {
         let files = [file("only.opus", format: "Ogg Opus")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.codec, "OPUS")
         XCTAssertTrue(tracks.first?.requiresRemux ?? false)
@@ -108,7 +108,7 @@ final class ItemResolverTests: XCTestCase {
 
     func testOpusIsNeverColdPlayChosenWhenAnotherFormatExists() {
         let files = [file("song.mp3"), file("song.opus", format: "Ogg Opus")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.codec, "MP3", "a mixed group must never cold-play Opus")
         XCTAssertFalse(tracks.first?.requiresRemux ?? true)
@@ -117,14 +117,14 @@ final class ItemResolverTests: XCTestCase {
 
     func testTracksSortByTrackNumberWhenPresent() {
         let files = [file("B track.mp3", track: "2"), file("A track.mp3", track: "1")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.map(\.title), ["A track", "B track"], "track number orders ahead of filename")
         XCTAssertEqual(tracks.map(\.trackNo), [1, 2])
     }
 
     func testTracksSortByTitleWhenNoTrackNumbersExist() {
         let files = [file("B track.mp3"), file("A track.mp3")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item")
+        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
         XCTAssertEqual(tracks.map(\.title), ["A track", "B track"], "no track numbers: falls back to title order")
     }
 }
