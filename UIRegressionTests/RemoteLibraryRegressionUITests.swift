@@ -39,13 +39,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         app.buttons["Add archive.org Library"].tap()
 
         XCTAssertFalse(app.alerts.matching(NSPredicate(format: "label CONTAINS[c] %@", "unsupported")).firstMatch.waitForExistence(timeout: 2))
-        let sheetGrabber = app.buttons["Sheet Grabber"]
-        if sheetGrabber.waitForExistence(timeout: 5) {
-            sheetGrabber.swipeDown()
-        } else {
-            let close = app.buttons["Close Add Remote Library"]
-            if close.waitForExistence(timeout: 2) { close.tap() }
-        }
+        // AddServerSheet dismisses itself on a successful connect — no Close button to tap.
         // The Libraries screen now shows one row per known provider, connected or not
         // (SourcesView.swift); a just-connected archive.org library is one level deeper,
         // inside that provider's own instance list.
@@ -105,8 +99,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         user.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_USERNAME"]!)
         password.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_PASSWORD"]!)
         app.buttons["Connect Subsonic"].tap()
-        let close = app.buttons["Close Add Remote Library"]
-        if close.waitForExistence(timeout: 3) { close.tap() }
+        // AddServerSheet dismisses itself on a successful connect — no Close button to tap.
         // One level deeper now — Libraries lists providers, not instances directly.
         let connectorRow = app.buttons["Remote Library subsonic"]
         XCTAssertTrue(connectorRow.waitForExistence(timeout: 30)); connectorRow.tap()
@@ -141,8 +134,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
         user.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_USERNAME"]!)
         password.tap(); app.typeText(creds["PH_TEST_SUBSONIC_DEMO_PASSWORD"]!)
         app.buttons["Connect Subsonic"].tap()
-        let close = app.buttons["Close Add Remote Library"]
-        if close.waitForExistence(timeout: 3) { close.tap() }
+        // AddServerSheet dismisses itself on a successful connect — no Close button to tap.
 
         let source = app.element("Source demo.navidrome.org")
         XCTAssertTrue(source.waitForExistence(timeout: 30)); source.tap()
@@ -252,9 +244,7 @@ final class RemoteLibraryRegressionUITests: XCTestCase {
     }
 
     private func playFirstRemoteTrack(_ connectorID: String) {
-        if app.buttons["Close Add Remote Library"].waitForExistence(timeout: 5) {
-            app.buttons["Close Add Remote Library"].tap()
-        }
+        // AddServerSheet dismisses itself on a successful connect — no Close button to tap.
         app.buttons["Settings"].tap()
         app.waitFor("settings.musicLibraries").tap()
         // The Libraries screen lists one row per known provider, connected or not

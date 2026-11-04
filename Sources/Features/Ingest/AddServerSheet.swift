@@ -91,15 +91,6 @@ struct AddServerSheet: View {
         .foregroundStyle(Palette.ink)
         .presentationDetents([.height(560)])
         .presentationBackground(.ultraThinMaterial)
-        .overlay(alignment: .topTrailing) {
-            Button("Close") {
-                appState.showAddRemoteLibrary = false
-                dismiss()
-            }
-            .font(Typography.caption)
-            .accessibilityIdentifier("Close Add Remote Library")
-            .padding(.top, 12)
-        }
         .onChange(of: selectedConnectorID) { _, newValue in
             error = nil
             // Picking the genre connector is choosing the genre picker — open it
