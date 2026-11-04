@@ -74,7 +74,8 @@ final class BlendCatalogTests: XCTestCase {
         bad = row; bad.genre = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "missing genre")
         bad = row; bad.beatPeriod = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "incomplete planner facts")
         bad = row; bad.sourceKind = nil; XCTAssertFalse(bad.isKeepPlayingCandidate(), "no source")
-        bad = row; bad.providerTrackID = ""; XCTAssertFalse(bad.isKeepPlayingCandidate(), "no provider identity")
+        // An empty provider identity falls back to the catalog key's own track ID (legacy rows), so it stays valid.
+        bad = row; bad.providerTrackID = ""; XCTAssertTrue(bad.isKeepPlayingCandidate(), "empty identity falls back to the key")
         bad = row; bad.providerTrackID = "4243"; XCTAssertFalse(bad.isKeepPlayingCandidate(), "identity must match the row")
         bad = row; bad.state = .unindexed; XCTAssertFalse(bad.isKeepPlayingCandidate(), "not eligible")
         // A legacy row seeded with no providerTrackID falls back to the catalog key's own track ID.
