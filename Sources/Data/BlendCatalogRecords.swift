@@ -65,7 +65,15 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
     /// with no `providerTrackID`.
     public func audioLocator() -> AudioLocator? {
         guard sourceKind != nil else { return nil }
-        let id = providerTrackID?.isEmpty == false ? providerTrackID! : trackID
+        // nil (never stored) falls back to trackID for legacy rows; an explicit empty string is
+        // corrupt data, not an absent value, and is rejected rather than silently falling back.
+        let id: String
+        if let providerTrackID {
+            guard !providerTrackID.isEmpty else { return nil }
+            id = providerTrackID
+        } else {
+            id = trackID
+        }
         guard !id.isEmpty else { return nil }
         let url = cachedURL.flatMap(URL.init(string:))
         return .jamendo(trackID: id, cachedURL: url, expiry: cachedURLExpiry)
