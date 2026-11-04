@@ -152,6 +152,11 @@ targets:
           - CFBundleURLName: guru.parso.tonearm
             CFBundleURLSchemes:
               - tonearm
+          # Google's native-app OAuth redirect must be this reversed-client-ID scheme, not the
+          # generic "tonearm" one above — see OAuthClientConfiguration.swift.
+          - CFBundleURLName: guru.parso.tonearm.google-oauth
+            CFBundleURLSchemes:
+              - "$(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -194,6 +199,7 @@ targets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_ID)"
         TonearmOAuthClientSecrets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_SECRET)"
+        TonearmGoogleDriveReversedClientID: "$(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)"
         JamendoClientID: "$(TONEARM_JAMENDO_CLIENT_ID)"
     settings:
       base:

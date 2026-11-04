@@ -87,13 +87,23 @@ before using the production sign-in buttons:
 
 - `TONEARM_DROPBOX_CLIENT_ID`
 - `TONEARM_GOOGLE_DRIVE_CLIENT_ID`
+- `TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID` — see below, Google is a special case
 - `TONEARM_ONEDRIVE_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_SECRET` when your pCloud app requires it
 - `TONEARM_JAMENDO_CLIENT_ID` — the Jamendo application credential (register at devportal.jamendo.com); it is an application key, not a user login.
 
-Register the `tonearm://oauth/<provider>` redirect for each OAuth app, where `<provider>` is
-`dropbox`, `googleDrive`, `oneDrive`, or `pCloud`.
+Register the `tonearm://oauth/<provider>` redirect for Dropbox, OneDrive, and pCloud (where
+`<provider>` is `dropbox`, `oneDrive`, or `pCloud`). **Google Drive is a special case**: Google's
+"iOS" OAuth client type has no free-text redirect-URI field — it ties the redirect to a
+reversed-client-ID custom scheme instead. Create the credential as type **iOS** with Bundle ID
+`guru.parso.tonearm`, then derive `TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID` from the resulting
+Client ID by stripping `.apps.googleusercontent.com` and prepending `com.googleusercontent.apps.`
+(e.g. client ID `12345-abc.apps.googleusercontent.com` → `com.googleusercontent.apps.12345-abc`).
+See `OAuthClientConfiguration.swift` for how this is used.
+
+Each provider's app-review form asks for a **Privacy Policy URL**:
+<https://johnarleyburns.github.io/parso-tonearm/> (published from this repo's `gh-pages` branch).
 
 **Before release:** each cloud-drive OAuth app (Dropbox, Google Drive, OneDrive, pCloud) starts
 in that provider's own "development"/"testing" tier, where only accounts the owner explicitly

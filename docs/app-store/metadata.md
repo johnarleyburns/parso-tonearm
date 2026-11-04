@@ -70,6 +70,10 @@ language in App Store Connect until its review is done.
 Data Not Collected. The app makes network requests only to services the user adds (and to
 Apple's iTunes Search for missing artwork, which sends no user identifier).
 
+**Privacy Policy URL (App Store Connect field):** <https://johnarleyburns.github.io/parso-tonearm/>
+— published from this repo's `gh-pages` branch (a permanent deploy-target branch, not a working
+branch; see README's Cloud OAuth section for the related provider-review note).
+
 ## Screenshot plan (6.9" and 13" iPad)
 
 1. Music library with the mini-player
