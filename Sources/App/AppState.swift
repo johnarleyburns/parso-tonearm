@@ -4,17 +4,11 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Five iPhone root tabs — My Music is browsing-only, while Mood and Find own
+/// Four iPhone root tabs — My Music is browsing-only, while Mood and Find own
 /// their dedicated discovery/search flows. Settings is presented from Listen
-/// rather than occupying a browsing tab. `dj` is appended last (not inserted
-/// before `find`, its visual position) so existing cases' raw values —
-/// persisted under `lastTabKey` — never shift; RootView's TabView body order,
-/// not this enum's declaration order, controls visual placement. `dj` never
-/// renders inline tab content: selecting it is intercepted to present a full-
-/// screen cover instead (RootView.swift), so it needs no NavigationStack/
-/// rootTabChrome of its own.
+/// rather than occupying a browsing tab.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, mood, find, dj
+    case listen, myMusic, mood, find
 }
 
 enum PendingImport: Equatable {
@@ -44,19 +38,6 @@ final class AppState: ObservableObject {
     // tab. The versioned key prevents an old Settings raw value from opening
     // an unrelated new tab after the navigation change.
     private static let lastTabKey = "lastActiveTab.v6"
-    /// The one persistent index of recorded mixes (My Music > Mixes).
-    let mixRecordingRepository = MixRecordingRepository(indexURL: AppState.mixesIndexURL)
-    /// Where recorded-mix FLAC files live; shared by the index URL below, `MixDetailView`'s
-    /// playback path, and the DJ console's REC save path.
-    static var mixesDirectoryURL: URL {
-        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
-                                                 appropriateFor: nil, create: true))
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Tonearm/Mixes", isDirectory: true)
-    }
-    private static var mixesIndexURL: URL {
-        mixesDirectoryURL.appendingPathComponent("index.json")
-    }
     @Published var sources: [Source] = []
     @Published var playlists: [Playlist] = []
     @Published var allTracks: [TrackRow] = []
@@ -122,18 +103,6 @@ final class AppState: ObservableObject {
     @Published var pickedFolder: URL?
     @Published var pickedFolderBookmark: Data?
     @Published var pendingImport: PendingImport?
-    /// The manual DJ console's full-screen cover. Set (and immediately followed by reverting
-    /// `tab` to whatever it was before) when `AppTab.dj` is selected — RootView.swift intercepts
-    /// that selection rather than ever rendering inline tab content for it.
-    @Published var showDJConsole = false
-    /// Owned here, not by `DJConsoleView` (real report: closing and reopening the DJ tab reset
-    /// every loaded track, knob and setting) — a `@StateObject` inside the cover's own content
-    /// view is recreated every time the cover is dismissed and re-presented, which this app has
-    /// never needed before (every other `.sheet`/`.fullScreenCover` here is fire-and-forget).
-    /// Living on `AppState` instead means the model, its `DJEngine`, and every loaded deck buffer
-    /// persist for the life of the app — only the engine's own `start()`/`stop()` (its
-    /// `AVAudioEngine`, not any loaded/control state) follow the cover's appear/disappear.
-    let djConsoleModel = DJConsoleModel()
     // Watch
     @Published var watchSessionState: WatchSessionDisplayState = .unsupported
     @Published var showWatchSettings = false

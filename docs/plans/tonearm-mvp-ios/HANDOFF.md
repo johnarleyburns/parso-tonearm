@@ -1,5 +1,15 @@
 # Platterhead iOS DJ — agentic implementation handoff
 
+> **2026-11-04 — out of scope, nothing in this file has been started.** A separate,
+> informal manual DJ console (two decks, a center mixer, REC → FLAC → a "Mixes" My Music
+> section) was built directly into the app outside this handoff's own plan — not as the
+> `TonearmDJ` library product this file describes, just a `Sources/Features/DJ` screen
+> reachable from a tab, free, with no paywall. Per a scope change, that console, its DJ
+> tab, and the Mixes section have all been removed from the app entirely. None of the M0–M6
+> programme below was ever started — no `TonearmDJ` target, no entitlement, no paywall —
+> so this document is unaffected by that removal and remains exactly as the plan for
+> whenever DJ work is picked up again under its own terms.
+
 You are picking up work in `/Users/arley/github/parso-tonearm`. **This file is the operating
 brief.** Read it fully before touching anything. `CLAUDE.md` at the repo root loads automatically
 and carries two rules this file does not repeat — the **Swift 6 hard rule** (full strict

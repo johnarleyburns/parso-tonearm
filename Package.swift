@@ -39,9 +39,6 @@ let package = Package(
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
                          condition: .when(platforms: [.iOS, .macOS])),
                 .product(name: "ParsoAudioCore", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS, .macOS])),
-                // Manual two-deck DJ console (Sources/Features/DJ).
-                .product(name: "ParsoDJEngine", package: "parso-audio-engine",
                          condition: .when(platforms: [.iOS, .macOS]))
             ],
             path: ".",

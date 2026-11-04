@@ -2,15 +2,11 @@
 # 2026-09-29. These are ceilings: every later change must keep reducing them.
 #
 # system_size/color_literals were raised on 2026-11-03 to exactly the manual DJ
-# console's count (Sources/Features/DJ/*.swift: KnobView, DeckView, MixerView,
-# DeckLoadSheet). That screen is a fixed, landscape-locked hardware-console
-# layout pixel-matched to its mockup — tiny knob/meter/button labels packed
-# into fixed-size controls that would clip or overlap under Dynamic Type, the
-# same reason a piano-roll or waveform view fixes its own type. Nothing
-# outside Sources/Features/DJ should ever need to add to these two counts;
-# if it does, that's the ratchet doing its job.
-system_size=16
-color_literals=1
+# console's count (Sources/Features/DJ/*.swift) and lowered back to 0 the same
+# day once that console (and its Mixes section) was removed per a scope change
+# — nothing else in the app needed the exception.
+system_size=0
+color_literals=0
 preferred_dark=0
 print_calls=12
 animation_calls=3
