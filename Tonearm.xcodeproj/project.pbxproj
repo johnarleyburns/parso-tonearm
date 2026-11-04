@@ -2490,7 +2490,7 @@
 			repositoryURL = "https://github.com/johnarleyburns/parso-audio-engine.git";
 			requirement = {
 				kind = exactVersion;
-				version = 1.5.0;
+				version = 1.5.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */

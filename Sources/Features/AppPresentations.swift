@@ -27,6 +27,7 @@ struct AppPresentations: ViewModifier {
             #if os(iOS)
             .fullScreenCover(isPresented: $appState.showDJConsole) {
                 DJConsoleView()
+                    .environmentObject(appState.djConsoleModel)
             }
             .sheet(isPresented: $appState.showWatchSettings) {
                 WatchSettingsView()

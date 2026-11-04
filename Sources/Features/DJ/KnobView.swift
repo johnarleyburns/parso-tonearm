@@ -7,6 +7,9 @@ import SwiftUI
 struct KnobView: View {
     var value: Double
     var indicatorColor: Color = .white
+    /// The mockup's own size; callers in a tighter layout (a smaller landscape screen) pass a
+    /// scaled-down value so the whole console still fits — see `DJConsoleView.scale(for:)`.
+    var size: CGFloat = 28
     /// nil: static, no gesture. Non-nil: drag vertically to adjust (relative movement, not
     /// absolute position — per the interaction spec, a touch landing at the knob's edge must
     /// never jump the value).
@@ -22,16 +25,16 @@ struct KnobView: View {
             Circle()
                 .fill(
                     RadialGradient(colors: [Color(white: 0.9), Color(white: 0.4), Color(white: 0.18)],
-                                   center: UnitPoint(x: 0.32, y: 0.25), startRadius: 0, endRadius: 20)
+                                   center: UnitPoint(x: 0.32, y: 0.25), startRadius: 0, endRadius: size * 20 / 28)
                 )
                 .overlay(Circle().stroke(.white.opacity(0.15), lineWidth: 1))
             Capsule()
                 .fill(indicatorColor)
-                .frame(width: 2, height: 10)
-                .offset(y: -8)
+                .frame(width: 2, height: size * 10 / 28)
+                .offset(y: -size * 8 / 28)
                 .rotationEffect(angle)
         }
-        .frame(width: 28, height: 28)
+        .frame(width: size, height: size)
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 2)
@@ -46,5 +49,8 @@ struct KnobView: View {
                 }
                 .onEnded { _ in dragStartValue = nil }
         )
+        // Double-tap resets to the default, 12-o'clock position (value 0.5) — per the
+        // knob-interaction brief. No-op on a static knob (no onChange).
+        .onTapGesture(count: 2) { onChange?(0.5) }
     }
 }

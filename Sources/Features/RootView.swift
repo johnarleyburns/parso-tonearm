@@ -1,6 +1,5 @@
 import SwiftUI
 import TonearmCore
-import UIKit
 
 /// The iPhone shell (tab bar + mini player).
 #if os(iOS)
@@ -56,14 +55,6 @@ struct RootView: View {
                 appState.showDJConsole = true
                 appState.tab = old
             }
-        }
-        .onChange(of: appState.showDJConsole) { _, active in
-            guard let delegate = UIApplication.shared.delegate as? TonearmAppDelegate else { return }
-            delegate.landscapeLocked = active
-            UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.windows.first { $0.isKeyWindow }?.rootViewController }
-                .first?
-                .setNeedsUpdateOfSupportedInterfaceOrientations()
         }
     }
 

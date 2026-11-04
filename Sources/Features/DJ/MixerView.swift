@@ -1,29 +1,35 @@
 import ParsoDJEngine
 import SwiftUI
 
-/// The center mixer: monitoring row, EQ (3 channels), isolator, channel volumes + meter, and the
-/// output-route control — matching the mockup, plus the route control the mockup predates.
+/// The center mixer: the output-route control, monitoring row, EQ (3 channels), isolator, and
+/// channel volumes + meter — matching the mockup, plus the route control the mockup predates.
 /// Channel volume knobs, each channel's PFL button, the output route, and REC are real
 /// (Workstreams G/H/I). The HOUSE/BOOTH monitor knobs, EQ and isolator stay static, wired up
 /// later one at a time.
 struct MixerView: View {
     @EnvironmentObject private var model: DJConsoleModel
+    /// From `DJConsoleView.scale(for:)` — see its doc comment.
+    var scale: CGFloat = 1
+    private var knobSize: CGFloat { max(18, 28 * scale) }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 10 * scale) {
+            outputRouteControl
             monitoringRow
             eqBlock
             isolatorBlock
             channelVolumesRow
-            outputRouteControl
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 6 * scale)
         .accessibilityIdentifier("dj.mixer")
     }
 
     /// Single-output "split cue": PFL a channel first, then Split L/Split R sends that deck to
     /// one ear and the master to the other. Disabled (and visually dimmed) until a PFL is
-    /// engaged, rather than letting the control silently produce an undefined mix.
+    /// engaged, rather than letting the control silently produce an undefined mix. Sits above the
+    /// monitoring row (a real report: it was at the bottom, and visually wider than the rest of
+    /// the mixer column rather than matching it) and is exactly as wide as this view, like every
+    /// other mixer block below it.
     private var outputRouteControl: some View {
         VStack(spacing: 4) {
             Text("OUTPUT").font(.system(size: 8, weight: .bold)).foregroundStyle(.white.opacity(0.5))
@@ -43,7 +49,7 @@ struct MixerView: View {
             model.outputRoute = route
         } label: {
             Text(title).font(.system(size: 8, weight: .bold))
-                .padding(.horizontal, 6).padding(.vertical, 4)
+                .padding(.horizontal, 4).padding(.vertical, 4)
                 .frame(maxWidth: .infinity)
                 .background(active ? Color(red: 0x56 / 255, green: 0xb7 / 255, blue: 1) : .white.opacity(0.08),
                             in: RoundedRectangle(cornerRadius: 6))
@@ -54,7 +60,7 @@ struct MixerView: View {
     }
 
     private var monitoringRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 10 * scale) {
             monitorKnob(label: "HOUSE")
             recordButton
             monitorKnob(label: "BOOTH")
@@ -74,7 +80,7 @@ struct MixerView: View {
                     Text("REC").font(.system(size: 9, weight: .bold))
                 }
             }
-            .frame(width: 36, height: 28)
+            .frame(width: 36 * scale, height: 28 * scale)
             .background(model.isRecording ? Color.red.opacity(0.18) : .white.opacity(0.08),
                         in: RoundedRectangle(cornerRadius: 8))
             .foregroundStyle(model.isRecording ? .red : .white.opacity(0.5))
@@ -85,7 +91,7 @@ struct MixerView: View {
 
     private func monitorKnob(label: String) -> some View {
         VStack(spacing: 3) {
-            KnobView(value: 0.5)
+            KnobView(value: 0.5, size: knobSize)
             Text(label).font(.system(size: 8, weight: .bold)).foregroundStyle(.white.opacity(0.6))
             HStack(spacing: 3) {
                 Text("PH").font(.system(size: 7)).padding(.horizontal, 4).padding(.vertical, 2)
@@ -97,12 +103,12 @@ struct MixerView: View {
     }
 
     private var eqBlock: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 8 * scale) {
             eqChannel(name: "A", pfl: { model.isPFL(.left) }, onPFL: { model.togglePFL(.left) })
             eqChannel(name: "MIC", pfl: { false }, onPFL: {})
             eqChannel(name: "B", pfl: { model.isPFL(.right) }, onPFL: { model.togglePFL(.right) })
         }
-        .padding(8)
+        .padding(8 * scale)
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.12)))
     }
@@ -113,7 +119,7 @@ struct MixerView: View {
             ForEach(["HIGH", "MID", "BASS"], id: \.self) { band in
                 VStack(spacing: 2) {
                     Text(band).font(.system(size: 7)).foregroundStyle(.white.opacity(0.6))
-                    KnobView(value: 0.5)
+                    KnobView(value: 0.5, size: knobSize)
                 }
             }
             Button(action: onPFL) {
@@ -130,29 +136,29 @@ struct MixerView: View {
     private var isolatorBlock: some View {
         VStack(spacing: 4) {
             Text("ISOLATOR").font(.system(size: 9, weight: .bold)).foregroundStyle(Color(red: 1, green: 0.84, blue: 0.65))
-            HStack(spacing: 10) {
+            HStack(spacing: 10 * scale) {
                 ForEach(["BASS", "MID", "HIGH"], id: \.self) { band in
                     VStack(spacing: 2) {
-                        KnobView(value: 0.5, indicatorColor: Color(red: 0.3, green: 0.2, blue: 0.1))
+                        KnobView(value: 0.5, indicatorColor: Color(red: 0.3, green: 0.2, blue: 0.1), size: knobSize)
                         Text(band).font(.system(size: 7)).foregroundStyle(Color(red: 1, green: 0.82, blue: 0.63))
                     }
                 }
             }
         }
-        .padding(8)
+        .padding(8 * scale)
         .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.orange.opacity(0.25)))
     }
 
     private var channelVolumesRow: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 14 * scale) {
             channelVolumeKnob(label: "CH A\nVOL", value: Binding(
                 get: { model.leftVolume }, set: { model.leftVolume = $0 }))
             VStack(spacing: 3) {
                 ForEach([0.7, 1.0, 0.55], id: \.self) { height in
                     Capsule().fill(
                         LinearGradient(colors: [.green, .yellow, .red], startPoint: .bottom, endPoint: .top)
-                    ).frame(width: 5, height: 40 * height)
+                    ).frame(width: 5, height: 40 * scale * height)
                 }
             }
             channelVolumeKnob(label: "CH B\nVOL", value: Binding(
@@ -162,7 +168,7 @@ struct MixerView: View {
 
     private func channelVolumeKnob(label: String, value: Binding<Double>) -> some View {
         VStack(spacing: 3) {
-            KnobView(value: value.wrappedValue, onChange: { value.wrappedValue = $0 })
+            KnobView(value: value.wrappedValue, size: knobSize, onChange: { value.wrappedValue = $0 })
             Text(label).font(.system(size: 7, weight: .bold)).foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
         }

@@ -126,6 +126,14 @@ final class AppState: ObservableObject {
     /// `tab` to whatever it was before) when `AppTab.dj` is selected — RootView.swift intercepts
     /// that selection rather than ever rendering inline tab content for it.
     @Published var showDJConsole = false
+    /// Owned here, not by `DJConsoleView` (real report: closing and reopening the DJ tab reset
+    /// every loaded track, knob and setting) — a `@StateObject` inside the cover's own content
+    /// view is recreated every time the cover is dismissed and re-presented, which this app has
+    /// never needed before (every other `.sheet`/`.fullScreenCover` here is fire-and-forget).
+    /// Living on `AppState` instead means the model, its `DJEngine`, and every loaded deck buffer
+    /// persist for the life of the app — only the engine's own `start()`/`stop()` (its
+    /// `AVAudioEngine`, not any loaded/control state) follow the cover's appear/disappear.
+    let djConsoleModel = DJConsoleModel()
     // Watch
     @Published var watchSessionState: WatchSessionDisplayState = .unsupported
     @Published var showWatchSettings = false
