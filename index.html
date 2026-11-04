@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platterhead Privacy Policy</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --ink: #1c1c1e;
+    --ink-secondary: #4b4b4f;
+    --accent: #6b4de6;
+    --hairline: #e3e3e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121214;
+      --ink: #f2f2f3;
+      --ink-secondary: #b7b7bb;
+      --accent: #a894f5;
+      --hairline: #2c2c2f;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+  h1 {
+    font-size: 28px;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--ink-secondary);
+    margin: 0 0 36px;
+    font-size: 15px;
+  }
+  h2 {
+    font-size: 19px;
+    margin: 40px 0 10px;
+    color: var(--accent);
+  }
+  p, li {
+    color: var(--ink-secondary);
+  }
+  ul {
+    padding-left: 22px;
+  }
+  li {
+    margin-bottom: 8px;
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--ink);
+    font-weight: 600;
+    margin: 0 0 24px;
+  }
+  a {
+    color: var(--accent);
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--hairline);
+    margin: 40px 0;
+  }
+  footer {
+    color: var(--ink-secondary);
+    font-size: 13px;
+  }
+  code {
+    font-size: 0.92em;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="subtitle">Platterhead (bundle id <code>guru.parso.tonearm</code>) &middot; Last updated November 4, 2026</p>
+
+  <p class="lede">Platterhead collects nothing. There is no Platterhead server, no account, no analytics, and no advertising of any kind.</p>
+
+  <p>Platterhead is a free, open-source music player. This page explains, plainly, what the
+  app stores and who it talks to — and it talks to no one unless you explicitly ask it to.</p>
+
+  <h2>No account, no Platterhead server</h2>
+  <p>You never sign in to Platterhead itself. There is nothing for Platterhead to collect,
+  because there is no server it belongs to for any data to go to.</p>
+
+  <h2>What stays on your device</h2>
+  <ul>
+    <li><strong>Your music library metadata</strong> (titles, artists, play history, favorites,
+    playlists) is stored in a local database on your device.</li>
+    <li><strong>Local music files</strong> are referenced in place using a secure, sandboxed
+    bookmark — never copied into the app, never uploaded anywhere.</li>
+    <li><strong>Credentials and sign-in tokens</strong> for any remote library you connect
+    (server passwords, archive.org credentials, OAuth tokens for cloud-drive providers) are
+    stored only in your device's Keychain, protected by iOS. Platterhead never sees or stores
+    these anywhere else.</li>
+    <li><strong>Streamed audio</strong> from a remote library is kept in a temporary, automatically-evicted
+    cache so recently played music still works offline. You can clear this cache at any time
+    in Settings.</li>
+  </ul>
+
+  <h2>Optional iCloud sync</h2>
+  <p>iCloud sync is off by default. If you turn it on, your library metadata, playlists,
+  favorites, play history, custom artwork, and settings sync through <strong>your own</strong>
+  iCloud account — never a Platterhead server, because none exists. Streamed cache audio is
+  never uploaded, and local files stay on your device (other devices show them as "not on this
+  device" until you re-import them there).</p>
+
+  <h2>Who Platterhead talks to — only when you ask it to</h2>
+  <p>Platterhead makes a network request only when a feature you've used requires it:</p>
+  <ul>
+    <li><strong>Jamendo</strong> (jamendo.com) — for the built-in Creative Commons mood-starter
+    library and any Jamendo genre library you add. No account or credentials required.</li>
+    <li><strong>archive.org</strong> — for any public item, list, or collection URL you paste in.
+    Private lists require your archive.org username and password, stored only in Keychain as above.</li>
+    <li><strong>Apple's iTunes Search API</strong> — to look up missing cover art for tracks
+    that don't already have embedded artwork.</li>
+    <li><strong>Any remote library provider you explicitly connect</strong>: Dropbox, Google
+    Drive, OneDrive, pCloud, Subsonic/Navidrome, WebDAV, Jellyfin, Plex, or an SMB share. Each
+    connection is made directly between your device and that provider — Platterhead is never an
+    intermediary, and your files are never routed through, or stored on, any Platterhead server.
+    OAuth-based providers (Dropbox, Google Drive, OneDrive, pCloud) use the standard OAuth
+    sign-in flow for that provider; Platterhead only ever requests read-only access.</li>
+  </ul>
+
+  <h2>No ads, no analytics, no tracking</h2>
+  <p>Platterhead contains no advertising SDKs, no analytics SDKs, and no tracking of any kind —
+  not of you, and not across other apps or websites. This matches the app's published Apple
+  privacy manifest: no tracking, and no data types collected.</p>
+
+  <h2>Children's privacy</h2>
+  <p>Platterhead does not knowingly collect any personal information from anyone, including
+  children, because it does not collect personal information from anyone.</p>
+
+  <h2>Open source</h2>
+  <p>Platterhead's complete source code — including everything described on this page — is
+  public, under the GNU General Public License v3.0 or later, at
+  <a href="https://github.com/johnarleyburns/parso-tonearm">github.com/johnarleyburns/parso-tonearm</a>.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the "Last updated" date above will change and the new version will
+  be published at this same address.</p>
+
+  <hr>
+  <footer>
+    Questions about this policy: <a href="mailto:contact@parso.guru">contact@parso.guru</a>
+  </footer>
+</main>
+</body>
+</html>
