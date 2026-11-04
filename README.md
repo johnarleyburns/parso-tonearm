@@ -95,6 +95,12 @@ before using the production sign-in buttons:
 Register the `tonearm://oauth/<provider>` redirect for each OAuth app, where `<provider>` is
 `dropbox`, `googleDrive`, `oneDrive`, or `pCloud`.
 
+**Before release:** each cloud-drive OAuth app (Dropbox, Google Drive, OneDrive, pCloud) starts
+in that provider's own "development"/"testing" tier, where only accounts the owner explicitly
+allowlists in that provider's developer console can sign in — everyone else is blocked. Each
+provider must be submitted for and pass that provider's production/verification app review
+before real users can connect that provider, independent of shipping the app itself.
+
 Integration tests use a local fake server instead of real provider credentials:
 
 ```sh
