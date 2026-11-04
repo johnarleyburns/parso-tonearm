@@ -119,6 +119,16 @@ extension SettingsView {
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.thirdPartyNotices")
             Divider().overlay(Palette.hairline)
+            Link(destination: URL(string: "https://johnarleyburns.github.io/parso-tonearm/")!) {
+                HStack {
+                    aboutRow("Privacy Policy", "View the full policy")
+                    Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.privacyPolicyURL")
+            Divider().overlay(Palette.hairline)
             Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
                 HStack {
                     aboutRow("Source", "View on GitHub")
