@@ -14,11 +14,33 @@ extension LibraryStore {
     static func backfillCatalogSources(_ db: Database) throws {
         for var row in try BlendCatalogTrack.fetchAll(db) where row.sourceKind == nil {
             row.sourceKind = .jamendo
-            row.providerTrackID = row.catalogID?.replacingOccurrences(of: "jamendo-", with: "") ?? row.trackID
+            // `catalogID`-derived can itself be empty (e.g. a bare "jamendo-" with nothing after
+            // it survives the replace unchanged) — nil, not "", so it falls back to `trackID` the
+            // same way a row with no catalogID at all already does (v41 repairs any "" this wrote
+            // before this guard existed).
+            let fromCatalogID = row.catalogID?.replacingOccurrences(of: "jamendo-", with: "")
+            row.providerTrackID = (fromCatalogID?.isEmpty == false ? fromCatalogID : nil) ?? row.trackID
             if let old = row.sourceURL, let url = URL(string: old), url.scheme?.hasPrefix("http") == true,
                url.host != "github.com" {
                 row.cachedURL = old
             }
+            try row.update(db)
+        }
+    }
+
+    /// Repairs rows the v38 backfill above left with an explicit empty `providerTrackID` instead
+    /// of nil, before the guard against that was added. A real report: `audioLocator()` correctly
+    /// treats "" as corrupt data, distinct from the legitimate "never stored" nil case, and
+    /// rejects it rather than silently falling back — so a persisted queue whose current track
+    /// was exactly such a row failed to resolve on every single launch (restorePersistedQueue()
+    /// always calls loadCurrent for it), with a "Jamendo track unavailable" toast that could never
+    /// clear on its own. v38 itself can't be edited to fix already-applied installs — migrations
+    /// never re-run — so this runs once, separately, as v41. Clearing back to nil lets the
+    /// existing, correct fallback-to-trackID logic take over, exactly as it already does for rows
+    /// that were nil all along.
+    static func repairEmptyProviderTrackIDs(_ db: Database) throws {
+        for var row in try BlendCatalogTrack.filter(Column("providerTrackID") == "").fetchAll(db) {
+            row.providerTrackID = nil
             try row.update(db)
         }
     }

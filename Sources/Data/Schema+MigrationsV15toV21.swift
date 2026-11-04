@@ -442,5 +442,12 @@ extension Schema {
                 try DiscoveryMigrations.v40(db)
             }
         }
+        if shouldRegister("v41", upTo: target) {
+            migrator.registerMigration("v41") { db in
+                // Repairs rows v38 left with providerTrackID == "" instead of nil (real report:
+                // see LibraryStore.repairEmptyProviderTrackIDs' doc comment).
+                try LibraryStore.repairEmptyProviderTrackIDs(db)
+            }
+        }
     }
 }

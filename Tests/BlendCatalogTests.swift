@@ -85,6 +85,64 @@ final class BlendCatalogTests: XCTestCase {
         XCTAssertEqual(legacy.keepPlayingLocator(), .jamendo(trackID: "4242", cachedURL: nil, expiry: nil))
     }
 
+    /// Regression for the real report "every launch shows a Jamendo track unavailable toast":
+    /// v38's backfill once wrote an explicit "" instead of nil for some rows (fixed going
+    /// forward, but already-applied installs needed a separate repair, v41, since a migration
+    /// never re-runs). Without it, `audioLocator()` correctly rejects "" — so a persisted queue
+    /// whose current track was exactly such a row failed to resolve on every single launch.
+    func testRepairEmptyProviderTrackIDsClearsThemSoAudioLocatorFallsBackAgain() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let key = BlendCatalogTrack.jamendoKey(trackID: "9999")
+        try await store.registerBlendCatalogTrack(key: key, packTag: BlendCatalogTrack.jamendoPackTag)
+        try await store.dbQueue.write { db in
+            var row = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key))
+            row.sourceKind = .jamendo
+            row.providerTrackID = ""
+            try row.update(db)
+        }
+        let before = try await store.dbQueue.read { db in try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key)) }
+        XCTAssertNil(before.audioLocator(), "unrepaired \"\" is still correctly rejected")
+
+        try await store.dbQueue.write { db in try LibraryStore.repairEmptyProviderTrackIDs(db) }
+
+        let after = try await store.dbQueue.read { db in try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key)) }
+        XCTAssertNil(after.providerTrackID, "repaired back to nil, not re-derived here")
+        XCTAssertEqual(after.audioLocator(), .jamendo(trackID: "9999", cachedURL: nil, expiry: nil),
+                      "nil now falls back to the catalog key's own track ID again")
+
+        // A row with a real, non-empty providerTrackID must be left alone.
+        let untouchedKey = BlendCatalogTrack.jamendoKey(trackID: "1111")
+        try await store.registerBlendCatalogTrack(key: untouchedKey, packTag: BlendCatalogTrack.jamendoPackTag)
+        try await store.dbQueue.write { db in
+            var row = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: untouchedKey))
+            row.sourceKind = .jamendo
+            row.providerTrackID = "1111"
+            try row.update(db)
+        }
+        try await store.dbQueue.write { db in try LibraryStore.repairEmptyProviderTrackIDs(db) }
+        let untouched = try await store.dbQueue.read { db in try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: untouchedKey)) }
+        XCTAssertEqual(untouched.providerTrackID, "1111")
+    }
+
+    /// `backfillCatalogSources` (v38) itself must never write the bug `testRepairEmptyProviderTrackIDs...`
+    /// repairs — covers the specific input that produced it: a `catalogID` that survives the
+    /// "jamendo-" strip as empty (a bare "jamendo-" with nothing after it).
+    func testBackfillNeverWritesAnEmptyProviderTrackID() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let key = BlendCatalogTrack.jamendoKey(trackID: "7777")
+        try await store.registerBlendCatalogTrack(key: key, packTag: BlendCatalogTrack.jamendoPackTag)
+        try await store.dbQueue.write { db in
+            var row = try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key))
+            row.sourceKind = nil          // pre-v38 shape: backfill only touches rows like this
+            row.catalogID = "jamendo-"    // the edge case: strips to "", not a real id
+            try row.update(db)
+        }
+        try await store.dbQueue.write { db in try LibraryStore.backfillCatalogSources(db) }
+        let backfilled = try await store.dbQueue.read { db in try XCTUnwrap(BlendCatalogTrack.fetchOne(db, key: key)) }
+        XCTAssertEqual(backfilled.sourceKind, .jamendo)
+        XCTAssertEqual(backfilled.providerTrackID, "7777", "falls back to trackID instead of writing \"\"")
+    }
+
     func testCatalogPlannerRejectsBPMOutsideTolerance() {
         XCTAssertNotNil(CatalogEdgePlanner.plan(blendID: "t", edge: 1, outgoing: facts("a", bpm: 100), incoming: facts("b", bpm: 104)))
         XCTAssertNil(CatalogEdgePlanner.plan(blendID: "t", edge: 1, outgoing: facts("a", bpm: 100), incoming: facts("b", bpm: 130)))
@@ -159,6 +217,6 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testMigrationListIncludesTheCatalog() {
-        XCTAssertEqual(Schema.migrationOrder.last, "v40")
+        XCTAssertEqual(Schema.migrationOrder.last, "v41")
     }
 }
