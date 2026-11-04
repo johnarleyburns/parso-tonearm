@@ -50,7 +50,7 @@ final class SourceAccessLease: @unchecked Sendable {
 /// by the decoder (it must open, report a length and actually produce frames from the middle), not
 /// by its extension or a FLAC seek table alone; anything else throws `unsupportedBoundedDecode`
 /// and the caller falls back to sequential playback. Never decodes more than the range asked for.
-final class FileRangeAudioSource: RangeAudioSource, DeckChunkSource, @unchecked Sendable {
+final class FileRangeAudioSource: RangeAudioSource, @unchecked Sendable {
     let sampleRate: Double
     let channelCount: Int
     let totalFrames: Int64
@@ -134,13 +134,6 @@ final class FileRangeAudioSource: RangeAudioSource, DeckChunkSource, @unchecked 
         } catch let error as RangeDecodeError {
             throw MixTrackLoaderError.decode(String(describing: error))
         }
-    }
-
-    /// Planar chunk for a deck feeder.
-    func read(startFrame: Int64, count: Int) throws -> [[Float]] {
-        let interleaved = try decodeRange(startFrame: startFrame, frameCount: count)
-        let frames = interleaved.count / channelCount
-        return (0..<channelCount).map { c in (0..<frames).map { interleaved[$0 * channelCount + c] } }
     }
 }
 #endif
