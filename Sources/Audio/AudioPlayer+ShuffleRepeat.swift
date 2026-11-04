@@ -38,7 +38,6 @@ extension AudioPlayer {
         dropPreloadedNext()
         preloadNextItem()
         mixDecks?.upcomingChanged()
-        starterQueueOrderChanged()
     }
 
     public func cycleRepeatMode() {

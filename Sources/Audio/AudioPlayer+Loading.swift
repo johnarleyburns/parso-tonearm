@@ -77,7 +77,6 @@ extension AudioPlayer {
             return
         }
 
-        if loadCurrentOnStarterStream(row: row, autoplay: autoplay) { return }
         if wantsMixDecks, loadCurrentOnMixDecks(row: row, autoplay: autoplay) { return }
 
         if row.source?.kind == .jamendoGenre, asset.kind == .remote {
