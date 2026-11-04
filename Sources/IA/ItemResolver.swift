@@ -173,7 +173,7 @@ public struct FileSelectionPolicy {
     private static let candidateExtensions: Set<String> =
         coldPlayableExtensions.union(["opus"])
 
-    public func selectTracks(files: [IAFile], identifier: String, itemArtist: String? = nil,
+    public func selectTracks(files: [IAFile], identifier: String, itemArtist: String?,
                       itemGenre: String? = nil, itemYear: Int? = nil) -> [ResolvedTrack] {
         // 1. Candidates by real audio extension (drops spectrograms/art/etc., but
         //    now keeps opus per D9).

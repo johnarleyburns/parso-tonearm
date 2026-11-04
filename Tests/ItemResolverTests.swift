@@ -1,15 +1,12 @@
 import XCTest
 @testable import TonearmCore
 
-/// Fills the archive.org mock-coverage gap found auditing provider test parity: Subsonic, WebDAV,
-/// Jellyfin, Plex and the four cloud drives all have a dedicated `*APITests.swift` exercising
-/// request construction and response decoding with canned data — IAClient enforces a strict
-/// archive.org-only host allowlist (Invariant #3), so there is no local-mock-server seam to point
-/// it at the way those providers' own injectable `baseURL` allows; the equivalent, architecture-
-/// respecting coverage is here instead, directly against `IAMetadataResponse`'s `Decodable`
-/// conformance and `FileSelectionPolicy`'s pure track-selection logic — the two pieces
-/// `ItemResolver.resolve(identifier:)` hands off to once `IAClient.shared.data(from:)` returns,
-/// and the only parts of that path that don't require a real network call to exercise.
+/// `FileSelectionPolicy` itself already has thorough coverage (`FileSelectionPolicyTests.swift`,
+/// `InvariantTests.swift`, `OpusPolicyTests.swift`) — this file covers the two archive.org pieces
+/// that didn't: `IAMetadataResponse`'s `Decodable` conformance (including IA's own API
+/// inconsistently returning a single value as a bare string on some items and an array on others,
+/// which `StringOrArray` exists to handle), and `selectTracks`' final sort order across multiple
+/// tracks, which no existing test exercised.
 final class ItemResolverTests: XCTestCase {
 
     // MARK: - IAMetadataResponse decoding
@@ -50,69 +47,11 @@ final class ItemResolverTests: XCTestCase {
         XCTAssertNil(response.metadata?.title?.first, "an empty title string means \"not provided,\" not a real title")
     }
 
-    // MARK: - FileSelectionPolicy
+    // MARK: - selectTracks sort order
 
-    private func file(_ name: String, format: String? = nil, length: String? = nil, track: String? = nil) -> IAFile {
-        IAFile(name: name, format: format, source: nil, original: nil, length: length, size: nil,
+    private func file(_ name: String, track: String? = nil) -> IAFile {
+        IAFile(name: name, format: nil, source: nil, original: nil, length: nil, size: nil,
                title: nil, track: track, album: nil, artist: nil, bitrate: nil, height: nil)
-    }
-
-    func testPrefersFLACOverMP3WhenPreferFLACIsTrue() {
-        let files = [file("song.mp3", format: "VBR MP3"), file("song.flac", format: "Free Lossless Audio")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1, "both files are the same logical track (same basename stem)")
-        XCTAssertEqual(tracks.first?.codec, "FLAC")
-        XCTAssertEqual(tracks.first?.altFlacURL, nil, "the chosen file already is the FLAC — no separate alt needed")
-    }
-
-    func testPrefersMP3OverFLACWhenPreferFLACIsFalse() {
-        let files = [file("song.mp3", format: "VBR MP3"), file("song.flac", format: "Free Lossless Audio")]
-        let tracks = FileSelectionPolicy(preferFLAC: false).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1)
-        XCTAssertEqual(tracks.first?.codec, "MP3")
-        XCTAssertNotNil(tracks.first?.altFlacURL, "the FLAC variant is still offered as an upgrade path")
-    }
-
-    func testDistinctTracksAreNotCollapsedByFormat() {
-        let files = [file("01 intro.mp3"), file("02 verse.mp3")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 2, "different basenames are different logical tracks")
-    }
-
-    func testSkipsPreviewSamplesAndRawIdentifierRips() {
-        let files = [
-            file("01 real track.mp3"),
-            file("01 real track_sample.mp3"),
-            file("item-identifier_disc1side1.flac"),
-        ]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item-identifier", itemArtist: nil)
-        XCTAssertEqual(tracks.map(\.title), ["real track"])
-    }
-
-    func testNonAudioExtensionsAreExcluded() {
-        let files = [file("cover.jpg"), file("notes.txt"), file("track.mp3")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1)
-    }
-
-    /// Opus is a candidate (the fetch→remux→CAF path, T2.x) but never AVFoundation-cold-playable —
-    /// an Opus-only group still yields a track, explicitly flagged so the caller knows to remux it
-    /// before first play rather than stream it directly.
-    func testOpusOnlyGroupYieldsARemuxFlaggedTrack() {
-        let files = [file("only.opus", format: "Ogg Opus")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1)
-        XCTAssertEqual(tracks.first?.codec, "OPUS")
-        XCTAssertTrue(tracks.first?.requiresRemux ?? false)
-    }
-
-    func testOpusIsNeverColdPlayChosenWhenAnotherFormatExists() {
-        let files = [file("song.mp3"), file("song.opus", format: "Ogg Opus")]
-        let tracks = FileSelectionPolicy(preferFLAC: true).selectTracks(files: files, identifier: "item", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1)
-        XCTAssertEqual(tracks.first?.codec, "MP3", "a mixed group must never cold-play Opus")
-        XCTAssertFalse(tracks.first?.requiresRemux ?? true)
-        XCTAssertNotNil(tracks.first?.opusURL, "still offered for the fetch-and-remux upgrade path")
     }
 
     func testTracksSortByTrackNumberWhenPresent() {
