@@ -217,6 +217,6 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testMigrationListIncludesTheCatalog() {
-        XCTAssertEqual(Schema.migrationOrder.last, "v41")
+        XCTAssertEqual(Schema.migrationOrder.last, "v42")
     }
 }
