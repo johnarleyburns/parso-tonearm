@@ -180,19 +180,29 @@ fi
 # Python's string handling has no such ambiguity and is standard on both macOS and Linux runners.
 python3 -I - <<'PYEOF'
 import re
+import sys
+
+print(f"DEBUG: python {sys.version!r}", file=sys.stderr)
 
 def xcconfig_value(key, path="Config/Secrets.xcconfig"):
     try:
         with open(path, encoding="utf-8") as f:
-            lines = f.readlines()
+            raw = f.read()
     except FileNotFoundError:
+        print(f"DEBUG: {path} not found", file=sys.stderr)
         return ""
+    lines = raw.splitlines()
+    print(f"DEBUG: {path} is {len(raw)} bytes, {len(lines)} lines", file=sys.stderr)
     value = ""
     pattern = re.compile(r"^" + re.escape(key) + r"\s*=\s*(.*?)\s*$")
+    matches = 0
     for line in lines:
         m = pattern.match(line)
         if m:
+            matches += 1
             value = m.group(1)
+            print(f"DEBUG: {key} matched a line of length {len(line)}, captured group length {len(value)}", file=sys.stderr)
+    print(f"DEBUG: {key} -> {matches} matching line(s), final captured length {len(value)}", file=sys.stderr)
     return value
 
 def swift_literal(value):
@@ -211,7 +221,9 @@ with open("Sources/Features/Ingest/GeneratedOAuthCredentials.swift", "w", encodi
     out.write("// and do not commit (see .gitignore).\n")
     out.write("enum GeneratedOAuthCredentials {\n")
     for swift_name, xcconfig_key in fields:
-        out.write(f"    static let {swift_name} = {swift_literal(xcconfig_value(xcconfig_key))}\n")
+        resolved = xcconfig_value(xcconfig_key)
+        print(f"DEBUG: writing {swift_name} with value length {len(resolved)}", file=sys.stderr)
+        out.write(f"    static let {swift_name} = {swift_literal(resolved)}\n")
     out.write("}\n")
 PYEOF
 
