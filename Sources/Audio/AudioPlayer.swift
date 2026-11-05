@@ -455,6 +455,17 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
+        // Real report: the mini-player's play/pause button sometimes needed 3-4 taps before
+        // anything audible happened. Root cause: a play request on a remote/streamed track
+        // doesn't confirm `.playing` immediately — it sits in `.waitingToPlayAtSpecifiedRate`
+        // while buffering — but `isPlaying` optimistically flips to true the instant play() is
+        // called. An impatient repeat tap during that window read the optimistic `isPlaying` as
+        // "already playing" and called pause(), silently canceling the still-pending play before
+        // it ever got a chance to start; the user had to keep tapping until one attempt happened
+        // to finish buffering fast enough. Ignoring a tap while a play request is still pending
+        // (rather than letting it cancel that request) means the original request always gets
+        // to run to completion instead of racing against the user's own next tap.
+        guard !Self.shouldIgnoreToggle(timeControlStatus: player.timeControlStatus) else { return }
         if isPlaying {
             player.pause()
         } else {
@@ -463,6 +474,14 @@ public final class AudioPlayer: ObservableObject {
         }
         isPlaying.toggle()
         updateNowPlaying()
+    }
+
+    /// Pulled out of `togglePlayPause()` as a pure, directly-testable function: a real
+    /// `AVPlayer` only ever reaches `.waitingToPlayAtSpecifiedRate` through genuine network
+    /// buffering, which isn't reproducible deterministically in a unit test — this at least
+    /// pins down the exact decision `togglePlayPause()` makes for every possible status.
+    static func shouldIgnoreToggle(timeControlStatus: AVPlayer.TimeControlStatus) -> Bool {
+        timeControlStatus == .waitingToPlayAtSpecifiedRate
     }
 
     public func resumePlayback() {

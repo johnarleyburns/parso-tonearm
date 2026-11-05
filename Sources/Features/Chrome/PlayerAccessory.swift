@@ -32,10 +32,19 @@ struct MiniPlayerAccessory: View {
             .buttonStyle(.plain)
             Spacer(minLength: 6)
             Button { player.togglePlayPause() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                // A tap while buffering is deliberately ignored (AudioPlayer.togglePlayPause) so
+                // it can't cancel a still-pending play request — show a spinner here instead of
+                // the usual icon so the button doesn't look unresponsive during that window.
+                if player.isStalled {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(Palette.ink)
+                } else {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                }
             }
-            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
-            .accessibilityValue(player.isPlaying ? "Playing" : "Paused")
+            .accessibilityLabel(player.isStalled ? "Buffering" : (player.isPlaying ? "Pause" : "Play"))
+            .accessibilityValue(player.isStalled ? "Buffering" : (player.isPlaying ? "Playing" : "Paused"))
             .frame(minWidth: Metrics.minimumHitTarget, minHeight: Metrics.minimumHitTarget)
             .buttonStyle(.plain)
             .accessibilityIdentifier("mini.playpause")
