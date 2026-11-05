@@ -123,7 +123,7 @@ final class BoundedLiveLoaderTests: XCTestCase {
         }
         XCTAssertEqual(SourceAccessLease.activeCount, baseline)
         let url = try tone("ok.wav", seconds: 3)
-        let lease = try SourceAccessLease(url: url, securityScoped: true)
+        let lease = try SourceAccessLease(url: url, securityScoped: true, startAccess: { _ in true })
         XCTAssertEqual(SourceAccessLease.activeCount, baseline + 1)
         lease.release(); lease.release()
         XCTAssertEqual(SourceAccessLease.activeCount, baseline)
@@ -140,12 +140,59 @@ final class BoundedLiveLoaderTests: XCTestCase {
         }
     }
 
-    func testLeaseUsesInjectedAccessAndReleasesOnce() throws {
+    func testDeniedScopeThrowsEvenWhenFileIsReadable() throws {
         let url = try tone("inj.wav", seconds: 1)
+        XCTAssertTrue(FileManager.default.isReadableFile(atPath: url.path))
         let baseline = SourceAccessLease.activeCount
-        let lease = try SourceAccessLease(url: url, securityScoped: true, startAccess: { _ in false })
+        var requestedURL: URL?
+        XCTAssertThrowsError(try SourceAccessLease(url: url, securityScoped: true, startAccess: {
+            requestedURL = $0
+            return false
+        })) {
+            XCTAssertEqual($0 as? MixTrackLoaderError, .accessDenied)
+        }
+        XCTAssertEqual(requestedURL, url)
+        XCTAssertEqual(SourceAccessLease.activeCount, baseline)
+
+        let lease = try SourceAccessLease(url: url, securityScoped: false, startAccess: { _ in false })
         XCTAssertEqual(SourceAccessLease.activeCount, baseline + 1)
         lease.release(); lease.release()
+        XCTAssertEqual(SourceAccessLease.activeCount, baseline)
+    }
+
+    func testMissingFileClassificationAndLeaseCountWithEitherScopeResult() throws {
+        let missing = dir.appendingPathComponent("missing.wav")
+        for granted in [false, true] {
+            let baseline = SourceAccessLease.activeCount
+            XCTAssertThrowsError(try SourceAccessLease(url: missing, securityScoped: true,
+                                                       startAccess: { _ in granted })) {
+                XCTAssertEqual($0 as? MixTrackLoaderError, .fileMissing)
+            }
+            XCTAssertEqual(SourceAccessLease.activeCount, baseline)
+        }
+    }
+
+    func testUnreadableAppOwnedFileThrowsAndLeaseCountBalances() throws {
+        let url = try tone("unreadable.wav", seconds: 1)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+        try XCTSkipIf(FileManager.default.isReadableFile(atPath: url.path), "File permissions do not prevent this user from reading")
+        let baseline = SourceAccessLease.activeCount
+        XCTAssertThrowsError(try SourceAccessLease(url: url, securityScoped: false, startAccess: { _ in false })) {
+            XCTAssertEqual($0 as? MixTrackLoaderError, .accessDenied)
+        }
+        XCTAssertEqual(SourceAccessLease.activeCount, baseline)
+    }
+
+    func testGrantedScopeForUnreadableFileThrowsAndLeaseCountBalances() throws {
+        let url = try tone("granted-unreadable.wav", seconds: 1)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path) }
+        try XCTSkipIf(FileManager.default.isReadableFile(atPath: url.path), "File permissions do not prevent this user from reading")
+        let baseline = SourceAccessLease.activeCount
+        XCTAssertThrowsError(try SourceAccessLease(url: url, securityScoped: true, startAccess: { _ in true })) {
+            XCTAssertEqual($0 as? MixTrackLoaderError, .accessDenied)
+        }
         XCTAssertEqual(SourceAccessLease.activeCount, baseline)
     }
 }

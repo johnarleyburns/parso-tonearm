@@ -4,9 +4,10 @@ import Foundation
 import ParsoAudioCore
 import Synchronization
 
-/// Scoped access to one local file for as long as a decode needs it. Acquired before any read and
-/// released exactly once (explicitly or on deinit). A denied security scope throws: nothing is
-/// decoded afterwards. `activeCount` is the measurable lease count.
+/// Scoped access to one local file for as long as a decode needs it. A required scope denial
+/// throws before decoding. Every stored property is initialized before validation, so a thrown
+/// initializer runs deinit and `release()`, balancing `activeCount` and stopping a granted scope
+/// exactly once. Successful leases release explicitly or on deinit.
 final class SourceAccessLease: @unchecked Sendable {
     private static let live = Atomic<Int>(0)
     static var activeCount: Int { live.load(ordering: .relaxed) }
@@ -16,16 +17,18 @@ final class SourceAccessLease: @unchecked Sendable {
     private var scoped: Bool
     private var released = false
 
-    /// `securityScoped`: the URL came from a bookmark.
+    /// `securityScoped`: require a security-scope grant for a bookmark URL.
+    /// Every guard runs after full initialization, so deinit releases even when a guard throws.
     init(url: URL, securityScoped: Bool,
          startAccess: (URL) -> Bool = { $0.startAccessingSecurityScopedResource() }) throws {
         self.url = url
         Self.live.add(1, ordering: .relaxed)   // balanced by `release`, which deinit runs even if init throws
         scoped = securityScoped && startAccess(url)
-        // A refusal (or a grant that still leaves the file unreadable) is a denial: never decode.
-        // `startAccessing…` also returns false for a plain file inside the app container.
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw MixTrackLoaderError.fileMissing
+        }
+        guard !securityScoped || scoped else {
+            throw MixTrackLoaderError.accessDenied
         }
         guard FileManager.default.isReadableFile(atPath: url.path) else {
             throw MixTrackLoaderError.accessDenied
