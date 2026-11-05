@@ -29,6 +29,7 @@ struct SourceDetailView: View {
     @State private var showAddToPlaylist = false
     @State private var showArtworkPicker = false
     @State private var showRemoveArtworkAlert = false
+    @State var showLibrarySettings = false
 
     var body: some View {
         ScrollView {
@@ -36,9 +37,6 @@ struct SourceDetailView: View {
                 navRow
                 hero
                 content
-                if isRemoteLibrary {
-                    remoteManagementSection
-                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 160)
@@ -55,6 +53,12 @@ struct SourceDetailView: View {
         }
         .sheet(isPresented: $showAddToPlaylist) {
             AddRemoteTracksSheet(source: source, nodes: audioNodesInScope, scopeTitle: scopeTitle)
+        }
+        // Real report: Library Settings used to render inline at the bottom of the folder/
+        // track list — confusing clutter on a long remote listing. Now a separate sheet,
+        // reached from navRow's "…" menu (SourceDetailView+ManagementSection.swift).
+        .sheet(isPresented: $showLibrarySettings) {
+            librarySettingsSheet
         }
     }
 
@@ -155,6 +159,15 @@ struct SourceDetailView: View {
                 .accessibilityIdentifier("source.addToPlaylist")
             }
             Menu {
+                if isRemoteLibrary {
+                    Button {
+                        showLibrarySettings = true
+                    } label: {
+                        Label("Library Settings", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("source.librarySettings")
+                    Divider()
+                }
                 Button {
                     Task { await appState.download(rows: tracks) }
                 } label: {
@@ -265,7 +278,20 @@ struct SourceDetailView: View {
         if source.kind == .local { return "on device" }
         if source.kind == .jamendoGenre { return String(localized: "Jamendo · \(source.licenseText ?? "Creative Commons")") }
         if isArchiveSource { return "archive.org · \(source.licenseText ?? "streams permitted")" }
-        if isRemoteLibrary { return "\(remoteProviderName) · private library" }
+        if isRemoteLibrary {
+            // Real request: Dropbox/Google Drive (and the other cloud drives, same code path)
+            // should name which account is connected right here, not just "private library" —
+            // easy to lose track of which of several accounts a library belongs to otherwise.
+            switch source.kind {
+            case .dropbox, .googleDrive, .oneDrive, .pCloud:
+                if let account = appState.remoteAccountLabel(for: source), !account.isEmpty {
+                    return "\(remoteProviderName) · \(account)"
+                }
+            default:
+                break
+            }
+            return "\(remoteProviderName) · private library"
+        }
         return "archive.org · \(source.licenseText ?? "streams permitted")"
     }
 

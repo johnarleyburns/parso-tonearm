@@ -1,83 +1,93 @@
 import SwiftUI
 import TonearmCore
 
-/// The "Library Settings" section for remote sources, split out of
-/// `SourceDetailView.swift`. `remoteManagementSection` is used from
-/// `SourceDetailView.swift`'s `body`, so it stays `internal` (not `private`)
-/// — `makeOfflineRow`/`managementRow` are used only within this file and stay
-/// `private`.
+/// "Library Settings" for remote sources — a separate sheet reached from the "…" menu in
+/// `SourceDetailView`'s `navRow`, not inline content in the folder/track scroll view. Real
+/// report: shown at the bottom of a long remote folder listing, it read as confusing extra
+/// clutter the user had to scroll past rather than a distinct settings surface. Split out of
+/// `SourceDetailView.swift`; `librarySettingsSheet` is used from `SourceDetailView.swift`'s
+/// `body`/`navRow`, so it stays `internal` (not `private`) — `makeOfflineRow`/`managementRow`
+/// are used only within this file and stay `private`.
 extension SourceDetailView {
-    var remoteManagementSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Library Settings")
-                .font(Typography.caption)
-                .foregroundStyle(Palette.inkTertiary)
-                .padding(.top, 24)
-                .padding(.bottom, 10)
-
-            VStack(spacing: 0) {
-                managementRow(label: "Provider", value: remoteProviderName)
-                Divider().overlay(Palette.hairline)
-
-                if let url = source.originalURL {
-                    managementRow(label: "URL", value: url)
+    var librarySettingsSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    managementRow(label: "Provider", value: remoteProviderName)
                     Divider().overlay(Palette.hairline)
-                }
 
-                if let account = appState.remoteAccountLabel(for: source) {
-                    managementRow(label: "Account", value: account)
-                    Divider().overlay(Palette.hairline)
-                }
+                    if let url = source.originalURL {
+                        managementRow(label: "URL", value: url)
+                        Divider().overlay(Palette.hairline)
+                    }
 
-                if let status = appState.remoteCredentialStatus(for: source) {
-                    managementRow(label: "Credentials", value: status)
-                    Divider().overlay(Palette.hairline)
-                }
+                    if let account = appState.remoteAccountLabel(for: source) {
+                        managementRow(label: "Account", value: account)
+                        Divider().overlay(Palette.hairline)
+                    }
 
-                Button {
-                    Task { await loadStats() }
-                } label: {
-                    Group {
-                        if isLoadingStats {
-                            HStack {
-                                Text("Stats")
-                                    .font(Typography.caption)
-                                    .foregroundStyle(Palette.inkTertiary)
-                                Spacer()
-                                ProgressView().tint(Palette.accent).scaleEffect(0.7)
+                    if let status = appState.remoteCredentialStatus(for: source) {
+                        managementRow(label: "Credentials", value: status)
+                        Divider().overlay(Palette.hairline)
+                    }
+
+                    Button {
+                        Task { await loadStats() }
+                    } label: {
+                        Group {
+                            if isLoadingStats {
+                                HStack {
+                                    Text("Stats")
+                                        .font(Typography.caption)
+                                        .foregroundStyle(Palette.inkTertiary)
+                                    Spacer()
+                                    ProgressView().tint(Palette.accent).scaleEffect(0.7)
+                                }
+                            } else if let _ = statsError {
+                                managementRow(label: "Stats", value: "Tap to retry", chevron: false)
+                            } else if let s = stats {
+                                managementRow(label: "Stats", value: s.formattedSummary, chevron: false)
+                            } else {
+                                managementRow(label: "Stats", value: "Tap to load", chevron: false)
                             }
-                        } else if let _ = statsError {
-                            managementRow(label: "Stats", value: "Tap to retry", chevron: false)
-                        } else if let s = stats {
-                            managementRow(label: "Stats", value: s.formattedSummary, chevron: false)
-                        } else {
-                            managementRow(label: "Stats", value: "Tap to load", chevron: false)
                         }
                     }
-                }
-                .buttonStyle(.plain)
-                Divider().overlay(Palette.hairline)
+                    .buttonStyle(.plain)
+                    Divider().overlay(Palette.hairline)
 
-                makeOfflineRow
-                Divider().overlay(Palette.hairline)
+                    makeOfflineRow
+                    Divider().overlay(Palette.hairline)
 
-                Button {
-                    renameText = source.title
-                    showRename = true
-                } label: {
-                    managementRow(label: "Display Name", value: source.title, chevron: true)
-                }
-                .buttonStyle(.plain)
-                Divider().overlay(Palette.hairline)
+                    Button {
+                        renameText = source.title
+                        showRename = true
+                    } label: {
+                        managementRow(label: "Display Name", value: source.title, chevron: true)
+                    }
+                    .buttonStyle(.plain)
+                    Divider().overlay(Palette.hairline)
 
-                Button {
-                    showCredentialEdit = true
-                } label: {
-                    managementRow(label: "Update Credentials", value: "Change password or token", chevron: true)
+                    Button {
+                        showCredentialEdit = true
+                    } label: {
+                        managementRow(label: "Update Credentials", value: "Change password or token", chevron: true)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .glassSurface(cornerRadius: 14)
+                .padding(16)
             }
-            .glassSurface(cornerRadius: 14)
+            .background(Palette.sourcesBackground.ignoresSafeArea())
+            .foregroundStyle(Palette.ink)
+            .navigationTitle("Library Settings")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showLibrarySettings = false }
+                }
+            }
         }
         .alert("Rename Library", isPresented: $showRename) {
             TextField("Name", text: $renameText)
