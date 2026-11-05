@@ -149,6 +149,10 @@ if [[ ${#absent[@]} -gt 0 ]]; then
   echo "==> models: optional absent, so their ODR tags are not in this project — ${absent[*]}"
 fi
 
+if [[ "${TONEARM_GENERATE_OVERLAYS_ONLY:-0}" == 1 ]]; then
+  exit 0
+fi
+
 # Cloud-drive OAuth client IDs, generated as a real Swift source file rather than threaded
 # through Info.plist's $(VAR) build-setting substitution: that mechanism proved unreliable for
 # these five keys specifically (confirmed across four separate fix attempts — a shared dict one
@@ -160,6 +164,15 @@ fi
 # Mirrors Config/Base.xcconfig's own #include? semantics: an absent Secrets.xcconfig (a clone
 # without it) produces empty values here too, and the app reports the honest "not configured"
 # state rather than failing to build.
+#
+# Deliberately AFTER the overlays-only early exit above, not before: TONEARM_GENERATE_OVERLAYS_ONLY=1
+# is what ClapBundlingScriptTests.swift uses to exercise this script against a minimal, isolated
+# temp fixture containing only Resources/Models/* — no Sources/ tree and no Config/Secrets.xcconfig
+# at all. Writing this file unconditionally earlier crashed every one of those tests that reaches
+# this point (confirmed by reproducing locally) with a plain "No such file or directory", since
+# Sources/Features/Ingest/ doesn't exist in that fixture. This block must only run on the real
+# build path, the same one that's about to call xcodegen generate below.
+#
 # Written in Python, not bash/sed: a bash-only version of this (nested command substitution
 # calling helper functions with "local key=... file=..." multi-assignment) produced a real,
 # confirmed-empirically bug on the actual macOS CI runner — every value truncated to exactly 1
@@ -201,9 +214,5 @@ with open("Sources/Features/Ingest/GeneratedOAuthCredentials.swift", "w", encodi
         out.write(f"    static let {swift_name} = {swift_literal(xcconfig_value(xcconfig_key))}\n")
     out.write("}\n")
 PYEOF
-
-if [[ "${TONEARM_GENERATE_OVERLAYS_ONLY:-0}" == 1 ]]; then
-  exit 0
-fi
 
 xcodegen generate
