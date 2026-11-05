@@ -82,10 +82,18 @@ enum MixTrackLoader {
         }
         guard audio.frameCount > Int(sampleRate) else { throw MixTrackLoaderError.empty }
         let bpm = approximateBPM.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
-            ?? TrackAnalyzer().analyze(audio).tempo.bpm
+            ?? LeanAnalysis.run(Self.analysisAudio(from: audio)).bpm
         try Task.checkCancellation()
         return MixTrackAudio(trackID: trackID, audio: audio,
                              analysis: BlendAnalyzer.analyze(audio, approximateBPM: bpm))
+    }
+
+    /// `LeanAnalysis`/`FullAnalysis` take `ParsoAudioAnalysis.AnalysisAudio`, not this module's
+    /// own `ParsoAudioCore.PCMBuffer` — the engine's own bridge for this
+    /// (`AnalysisBridge.analysisAudio(from:)`) is `internal` to its module, not visible here.
+    private static func analysisAudio(from buffer: PCMBuffer) -> AnalysisAudio {
+        let channels = (0..<buffer.channelCount).map { Array(buffer.channel($0)) }
+        return AnalysisAudio(sampleRate: buffer.format.sampleRate, channels: channels)
     }
 
     /// Longest track the mix decks hold as resident PCM. Beyond it the edge plays sequentially.

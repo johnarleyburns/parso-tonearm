@@ -138,6 +138,17 @@ else
   echo "    OK"
 fi
 
+# ── No FullAnalysis in Tonearm (indexing must stay on the lean, minimal-sampling path) ──
+echo "==> No FullAnalysis in Tonearm"
+LEAKS=$(grep -rnE "FullAnalysis\.(run|analyze)\(|TrackAnalyzer\(" Sources Tests || true)
+if [ -n "$LEAKS" ]; then
+  echo "    FullAnalysis/TrackAnalyzer called directly — Tonearm must use LeanAnalysis:"
+  echo "$LEAKS" | sed 's/^/      /'
+  status=1
+else
+  echo "    OK"
+fi
+
 # ── Codename leak (Platterhead is the product name; Tonearm is internal) ────
 echo "==> Codename leak"
 codename_ok=1
