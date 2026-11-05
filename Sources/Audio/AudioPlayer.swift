@@ -455,17 +455,31 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
-        // Real report: the mini-player's play/pause button sometimes needed 3-4 taps before
+        // Real report #1: the mini-player's play/pause button sometimes needed 3-4 taps before
         // anything audible happened. Root cause: a play request on a remote/streamed track
         // doesn't confirm `.playing` immediately — it sits in `.waitingToPlayAtSpecifiedRate`
         // while buffering — but `isPlaying` optimistically flips to true the instant play() is
         // called. An impatient repeat tap during that window read the optimistic `isPlaying` as
         // "already playing" and called pause(), silently canceling the still-pending play before
-        // it ever got a chance to start; the user had to keep tapping until one attempt happened
-        // to finish buffering fast enough. Ignoring a tap while a play request is still pending
-        // (rather than letting it cancel that request) means the original request always gets
-        // to run to completion instead of racing against the user's own next tap.
-        guard !Self.shouldIgnoreToggle(timeControlStatus: player.timeControlStatus) else { return }
+        // it ever got a chance to start.
+        //
+        // Real report #2 (the first fix's own regression): ignoring *every* toggle during
+        // `.waitingToPlayAtSpecifiedRate` also blocked a genuine pause tap during a mid-track
+        // rebuffer on an already-confirmed-playing track — `timeControlStatus` revisits that
+        // same status on any re-buffer, not just a track's very first play(), so once remote
+        // playback stalled even briefly the button went unresponsive until buffering resolved on
+        // its own, which on this app's many remote-streamed sources was often enough that the
+        // button felt "rarely does anything". `player.pause()` is always safe to issue
+        // immediately regardless of buffering — nothing is "pending" to protect once this track
+        // has ever been confirmed actually advancing. `shouldIgnoreToggle` now also takes
+        // `stallModel`'s load/confirm generations (bumped once per track load, confirmed once
+        // the periodic time observer sees real progress) so it only ignores a tap that could
+        // cancel this track's still-unconfirmed first play — `timeControlStatus` alone can't
+        // tell "just loaded, never played yet" apart from "was playing fine, now re-buffering".
+        guard !Self.shouldIgnoreToggle(
+            timeControlStatus: player.timeControlStatus,
+            confirmedGeneration: stallModel.confirmedGeneration, loadGeneration: stallModel.loadGeneration)
+        else { return }
         if isPlaying {
             player.pause()
         } else {
@@ -479,9 +493,15 @@ public final class AudioPlayer: ObservableObject {
     /// Pulled out of `togglePlayPause()` as a pure, directly-testable function: a real
     /// `AVPlayer` only ever reaches `.waitingToPlayAtSpecifiedRate` through genuine network
     /// buffering, which isn't reproducible deterministically in a unit test — this at least
-    /// pins down the exact decision `togglePlayPause()` makes for every possible status.
-    static func shouldIgnoreToggle(timeControlStatus: AVPlayer.TimeControlStatus) -> Bool {
-        timeControlStatus == .waitingToPlayAtSpecifiedRate
+    /// pins down the exact decision `togglePlayPause()` makes for every combination of status
+    /// and load/confirm generation. A tap is ignored only while the current track's load has
+    /// never once been confirmed actually advancing (`confirmedGeneration != loadGeneration`)
+    /// *and* the player is still waiting on that first play to start — once a track has been
+    /// confirmed playing even once, a later re-buffer must never block a toggle again.
+    static func shouldIgnoreToggle(
+        timeControlStatus: AVPlayer.TimeControlStatus, confirmedGeneration: Int, loadGeneration: Int
+    ) -> Bool {
+        confirmedGeneration != loadGeneration && timeControlStatus == .waitingToPlayAtSpecifiedRate
     }
 
     public func resumePlayback() {
