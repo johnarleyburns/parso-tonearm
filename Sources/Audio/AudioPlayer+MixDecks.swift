@@ -469,7 +469,7 @@ extension AudioPlayer: MixDeckHost {
         }
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
             let container = remote.pathExtension.isEmpty
-                ? MixTrackLoader.container(forMIME: remoteAudioMIMEType(for: remote)) : .auto
+                ? MixTrackLoader.container(forMIME: remoteAudioMIMEType(for: remote, knownContentType: asset.remoteContentType)) : .auto
             if AudioCache.completeCacheExists(for: remote) {
                 let cached = AudioCache.fileURL(for: AudioCache.key(for: remote))
                 if FileManager.default.fileExists(atPath: cached.path) {

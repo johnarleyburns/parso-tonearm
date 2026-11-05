@@ -222,6 +222,13 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
     public var opusRemoteURL: String? = nil
     public var sizeBytes: Int64?
     public var unsupportedReason: String?
+    /// The provider's own MIME type for this `.remote` asset's file (from
+    /// `RemoteNode.contentType`), when known. Real report: a Google Drive track
+    /// with an extensionless cached file played fine on first stream but failed
+    /// on the second, cached-file play — `AVURLAsset` had no extension or MIME
+    /// hint to infer the format from. Threaded through so playback can give
+    /// AVFoundation an explicit format hint instead of guessing from the URL.
+    public var remoteContentType: String? = nil
     /// Set on a device where the asset's local file can't be resolved after an
     /// iCloud pull (the device-specific bookmark doesn't cross devices). The
     /// track shows greyed / "not on this device" until re-imported (C4).
@@ -276,6 +283,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
                 syncID: String? = nil,
                 remoteNodeID: String? = nil,
                 remoteNodePath: String? = nil,
+                remoteContentType: String? = nil,
                 transientRemoteHeaders: [String: String] = [:],
                 transientRemoteSupportsByteRanges: Bool = true,
                 transientArtwork: RemoteArtwork? = nil,
@@ -294,6 +302,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         self.syncID = syncID
         self.remoteNodeID = remoteNodeID
         self.remoteNodePath = remoteNodePath
+        self.remoteContentType = remoteContentType
         self.transientRemoteHeaders = transientRemoteHeaders
         self.transientRemoteSupportsByteRanges = transientRemoteSupportsByteRanges
         self.transientArtwork = transientArtwork
@@ -315,6 +324,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         case syncID
         case remoteNodeID
         case remoteNodePath
+        case remoteContentType
         case persistedArtworkURL
     }
 }

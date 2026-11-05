@@ -449,5 +449,18 @@ extension Schema {
                 try LibraryStore.repairEmptyProviderTrackIDs(db)
             }
         }
+        if shouldRegister("v42", upTo: target) {
+            migrator.registerMigration("v42") { db in
+                // Real report: a Google Drive track with an extensionless cached file played
+                // fine on first stream but failed on the second, cached-file play —
+                // `AVURLAsset` had no extension or MIME hint to infer the format from. This
+                // persists the provider's own MIME type (`RemoteNode.contentType`) alongside
+                // the re-resolution reference added in v22, so a cached-file replay can give
+                // AVFoundation an explicit format hint instead of guessing from the URL.
+                try db.alter(table: "asset") { t in
+                    t.add(column: "remoteContentType", .text)
+                }
+            }
+        }
     }
 }

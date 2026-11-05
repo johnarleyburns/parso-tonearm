@@ -47,6 +47,7 @@ public enum RemoteTrackRowFactory {
         if resolved.url.isFileURL == false {
             asset.remoteNodeID = node.id
             asset.remoteNodePath = node.path
+            asset.remoteContentType = node.contentType
         }
         asset.transientRemoteHeaders = resolved.headers
         asset.transientRemoteSupportsByteRanges = resolved.supportsByteRanges

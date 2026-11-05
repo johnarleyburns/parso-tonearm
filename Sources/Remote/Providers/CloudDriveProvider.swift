@@ -207,7 +207,8 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
                 title: item.name,
                 path: "file/\(pathComponent(item.id))",
                 kind: .audio,
-                sizeBytes: item.sizeBytes
+                sizeBytes: item.sizeBytes,
+                contentType: item.contentType
             )
         }
     }

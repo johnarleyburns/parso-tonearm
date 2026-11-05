@@ -94,6 +94,14 @@ public struct RemoteNode: Identifiable, Codable, Equatable, Hashable, Sendable {
     public var sizeBytes: Int64?
     public var durationSec: Double?
     public var metadata: RemoteTrackMetadata?
+    /// The provider's own MIME type for this file (e.g. Google Drive/OneDrive's `mimeType`),
+    /// when the provider's listing response includes one. Real report: a cloud-drive track with
+    /// an extensionless download URL (Google Drive's `?alt=media` never has a filename) played
+    /// fine on first stream but failed on the second, cached-file play — `AVURLAsset` had no way
+    /// to infer the format from either the URL or the extensionless local cache filename.
+    /// Carried through to `Asset.remoteContentType` (`RemoteTrackRowFactory.swift`) so playback
+    /// can give AVFoundation an explicit format hint instead of guessing from the URL.
+    public var contentType: String?
 
     public init(id: String,
          title: String,
@@ -101,7 +109,8 @@ public struct RemoteNode: Identifiable, Codable, Equatable, Hashable, Sendable {
          kind: Kind,
          sizeBytes: Int64? = nil,
          durationSec: Double? = nil,
-         metadata: RemoteTrackMetadata? = nil) {
+         metadata: RemoteTrackMetadata? = nil,
+         contentType: String? = nil) {
         self.id = id
         self.title = title
         self.path = path
@@ -109,6 +118,7 @@ public struct RemoteNode: Identifiable, Codable, Equatable, Hashable, Sendable {
         self.sizeBytes = sizeBytes
         self.durationSec = durationSec
         self.metadata = metadata
+        self.contentType = contentType
     }
 }
 

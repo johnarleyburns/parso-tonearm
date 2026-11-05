@@ -278,7 +278,7 @@ extension AudioPlayer {
         }
 
         if asset.kind == .remote, let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) {
-            let assetOptions = audioAssetOptions(for: remote)
+            let assetOptions = audioAssetOptions(for: remote, knownContentType: asset.remoteContentType)
 
             // Jamendo's resolved stream URL is a query-only URL (`?trackid=…&format=mp32`),
             // so the cache blob has no filename extension.  Once the blob is complete,
@@ -349,15 +349,24 @@ extension AudioPlayer {
     }
 
     /// AVFoundation cannot infer a media type from Jamendo's extensionless
-    /// `format=mp32` URLs or from their extensionless cache blobs.  Keep this
-    /// inference at the app boundary so the shared streaming package remains
-    /// provider-agnostic.
-    private func audioAssetOptions(for remote: URL) -> [String: Any] {
-        guard let mime = remoteAudioMIMEType(for: remote) else { return [:] }
+    /// `format=mp32` URLs, from their extensionless cache blobs, or from a
+    /// cloud-drive provider's extensionless download URL (e.g. Google Drive's
+    /// `?alt=media`). Keep this inference at the app boundary so the shared
+    /// streaming package remains provider-agnostic. `knownContentType`, when
+    /// given, is the provider's own MIME type for this asset
+    /// (`Asset.remoteContentType`) and always wins over any guess — real
+    /// report: a Google Drive track played fine on first stream but failed on
+    /// the second, cached-file play, because nothing hinted the format once
+    /// the URL's query string was no longer in play.
+    private func audioAssetOptions(for remote: URL, knownContentType: String? = nil) -> [String: Any] {
+        guard let mime = remoteAudioMIMEType(for: remote, knownContentType: knownContentType) else { return [:] }
         return [AVURLAssetOverrideMIMETypeKey: mime]
     }
 
-    func remoteAudioMIMEType(for remote: URL) -> String? {
+    func remoteAudioMIMEType(for remote: URL, knownContentType: String? = nil) -> String? {
+        if let knownContentType, !knownContentType.isEmpty {
+            return knownContentType
+        }
         if let mime = RemoteAudioURL.contentTypeMIME(for: remote) {
             return mime
         }
