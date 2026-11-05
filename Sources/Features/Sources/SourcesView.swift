@@ -34,6 +34,14 @@ struct SourcesView: View {
     /// any not-yet-connected row, remote-catalog or Jamendo's "set a key" fallback alike.
     @State private var connectingConnector: RemoteConnector?
     @State private var showJamendoCredential = false
+    /// Owned here (not just a plain `NavigationStack {}`) so a successful connect can push
+    /// straight into the new source's browse view — real report: connecting Dropbox left the
+    /// user back at this connector list instead of inside the new Dropbox library. Shared with
+    /// `ProviderInstancesView` (passed down as a binding) so "Connect Another" from there pushes
+    /// onto this same stack too. Only meaningful when `ownsNavigationStack` is true; the
+    /// Settings-nested case has no stack of its own to push onto and falls back to the old
+    /// dismiss-only behavior, unchanged from before.
+    @State private var navigationPath = NavigationPath()
 
     init(ownsNavigationStack: Bool = true) {
         self.ownsNavigationStack = ownsNavigationStack
@@ -42,7 +50,7 @@ struct SourcesView: View {
     var body: some View {
         Group {
             if ownsNavigationStack {
-                NavigationStack { content }
+                NavigationStack(path: $navigationPath) { content }
             } else {
                 content
             }
@@ -139,11 +147,13 @@ struct SourcesView: View {
             }
             .navigationDestination(for: ProviderInstancesTarget.self) { target in
                 if let connector = RemoteConnectorCatalog.connector(byID: target.connectorID) {
-                    ProviderInstancesView(connector: connector)
+                    ProviderInstancesView(connector: connector, navigationPath: $navigationPath)
                 }
             }
             .sheet(item: $connectingConnector) { connector in
-                AddServerSheet(fixedConnector: connector)
+                AddServerSheet(fixedConnector: connector) { source in
+                    navigationPath.append(source)
+                }
             }
             .sheet(isPresented: $showJamendoCredential) {
                 JamendoCredentialView()
@@ -337,6 +347,10 @@ struct SourceRow: View {
 /// else; "Connect Another" reopens the same per-provider sheet the catalog row itself would.
 struct ProviderInstancesView: View {
     let connector: RemoteConnector
+    /// Shared with the presenting `SourcesView` so "Connect Another" pushes the newly-connected
+    /// source onto the same stack this screen itself lives on, instead of just dismissing back
+    /// to here with no visible change until the next manual tap.
+    @Binding var navigationPath: NavigationPath
     @EnvironmentObject var appState: AppState
     @State private var connectingConnector: RemoteConnector?
 
@@ -383,7 +397,9 @@ struct ProviderInstancesView: View {
         .background(Palette.sourcesBackground.ignoresSafeArea())
         .navigationTitle(connector.title)
         .sheet(item: $connectingConnector) { connector in
-            AddServerSheet(fixedConnector: connector)
+            AddServerSheet(fixedConnector: connector) { source in
+                navigationPath.append(source)
+            }
         }
     }
 }

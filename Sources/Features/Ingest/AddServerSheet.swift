@@ -16,6 +16,13 @@ struct AddServerSheet: View {
     /// that particular remote library," never the combined multi-provider picker this same sheet
     /// still serves when opened from the + menu with `fixedConnector` left nil.
     let fixedConnector: RemoteConnector?
+    /// Called with the newly-created `Source` right before this sheet dismisses on a
+    /// successful connect — lets the presenting view (SourcesView/ProviderInstancesView) push
+    /// straight into that source's browse view instead of leaving the user back at the
+    /// connector list. Real report: connecting Dropbox left the user back at Libraries instead
+    /// of inside the new Dropbox library. `nil` (the default) preserves the old dismiss-only
+    /// behavior for the global "+" menu flow, which has no single navigation stack to push onto.
+    var onConnected: ((Source) -> Void)? = nil
 
     @State private var selectedConnectorID: String
     @State private var urlText = ""
@@ -28,8 +35,9 @@ struct AddServerSheet: View {
     @State private var showGuide = false
     @State private var showGenrePicker = false
 
-    init(fixedConnector: RemoteConnector? = nil) {
+    init(fixedConnector: RemoteConnector? = nil, onConnected: ((Source) -> Void)? = nil) {
         self.fixedConnector = fixedConnector
+        self.onConnected = onConnected
         _selectedConnectorID = State(initialValue: fixedConnector?.id
             ?? RemoteConnectorCatalog.connector(byID: "iaPublicList")?.id
             ?? RemoteConnectorCatalog.all.first?.id
@@ -408,6 +416,7 @@ struct AddServerSheet: View {
         error = nil
         isConnecting = true
         defer { isConnecting = false }
+        let existingIDs = Set(appState.sources.compactMap(\.id))
         do {
             if isIAConnector {
                 try await appState.addIASource(url: urlText, username: isIAPrivateList ? username : nil, password: isIAPrivateList ? password : nil)
@@ -434,21 +443,38 @@ struct AddServerSheet: View {
                 }
             }
             appState.showAddRemoteLibrary = false
+            notifyConnected(newSinceIDs: existingIDs)
             dismiss()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
+    /// `addXXXServer`/`addCloudDrive`/`addIASource` all end by switching to the My Music tab —
+    /// correct for the global "+" menu flow (`onConnected` is nil there, no stack to push onto),
+    /// but wrong here: it would hide the push below behind a different tab entirely. Stay on
+    /// Libraries so that push is actually visible. Identifies the new source by diffing IDs
+    /// rather than assuming "last in the array" — reload() order isn't a contract worth
+    /// depending on.
+    private func notifyConnected(newSinceIDs existingIDs: Set<Int64>) {
+        guard let onConnected,
+              let newSource = appState.sources.first(where: { $0.id.map { !existingIDs.contains($0) } ?? false })
+        else { return }
+        appState.tab = .libraries
+        onConnected(newSource)
+    }
+
     private func connectSMB(_ url: URL) async {
         error = nil
         isConnecting = true
         defer { isConnecting = false }
+        let existingIDs = Set(appState.sources.compactMap(\.id))
         let accessed = url.startAccessingSecurityScopedResource()
         let bookmark = BookmarkVault.makeBookmark(for: url)
         if accessed { url.stopAccessingSecurityScopedResource() }
         do {
             try await appState.addSMBFolder(url, bookmark: bookmark)
+            notifyConnected(newSinceIDs: existingIDs)
             dismiss()
         } catch {
             self.error = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
