@@ -84,25 +84,6 @@ extension SettingsView {
         .glassSurface(cornerRadius: 18)
     }
 
-    var analysisCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Transition analysis").font(Typography.callout)
-                    Text("Beat grids and phrase maps used to plan transitions. Rebuilt when needed. \(analysisTracks) tracks · \(TimeFmt.megabytes(analysisBytes))")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                        .contentTransition(.numericText())
-                }
-                Spacer()
-                Button("Clear analysis", role: .destructive) { showClearAnalysisConfirm = true }
-                    .font(Typography.caption)
-            }
-        }
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-        .accessibilityIdentifier("settings.transitionAnalysis")
-    }
-
     var behaviorCard: some View {
         VStack(spacing: 0) {
             settingToggle(appState.streamOnCellular ? "Stream on cellular" : "Wi-Fi only",

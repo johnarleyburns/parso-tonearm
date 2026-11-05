@@ -40,9 +40,6 @@ struct SettingsView: View {
     @State var showClearConfirm = false
     @State var showClearCustomConfirm = false
     @State var showCustomCacheLimit = false
-    @State var showClearAnalysisConfirm = false
-    @State var analysisTracks = 0
-    @State var analysisBytes: Int64 = 0
     @State var customCacheLimitMB = ""
     @State var customCacheLimitMessage: String?
     @State var icloudSync = SyncGating.isEnabled
@@ -83,7 +80,6 @@ struct SettingsView: View {
                         if appState.starterMerge != nil { starterMergeCard }
                         musicLibrariesCard
                         soundIndexCard
-                        analysisCard
                         cacheSummaryCard
                         syncCard
                     }
@@ -163,17 +159,6 @@ struct SettingsView: View {
             Text("Custom artwork you've uploaded — for tracks, albums, and libraries — will be permanently lost. This cannot be undone.")
         }
         .sensoryFeedback(.warning, trigger: showClearCustomConfirm)
-        .confirmationDialog("Clear transition analysis?", isPresented: $showClearAnalysisConfirm, titleVisibility: .visible) {
-            Button("Clear Analysis", role: .destructive) {
-                Task {
-                    try? await appState.store.clearAllDJAnalysis()
-                    await refresh()
-                }
-            }
-        } message: {
-            Text("This removes cached waveform, beat-grid, BPM and key analysis. It will be rebuilt when needed.")
-        }
-        .sensoryFeedback(.warning, trigger: showClearAnalysisConfirm)
     }
 
     @ViewBuilder

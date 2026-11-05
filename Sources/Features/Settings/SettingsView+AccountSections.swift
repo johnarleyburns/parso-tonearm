@@ -216,10 +216,6 @@ extension SettingsView {
         cacheLimit = await AudioCache.shared.currentLimit()
         cachedCount = await AudioCache.shared.completeEntryCount(kind: "audio")
         customArtworkBytes = customArtworkSize()
-        if let stats = try? await appState.store.djPrepStorageStats() {
-            analysisTracks = stats.tracks
-            analysisBytes = stats.bytes
-        }
     }
 
     func applyCustomCacheLimit() {

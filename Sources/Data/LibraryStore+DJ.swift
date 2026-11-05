@@ -138,22 +138,6 @@ extension LibraryStore {
         }
     }
 
-    /// Current storage stats for `dj_track_prep`: all its blob/payload columns are gone (v44), so
-    /// `bytes` is always 0 now — kept, rather than removed, because this backs a real Settings
-    /// row ("Transition analysis") alongside `clearAllDJAnalysis`.
-    public func djPrepStorageStats() throws -> (tracks: Int, bytes: Int64) {
-        try dbQueue.read { db in
-            let tracks = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM dj_track_prep") ?? 0
-            return (tracks, 0)
-        }
-    }
-
-    public func clearAllDJAnalysis() throws {
-        try dbQueue.write { db in
-            try db.execute(sql: "UPDATE dj_track_prep SET bpm = NULL, camelotKey = NULL, analysisUpdatedAt = NULL")
-        }
-    }
-
 #if !os(watchOS)
     /// `dj_track_prep` CloudKit records are receive-only now (nothing in this app ever enqueues
     /// one to push — `enqueueDJTrackPrep` was removed as dead code); this only applies an
