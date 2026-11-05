@@ -5,7 +5,6 @@ struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
     @EnvironmentObject private var transitionPrep: TransitionPrepService
-    @State private var selectedEdge: QueueEdgeKey?
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
     #endif
@@ -20,22 +19,6 @@ struct UpNextView: View {
     /// auto-added tail was cleared).
     private var firstAutoAddedOffset: Int? {
         player.queue.firstIndex { player.keepPlayingAutoAddedTrackIDs.contains($0.id) }
-    }
-
-    /// Per-edge rows from the live queue, the occurrence identities and the renderer snapshots.
-    private var edgeRows: [QueueEdgeRow] {
-        QueueEdgeResolver.rows(
-            trackIDs: player.queue.map(\.track.id), currentIndex: player.index,
-            repeatMode: player.repeatMode, smartTransitionsEnabled: player.smartTransitionsEnabled,
-            live: player.transitionPresentation, occurrences: player.queueOccurrences,
-            snapshot: { player.transitionExecutionSnapshot(afterQueueIndex: $0) },
-            noBlend: player.noBlendEdges)
-    }
-
-    /// The selected edge while it still names the same occurrence pair; nil dismisses the detail.
-    private var selectedEdgeBinding: Binding<QueueEdgeRow?> {
-        Binding(get: { QueueEdgeResolver.resolve(selectedEdge, in: edgeRows) },
-                set: { selectedEdge = $0?.key })
     }
 
     var body: some View {
@@ -110,13 +93,12 @@ struct UpNextView: View {
                     .foregroundStyle(Palette.inkTertiary)
                     .padding(.vertical, 8)
             } else {
-                let edges = Dictionary(uniqueKeysWithValues: edgeRows.map { ($0.key.position, $0) })
                 #if os(iOS)
                 // Not a List: the parent Now Playing ScrollView is the only scroller, so
                 // playback advancing can never move a nested viewport or strand the controls.
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(queueEntries, id: \.id) { entry in
-                        iosQueueRow(offset: entry.offset, row: entry.row, edges: edges)
+                        iosQueueRow(offset: entry.offset, row: entry.row)
                     }
                 }
                 .accessibilityIdentifier("np.queue.list")
@@ -132,13 +114,6 @@ struct UpNextView: View {
                                      isCurrent: offset == player.index,
                                      isUpNext: offset == player.index + 1,
                                      queueIndex: offset)
-                            if let edge = edges[offset] {
-                                QueueTransitionConnector(edge: edge, isSelected: edge.key == selectedEdge,
-                                         incomingPosition: edge.key.position + 1 < player.queue.count ? edge.key.position + 2 : 1) {
-                                    selectedEdge = edge.key
-                                }
-                                .id(edge.key)
-                            }
                         }
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                             .listRowBackground(Color.clear)
@@ -174,12 +149,6 @@ struct UpNextView: View {
         .padding(.vertical, 10)
         .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
-        .sheet(item: selectedEdgeBinding) { edge in
-            QueueEdgeDetailSheet(edge: edge,
-                                 outgoing: player.queue.indices.contains(edge.key.position) ? player.queue[edge.key.position] : nil,
-                                 incoming: queueRow(after: edge.key.position),
-                                 incomingPosition: edge.key.position + 1 < player.queue.count ? edge.key.position + 2 : 1)
-        }
         .task {
             if case .mix = player.queueSource {
                 transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
@@ -189,12 +158,6 @@ struct UpNextView: View {
             guard case .mix = player.queueSource else { return }
             transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
         }
-    }
-
-    private func queueRow(after position: Int) -> TrackRow? {
-        guard !player.queue.isEmpty else { return nil }
-        let next = position + 1 < player.queue.count ? position + 1 : 0
-        return player.queue[next]
     }
 
     #if os(iOS)
@@ -209,7 +172,7 @@ struct UpNextView: View {
     }
 
     @ViewBuilder
-    private func iosQueueRow(offset: Int, row: TrackRow, edges: [Int: QueueEdgeRow]) -> some View {
+    private func iosQueueRow(offset: Int, row: TrackRow) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if offset == firstAutoAddedOffset {
                 keepPlayingSeparator
@@ -253,13 +216,11 @@ struct UpNextView: View {
                     .foregroundStyle(Palette.inkSecondary)
                 }
             }
-            if let edge = edges[offset] {
-                QueueTransitionConnector(edge: edge, isSelected: edge.key == selectedEdge,
-                         incomingPosition: edge.key.position + 1 < player.queue.count ? edge.key.position + 2 : 1) {
-                    selectedEdge = edge.key
-                }
-                .id(edge.key)
-            }
+            // Real report: the removed blend/transition connector row here ("Fallback", "Blend
+            // unavailable", "Not planned yet"...) was a confusing leftover from the removed
+            // automatic/manual blend features — there's no real transition plan to describe
+            // anymore, so it always rendered one of the "nothing is happening" fallback states.
+            // See also NowPlayingView.swift's TransitionCard removal.
         }
         .padding(.vertical, 4)
         .contextMenu {

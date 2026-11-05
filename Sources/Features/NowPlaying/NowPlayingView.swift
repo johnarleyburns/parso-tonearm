@@ -82,7 +82,9 @@ struct NowPlayingView: View {
                 meta.padding(.top, 22)
                 if !player.isAmbient {
                     scrubber.padding(.top, 20)
-                    TransitionCard().padding(.top, 10)
+                    // Real report: this card ("Continuous playback", "No blend plan for this
+                    // transition"...) was a confusing leftover from the removed automatic/manual
+                    // blend features — removed. See also UpNextView.swift's connector-row removal.
                 }
                 transport.padding(.top, 16)
                 toolbar.padding(.top, 16)
