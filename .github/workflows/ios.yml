@@ -221,14 +221,13 @@ jobs:
         # overlay is what keeps that impossible.
         run: make project
 
-      - name: Diagnose generated Info.plist template (temporary)
+      - name: Confirm generated OAuth credentials file (temporary — verifying the Info.plist bypass)
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
-          echo "--- raw grep of the generated template, before any Xcode build-time substitution ---"
-          grep -n "TonearmDropboxClientID\|JamendoClientID" -A 1 Sources/App/Info.plist || echo "NOT FOUND IN TEMPLATE"
-          echo "--- does Secrets.xcconfig (as written) actually have real values at this point? ---"
-          grep -c "^TONEARM_DROPBOX_CLIENT_ID = .\+$" Config/Secrets.xcconfig && echo "dropbox: non-empty line present" || echo "dropbox: NO non-empty line"
-          grep -c "^TONEARM_JAMENDO_CLIENT_ID = .\+$" Config/Secrets.xcconfig && echo "jamendo: non-empty line present" || echo "jamendo: NO non-empty line"
+          for name in dropboxClientID googleDriveClientID oneDriveClientID pCloudClientID; do
+            v="$(sed -n "s/.*static let $name = \"\\(.*\\)\"/\\1/p" Sources/Features/Ingest/GeneratedOAuthCredentials.swift)"
+            echo "$name -> length=${#v}"
+          done
 
       - name: Import Distribution Certificate
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
@@ -333,14 +332,12 @@ jobs:
             exit 1
           fi
 
-      - name: Diagnose flat OAuth client ID keys (temporary — verifying the dict-nesting fix)
+      - name: Confirm JamendoClientID still substitutes (temporary — regression sanity check)
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
           plist=./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist
-          for key in JamendoClientID TonearmDropboxClientID TonearmGoogleDriveClientID TonearmOneDriveClientID TonearmPCloudClientID; do
-            v="$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>&1 || true)"
-            echo "$key -> length=${#v}"
-          done
+          v="$(/usr/libexec/PlistBuddy -c 'Print :JamendoClientID' "$plist" 2>&1 || true)"
+          echo "JamendoClientID -> length=${#v}"
 
       - name: Export IPA
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
