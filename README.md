@@ -87,7 +87,6 @@ before using the production sign-in buttons:
 
 - `TONEARM_DROPBOX_CLIENT_ID`
 - `TONEARM_GOOGLE_DRIVE_CLIENT_ID`
-- `TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID` — see below, Google is a special case
 - `TONEARM_ONEDRIVE_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_SECRET` when your pCloud app requires it
@@ -97,10 +96,16 @@ Register the `tonearm://oauth/<provider>` redirect for Dropbox, OneDrive, and pC
 `<provider>` is `dropbox`, `oneDrive`, or `pCloud`). **Google Drive is a special case**: Google's
 "iOS" OAuth client type has no free-text redirect-URI field — it ties the redirect to a
 reversed-client-ID custom scheme instead. Create the credential as type **iOS** with Bundle ID
-`guru.parso.tonearm`, then derive `TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID` from the resulting
-Client ID by stripping `.apps.googleusercontent.com` and prepending `com.googleusercontent.apps.`
-(e.g. client ID `12345-abc.apps.googleusercontent.com` → `com.googleusercontent.apps.12345-abc`).
-See `OAuthClientConfiguration.swift` for how this is used.
+`guru.parso.tonearm`, then derive the scheme from the resulting Client ID by stripping
+`.apps.googleusercontent.com` and prepending `com.googleusercontent.apps.` (e.g. client ID
+`12345-abc.apps.googleusercontent.com` → `com.googleusercontent.apps.12345-abc`). **This derived
+value is not an xcconfig build setting** — hardcode it directly in both project.yml's
+`CFBundleURLTypes` entry for `guru.parso.tonearm.google-oauth` and
+`OAuthClientConfiguration.swift`'s `googleDriveReversedClientID` constant, and keep the two in
+sync. Xcode's Info.plist `$(VAR)` build-setting substitution silently collapses to a
+1-character garbage value for a string nested this deep (array > dict > array > string) —
+confirmed against real archived TestFlight builds (#808/#809) — so it can't be sourced from an
+xcconfig variable the way the other three providers' client IDs are.
 
 Each provider's app-review form asks for a **Privacy Policy URL**:
 <https://johnarleyburns.github.io/parso-tonearm/> (published from this repo's `gh-pages` branch).

@@ -4,7 +4,15 @@ import TonearmCore
 enum OAuthClientConfiguration {
     private static let clientIDKey = "TonearmOAuthClientIDs"
     private static let clientSecretKey = "TonearmOAuthClientSecrets"
-    private static let googleReversedClientIDKey = "TonearmGoogleDriveReversedClientID"
+
+    /// Must stay byte-for-byte identical to the literal `CFBundleURLSchemes` entry registered
+    /// in project.yml for `guru.parso.tonearm.google-oauth` — Xcode's Info.plist build-setting
+    /// substitution silently collapses a string nested this deep (array > dict > array >
+    /// string) to 1 garbage character (confirmed against real archived builds #808/#809), so
+    /// this can't be read from Info.plist via `$(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)`
+    /// either — it's hardcoded here too, for the same reason. If the Google Drive OAuth app is
+    /// ever re-created, update both this constant and project.yml's literal together.
+    private static let googleDriveReversedClientID = "com.googleusercontent.apps.335073009979-oqjttmqu57crphg658tfjps7mq189t8f"
 
     static func config(for provider: CloudDriveAPI.Provider) throws -> OAuthProviderConfig {
         let clientID = value(for: provider, dictionaryKey: clientIDKey)
@@ -29,9 +37,7 @@ enum OAuthClientConfiguration {
         guard provider == .googleDrive else {
             return URL(string: "tonearm://oauth/\(provider.rawValue)")!
         }
-        let reversedClientID = (Bundle.main.object(forInfoDictionaryKey: googleReversedClientIDKey) as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !reversedClientID.isEmpty, let url = URL(string: "\(reversedClientID):/oauth2redirect") else {
+        guard let url = URL(string: "\(googleDriveReversedClientID):/oauth2redirect") else {
             throw OAuthError.invalidClientConfiguration(provider.rawValue)
         }
         return url

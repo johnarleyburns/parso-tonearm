@@ -153,10 +153,17 @@ targets:
             CFBundleURLSchemes:
               - tonearm
           # Google's native-app OAuth redirect must be this reversed-client-ID scheme, not the
-          # generic "tonearm" one above — see OAuthClientConfiguration.swift.
+          # generic "tonearm" one above — see OAuthClientConfiguration.swift. Hardcoded (not
+          # $(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)): Xcode's Info.plist build-setting
+          # substitution silently collapses to a 1-character garbage value for a string nested
+          # this deep (array > dict > array > string) — confirmed by direct diagnostic against a
+          # real archived Info.plist (TestFlight builds #808/#809) — so this must be a literal.
+          # Not a real secret: an OAuth client ID (and its derived reversed scheme) is a public
+          # identifier designed to ship inside distributed app binaries, same as "tonearm" above.
+          # If the Google Drive OAuth app is ever re-created, update this literal to match.
           - CFBundleURLName: guru.parso.tonearm.google-oauth
             CFBundleURLSchemes:
-              - "$(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)"
+              - com.googleusercontent.apps.335073009979-oqjttmqu57crphg658tfjps7mq189t8f
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -199,7 +206,6 @@ targets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_ID)"
         TonearmOAuthClientSecrets:
           pCloud: "$(TONEARM_PCLOUD_CLIENT_SECRET)"
-        TonearmGoogleDriveReversedClientID: "$(TONEARM_GOOGLE_DRIVE_REVERSED_CLIENT_ID)"
         JamendoClientID: "$(TONEARM_JAMENDO_CLIENT_ID)"
     settings:
       base:
