@@ -38,6 +38,17 @@ public struct AnalysisAssetResolver: Sendable {
         return .success(try body(resolved.url))
     }
 
+    /// Like `withResolvedURL`, but does not release any security scope when this call returns —
+    /// for a caller building a per-job session (`WindowedAudioReader.openSession`) that will read
+    /// from the URL many times before finally calling the returned `release` closure. `nil` when
+    /// nothing local/cached exists yet (`.assetUnavailable`, same condition as `withResolvedURL`).
+    func resolveAndHold(for asset: Asset) -> (url: URL, release: @Sendable () -> Void)? {
+        guard let resolved = resolveURL(for: asset) else { return nil }
+        let url = resolved.url
+        let needsStopAccessing = resolved.needsStopAccessing
+        return (url, { if needsStopAccessing { url.stopAccessingSecurityScopedResource() } })
+    }
+
     private struct ResolvedURL {
         let url: URL
         let needsStopAccessing: Bool

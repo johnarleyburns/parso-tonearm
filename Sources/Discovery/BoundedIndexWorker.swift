@@ -9,14 +9,17 @@ import TonearmCore
 
 /// The real C04 `IndexJobExecuting` implementation: bounded windowed reads
 /// (`WindowedAudioReader`), the shared CLAP encoder (`ModelManager`), and the
-/// shared BPM/key/energy analyzers (`ParsoAudioAnalysis.FullAnalysis`) over a
-/// bounded sample — never a whole-file decode (plan §6).
+/// shared BPM/key/energy analyzers (`ParsoAudioAnalysis.LeanAnalysis`) over a
+/// bounded sample — never a whole-file decode (plan §6). `LeanAnalysis`
+/// computes only what a BPM/Camelot-compatible next-track picker needs,
+/// skipping `FullAnalysis`'s loudness/phrase/waveform stages (all three
+/// unread by anything downstream of this worker).
 ///
 /// Only ONE analysis job executes at a time (plan §6): this type does not
 /// itself enforce that (the scheduler already only ever has one worker/one
 /// claimed job in flight — plan §7, "only one scheduler exists per
 /// process"), but every heavy call here (`readWindow`, `logMel`,
-/// `embedAudio`, `FullAnalysis.run`) runs on the caller's (non-MainActor)
+/// `embedAudio`, `LeanAnalysis.run`) runs on the caller's (non-MainActor)
 /// task, never main.
 public actor BoundedIndexWorker: IndexJobExecuting {
     /// A window read and preprocessed to 48 kHz mono covers this many
@@ -59,6 +62,11 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     /// while an unrelated stale entry hasn't been cleaned up yet can never
     /// clobber the wrong session.
     private var remoteSessions: [String: RemoteSparseAssetResolver.Session] = [:]
+    /// One `LocalAnalysisReaderSession` per in-flight local job, keyed by job id — the same
+    /// reuse-across-windows rationale as `remoteSessions`, for a local asset's `AVAudioFile`/
+    /// `AVAudioConverter` instead of a remote session's `AVAssetReader`/resource-loader stack.
+    /// See `localSession(jobId:asset:)` for lifecycle.
+    private var localSessions: [String: LocalAnalysisReaderSession] = [:]
 
     public init(
         writer: any DatabaseWriter,
@@ -138,28 +146,21 @@ public actor BoundedIndexWorker: IndexJobExecuting {
                 return .transientFailure(code: code, message: message)
             }
         } else {
+            let session: LocalAnalysisReaderSession
             do {
-                let outcome = try resolver.withResolvedURL(for: asset) { url -> [Float] in
-                    let samples = try reader.readWindow(
-                        url: url, startSeconds: startSeconds,
-                        windowSeconds: Self.embeddingWindowSeconds)
-                    self.recordAssetState(
-                        assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: url)
-                    return samples
+                guard let opened = try localSession(jobId: job.id, asset: asset) else {
+                    return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
                 }
-                switch outcome {
-                case .success(let samples): pcm = samples
-                case .failure: return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
-                }
-            } catch let readerError as WindowedAudioReaderError {
-                switch readerError.kind {
-                case .cannotOpenFile, .unsupportedFormat:
-                    return .embeddingStageFinished(.unsupported)
-                case .converterCreationFailed, .readFailed:
-                    return .transientFailure(code: "windowReadFailed", message: readerError.detail)
-                }
+                session = opened
             } catch {
-                return .transientFailure(code: "windowReadFailed", message: error.localizedDescription)
+                return mapLocalSessionError(error, terminal: .embeddingStageFinished(.unsupported))
+            }
+            do {
+                pcm = try session.readWindow(
+                    startSeconds: startSeconds, windowSeconds: Self.embeddingWindowSeconds)
+                recordAssetState(assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: session.url)
+            } catch {
+                return mapLocalSessionError(error, terminal: .embeddingStageFinished(.unsupported))
             }
         }
 
@@ -217,14 +218,15 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     /// just leaves the job re-processed (idempotent overwrite) on retry,
     /// never a lost or duplicated embedding.
     /// The embedding stage's window reads are done either way (success or
-    /// failure below) — the remote session (if any) has nothing left to
-    /// serve until musical analysis starts its own, so it's released here
-    /// regardless of `finalizeEmbeddingOutcome`'s result.
+    /// failure below) — neither the remote nor the local session (if any)
+    /// has anything left to serve until musical analysis starts its own, so
+    /// both are released here regardless of `finalizeEmbeddingOutcome`'s result.
     private func finalizeEmbedding(
         job: DiscoveryIndexJob, encoder: any SemanticModel
     ) async -> IndexWorkOutcome {
         let outcome = finalizeEmbeddingOutcome(job: job, encoder: encoder)
         await releaseRemoteSession(jobId: job.id)
+        releaseLocalSession(jobId: job.id)
         return outcome
     }
 
@@ -312,11 +314,12 @@ public actor BoundedIndexWorker: IndexJobExecuting {
 
     // MARK: - Musical analysis stage
 
-    /// Musical analysis is the last stage that ever needs the remote asset
-    /// — the session (if any) is released here regardless of outcome.
+    /// Musical analysis is the last stage that ever needs the asset — the
+    /// remote or local session (if any) is released here regardless of outcome.
     private func processMusicalAnalysis(job: DiscoveryIndexJob) async -> IndexWorkOutcome {
         let outcome = await processMusicalAnalysisOutcome(job: job)
         await releaseRemoteSession(jobId: job.id)
+        releaseLocalSession(jobId: job.id)
         return outcome
     }
 
@@ -349,7 +352,7 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         case .failure(let outcome): return outcome
         }
 
-        let result = FullAnalysis.run(midpointAudio)
+        let result = LeanAnalysis.run(midpointAudio)
 
         let trackId = job.trackId
         let assetRevision = job.assetRevision ?? 1
@@ -361,26 +364,16 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         // without re-parsing a prose key name.
         let key = result.key?.camelot.code
         let energy = result.energy.map { Double($0.scalar) }
-        let phraseSummary = result.phraseCount > 0 ? "\(result.phraseCount) phrases" : nil
         let completedAt = clock()
 
         do {
             try commitAnalysis(
                 trackId: trackId, assetId: selectedAssetId, assetRevision: assetRevision, bpm: bpm,
-                key: key, energy: energy, phraseSummary: phraseSummary, scopeSeconds: scopeSeconds,
+                key: key, energy: energy, phraseSummary: nil, scopeSeconds: scopeSeconds,
                 completedAt: completedAt)
         } catch {
             return .transientFailure(code: "analysisCommitFailed", message: error.localizedDescription)
         }
-
-        // Best-effort: real double-drop/bass-exit/phrase-line structure for
-        // DropAwareEdgePlanner, from two more bounded windows (track head and
-        // tail — where a blend transition actually happens; never a whole-
-        // file decode). A read/detection failure here never fails the stage
-        // that already committed bpm/key/energy above.
-        await persistTransitionProfileBestEffort(
-            job: job, asset: asset, selectedAssetId: selectedAssetId, assetRevision: assetRevision,
-            trackId: trackId, duration: duration, midpointResult: result, completedAt: completedAt)
         return .musicalAnalysisStageFinished(.complete)
     }
 
@@ -406,126 +399,26 @@ public actor BoundedIndexWorker: IndexJobExecuting {
             }
         } else {
             sampleRate = reader.targetSampleRate
+            let session: LocalAnalysisReaderSession
             do {
-                let outcome = try resolver.withResolvedURL(for: asset) { url -> [Float] in
-                    let samples = try reader.readWindow(
-                        url: url, startSeconds: startSeconds, windowSeconds: windowSeconds)
-                    self.recordAssetState(
-                        assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: url)
-                    return samples
+                guard let opened = try localSession(jobId: job.id, asset: asset) else {
+                    return .failure(.waiting(reason: .waitingForAsset, retryAfterSeconds: 300))
                 }
-                switch outcome {
-                case .success(let samples): pcm = samples
-                case .failure: return .failure(.waiting(reason: .waitingForAsset, retryAfterSeconds: 300))
-                }
-            } catch let readerError as WindowedAudioReaderError {
-                switch readerError.kind {
-                case .cannotOpenFile, .unsupportedFormat:
-                    return .failure(.musicalAnalysisStageFinished(.unsupported))
-                case .converterCreationFailed, .readFailed:
-                    return .failure(.transientFailure(code: "windowReadFailed", message: readerError.detail))
-                }
+                session = opened
             } catch {
-                return .failure(.transientFailure(code: "windowReadFailed", message: error.localizedDescription))
+                return .failure(
+                    mapLocalSessionError(error, terminal: .musicalAnalysisStageFinished(.unsupported)))
+            }
+            do {
+                pcm = try session.readWindow(startSeconds: startSeconds, windowSeconds: windowSeconds)
+                recordAssetState(assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: session.url)
+            } catch {
+                return .failure(
+                    mapLocalSessionError(error, terminal: .musicalAnalysisStageFinished(.unsupported)))
             }
         }
         guard !pcm.isEmpty else { return .failure(.musicalAnalysisStageFinished(.unsupported)) }
         return .success(AnalysisAudio(sampleRate: sampleRate, channels: [pcm]))
-    }
-
-    /// Reads a head window (first `musicalAnalysisMaxSeconds`) and a tail window (last
-    /// `musicalAnalysisMaxSeconds`, or the same head window again for a track shorter than two
-    /// window-lengths), runs `DropDetector` on each against its own beat grid, converts every
-    /// detected beat to an absolute track second via the midpoint window's constant-tempo
-    /// bpm/phase, and persists one `TransitionProfile`. Any failure along the way (read,
-    /// unsupported, stale revision) is swallowed: this is supplementary data, not the stage's
-    /// primary contract.
-    private func persistTransitionProfileBestEffort(
-        job: DiscoveryIndexJob, asset: Asset, selectedAssetId: Int64, assetRevision: Int64,
-        trackId: Int64, duration: Double, midpointResult: FullAnalysisResult, completedAt: Date
-    ) async {
-        guard let bpm = midpointResult.bpm, bpm.isFinite, bpm > 0,
-              let grid = midpointResult.beatGrid, grid.bpm.isFinite, grid.bpm > 0
-        else { return }
-        let period = 60 / grid.bpm
-        let windowSeconds = min(Self.musicalAnalysisMaxSeconds, duration)
-        let midStart = max(0, duration / 2 - windowSeconds / 2)
-        let sampleRate = asset.kind == .remote ? remoteReader.targetSampleRate : reader.targetSampleRate
-        // The first beat's absolute track second, reduced into [0, period): the midpoint window's
-        // own first-beat sample, offset by where that window actually starts in the track.
-        let midpointFirstBeatAbsolute = midStart + Double(grid.firstBeatSample) / sampleRate
-        let phase = midpointFirstBeatAbsolute - period * (midpointFirstBeatAbsolute / period).rounded(.down)
-        guard period > 0, phase.isFinite else { return }
-        let beatCount = max(0, Int(((duration - phase) / period).rounded(.down)) + 1)
-        guard beatCount > 0 else { return }
-
-        // Sequential, not concurrent: this actor's own design keeps exactly one heavy read/decode
-        // in flight at a time (see the type's doc comment); two overlapping window reads against
-        // the same resolved URL/session would fight that invariant for no real benefit here.
-        let headStart = 0.0
-        let tailStart = max(0, duration - windowSeconds)
-        var results: [(drops: [Int], exits: [Int], bassLevelsDB: [Double])] = []
-        if let head = await windowDropsAndExits(
-            job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: headStart,
-            windowSeconds: windowSeconds, period: period, phase: phase)
-        {
-            results.append(head)
-        }
-        if tailStart > headStart,
-           let tail = await windowDropsAndExits(
-               job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: tailStart,
-               windowSeconds: windowSeconds, period: period, phase: phase)
-        {
-            results.append(tail)
-        }
-        guard !results.isEmpty else { return }
-
-        let structure = DropAwareTrackStructure.detect(
-            rawDrops: results.flatMap(\.drops), rawExits: results.flatMap(\.exits), beatCount: beatCount,
-            bassLevelsDB: results.first(where: { !$0.bassLevelsDB.isEmpty })?.bassLevelsDB ?? [])
-        func beatTime(_ beat: Int) -> Double { phase + Double(beat) * period }
-        let profile = TransitionProfile(
-            beatPeriodSeconds: period, beatPhaseSeconds: phase, beatConfidence: grid.isConstantTempo ? 0.8 : 0.4,
-            barPhase: structure.barPhase, phrasePhase: structure.phrasePhase,
-            dropSeconds: structure.drops.map(beatTime), exitSeconds: structure.exits.map(beatTime),
-            bassPresentFromStart: structure.bassLevelsDB.isEmpty ? nil : structure.bassPresentFromStart(silenceBeat: 0))
-        do {
-            try DiscoveryDerivedStore(writer: writer).persistTransitionProfileIfCurrent(
-                profile, trackId: trackId, assetId: selectedAssetId, expectedRevision: assetRevision,
-                expectedFingerprint: EmbeddingSpace.current.fingerprint, now: completedAt)
-        } catch {
-            // Best-effort: a stale revision/fingerprint or validation failure just means no
-            // profile this pass; the next re-index attempt tries again.
-        }
-    }
-
-    /// One window's drop/bass-exit beat indices (into its own local grid) and kick-band levels,
-    /// or nil if the window could not be read/analyzed. `period`/`phase` are the track's already-
-    /// known constant-tempo grid (from the midpoint window); this window's own detected grid is
-    /// used only to run `DropDetector`, never to re-derive tempo (one source of truth per track).
-    private func windowDropsAndExits(
-        job: DiscoveryIndexJob, asset: Asset, selectedAssetId: Int64, startSeconds: Double,
-        windowSeconds: Double, period: Double, phase: Double
-    ) async -> (drops: [Int], exits: [Int], bassLevelsDB: [Double])? {
-        let audio: AnalysisAudio
-        switch await readAnalysisWindow(
-            job: job, asset: asset, selectedAssetId: selectedAssetId, startSeconds: startSeconds,
-            windowSeconds: windowSeconds)
-        {
-        case .success(let a): audio = a
-        case .failure: return nil
-        }
-        guard let grid = FullAnalysis.run(audio).beatGrid, !grid.beatSamples.isEmpty else { return nil }
-        let (localDrops, localExits, levels) = DropDetector.dropsAndExits(audio, beatSamples: grid.beatSamples)
-        // This window's beats, in the track's own global beat-index space (via the shared
-        // period/phase), not this window's local 0-based indices.
-        func globalBeat(_ localBeatIndex: Int) -> Int {
-            let localSeconds = startSeconds + Double(grid.beatSamples[localBeatIndex]) / audio.sampleRate
-            return Int(((localSeconds - phase) / period).rounded())
-        }
-        let drops = localDrops.compactMap { $0 < grid.beatSamples.count ? globalBeat($0) : nil }
-        let exits = localExits.compactMap { $0 < grid.beatSamples.count ? globalBeat($0) : nil }
-        return (drops, exits, levels)
     }
 
     /// Plain (non-async) helper so the call to `writer.write` resolves to
@@ -755,6 +648,45 @@ public actor BoundedIndexWorker: IndexJobExecuting {
             "job=\(jobId, privacy: .public) fetchedBytes=\(fetched, privacy: .public) estimatedBytes=\(estimated, privacy: .public)"
         )
         await session.shutdown()
+    }
+
+    /// Returns the job's already-open local session, or resolves and opens a fresh one (see
+    /// `localSessions`'s doc for the reuse-across-windows rationale — the same one
+    /// `remoteSession(jobId:asset:)` follows for a remote asset). `nil` means nothing local/
+    /// cached exists yet (maps to `.waiting`, same as `withResolvedURL`'s `.failure` used to);
+    /// a thrown `WindowedAudioReaderError` means the file itself couldn't be opened/converted.
+    private func localSession(jobId: String, asset: Asset) throws -> LocalAnalysisReaderSession? {
+        if let existing = localSessions[jobId] { return existing }
+        guard let (url, release) = resolver.resolveAndHold(for: asset) else { return nil }
+        do {
+            let session = try reader.openSession(url: url, release: release)
+            localSessions[jobId] = session
+            return session
+        } catch {
+            release()
+            throw error
+        }
+    }
+
+    /// Idempotent — a no-op when `jobId` has no open session (the common case for a purely
+    /// remote job, and for a local job whose session creation itself failed).
+    private func releaseLocalSession(jobId: String) {
+        localSessions.removeValue(forKey: jobId)?.close()
+    }
+
+    /// Shared error mapping for both `localSession(jobId:asset:)` (opening the file) and a
+    /// session's own `readWindow` (reading from it already open) — the same classification
+    /// `WindowedAudioReaderError` always got at either call site before this session existed.
+    private func mapLocalSessionError(_ error: Error, terminal: IndexWorkOutcome) -> IndexWorkOutcome {
+        guard let readerError = error as? WindowedAudioReaderError else {
+            return .transientFailure(code: "windowReadFailed", message: error.localizedDescription)
+        }
+        switch readerError.kind {
+        case .cannotOpenFile, .unsupportedFormat:
+            return terminal
+        case .converterCreationFailed, .readFailed:
+            return .transientFailure(code: "windowReadFailed", message: readerError.detail)
+        }
     }
 
     private static let remoteIndexingLog = Logger(

@@ -11,7 +11,7 @@ import StarterGeneratorSupport
 //
 // Mirrors BoundedIndexWorker's musical-analysis stage exactly: a window of
 // `musicalAnalysisMaxSeconds` centred on the track, read by `WindowedAudioReader` at its target
-// rate, run through `FullAnalysis`, key stored as the Camelot code.
+// rate, run through `LeanAnalysis`, key stored as the Camelot code.
 //
 // Usage: swift run BuiltInAnalyzer <builtin-mood-index.json> [parallelism]
 // Each track's audio is downloaded to a temp file, analysed, then deleted. Progress is written
@@ -58,8 +58,6 @@ struct BuiltInAnalyzer {
                     entries[index]["key"] = analysis.key
                     entries[index]["energy"] = analysis.energy
                     entries[index]["analysisScopeSeconds"] = analysis.scopeSeconds
-                    entries[index]["dropSeconds"] = analysis.dropSeconds
-                    entries[index]["exitSeconds"] = analysis.exitSeconds
                 } else {
                     entries[index]["analysisUnavailable"] = true
                 }
@@ -77,11 +75,6 @@ struct BuiltInAnalyzer {
     struct Entry: Sendable { let id: String; let streamURL: String?; let duration: Double? }
     struct Analysis: Sendable {
         let bpm: Double?; let key: String?; let energy: Double?; let scopeSeconds: Double
-        /// Real drop/bass-exit timestamps (absolute track seconds) within the analyzed window,
-        /// for DropAwareEdgePlanner — `nil` when there was no beat grid to detect them against,
-        /// empty (not nil) when there was a grid but genuinely no event found.
-        let dropSeconds: [Double]?
-        let exitSeconds: [Double]?
     }
 
     /// `BUILTIN_ANALYZER_AUDIO_DIR`: read `<dir>/<id>.mp3` when it is there instead of
@@ -121,80 +114,10 @@ struct BuiltInAnalyzer {
             guard let pcm = try? reader.readWindow(url: temp, startSeconds: start, windowSeconds: scope),
                   !pcm.isEmpty else { return nil }
             let audio = AnalysisAudio(sampleRate: reader.targetSampleRate, channels: [pcm])
-            let musical = musicalStages(audio)
-            // Real drop/bass-exit detection against the window's own beat grid (cheap: it's
-            // already computed for `energy` above) — no extra decode, no extra window.
-            var dropSeconds: [Double]?
-            var exitSeconds: [Double]?
-            if let grid = musical.beatGrid {
-                let (drops, exits, _) = DropDetector.dropsAndExits(audio, beatSamples: grid.beatSamples)
-                func toSeconds(_ localBeatIndex: Int) -> Double {
-                    start + Double(grid.beatSamples[localBeatIndex]) / audio.sampleRate
-                }
-                dropSeconds = drops.compactMap { $0 < grid.beatSamples.count ? toSeconds($0) : nil }
-                exitSeconds = exits.compactMap { $0 < grid.beatSamples.count ? toSeconds($0) : nil }
-            }
-            if verify {
-                let full = FullAnalysis.run(AnalysisAudio(sampleRate: reader.targetSampleRate, channels: [pcm]))
-                let fullEnergy = full.energy.map { Double($0.scalar) }
-                if full.bpm != musical.bpm || full.key?.camelot.code != musical.key || fullEnergy != musical.energy {
-                    say("  MISMATCH \(entry.id): full \(String(describing: full.bpm)) \(full.key?.camelot.code ?? "-") \(String(describing: fullEnergy)) vs \(String(describing: musical.bpm)) \(musical.key ?? "-") \(String(describing: musical.energy))")
-                }
-            }
-            return Analysis(bpm: musical.bpm, key: musical.key, energy: musical.energy, scopeSeconds: scope,
-                           dropSeconds: dropSeconds, exitSeconds: exitSeconds)
+            let musical = LeanAnalysis.run(audio)
+            return Analysis(bpm: musical.bpm, key: musical.key?.camelot.code,
+                           energy: musical.energy.map { Double($0.scalar) }, scopeSeconds: scope)
         }.value
-    }
-
-    /// Set `BUILTIN_ANALYZER_VERIFY=1` to also run the whole `FullAnalysis` and report any track
-    /// where the two disagree.
-    static let verify = ProcessInfo.processInfo.environment["BUILTIN_ANALYZER_VERIFY"] == "1"
-
-    /// `FullAnalysis.runInternal`'s tempo → beat grid → key → energy stages, line for line, without
-    /// the loudness (true-peak oversampling), phrase and waveform stages Build a Mix doesn't use —
-    /// those were ~80% of the time, putting the 4,017-track run at five hours.
-    static func musicalStages(
-        _ pcm: AnalysisAudio
-    ) -> (bpm: Double?, key: String?, energy: Double?, beatGrid: BeatGrid?) {
-        let stft = STFTConfig()
-        let kernel = STFTKernel(config: stft)
-        let spectra = kernel.spectra(pcm.mono)
-        let hopSeconds = Double(stft.hopSize) / stft.sampleRate
-        var frames: [SpectralFrame] = []
-        if !spectra.isEmpty {
-            frames.reserveCapacity(spectra.count)
-            let monoBase = pcm.mono.baseAddress
-            let monoCount = pcm.mono.count
-            for (i, spec) in spectra.enumerated() {
-                let prev = i > 0 ? spectra[i - 1].power : spec.power
-                let offset = stft.hopSize * i
-                let sliceCount = min(stft.fftSize, max(0, monoCount - offset))
-                let slice = UnsafeBufferPointer(
-                    start: sliceCount > 0 ? monoBase?.advanced(by: offset) : nil, count: sliceCount)
-                frames.append(SpectralFeatures.frame(spec, prevPower: prev, frameSamples: slice))
-            }
-        }
-        let envelope = OnsetDetector.envelope(spectra: spectra)
-        let onsets = hopSeconds > 0 ? OnsetDetector.peaks(envelope, frameRateHz: 1 / hopSeconds) : []
-        let tempo = hopSeconds > 0 ? TempoAnalyzer.estimate(novelty: envelope, hopSeconds: hopSeconds).first : nil
-        var bpm: Double?
-        var beatGrid: BeatGrid?
-        if let tempo {
-            bpm = tempo.bpm
-            beatGrid = BeatTracker.grid(novelty: envelope, hopSeconds: hopSeconds, sampleRate: stft.sampleRate,
-                                        onsets: onsets, bpm: tempo.bpm)
-        }
-        var key: KeyEstimate?
-        if !spectra.isEmpty {
-            key = KeyDetector.estimate(spectra.map { KeyDetector.fusedChroma($0) })
-        }
-        var energy: Double?
-        if let beatGrid, !frames.isEmpty {
-            let curve = EnergyAnalyzer.curve(frames: frames, beatSamples: beatGrid.beatSamples,
-                                             frameRateHz: 1 / hopSeconds, sampleRate: stft.sampleRate)
-            energy = Double(EnergyAnalyzer.scalar(curve))
-        }
-        return (bpm, key?.camelot.code, energy, beatGrid)
     }
 
     /// Progress for the person running the tool (stdout, unbuffered).

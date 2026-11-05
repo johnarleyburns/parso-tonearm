@@ -69,10 +69,14 @@ public struct WindowedAudioReader: Sendable {
     /// tail when the requested window runs past end-of-file (plan §6:
     /// "for tracks <=10 seconds, one zero-padded window" — generalized to
     /// any window whose tail exceeds the file).
+    ///
+    /// Opens a fresh `AVAudioFile` and builds a fresh `AVAudioConverter` on
+    /// every call — correct for a one-off read, but wasteful for the ~13
+    /// window reads one indexing job makes against the same file. A caller
+    /// doing several reads against the same URL should use `openSession`
+    /// instead, which opens/builds those once and reuses them.
     public func readWindow(url: URL, startSeconds: Double, windowSeconds: Double) throws -> [Float] {
-        let targetFrameCount = max(0, Int((windowSeconds * targetSampleRate).rounded()))
-        guard targetFrameCount > 0 else { return [] }
-
+        guard Int((windowSeconds * targetSampleRate).rounded()) > 0 else { return [] }
         let file: AVAudioFile
         do {
             file = try AVAudioFile(forReading: url)
@@ -89,6 +93,51 @@ public struct WindowedAudioReader: Sendable {
         else {
             throw WindowedAudioReaderError(kind: .unsupportedFormat, detail: "cannot build target format")
         }
+        guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat) else {
+            throw WindowedAudioReaderError(kind: .converterCreationFailed, detail: "incompatible formats")
+        }
+        return try Self.readWindow(
+            file: file, sourceFormat: sourceFormat, converter: converter, targetFormat: targetFormat,
+            targetSampleRate: targetSampleRate, startSeconds: startSeconds, windowSeconds: windowSeconds)
+    }
+
+    /// Opens `url` and builds its converter once, for a caller that will read several windows
+    /// from the same file (a per-job session) instead of this type's own open-fresh-every-call
+    /// `readWindow(url:...)`. The caller owns the returned session's lifetime and must call
+    /// `close()` on it exactly once when done — see `LocalAnalysisReaderSession`'s doc comment.
+    public func openSession(url: URL, release: @escaping @Sendable () -> Void) throws -> LocalAnalysisReaderSession {
+        let file: AVAudioFile
+        do {
+            file = try AVAudioFile(forReading: url)
+        } catch {
+            throw WindowedAudioReaderError(kind: .cannotOpenFile, detail: error.localizedDescription)
+        }
+        let sourceFormat = file.processingFormat
+        guard sourceFormat.sampleRate > 0, sourceFormat.channelCount > 0 else {
+            throw WindowedAudioReaderError(kind: .unsupportedFormat, detail: "invalid source format")
+        }
+        guard let targetFormat = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32, sampleRate: targetSampleRate, channels: 1,
+            interleaved: false)
+        else {
+            throw WindowedAudioReaderError(kind: .unsupportedFormat, detail: "cannot build target format")
+        }
+        guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat) else {
+            throw WindowedAudioReaderError(kind: .converterCreationFailed, detail: "incompatible formats")
+        }
+        return LocalAnalysisReaderSession(
+            url: url, file: file, sourceFormat: sourceFormat, converter: converter,
+            targetFormat: targetFormat, targetSampleRate: targetSampleRate, release: release)
+    }
+
+    /// The shared conversion body `readWindow(url:...)` and `LocalAnalysisReaderSession.readWindow`
+    /// both call, over an already-open file/converter.
+    fileprivate static func readWindow(
+        file: AVAudioFile, sourceFormat: AVAudioFormat, converter: AVAudioConverter,
+        targetFormat: AVAudioFormat, targetSampleRate: Double, startSeconds: Double, windowSeconds: Double
+    ) throws -> [Float] {
+        let targetFrameCount = max(0, Int((windowSeconds * targetSampleRate).rounded()))
+        guard targetFrameCount > 0 else { return [] }
 
         let sourceStartFrame = AVAudioFramePosition(
             max(0, (startSeconds * sourceFormat.sampleRate).rounded()))
@@ -114,9 +163,10 @@ public struct WindowedAudioReader: Sendable {
         }
         guard inBuffer.frameLength > 0 else { return output }
 
-        guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat) else {
-            throw WindowedAudioReaderError(kind: .converterCreationFailed, detail: "incompatible formats")
-        }
+        // Reset first: a reused converter (`LocalAnalysisReaderSession`) carries internal
+        // resampling filter state from its previous call that must not bleed into this,
+        // possibly non-contiguous, window. A no-op (but harmless) on a freshly-built converter.
+        converter.reset()
         let outFrameCapacity = AVAudioFrameCount(
             (Double(inBuffer.frameLength) * targetSampleRate / sourceFormat.sampleRate).rounded(.up) + 8)
         guard let outBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outFrameCapacity)
@@ -153,6 +203,46 @@ public struct WindowedAudioReader: Sendable {
         }
         return output
     }
+}
+
+/// One local track's open `AVAudioFile` + its sample-rate converter, built once per job (not
+/// once per window) so the ~13 embedding/analysis window reads for a local asset share one file
+/// handle and one converter instead of re-opening/reconstructing on every call — mirrors
+/// `RemoteSparseAssetResolver.Session`'s per-job reuse for the remote case. `release` is whatever
+/// the resolver that produced this session's `url` needs to run to drop any security-scoped
+/// access it granted; call `close()` exactly once, when the job's work is done, success or
+/// failure, same discipline as the remote session's `shutdown()`.
+public struct LocalAnalysisReaderSession: Sendable {
+    public let url: URL
+    private let file: AVAudioFile
+    private let sourceFormat: AVAudioFormat
+    private let converter: AVAudioConverter
+    private let targetFormat: AVAudioFormat
+    private let targetSampleRate: Double
+    private let release: @Sendable () -> Void
+
+    init(url: URL, file: AVAudioFile, sourceFormat: AVAudioFormat, converter: AVAudioConverter,
+         targetFormat: AVAudioFormat, targetSampleRate: Double, release: @escaping @Sendable () -> Void) {
+        self.url = url
+        self.file = file
+        self.sourceFormat = sourceFormat
+        self.converter = converter
+        self.targetFormat = targetFormat
+        self.targetSampleRate = targetSampleRate
+        self.release = release
+    }
+
+    /// Same contract as `WindowedAudioReader.readWindow(url:...)`, reusing this session's
+    /// already-open file and converter.
+    public func readWindow(startSeconds: Double, windowSeconds: Double) throws -> [Float] {
+        try WindowedAudioReader.readWindow(
+            file: file, sourceFormat: sourceFormat, converter: converter, targetFormat: targetFormat,
+            targetSampleRate: targetSampleRate, startSeconds: startSeconds, windowSeconds: windowSeconds)
+    }
+
+    /// Idempotent-in-spirit (the caller is expected to call this exactly once); safe to call more
+    /// than once since `release` itself (built from `stopAccessingSecurityScopedResource`) is.
+    public func close() { release() }
 }
 
 /// Hands the converter its single input buffer once. `AVAudioConverter.convert(to:error:withInputFrom:)`

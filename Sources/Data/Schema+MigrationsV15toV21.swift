@@ -462,5 +462,17 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v43", upTo: target) {
+            migrator.registerMigration("v43") { db in
+                // `discovery_transition_profile` (v40) and everything that wrote to it
+                // (BoundedIndexWorker.persistTransitionProfileBestEffort, two extra
+                // FullAnalysis.run calls per track for a head/tail window) fed
+                // ProfileTransitionPlanner/DropAwareEdgePlanner, confirmed to have zero
+                // production callers on either the write or read side — indexing now
+                // computes only bpm/beatgrid/key/energy (LeanAnalysis) and this table,
+                // and everything that wrote it, is removed entirely.
+                try db.execute(sql: "DROP TABLE discovery_transition_profile")
+            }
+        }
     }
 }

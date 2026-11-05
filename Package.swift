@@ -21,7 +21,7 @@ let package = Package(
         // parenthesis, previously hashed to a different cache key than the
         // one callers computed from the same raw URL, causing eviction/
         // offline-lookup mismatches — "shows cached, play does nothing").
-        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.5.1")
+        .package(url: "https://github.com/johnarleyburns/parso-audio-engine.git", exact: "1.6.0")
     ],
     targets: [
         .target(
@@ -255,6 +255,7 @@ let package = Package(
             dependencies: [
                 "TonearmDiscovery",
                 "TonearmCore",
+                "StarterGeneratorSupport",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine")
             ],
