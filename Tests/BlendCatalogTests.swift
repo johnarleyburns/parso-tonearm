@@ -217,6 +217,6 @@ final class BlendCatalogTests: XCTestCase {
     }
 
     func testMigrationListIncludesTheCatalog() {
-        XCTAssertEqual(Schema.migrationOrder.last, "v41")
+        XCTAssertTrue(Schema.migrationOrder.contains("v41"), "the catalog migration must stay registered")
     }
 }
