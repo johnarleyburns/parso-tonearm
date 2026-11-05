@@ -329,8 +329,20 @@ jobs:
       - name: Diagnose CFBundleURLTypes (temporary — investigating upload rejection)
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' \
-            ./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist || true
+          plist=./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' "$plist" || true
+          echo "--- entry 0 (tonearm) ---"
+          v0="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$plist" 2>&1 || true)"
+          echo "length: ${#v0}"
+          [[ "$v0" =~ ^[A-Za-z][A-Za-z0-9.+-]*$ ]] && echo "format: VALID" || echo "format: INVALID"
+          echo "--- entry 1 (google reversed) ---"
+          v1="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:1:CFBundleURLSchemes:0' "$plist" 2>&1 || true)"
+          echo "length: ${#v1}"
+          [[ "$v1" =~ ^[A-Za-z][A-Za-z0-9.+-]*$ ]] && echo "format: VALID" || echo "format: INVALID"
+          echo "has leading/trailing whitespace: $([[ "$v1" != "$(echo -n "$v1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" ]] && echo yes || echo no)"
+          echo "contains underscore: $([[ "$v1" == *_* ]] && echo yes || echo no)"
+          echo "contains space: $([[ "$v1" == *' '* ]] && echo yes || echo no)"
+          echo "byte count via wc: $(printf '%s' "$v1" | wc -c)"
 
       - name: Export IPA
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
