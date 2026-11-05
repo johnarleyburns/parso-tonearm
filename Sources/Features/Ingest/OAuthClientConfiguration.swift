@@ -2,9 +2,6 @@ import Foundation
 import TonearmCore
 
 enum OAuthClientConfiguration {
-    private static let clientIDKey = "TonearmOAuthClientIDs"
-    private static let clientSecretKey = "TonearmOAuthClientSecrets"
-
     /// Must stay byte-for-byte identical to the literal `CFBundleURLSchemes` entry registered
     /// in project.yml for `guru.parso.tonearm.google-oauth` — Xcode's Info.plist build-setting
     /// substitution silently collapses a string nested this deep (array > dict > array >
@@ -14,9 +11,27 @@ enum OAuthClientConfiguration {
     /// ever re-created, update both this constant and project.yml's literal together.
     private static let googleDriveReversedClientID = "com.googleusercontent.apps.335073009979-oqjttmqu57crphg658tfjps7mq189t8f"
 
+    /// Info.plist keys, one flat top-level key per provider — NOT nested inside a shared dict.
+    /// The same build-setting substitution bug that broke the Google URL scheme (see above) also
+    /// broke this when it was `TonearmOAuthClientIDs[provider]`/`TonearmOAuthClientSecrets[provider]`
+    /// (a dict one level deep): every provider's client ID read back empty even with the right
+    /// GitHub Actions secret set and written into Secrets.xcconfig during the build — confirmed
+    /// by a real-device report after build #811, still failing with "OAuth is not configured"
+    /// for both Dropbox and Google despite the Google URL-scheme fix landing. JamendoClientID is
+    /// the one key in this file proven to substitute correctly, and it's flat/top-level — not
+    /// nested in any dict — which is the one structural difference that matters here.
+    private static func clientIDKey(for provider: CloudDriveAPI.Provider) -> String {
+        switch provider {
+        case .dropbox: return "TonearmDropboxClientID"
+        case .googleDrive: return "TonearmGoogleDriveClientID"
+        case .oneDrive: return "TonearmOneDriveClientID"
+        case .pCloud: return "TonearmPCloudClientID"
+        }
+    }
+
     static func config(for provider: CloudDriveAPI.Provider) throws -> OAuthProviderConfig {
-        let clientID = value(for: provider, dictionaryKey: clientIDKey)
-        let clientSecret = value(for: provider, dictionaryKey: clientSecretKey)
+        let clientID = stringValue(forInfoDictionaryKey: clientIDKey(for: provider))
+        let clientSecret = provider == .pCloud ? stringValue(forInfoDictionaryKey: "TonearmPCloudClientSecret") : ""
         let redirectURI = try redirectURI(for: provider)
         return try OAuthProviderConfig.cloudDrive(
             provider: provider,
@@ -43,8 +58,8 @@ enum OAuthClientConfiguration {
         return url
     }
 
-    private static func value(for provider: CloudDriveAPI.Provider, dictionaryKey: String) -> String {
-        let values = Bundle.main.object(forInfoDictionaryKey: dictionaryKey) as? [String: String]
-        return values?[provider.rawValue]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    private static func stringValue(forInfoDictionaryKey key: String) -> String {
+        (Bundle.main.object(forInfoDictionaryKey: key) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 }

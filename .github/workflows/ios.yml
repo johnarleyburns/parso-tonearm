@@ -324,6 +324,15 @@ jobs:
             exit 1
           fi
 
+      - name: Diagnose flat OAuth client ID keys (temporary — verifying the dict-nesting fix)
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        run: |
+          plist=./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist
+          for key in JamendoClientID TonearmDropboxClientID TonearmGoogleDriveClientID TonearmOneDriveClientID TonearmPCloudClientID; do
+            v="$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>&1 || true)"
+            echo "$key -> length=${#v}"
+          done
+
       - name: Export IPA
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
