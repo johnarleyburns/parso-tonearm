@@ -224,8 +224,16 @@ jobs:
       - name: Confirm generated OAuth credentials file (temporary — verifying the Info.plist bypass)
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
+          echo "--- raw line lengths (not maskable — a plain number, not a copy of any secret) ---"
+          awk '{ print NR": "length($0)" chars" }' Sources/Features/Ingest/GeneratedOAuthCredentials.swift
+          echo "--- sed-based value extraction (previous attempt, cross-checking for a GNU/BSD sed difference) ---"
           for name in dropboxClientID googleDriveClientID oneDriveClientID pCloudClientID; do
             v="$(sed -n "s/.*static let $name = \"\\(.*\\)\"/\\1/p" Sources/Features/Ingest/GeneratedOAuthCredentials.swift)"
+            echo "$name -> length=${#v}"
+          done
+          echo "--- awk-based value extraction (field between the two quote characters) ---"
+          for name in dropboxClientID googleDriveClientID oneDriveClientID pCloudClientID; do
+            v="$(awk -F'"' -v n="$name" '$0 ~ "static let " n " = " { print $2 }' Sources/Features/Ingest/GeneratedOAuthCredentials.swift)"
             echo "$name -> length=${#v}"
           done
 
