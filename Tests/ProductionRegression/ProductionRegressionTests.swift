@@ -104,20 +104,4 @@ final class ProductionRegressionTests: XCTestCase {
         XCTAssertEqual(QueueAccessibility.removeActionName, "Remove from queue")
     }
 
-    // MARK: resource / lease instrumentation
-
-    func testLeaseIsHeldUntilReleaseAndInstrumentationSeesIt() {
-        let mb: Int64 = 1_048_576
-        var cfg = ResourceCoordinatorConfig()
-        cfg.absoluteCapBytes = 300 * mb
-        let c = ResourceCoordinator(config: cfg, availableMemory: { 10_000 * mb }, pressureActive: { false })
-        guard case .success(let a) = c.reserve(.deckA, bytes: 200 * mb) else { return XCTFail("[lease] reserve failed") }
-        a.markResident()
-        a.cancel()
-        XCTAssertTrue(a.isLive, "[lease] cancel must not free the budget")
-        XCTAssertEqual(c.snapshot().residentBytes, 200 * mb)
-        a.release()
-        XCTAssertFalse(a.isLive)
-        XCTAssertEqual(c.snapshot().residentBytes, 0)
-    }
 }

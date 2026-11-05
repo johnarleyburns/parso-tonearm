@@ -282,7 +282,7 @@ extension AudioPlayer {
             // every played and queued track.
             _ = playlist
             return (try? await LibraryStore.shared.allTrackRows()) ?? []
-        case .mix, .library, .none, .mood, .continuation:
+        case .library, .none, .mood, .continuation:
             // A mood queue's own extension is handled entirely above
             // (re-running the mood query) — this generic fallback pool is
             // only reached if that already failed, so the honest fallback
@@ -336,7 +336,6 @@ extension AudioPlayer {
         }
         prefetchNext()
         preloadNextItem()
-        mixDecks?.upcomingChanged()
         persist(reason: .transportEvent)
         // The newly-appended rows are real tracks the player was waiting on
         // — actually start them instead of leaving them queued-but-silent.

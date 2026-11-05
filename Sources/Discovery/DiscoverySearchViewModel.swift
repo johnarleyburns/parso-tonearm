@@ -328,9 +328,12 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     /// Start the current mood directly, not a single result or a mix-builder sheet.
     @discardableResult
-    public func playMood(metadata: [Int64: DJLoadTrackInfo], onPlayQueue: ([TrackRow]) -> Void) -> Bool {
+    public func playMood(
+        metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:],
+        onPlayQueue: ([TrackRow]) -> Void
+    ) -> Bool {
         let ids = MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
-            startingFrom: matchingTracksOnly ? matchingReferenceTrackID : nil)
+            energyByID: energies, startingFrom: matchingTracksOnly ? matchingReferenceTrackID : nil)
         let rows = Dictionary(results.map { ($0.trackID, $0.track) }, uniquingKeysWith: { first, _ in first })
         let queue = ids.compactMap { rows[$0] }
         guard !queue.isEmpty else { return false }

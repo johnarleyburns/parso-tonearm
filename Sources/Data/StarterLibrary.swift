@@ -2,9 +2,7 @@ import Foundation
 import GRDB
 
 /// The bundled Mood Starter library as an SQLite database ("starter DB") assembled from immutable
-/// Jamendo shards: track metadata, native 128-D CLAP embeddings and tempo/key/energy. Nothing else: blends
-/// are planned on the device from the audio itself (MixDeckPlayer), and the tempo here is all
-/// the planner takes from it (a hint it searches ±1% around).
+/// Jamendo shards: track metadata, native 128-D CLAP embeddings and tempo/key/energy.
 ///
 /// The app opens it read-only from the bundle and merges its rows into the library in one
 /// transaction (`LibraryStore.mergeStarterLibrary`). The iPhone and the Mac ship the same

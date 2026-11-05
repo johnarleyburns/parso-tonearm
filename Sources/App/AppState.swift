@@ -21,9 +21,6 @@ enum PendingImport: Equatable {
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
-    /// One preparation coordinator shared by Settings, Up Next and Mix
-    /// Preview. Its published state is the status surface for every action.
-    let transitionPrepService: TransitionPrepService
     /// Restored from the last launch (real report: "when I enter Platterhead it doesn't return to
     /// where I was, it starts from scratch" — the tab always reset to `.listen`, nothing persisted
     /// it). The playback queue/position already survive relaunch
@@ -148,7 +145,6 @@ final class AppState: ObservableObject {
 
     init(store: LibraryStore = .shared) {
         self.store = store
-        self.transitionPrepService = TransitionPrepService()
         if let saved = UserDefaults.standard.object(forKey: Self.lastTabKey) as? Int,
             let restored = AppTab(rawValue: saved)
         {
@@ -171,10 +167,6 @@ final class AppState: ObservableObject {
             try? await Task.sleep(for: .seconds(12))
         }
         #endif
-        // Before anything can restore the queue: an interrupted transition setup pauses
-        // Everywhere and drops pending prep, so restoration plays on AVPlayer.
-        AudioPlayer.shared.applyLaunchRecovery()
-        if AudioPlayer.shared.plainRestoreAfterRecovery { transitionPrepService.stop() }
         await fixLegacySourceTitles()
         await repairDuplicatePlaylistsOnce()
         // Before DiscoveryRuntimeController.startAfterBootstrap() (called
@@ -188,10 +180,6 @@ final class AppState: ObservableObject {
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
-        if UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
-            transitionPrepService.prepare(rows: AudioPlayer.shared.queue, appState: self,
-                                          allowsCellular: AudioPlayer.shared.isPlayingMix)
-        }
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
         #if os(iOS)
@@ -260,8 +248,6 @@ final class AppState: ObservableObject {
         AudioPlayer.shared.keepPlayingEnabled = keepPlayingEnabled
         AudioPlayer.shared.keepPlayingBatchSize = min(30, max(5, keepPlayingBatchSize))
         AudioPlayer.shared.keepPlayingMatchingTracksOnly = keepPlayingMatchingTracksOnly
-        AudioPlayer.shared.smartTransitionsEnabled =
-            UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true
         let lookup = artworkLookup
         Task { await ArtworkService.shared.setArtworkLookupEnabled(lookup) }
     }

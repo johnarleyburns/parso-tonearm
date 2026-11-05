@@ -72,7 +72,6 @@ struct SettingsView: View {
                         #if os(iOS)
                         SiriSettingsCard()
                         #endif
-                        SmartTransitionsView()
                     }
                 }
                 if shows(.library) {
@@ -223,7 +222,7 @@ struct SettingsView: View {
 
     private func sectionDetail(_ id: String) -> LocalizedStringKey {
         switch id {
-        case "settings.section.playback": "Listening, transitions and Siri"
+        case "settings.section.playback": "Listening, crossfade and Siri"
         case "settings.section.library": "Sources, indexing and storage"
         default: "Appearance, privacy and support"
         }

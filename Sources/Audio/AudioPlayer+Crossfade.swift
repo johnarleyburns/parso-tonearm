@@ -13,13 +13,11 @@ extension AudioPlayer {
         return max(0, crossfadeSeconds)
     }
 
-    /// The plain crossfade between queue tracks on AVPlayer (the user's Crossfade setting).
-    /// Smart transitions never come here: they play on the mix decks (AudioPlayer+MixDecks.swift),
-    /// the one planner and mixer for every blend.
+    /// The plain crossfade between queue tracks on AVPlayer (the user's Crossfade setting) — the
+    /// only track-to-track transition there is now that Smart Transitions is gone.
     func updateCrossfade(position: Double) {
         let fadeSeconds = normalizedCrossfadeSeconds
         guard fadeSeconds > 0,
-              mixDecks == nil,
               !sleepAtEndOfTrack,
               let nextIndex = upcomingQueueIndex(),
               queue.indices.contains(nextIndex),

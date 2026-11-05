@@ -36,21 +36,9 @@ public protocol QueueContinuationSource: AnyObject {
     func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow]
 }
 
-extension AudioPlayer {
-    /// Playing a Build a Mix session: its transitions may be prepared over cellular (a mix with
-    /// unprepared transitions is just a playlist).
-    public var isPlayingMix: Bool {
-        if case .mix = queueSource { return true }
-        return false
-    }
-}
-
 public enum QueueSource {
     case source(Source)
     case playlist(Playlist)
-    /// A generated, explainable mix. Keeping the plan with the queue lets the
-    /// playback layer execute the same edge decisions the preview explained.
-    case mix(MixPlan)
     case library
     case ambient
     /// A queue seeded from the Listen tab's mood entry point (docs/plans/
@@ -65,7 +53,6 @@ public enum QueueSource {
         switch self {
         case .source(let s): return String(localized: "From Library: \(s.title)", bundle: .module)
         case .playlist(let p): return String(localized: "From Playlist: \(p.title)", bundle: .module)
-        case .mix: return String(localized: "From Mix", bundle: .module)
         case .library: return String(localized: "From Music", bundle: .module)
         case .ambient: return String(localized: "Ambient", bundle: .module)
         case .mood: return "A Mood"
@@ -80,7 +67,6 @@ extension QueueSource: Equatable {
         switch (lhs, rhs) {
         case (.source(let a), .source(let b)): return a == b
         case (.playlist(let a), .playlist(let b)): return a == b
-        case (.mix(let a), .mix(let b)): return a == b
         case (.library, .library): return true
         case (.ambient, .ambient): return true
         case (.mood(let a), .mood(let b)): return a === b

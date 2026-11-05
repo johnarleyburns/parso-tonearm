@@ -1,8 +1,7 @@
 import XCTest
 @testable import TonearmCore
 
-/// The starter DB: built on the Mac, merged into the library in one transaction. The tempo it
-/// carries is the hint the mix decks' blend analysis starts from.
+/// The starter DB: built on the Mac, merged into the library in one transaction.
 final class StarterLibraryTests: XCTestCase {
     private func entry(_ index: Int, analysed: Bool = true) -> BuiltInMoodTrack {
         BuiltInMoodTrack(
@@ -33,7 +32,7 @@ final class StarterLibraryTests: XCTestCase {
         XCTAssertEqual(read[2].bpm, 122)
     }
 
-    func testMergeAddsEverythingOnceAndProvidesTheTempoHint() async throws {
+    func testMergeAddsEverythingOnceAndIsIdempotent() async throws {
         let store = try LibraryStore(inMemory: true)
         let tracks = (0..<5).map { entry($0) }
         let starter = try makeStarter(tracks: tracks)
@@ -55,11 +54,6 @@ final class StarterLibraryTests: XCTestCase {
         XCTAssertTrue(ids.allSatisfy { info[$0]?.bpm != nil && info[$0]?.camelotKey == "8A" })
         let embeddings = try await store.discoveryEmbeddingVectors(trackIds: ids)
         XCTAssertEqual(embeddings.count, 5)
-
-        let byURL = Dictionary(uniqueKeysWithValues: rows.compactMap { row in row.asset?.remoteURL.map { ($0, row.track.id!) } })
-        let second = try XCTUnwrap(byURL["https://example.com/1.mp3"])
-        let hint = try await store.blendTempoHint(trackId: second)
-        XCTAssertEqual(hint, 121, "the starter tempo is the blend analysis' starting point")
     }
 
     /// The Mix builder's genre list comes from one aggregate query and must count exactly the

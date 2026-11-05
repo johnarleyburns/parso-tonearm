@@ -50,5 +50,46 @@ final class MusicalMatchPolicyTests: XCTestCase {
         XCTAssertNil(MusicalMatchPolicy.bpmRange(for: .nan))
         XCTAssertNil(MusicalMatchPolicy.bpmDifferenceRatio(candidate: .infinity, reference: 125))
     }
+
+    func testEnergyWithinToleranceMatchesAndOutsideDoesNot() throws {
+        let key = try XCTUnwrap(CamelotKey(code: "1A"))
+        let reference = MusicalMatchReference(bpm: 125, camelot: key, energy: 5)
+        XCTAssertTrue(MusicalMatchPolicy.matches(
+            candidateBPM: 125, candidateKey: key, candidateEnergy: 7, reference: reference),
+            "2.0 away is exactly at the tolerance boundary")
+        XCTAssertFalse(MusicalMatchPolicy.matches(
+            candidateBPM: 125, candidateKey: key, candidateEnergy: 7.1, reference: reference),
+            "just past the tolerance boundary must not match")
+    }
+
+    func testMissingEnergyOnEitherSideNeverBlocksAMatch() throws {
+        let key = try XCTUnwrap(CamelotKey(code: "1A"))
+        let referenceWithEnergy = MusicalMatchReference(bpm: 125, camelot: key, energy: 5)
+        let referenceWithoutEnergy = MusicalMatchReference(bpm: 125, camelot: key)
+        XCTAssertTrue(MusicalMatchPolicy.matches(
+            candidateBPM: 125, candidateKey: key, candidateEnergy: nil, reference: referenceWithEnergy),
+            "a candidate with no stored energy must not be excluded on that basis")
+        XCTAssertTrue(MusicalMatchPolicy.matches(
+            candidateBPM: 125, candidateKey: key, candidateEnergy: 9.9, reference: referenceWithoutEnergy),
+            "a reference with no stored energy must not gate any candidate")
+    }
+
+    func testEnergyMismatchCannotRescueABPMOrKeyMismatch() throws {
+        let key = try XCTUnwrap(CamelotKey(code: "1A"))
+        let reference = MusicalMatchReference(bpm: 125, camelot: key, energy: 5)
+        XCTAssertFalse(MusicalMatchPolicy.matches(
+            candidateBPM: 135.01, candidateKey: key, candidateEnergy: 5, reference: reference),
+            "identical energy must not override a BPM mismatch")
+    }
+
+    func testMoodQueueEnergyByIDAppliesTheSameNilSafeGate() {
+        let info: [Int64: DJLoadTrackInfo] = [
+            1: .init(bpm: 100, camelotKey: "8A"), 2: .init(bpm: 108, camelotKey: "9A"),
+            3: .init(bpm: 108, camelotKey: "9A")]
+        let energies: [Int64: Double] = [1: 5, 2: 5.5, 3: 9]
+        XCTAssertEqual(
+            MusicalMatchPolicy.queueTrackIDs([1, 2, 3], metadata: info, energyByID: energies), [1, 2],
+            "track 3 is BPM/key compatible but its energy is too far from track 2's")
+    }
 }
 #endif

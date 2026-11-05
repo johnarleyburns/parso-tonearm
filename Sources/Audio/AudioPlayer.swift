@@ -5,11 +5,6 @@ import ParsoAudioStreaming
 import Combine
 import Network
 
-struct LiveMixFallbackToken: Equatable, Sendable {
-    let occurrence: QueueOccurrenceID
-    let generation: Int
-}
-
 @MainActor
 public final class AudioPlayer: ObservableObject {
     public static let shared = AudioPlayer()
@@ -20,12 +15,6 @@ public final class AudioPlayer: ObservableObject {
     /// One stable identity per queue slot, parallel to `queue`. Survives reorder and delete;
     /// the same track queued twice has two identities.
     public internal(set) var queueOccurrences: [QueueOccurrenceID] = []
-    /// Edges the listener asked to play without a blend. Keyed by occurrence pair, so a duplicate
-    /// or reordered edge is never affected; pruned when either end leaves the queue.
-    @Published public internal(set) var noBlendEdges: Set<TransitionEdgeKey> = []
-    /// Execution snapshots emitted by the mix-deck scheduler/renderer, keyed by occurrence edge.
-    /// A value type: copies handed to views never change.
-    @Published public internal(set) var transitionExecution = TransitionExecutionLedger()
     @Published public internal(set) var index: Int = 0
     @Published public internal(set) var isPlaying = false
     @Published public internal(set) var isStalled = false
@@ -147,25 +136,6 @@ public final class AudioPlayer: ObservableObject {
     @Published public internal(set) var pathIsExpensive = false
     @Published public var networkSkipMessage: String?
     @Published public var queueSource: QueueSource = .none
-    @Published public internal(set) var transitionPlan: TransitionPlan?
-    @Published public internal(set) var transitionPrepState: GridPrepState = .ready
-    /// True from the engine's handoff until the outgoing track is inaudible. While set,
-    /// `transitionPlan` stays the A→B edge; the next B→C plan waits in `deferredTransitionPlan`.
-    @Published public internal(set) var isOutgoingTransitionTailAudible = false
-    var deferredTransitionPlan: (plan: TransitionPlan?, state: GridPrepState)?
-    /// Set while an edge plays continuously because a live mix was not admitted.
-    @Published public internal(set) var liveMixFallback: TransitionFallbackStatus?
-
-    /// Smart transitions is a playback setting, not just a Settings toggle.
-    /// The app mirrors the preference here at launch and whenever the toggle
-    /// changes so a disabled feature cannot still alter the audio queue.
-    @Published public var smartTransitionsEnabled: Bool =
-        UserDefaults.standard.object(forKey: "smartTransitionsEnabled") as? Bool ?? true {
-        didSet {
-            guard smartTransitionsEnabled != oldValue else { return }
-            mixDecks?.blendsEnabled = mixDecksBlend
-        }
-    }
 
     public var streamOnCellular = true
     public var prefetchDepth = 2
@@ -173,7 +143,12 @@ public final class AudioPlayer: ObservableObject {
     public var replayGainMode: ReplayGain.Mode = .track
     public var replayGainPreampDB: Double = 0
     public var replayGainPreventClipping = true
-    public var crossfadeSeconds: Double = 0 {
+    /// Default is a real, audible blend, not off — with Smart Transitions gone this plain
+    /// AVPlayer crossfade is now the only track-to-track transition, so a Spotify-style
+    /// seamless blend has to be what every queue ships with, not something a setting has to
+    /// discover first. Gapless-album continuity (`CrossfadeCurve.suppressesForGaplessAlbum`)
+    /// already suppresses it for consecutive tracks on the same album.
+    public var crossfadeSeconds: Double = 3 {
         didSet {
             if normalizedCrossfadeSeconds == 0 {
                 cancelCrossfade(resetVolume: true)
@@ -198,19 +173,6 @@ public final class AudioPlayer: ObservableObject {
     var lastLocalFailure: LocalMediaFailure?
     var restoreTask: Task<Void, Never>?
     var isRestoring = false
-    /// Where the transition-risk sentinel lives; tests point it at a temp file.
-    var transitionSafetyStore = TransitionSafetyStateStore.default
-    var transitionSafetyClock = TransitionSafetyClock.system
-    private(set) lazy var transitionSafety = TransitionSafetyMonitor(store: transitionSafetyStore,
-                                                                     clock: transitionSafetyClock)
-    /// Set by launch recovery: the restore after an interrupted transition setup plays on AVPlayer.
-    public internal(set) var plainRestoreAfterRecovery = false
-    var launchRecoveryDone = false
-    /// Drives the one-time "Smart transitions were paused" notice.
-    @Published public internal(set) var transitionRecoveryNoticePending = false
-    @Published public internal(set) var transitionRecoveryStatus = TransitionRecoveryStatus(
-        isPaused: false, interruptedCount: 0, lastInterruptedAt: nil)
-    @Published public internal(set) var transitionRecoveryError: String?
     var pendingRestoreSeek: Double?
     /// Injectable persistence funnel: tests can swap in fakes/spies.
     public var persistor = PlaybackPositionPersistor()
@@ -226,22 +188,10 @@ public final class AudioPlayer: ObservableObject {
     /// Near-gapless (T2.5): the next queue item, preloaded (with its cache/EQ
     /// attached) so the boundary swap is seamless rather than a fresh teardown.
     var preloadedNextItem: AVPlayerItem?
-    /// One ordinary-player fallback, bound to the denied queue occurrence and the queue generation it
-    /// was issued in. The next mix-deck load of that occurrence is skipped once (no recursion into the
-    /// rejected mixer); replacement, seek, stop or any other load invalidates it.
-    var liveMixFallbackToken: LiveMixFallbackToken?
-    /// The one capability authority and the one reservation authority for live mixing.
-    var audioCapabilities = AudioAssetCapabilityService.shared
-    var resourceCoordinator = ResourceCoordinator.shared
-    /// Held while an admitted whole-track decode/analysis may allocate; released exactly once
-    /// (idempotent) on replacement, denial, stop or fallback.
-    var liveMixReservation: ResourceCoordinator.Reservation?
     var preloadedNextTrackId: Int64?
     var preloadedNextLoader: CachingResourceLoader?
     var loadedSourceSampleRate: Double = 0
     var crossfadePlayer: AVPlayer?
-    /// Mix queues play here instead of on `player` (AudioPlayer+MixDecks.swift).
-    var mixDecks: MixDeckPlayer?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
@@ -252,9 +202,6 @@ public final class AudioPlayer: ObservableObject {
     var transitionTicker: Task<Void, Never>?
     /// Outgoing item time at which a late incoming start happened; its gain fades in from there.
     var transitionLateStartPosition: Double?
-    /// Set while `auditionTransition` starts its two-track queue: it plays on the mix decks even
-    /// with Smart transitions off.
-    var auditionRequested = false
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?
@@ -449,12 +396,6 @@ public final class AudioPlayer: ObservableObject {
             updateNowPlaying()
             return
         }
-        if let mixDecks {
-            if isPlaying { mixDecks.pause() } else { resumeMixDecks(mixDecks) }
-            isPlaying.toggle()
-            updateNowPlaying()
-            return
-        }
         // Real report #1: the mini-player's play/pause button sometimes needed 3-4 taps before
         // anything audible happened. Root cause: a play request on a remote/streamed track
         // doesn't confirm `.playing` immediately — it sits in `.waitingToPlayAtSpecifiedRate`
@@ -560,7 +501,6 @@ public final class AudioPlayer: ObservableObject {
         case .cancel:
             sleepAtEndOfTrack = false
         }
-        mixDecks?.upcomingChanged()
     }
 
     public func next() {
@@ -568,7 +508,7 @@ public final class AudioPlayer: ObservableObject {
         guard !queue.isEmpty else { return }
         if repeatMode == .one {
             seek(to: 0)
-            if let mixDecks { mixDecks.resume() } else { player.play() }
+            player.play()
             return
         }
         if index < queue.count - 1 {
@@ -589,7 +529,6 @@ public final class AudioPlayer: ObservableObject {
                         queueGeneration: keepPlayingBoundaryGeneration, terminalIndex: index)
                 }
             }
-            mixDecks?.pause()
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }
         loadCurrent(autoplay: true)
@@ -613,16 +552,6 @@ public final class AudioPlayer: ObservableObject {
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation
-        liveMixFallbackToken = nil
-        if let mixDecks {
-            endOutgoingTransitionTail()
-            mixDecks.seek(to: seconds)
-            currentTime = seconds
-            updateNowPlayingTime()
-            persist(reason: .userSeek)
-            bridge.publishSnapshot(self)
-            return
-        }
         let time = CMTime(seconds: seconds, preferredTimescale: 600)
         player.seek(to: time)
         currentTime = seconds
@@ -654,7 +583,6 @@ public final class AudioPlayer: ObservableObject {
 
     func clearQueuePlayback() {
         cancelCatalogPlaybackLoad()
-        stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
         for loader in prefetchLoaders.values {

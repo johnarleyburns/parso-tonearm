@@ -20,7 +20,6 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
     override func tearDown() async throws {
         let player = AudioPlayer.shared
         player.cancelCrossfade(resetVolume: true)
-        player.transitionPlan = nil
         player.player.replaceCurrentItem(with: nil)
         player.preloadedNextItem = nil
         player.preloadedNextTrackId = nil
@@ -75,6 +74,35 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         XCTAssertEqual(player.index, 1, "the crossfade hands the queue to the incoming track")
     }
 
+    /// With Smart Transitions gone, this plain crossfade is the only track-to-track transition
+    /// left — the shipped default must already be a real, audible blend, not `0` (a silent
+    /// hard cut) that a setting nobody has found yet would need to raise first.
+    func testShippedDefaultCrossfadeSecondsProducesABlendWithoutAnyOverride() throws {
+        XCTAssertEqual(savedCrossfade, 3, "the shipped default must be a real, nonzero blend")
+        let player = try prepareOutgoing(fadeSeconds: savedCrossfade)
+        let incoming = row(2, remoteURL: "https://example.invalid/default-blend.mp3")
+        player.queue = [row(1), incoming]
+        player.preloadedNextItem = AVPlayerItem(url: try audioFile(seconds: 6))
+        player.preloadedNextTrackId = 2
+
+        let fadeStart = outgoingSeconds - savedCrossfade
+        XCTAssertTrue(player.prepareCrossfadePlayer(for: incoming, at: 1))
+        let crossfade = try XCTUnwrap(player.crossfadePlayer)
+        XCTAssertTrue(waitUntil { isLoaded(crossfade) }, "local item should load")
+
+        var sawBlend = false
+        for position in stride(from: fadeStart, through: outgoingSeconds + 0.5, by: 0.1) {
+            player.updateCrossfade(position: position)
+            if player.index == 0, player.transitionStartedForCurrentEdge,
+               player.player.volume < player.outputLevel, (player.crossfadePlayer?.volume ?? 0) > 0 {
+                sawBlend = true
+            }
+            if player.index == 1 { break }
+        }
+        XCTAssertTrue(sawBlend, "both tracks should be audible together during the default blend")
+        XCTAssertEqual(player.index, 1, "the default crossfade hands the queue to the incoming track")
+    }
+
     /// The incoming track finishes loading partway through the fade window: the fade starts then.
     func testIncomingTrackThatLoadsMidFadeStartsLate() throws {
         let player = try prepareOutgoing(fadeSeconds: 4)
@@ -100,7 +128,6 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
     private func prepareOutgoing(fadeSeconds: Double) throws -> AudioPlayer {
         let player = AudioPlayer.shared
         player.cancelCrossfade(resetVolume: true)
-        player.transitionPlan = nil
         player.sleepAtEndOfTrack = false
         player.repeatMode = .off
         player.crossfadeSeconds = fadeSeconds

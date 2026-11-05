@@ -40,7 +40,6 @@ struct RootView: View {
             AppStatusBanners()
         }
         .toastLayer(bottomInset: 96)
-        .environmentObject(appState.transitionPrepService)
         .task { await announceWatchConnection() }
         .tint(Palette.accent)
         .modifier(AppPresentations())

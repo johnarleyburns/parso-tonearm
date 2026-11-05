@@ -2,16 +2,6 @@ import Foundation
 import GRDB
 
 extension LibraryStore {
-    /// The approximate tempo the blend analysis starts from (it searches ±1% around it): a
-    /// DJ's BPM override, else the library's musical analysis, else the DJ prep BPM. Nil when
-    /// nothing is known yet; the mix decks then estimate it from the audio.
-    public func blendTempoHint(trackId: Int64) throws -> Double? {
-        guard let bpm = try djLoadTrackInfo(trackIds: [trackId])[trackId]?.bpm, bpm.isFinite, bpm > 0 else {
-            return nil
-        }
-        return bpm
-    }
-
     /// Reads the authoritative discovery embedding in planner-friendly form.
     /// Quantization is intentionally decoded here so the UI never manufactures
     /// a similarity score from a track id or a random seed.

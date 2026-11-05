@@ -18,18 +18,12 @@ extension AudioPlayer {
     }
 
     func resume() {
-        if let mixDecks {
-            resumeMixDecks(mixDecks)
-            isPlaying = true
-            updateNowPlaying()
-            return
-        }
         seekToStartIfAtEnd()
         player.play()
         isPlaying = true
         updateNowPlaying()
     }
-    func pause() { catalogPlaybackAutoplay = false; mixDecks?.pause(); player.pause(); isPlaying = false; updateNowPlaying() }
+    func pause() { catalogPlaybackAutoplay = false; player.pause(); isPlaying = false; updateNowPlaying() }
 
     /// Nudges output volume by `delta`, clamped to [0, 1] — the Mac
     /// Playback menu's Increase/Decrease Volume commands (native-mac-
@@ -45,7 +39,6 @@ extension AudioPlayer {
     public func setOutputLevel(_ level: Float) {
         let clamped = level.isFinite ? min(max(level, 0), 1) : 1
         outputLevel = clamped
-        mixDecks?.volume = clamped
         if crossfadePlayer == nil { player.volume = clamped }
     }
 
@@ -199,38 +192,6 @@ extension AudioPlayer {
         await task.value
     }
 
-    /// Runs the sentinel check before restoration can choose mix decks. Once per player.
-    public func applyLaunchRecovery() {
-        guard !launchRecoveryDone else { return }
-        launchRecoveryDone = true
-        let outcome = TransitionLaunchRecovery.run(store: transitionSafetyStore, defaults: .standard,
-                                                   clock: transitionSafetyClock)
-        plainRestoreAfterRecovery = outcome.plainPlayback
-        transitionRecoveryNoticePending = outcome.showsNotice
-        refreshTransitionRecoveryStatus()
-        if outcome.plainPlayback { stopMixDecks() }
-    }
-
-    /// The listener's answer to the recovery notice. Re-enable turns only Everywhere back on.
-    public func resolveTransitionRecovery(reenable: Bool) {
-        transitionRecoveryError = nil
-        if reenable {
-            guard TransitionLaunchRecovery.reenable(store: transitionSafetyStore, defaults: .standard) else {
-                transitionRecoveryError = "Couldn't save the change, so Smart Transitions stay paused. Try again."
-                return
-            }
-        } else {
-            TransitionLaunchRecovery.keepPaused(store: transitionSafetyStore)
-        }
-        plainRestoreAfterRecovery = false
-        transitionRecoveryNoticePending = false
-        refreshTransitionRecoveryStatus()
-    }
-
-    func refreshTransitionRecoveryStatus() {
-        transitionRecoveryStatus = TransitionLaunchRecovery.status(store: transitionSafetyStore)
-    }
-
     /// Resets the once-per-process restore guard so tests can re-run
     /// `restorePersistedQueue()` without restarting the process.
     /// Also clears the restore task so the next call can retry (F5 retry).
@@ -249,7 +210,6 @@ extension AudioPlayer {
     }
 
     internal func performQueueRestore() async {
-        applyLaunchRecovery()
         guard queue.isEmpty, !isAmbient else { return }
         guard let saved = await persistor.loadBest(), !saved.trackIDs.isEmpty else { return }
 

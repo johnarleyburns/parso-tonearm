@@ -4,14 +4,9 @@ import TonearmCore
 struct UpNextView: View {
     @EnvironmentObject var player: AudioPlayer
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject private var transitionPrep: TransitionPrepService
     #if os(iOS)
     @State private var editMode: EditMode = .inactive
     #endif
-
-    private var transitionRows: [TrackRow] {
-        Array(([player.currentTrack].compactMap { $0 } + player.upNextTracks).prefix(3))
-    }
 
     /// The first queue offset Keep Playing appended, if any — where the
     /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
@@ -72,20 +67,6 @@ struct UpNextView: View {
                 #endif
             }
             .padding(.bottom, 8)
-
-            TransitionChip(
-                onPrepareNow: {
-                    transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
-                },
-                onAudition: {
-                    guard let outgoing = player.currentTrack,
-                          let incoming = player.upNextTracks.first else { return }
-                    player.auditionTransition(outgoing: outgoing, incoming: incoming)
-                },
-                preparationState: player.upNextTracks.first?.track.id.flatMap {
-                    transitionPrep.transitionPrepState(for: $0)
-                })
-                .padding(.bottom, 6)
 
             if player.queue.isEmpty || player.isAmbient {
                 Text(player.isAmbient ? "Continuous ambient loop" : "Nothing up next")
@@ -149,15 +130,6 @@ struct UpNextView: View {
         .padding(.vertical, 10)
         .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
-        .task {
-            if case .mix = player.queueSource {
-                transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
-            }
-        }
-        .onChange(of: player.currentTrack?.track.id) { _, _ in
-            guard case .mix = player.queueSource else { return }
-            transitionPrep.prepare(rows: transitionRows, appState: appState, allowsCellular: player.isPlayingMix)
-        }
     }
 
     #if os(iOS)

@@ -266,6 +266,12 @@ public struct SearchRepository: Sendable {
             let sp = codes.map { _ in "?" }.joined(separator: ",")
             clauses.append("a.key IS NOT NULL AND a.key IN (\(sp))")
             args.append(contentsOf: codes)
+            if let energy = musicalMatch.energy {
+                // A candidate with no stored energy is never excluded on that basis.
+                clauses.append("(a.energy IS NULL OR ABS(a.energy - ?) <= ?)")
+                args.append(energy)
+                args.append(MusicalMatchPolicy.energyToleranceAbsolute)
+            }
         }
         return (clauses.isEmpty ? "1" : clauses.joined(separator: " AND "), args)
     }

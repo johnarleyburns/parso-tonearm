@@ -269,22 +269,17 @@ public struct MixPlan: Codable, Sendable, Equatable {
     public var excluded: [MixExclusion]
     public var summary: MixSummary
     public var request: MixRequest
-    /// Fully resolved transition decisions used by both preview and playback.
-    /// Empty is valid for old persisted plans; the player resolves missing
-    /// edges from the stored analysis payload before the fade begins.
-    public var transitionPlans: [TransitionPlan]
 
     public init(steps: [MixStep], excluded: [MixExclusion], summary: MixSummary,
-                request: MixRequest, transitionPlans: [TransitionPlan] = []) {
+                request: MixRequest) {
         self.steps = steps
         self.excluded = excluded
         self.summary = summary
         self.request = request
-        self.transitionPlans = transitionPlans
     }
 
     private enum CodingKeys: String, CodingKey {
-        case steps, excluded, summary, request, transitionPlans
+        case steps, excluded, summary, request
     }
 
     public init(from decoder: Decoder) throws {
@@ -293,87 +288,5 @@ public struct MixPlan: Codable, Sendable, Equatable {
         excluded = try container.decode([MixExclusion].self, forKey: .excluded)
         summary = try container.decode(MixSummary.self, forKey: .summary)
         request = try container.decode(MixRequest.self, forKey: .request)
-        transitionPlans = try container.decodeIfPresent([TransitionPlan].self,
-                                                        forKey: .transitionPlans) ?? []
-    }
-}
-
-public enum TransitionStyle: String, Codable, Sendable, Equatable {
-    case gapless
-    case beatmatchedBlend
-    case phraseFade
-    case plainCrossfade
-}
-
-public enum GridPrepState: Codable, Sendable, Equatable {
-    case notPrepared
-    case ready
-    case queued
-    case downloading(Double)
-    case analyzing(Double)
-    case waitingForNetwork
-    case waitingForWiFi
-    case failed(String)
-    case cancelled
-}
-
-public enum TransitionReason: Codable, Sendable, Equatable {
-    case outgoingOutroPhrase(bar: Int, beats: Int)
-    case incomingIntroPhrase(beats: Int)
-    case lastPhraseBoundary(bar: Int)
-    case skippedLeadingSilence(seconds: Double)
-    case tempoMatched(pct: Double)
-    case tempoReturnsOverBeats(Int)
-    case keyCompatible(KeyRelation)
-    case keyClashShortOverlap
-    case tempoTooFar(pct: Double)
-    case lowTempoConfidence(Double)
-    case variableTempo
-    case gridNotReady(GridPrepState)
-    case notBuffered
-    case sameAlbumGapless
-    case loudnessMatched(dB: Double)
-    case userChosePlainFade
-}
-
-public struct TransitionPlan: Codable, Sendable, Equatable {
-    public var fromTrackID: Int64
-    public var toTrackID: Int64
-    public var style: TransitionStyle
-    public var exitTime: Double
-    public var entryTime: Double
-    public var overlapBeats: Int?
-    public var overlapSeconds: Double
-    public var blendRate: Double
-    public var rateRampBeats: Int?
-    public var gainMatchDB: Double?
-    public var keyRelation: KeyRelation
-    public var bpmDeltaPct: Double?
-    public var confidence: Double
-    public var reasons: [TransitionReason]
-    public var downgradedFrom: TransitionStyle?
-
-    public init(fromTrackID: Int64, toTrackID: Int64, style: TransitionStyle,
-                exitTime: Double = 0, entryTime: Double = 0, overlapBeats: Int? = nil,
-                overlapSeconds: Double = 0, blendRate: Double = 1,
-                rateRampBeats: Int? = nil, gainMatchDB: Double? = nil,
-                keyRelation: KeyRelation = .unknown, bpmDeltaPct: Double? = nil,
-                confidence: Double = 0, reasons: [TransitionReason] = [],
-                downgradedFrom: TransitionStyle? = nil) {
-        self.fromTrackID = fromTrackID
-        self.toTrackID = toTrackID
-        self.style = style
-        self.exitTime = exitTime
-        self.entryTime = entryTime
-        self.overlapBeats = overlapBeats
-        self.overlapSeconds = overlapSeconds
-        self.blendRate = blendRate
-        self.rateRampBeats = rateRampBeats
-        self.gainMatchDB = gainMatchDB
-        self.keyRelation = keyRelation
-        self.bpmDeltaPct = bpmDeltaPct
-        self.confidence = confidence
-        self.reasons = reasons
-        self.downgradedFrom = downgradedFrom
     }
 }

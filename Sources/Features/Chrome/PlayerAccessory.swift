@@ -61,14 +61,6 @@ struct MiniPlayerAccessory: View {
     }
 
     private var subtitle: String {
-        if let plan = player.transitionPlan {
-            let countdown = max(0, plan.exitTime - player.currentTime)
-            let playback = player.currentTrack.map {
-                PlaybackDisplayPolicy.miniPlayerSubtitle(row: $0, cacheState: player.cacheState,
-                                                         shuffle: player.shuffle, repeatMode: player.repeatMode)
-            }
-            return "\(plan.displayName) · Blend in \(TimeFmt.mmss(countdown))\(playback.map { " · \($0)" } ?? "")"
-        }
         guard let row = player.currentTrack else { return "" }
         return PlaybackDisplayPolicy.miniPlayerSubtitle(
             row: row,
@@ -76,17 +68,6 @@ struct MiniPlayerAccessory: View {
             shuffle: player.shuffle,
             repeatMode: player.repeatMode
         )
-    }
-}
-
-private extension TransitionPlan {
-    var displayName: String {
-        switch style {
-        case .gapless: String(localized: "Gapless continuation")
-        case .beatmatchedBlend: String(localized: "Beat-matched blend")
-        case .phraseFade: String(localized: "Phrase-aware fade")
-        case .plainCrossfade: String(localized: "Plain crossfade")
-        }
     }
 }
 

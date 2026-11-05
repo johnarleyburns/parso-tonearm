@@ -77,8 +77,6 @@ extension AudioPlayer {
             return
         }
 
-        if wantsMixDecks, loadCurrentOnMixDecks(row: row, autoplay: autoplay) { return }
-
         if row.source?.kind == .jamendoGenre, asset.kind == .remote {
             startOrdinaryJamendoLoad(OrdinaryJamendoLoad(row: row, asset: asset, occurrence: occurrence,
                                                          generation: generation, retried: false),
@@ -191,8 +189,6 @@ extension AudioPlayer {
     /// Existing body of `loadCurrent` after its Starter/MixDeck checks. It receives the resolved
     /// transient asset and therefore keeps buildItem/cache behavior intact.
     private func finishOrdinaryLoad(row: TrackRow, asset: Asset, autoplay: Bool) {
-        liveMixFallbackToken = nil
-        stopMixDecks()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
 
@@ -451,8 +447,8 @@ extension AudioPlayer {
     /// so the natural track boundary swaps to a ready item instead of tearing the
     /// player down and rebuilding (T2.5). No-op when there is no next track, when
     /// the next item is unsupported, or when it is already preloaded.
-    func preloadNextItem(allowingMixDecks: Bool = false) {
-        guard !isAmbient, repeatMode != .one, allowingMixDecks || mixDecks == nil else { return }
+    func preloadNextItem() {
+        guard !isAmbient, repeatMode != .one else { return }
         guard crossfadePlayer == nil else { return }
         guard let nextIndex = upcomingQueueIndex() else { return }
         guard queue.indices.contains(nextIndex) else { return }

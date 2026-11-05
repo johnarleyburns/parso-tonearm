@@ -37,7 +37,6 @@ extension AudioPlayer {
         cancelCrossfade(resetVolume: true)
         dropPreloadedNext()
         preloadNextItem()
-        mixDecks?.upcomingChanged()
     }
 
     public func cycleRepeatMode() {
@@ -46,7 +45,6 @@ extension AudioPlayer {
         case .all: .one
         case .one: .off
         }
-        mixDecks?.upcomingChanged()
     }
 
     public func toggleShuffle() {

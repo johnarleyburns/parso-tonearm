@@ -2,7 +2,7 @@ import XCTest
 @testable import TonearmCore
 
 final class MixValueCodableTests: XCTestCase {
-    func testMixAndTransitionValuesRoundTrip() throws {
+    func testMixValuesRoundTrip() throws {
         let candidate = MixCandidate(trackID: 1, bpm: 124, camelot: "8A", energy: 0.7,
                                      artist: "Artist", albumID: 2, duration: 180,
                                      embedding: [0.1, 0.2])
@@ -21,13 +21,6 @@ final class MixValueCodableTests: XCTestCase {
                            summary: MixSummary(bpmRange: 120...130, harmonicEdges: 1,
                                                totalEdges: 1, tempoJumps: 0, againstShape: 0,
                                                duration: 180, weakestEdges: [0]), request: request)
-        let transition = TransitionPlan(fromTrackID: 1, toTrackID: 2,
-                                        style: .beatmatchedBlend, exitTime: 48, entryTime: 4,
-                                        overlapBeats: 16, overlapSeconds: 8, blendRate: 0.98,
-                                        rateRampBeats: 16, gainMatchDB: -2,
-                                        keyRelation: .relative, bpmDeltaPct: 2,
-                                        confidence: 0.9,
-                                        reasons: [.tempoMatched(pct: 2), .keyCompatible(.relative)])
 
         try assertRoundTrip(MixShape.risingBPM)
         try assertRoundTrip(MixTempoRelation.halfTime)
@@ -37,16 +30,12 @@ final class MixValueCodableTests: XCTestCase {
         try assertRoundTrip(UnavoidableReason.onlyRemainingOption)
         try assertRoundTrip(PlacementReason.soundsSimilar)
         try assertRoundTrip(MixExclusionReason.overTargetLength)
-        try assertRoundTrip(TransitionStyle.phraseFade)
-        try assertRoundTrip(GridPrepState.analyzing(0.5))
-        try assertRoundTrip(TransitionReason.gridNotReady(.queued))
         try assertRoundTrip(candidate)
         try assertRoundTrip(request)
         try assertRoundTrip(edge)
         try assertRoundTrip(runner)
         try assertRoundTrip(step)
         try assertRoundTrip(plan)
-        try assertRoundTrip(transition)
     }
 
     private func assertRoundTrip<T: Codable & Equatable>(_ value: T,

@@ -25,17 +25,6 @@ public enum QueueAccessibility {
         return Duration.seconds(total).formatted(style)
     }
 
-    /// Spoken state of a transition connector between two occurrences.
-    public static func edgeValue(isActive: Bool, isSelected: Bool, incomingPosition: Int) -> String {
-        var parts: [String] = []
-        if isActive { parts.append("Blending now") }
-        parts.append("Into track \(incomingPosition)")
-        if isSelected { parts.append("Selected") }
-        return parts.joined(separator: ", ")
-    }
-
-    public static let edgeHint = "Opens details and actions for this transition"
-
     public static func rowHint(isCurrent: Bool) -> String {
         isCurrent ? "Currently playing" : "Plays this track now"
     }

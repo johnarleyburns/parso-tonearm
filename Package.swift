@@ -33,9 +33,6 @@ let package = Package(
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioPlayback", package: "parso-audio-engine"),
-                // Mix queues play on the stereo blend engine (AudioPlayer+MixDecks.swift).
-                .product(name: "ParsoMixEngine", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS, .macOS])),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
                          condition: .when(platforms: [.iOS, .macOS])),
                 .product(name: "ParsoAudioCore", package: "parso-audio-engine",

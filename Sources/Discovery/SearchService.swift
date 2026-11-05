@@ -198,7 +198,7 @@ public actor SearchService {
               let attrs = try? repo.referenceAttributes(
                 trackID: referenceTrackID, pipelineVersion: analysisVersion),
               let bpm = attrs.bpm, let camelot = attrs.camelot else { return [] }
-        let target = MusicalMatchReference(bpm: bpm, camelot: camelot)
+        let target = MusicalMatchReference(bpm: bpm, camelot: camelot, energy: attrs.energy)
         return Array((try? repo.eligibleTrackIDs(for: query, musicalMatch: target)) ?? [])
     }
 
@@ -296,7 +296,7 @@ public actor SearchService {
                 return response(mode: .semantic, state: .matchingReferenceUnavailable, results: [],
                     coverage: coverage, generation: nil, start: start)
             }
-            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot)
+            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot, energy: attrs.energy)
         } else {
             musicalMatch = nil
         }
@@ -349,7 +349,7 @@ public actor SearchService {
                 return response(mode: mode, state: .matchingReferenceUnavailable, results: [],
                     coverage: coverage, generation: nil, start: start)
             }
-            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot)
+            musicalMatch = MusicalMatchReference(bpm: bpm, camelot: camelot, energy: refAttrs.energy)
         } else {
             musicalMatch = nil
         }
