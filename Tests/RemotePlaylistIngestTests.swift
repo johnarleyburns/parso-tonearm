@@ -80,44 +80,6 @@ final class RemotePlaylistIngestTests: XCTestCase {
         XCTAssertEqual(row?.audioLocator(), .jamendo(trackID: "99123", cachedURL: stream, expiry: nil))
     }
 
-    func testJamendoReingestRefreshesOnlyLocatorCacheAndNeverClobbersIndexedFacts() async throws {
-        let store = try LibraryStore(inMemory: true)
-        let source = try await jamendoSource(in: store)
-        let node = RemoteNode(id: "99123", title: "Song", path: "track/99123", kind: .audio)
-        let other = RemoteNode(id: "99124", title: "Other", path: "track/99124", kind: .audio)
-        let first = URL(string: "https://stream.example.test/?trackid=99123&n=1")!
-        _ = await RemotePlaylistIngest.persist(nodes: [node, other], resolve: { n in
-            ResolvedAsset(url: URL(string: "https://stream.example.test/?trackid=\(n.id)&n=1")!)
-        }, source: source, store: store)
-        let a = BlendCatalogTrack.jamendoKey(trackID: "99123"), b = BlendCatalogTrack.jamendoKey(trackID: "99124")
-        func facts(_ id: String) -> StarterTrackFacts {
-            StarterTrackFacts(id: id, durationSeconds: 240, bpm: 120, beatPeriod: 0.5, beatPhase: 0.1, rmsDB: -12)
-        }
-        let traits = BlendTraits(genre: "Jazz", subgenre: nil, camelotKey: "8A")
-        try await store.markBlendEligible(key: a, facts: facts("99123"), traits: traits)
-        try await store.markBlendEligible(key: b, facts: facts("99124"), traits: traits)
-        let plan = try XCTUnwrap(CatalogEdgePlanner.plan(blendID: "x", edge: 1, outgoing: facts("99123"),
-                                                         incoming: facts("99124")))
-        try await store.recordBlendEdgePlan(plan, from: a, to: b, packTag: BlendCatalogTrack.jamendoPackTag)
-        let beforeRow = try await store.blendCatalogTrack(key: a)
-        let before = try XCTUnwrap(beforeRow)
-        XCTAssertEqual(before.cachedURL, first.absoluteString)
-
-        let refreshed = URL(string: "https://stream.example.test/?trackid=99123&n=2")!
-        let result = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: refreshed) },
-                                                        source: source, store: store)
-        XCTAssertEqual(result.skipped, 0)
-        let afterRow = try await store.blendCatalogTrack(key: a)
-        let after = try XCTUnwrap(afterRow)
-        XCTAssertEqual(after.cachedURL, refreshed.absoluteString)
-        XCTAssertEqual(after.state, .edgePlanned)
-        XCTAssertEqual(after.facts, before.facts)
-        XCTAssertEqual(after.traits, before.traits)
-        XCTAssertEqual(after.providerTrackID, "99123")
-        let storedPlan = try await store.blendCatalogEdgePlan(from: a, to: b)
-        XCTAssertEqual(storedPlan, plan)
-    }
-
     func testInvalidJamendoNodeIDsAreSkippedButNonJamendoIsNotValidated() async throws {
         let store = try LibraryStore(inMemory: true)
         let jamendo = try await jamendoSource(in: store)
@@ -173,12 +135,6 @@ final class RemotePlaylistIngestTests: XCTestCase {
                                                        source: source, store: store)
         let trackID = try XCTUnwrap(first.trackIDs.first)
         let key = BlendCatalogTrack.jamendoKey(trackID: node.id)
-        let facts = StarterTrackFacts(id: "99123", durationSeconds: 240, bpm: 120, beatPeriod: 0.5,
-                                      beatPhase: 0.1, rmsDB: -12)
-        try await store.markBlendEligible(key: key, facts: facts,
-                                          traits: BlendTraits(genre: "Jazz", subgenre: nil, camelotKey: "8A"))
-        let beforeRow = try await store.blendCatalogTrack(key: key)
-        let before = try XCTUnwrap(beforeRow)
         let second = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in ResolvedAsset(url: fresh) },
                                                         source: source, store: store)
         XCTAssertEqual(second.trackIDs, [trackID])
@@ -190,9 +146,6 @@ final class RemotePlaylistIngestTests: XCTestCase {
         let catalogRow = try await store.blendCatalogTrack(key: key)
         let catalog = try XCTUnwrap(catalogRow)
         XCTAssertEqual(catalog.cachedURL, fresh.absoluteString)
-        XCTAssertEqual(catalog.state, before.state)
-        XCTAssertEqual(catalog.facts, before.facts)
-        XCTAssertEqual(catalog.traits, before.traits)
     }
 
     func testSameURLDifferentJamendoNodeIDsRemainDistinctTracks() async throws {

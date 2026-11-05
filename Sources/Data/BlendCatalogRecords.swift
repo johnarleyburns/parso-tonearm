@@ -46,18 +46,6 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
 
     public var trackID: String { String(catalogKey.split(separator: ":", maxSplits: 1).last ?? "") }
 
-    /// Genre, subgenre and key, when the required ones are stored and valid.
-    public var traits: BlendTraits? {
-        guard let genre, let camelotKey else { return nil }
-        let value = BlendTraits(genre: genre, subgenre: subgenre, camelotKey: camelotKey)
-        return value.isValid ? value : nil
-    }
-
-    /// Whether a new or Keep Playing edge may use this row: eligible state and every fact valid.
-    public var isSelectable: Bool {
-        state >= .blendEligible && (facts?.isBlendReady ?? false) && traits != nil
-    }
-
     /// The explicit source of this row: Jamendo provider identity plus its cached URL. A legacy
     /// `.starterRelease` row (seeded before the curated-blend feature was removed) resolves the same
     /// way — the track is genuinely Jamendo-sourced, and the pinned Release mirror it used to read
@@ -78,36 +66,4 @@ public struct BlendCatalogTrack: Codable, Equatable, Sendable, FetchableRecord, 
         let url = cachedURL.flatMap(URL.init(string:))
         return .jamendo(trackID: id, cachedURL: url, expiry: cachedURLExpiry)
     }
-
-    /// Source-aware Keep Playing admission: eligible state, complete planner facts, canonical genre and
-    /// valid Camelot key (all persisted), and a real Jamendo `AudioLocator` whose numeric ID matches the
-    /// row. Never consults a model, the network, or an unverified URL.
-    public func keepPlayingLocator() -> AudioLocator? {
-        guard isSelectable, let locator = audioLocator(), case .jamendo(let id, _, _) = locator,
-              packTag == Self.jamendoPackTag, catalogKey == Self.jamendoKey(trackID: id),
-              Int64(id) != nil else { return nil }
-        return locator
-    }
-
-    public func isKeepPlayingCandidate() -> Bool {
-        keepPlayingLocator() != nil
-    }
-
-    /// The stored facts, when complete.
-    public var facts: StarterTrackFacts? {
-        guard let durationSeconds, let bpm, let beatPeriod, let beatPhase, let rmsDB else { return nil }
-        return StarterTrackFacts(id: trackID, durationSeconds: durationSeconds, bpm: bpm, beatPeriod: beatPeriod,
-                                 beatPhase: beatPhase, rmsDB: rmsDB)
-    }
-}
-
-/// A concrete edge plan stored with the catalog (supplied by a pack, or derived from catalog facts).
-public struct BlendCatalogEdge: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
-    public static let databaseTableName = "blend_catalog_edge"
-    public var fromKey: String
-    public var toKey: String
-    public var packTag: String
-    public var planJSON: Data
-
-    public var plan: BlendEdgePlan? { try? JSONDecoder().decode(BlendEdgePlan.self, from: planJSON) }
 }
