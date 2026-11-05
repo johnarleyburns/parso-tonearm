@@ -221,22 +221,6 @@ jobs:
         # overlay is what keeps that impossible.
         run: make project
 
-      - name: Confirm generated OAuth credentials file (temporary — verifying the Info.plist bypass)
-        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
-        run: |
-          echo "--- raw line lengths (not maskable — a plain number, not a copy of any secret) ---"
-          awk '{ print NR": "length($0)" chars" }' Sources/Features/Ingest/GeneratedOAuthCredentials.swift
-          echo "--- sed-based value extraction (previous attempt, cross-checking for a GNU/BSD sed difference) ---"
-          for name in dropboxClientID googleDriveClientID oneDriveClientID pCloudClientID; do
-            v="$(sed -n "s/.*static let $name = \"\\(.*\\)\"/\\1/p" Sources/Features/Ingest/GeneratedOAuthCredentials.swift)"
-            echo "$name -> length=${#v}"
-          done
-          echo "--- awk-based value extraction (field between the two quote characters) ---"
-          for name in dropboxClientID googleDriveClientID oneDriveClientID pCloudClientID; do
-            v="$(awk -F'"' -v n="$name" '$0 ~ "static let " n " = " { print $2 }' Sources/Features/Ingest/GeneratedOAuthCredentials.swift)"
-            echo "$name -> length=${#v}"
-          done
-
       - name: Import Distribution Certificate
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         env:
@@ -339,13 +323,6 @@ jobs:
             grep -E 'error:' build.log | head -20
             exit 1
           fi
-
-      - name: Confirm JamendoClientID still substitutes (temporary — regression sanity check)
-        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
-        run: |
-          plist=./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist
-          v="$(/usr/libexec/PlistBuddy -c 'Print :JamendoClientID' "$plist" 2>&1 || true)"
-          echo "JamendoClientID -> length=${#v}"
 
       - name: Export IPA
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'

@@ -153,17 +153,16 @@ if [[ "${TONEARM_GENERATE_OVERLAYS_ONLY:-0}" == 1 ]]; then
   exit 0
 fi
 
-# Cloud-drive OAuth client IDs, generated as a real Swift source file rather than threaded
-# through Info.plist's $(VAR) build-setting substitution: that mechanism proved unreliable for
-# these five keys specifically (confirmed across four separate fix attempts — a shared dict one
-# level deep, a flat top-level key matching the one precedent that does work, pre-declaring the
-# build setting in Config/Base.xcconfig, and checking generation- vs. build-time divergence —
-# none changed the symptom: Jamendo's structurally-identical JamendoClientID key substituted
-# correctly every time, these kept reading back empty). See OAuthClientConfiguration.swift.
-#
-# Mirrors Config/Base.xcconfig's own #include? semantics: an absent Secrets.xcconfig (a clone
-# without it) produces empty values here too, and the app reports the honest "not configured"
-# state rather than failing to build.
+# Cloud-drive OAuth client IDs, generated as a real Swift source file rather than read from
+# Info.plist at runtime. See OAuthClientConfiguration.swift for why: Info.plist's $(VAR)
+# build-setting substitution was a red herring chased through several fix attempts (a shared
+# dict, a flat key, pre-declaring the build setting, generation- vs. build-time checks) before
+# the real cause surfaced — the actual GitHub Actions secrets for Dropbox/Google Drive had been
+# silently stored truncated to 1 character each, from an earlier `gh secret set --body -` call
+# piped through printf. Re-set correctly via `gh secret set -f` (an env-file, no piping) and
+# confirmed by instrumenting this exact script with stderr debug prints of each resolved value's
+# length at generation time. Kept as plain Python (not bash/sed) regardless: simpler to reason
+# about and no less portable between the macOS and Linux runners this repo builds on.
 #
 # Deliberately AFTER the overlays-only early exit above, not before: TONEARM_GENERATE_OVERLAYS_ONLY=1
 # is what ClapBundlingScriptTests.swift uses to exercise this script against a minimal, isolated
@@ -172,37 +171,21 @@ fi
 # this point (confirmed by reproducing locally) with a plain "No such file or directory", since
 # Sources/Features/Ingest/ doesn't exist in that fixture. This block must only run on the real
 # build path, the same one that's about to call xcodegen generate below.
-#
-# Written in Python, not bash/sed: a bash-only version of this (nested command substitution
-# calling helper functions with "local key=... file=..." multi-assignment) produced a real,
-# confirmed-empirically bug on the actual macOS CI runner — every value truncated to exactly 1
-# character — that never reproduced when tested on Linux/GNU bash+sed. Never diagnosed further;
-# Python's string handling has no such ambiguity and is standard on both macOS and Linux runners.
 python3 -I - <<'PYEOF'
 import re
-import sys
-
-print(f"DEBUG: python {sys.version!r}", file=sys.stderr)
 
 def xcconfig_value(key, path="Config/Secrets.xcconfig"):
     try:
         with open(path, encoding="utf-8") as f:
-            raw = f.read()
+            lines = f.read().splitlines()
     except FileNotFoundError:
-        print(f"DEBUG: {path} not found", file=sys.stderr)
         return ""
-    lines = raw.splitlines()
-    print(f"DEBUG: {path} is {len(raw)} bytes, {len(lines)} lines", file=sys.stderr)
     value = ""
     pattern = re.compile(r"^" + re.escape(key) + r"\s*=\s*(.*?)\s*$")
-    matches = 0
     for line in lines:
         m = pattern.match(line)
         if m:
-            matches += 1
             value = m.group(1)
-            print(f"DEBUG: {key} matched a line of length {len(line)}, captured group length {len(value)}", file=sys.stderr)
-    print(f"DEBUG: {key} -> {matches} matching line(s), final captured length {len(value)}", file=sys.stderr)
     return value
 
 def swift_literal(value):
@@ -221,9 +204,7 @@ with open("Sources/Features/Ingest/GeneratedOAuthCredentials.swift", "w", encodi
     out.write("// and do not commit (see .gitignore).\n")
     out.write("enum GeneratedOAuthCredentials {\n")
     for swift_name, xcconfig_key in fields:
-        resolved = xcconfig_value(xcconfig_key)
-        print(f"DEBUG: writing {swift_name} with value length {len(resolved)}", file=sys.stderr)
-        out.write(f"    static let {swift_name} = {swift_literal(resolved)}\n")
+        out.write(f"    static let {swift_name} = {swift_literal(xcconfig_value(xcconfig_key))}\n")
     out.write("}\n")
 PYEOF
 
