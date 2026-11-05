@@ -326,6 +326,12 @@ jobs:
             exit 1
           fi
 
+      - name: Diagnose CFBundleURLTypes (temporary — investigating upload rejection)
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        run: |
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes' \
+            ./build/Tonearm.xcarchive/Products/Applications/Tonearm.app/Info.plist || true
+
       - name: Export IPA
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
