@@ -19,62 +19,56 @@ final class DJTrackPrepStoreTests: XCTestCase {
         return (store, try XCTUnwrap(track.id))
     }
 
-    func testMarkingsAndGridRoundTripAndLegacyImport() async throws {
-        let (store, trackID) = try await makeStoreWithTrack()
-        let hotLoop = DJHotLoop(position: 20, loopIn: 18, loopOut: 22, color: 4)
-        let markings = DJMarkings(hotCues: [1: 2.5], hotCueColors: [1: 0], hotLoops: [8: hotLoop], cuePointSeconds: 1.25,
-                                  loopInSeconds: 8, loopOutSeconds: 12)
-        try await store.saveDJMarkings(markings, trackId: trackID, at: Date(timeIntervalSince1970: 10))
-        try await store.saveDJGrid(bpmOverride: 124, firstBeatOverride: 0.25, keyShiftSemitones: -2,
-                                   trackId: trackID, at: Date(timeIntervalSince1970: 11))
-        let savedPrep = try await store.djTrackPrep(trackId: trackID)
-        let saved = try XCTUnwrap(savedPrep)
-        XCTAssertEqual(saved.markings, markings)
-        XCTAssertEqual(saved.markings.hotLoops[8], hotLoop)
-        XCTAssertEqual(saved.bpmOverride, 124)
-        XCTAssertEqual(saved.firstBeatOverride, 0.25)
-        XCTAssertEqual(saved.keyShiftSemitones, -2)
-
-        let source = try await store.insertSource(Source(id: nil, kind: .local, iaIdentifier: nil,
-                                                         originalURL: nil, title: "DJ 2", addedAt: Date(),
-                                                         lastResolvedAt: nil, followUpdates: false,
-                                                         licenseText: nil, memberCapHit: false,
-                                                         localIsFolder: false, artworkTrackId: nil))
-        let sourceID = try XCTUnwrap(source.id)
-        let second = try await store.insertTrack(Track(id: nil, albumId: nil, sourceId: sourceID,
-                                                       title: "Legacy", trackNo: 1, discNo: nil,
-                                                       durationSec: 120, codec: "wav", sampleRate: 48_000,
-                                                       bitDepthOrBitrate: nil, sortKey: "legacy"))
-        let legacyTrackID = try XCTUnwrap(second.id)
-        let legacyKey = "dj.hotCues.v1.\(legacyTrackID)"
-        UserDefaults.standard.set(["2": 4.0], forKey: legacyKey)
-        defer { UserDefaults.standard.removeObject(forKey: legacyKey) }
-        let legacyPrep = try await store.djTrackPrep(trackId: legacyTrackID)
-        let legacy = try XCTUnwrap(legacyPrep)
-        XCTAssertEqual(legacy.markings.hotCues[2], 4.0)
-        XCTAssertNil(UserDefaults.standard.object(forKey: legacyKey))
-    }
-
-    func testAnalysisRoundTripAndClear() async throws {
-        let (store, trackID) = try await makeStoreWithTrack()
-        let payload = Data([1, 2, 3])
-        try await store.saveDJAnalysis(payload, meta: ("test", 1, 48_000, 123, 128, "8B"), trackId: trackID)
-        let saved = try await store.djTrackPrep(trackId: trackID)
-        XCTAssertEqual(saved?.analysisPayload, payload)
-        try await store.clearDJAnalysis(trackId: trackID)
-        let clearedPrep = try await store.djTrackPrep(trackId: trackID)
-        let cleared = try XCTUnwrap(clearedPrep)
-        XCTAssertNil(cleared.analysisPayload)
-        XCTAssertNil(cleared.analysisAlgorithm)
-    }
-
+    /// `saveDJMarkings`/`saveDJAnalysis`/`saveDJGrid`/`djTrackPrep(trackId:)` (hot cues, loops,
+    /// the analysis-payload blob, and its legacy-`UserDefaults` import) were removed as dead
+    /// code — the DJ console that wrote them is gone, and `djLoadTrackInfo` (the only real
+    /// reader of this table) only ever read `bpm`/`camelotKey`/`bpmOverride`. See
+    /// `testLoadBrowserMetadataUsesDJPrepAsFallback` below for that fallback, constructed
+    /// directly against the trimmed `DJTrackPrep` row shape instead.
     func testLoadBrowserMetadataUsesDJPrepAsFallback() async throws {
         let (store, trackID) = try await makeStoreWithTrack()
-        try await store.saveDJAnalysis(Data([9]), meta: ("test", 1, 48_000, 123, 126, "8A"), trackId: trackID)
+        try await store.dbQueue.write { db in
+            var prep = DJTrackPrep(trackId: trackID, bpm: 126, camelotKey: "8A")
+            try prep.insert(db)
+        }
 
         let info = try await store.djLoadTrackInfo(trackIds: [trackID])[trackID]
         XCTAssertEqual(info?.bpm, 126)
         XCTAssertEqual(info?.camelotKey, "8A")
+    }
+
+    /// A legacy `DJTrackPrep` CloudKit record from an old app version carries fields this app no
+    /// longer stores at all (hot cues, loops, the analysis-payload blob) — `applyIncomingDJTrackPrep`
+    /// must apply the fields that survive (bpm/camelotKey/bpmOverride) without erroring on the rest.
+    func testApplyIncomingDJTrackPrepAcceptsALegacyEnvelopeAndAppliesOnlyKeptFields() async throws {
+        let (store, trackID) = try await makeStoreWithTrack()
+        let syncID = try await store.dbQueue.write { db -> String in
+            let sync = UUID().uuidString
+            try db.execute(sql: "UPDATE track SET syncID = ? WHERE id = ?", arguments: [sync, trackID])
+            return sync
+        }
+
+        let incoming = DJTrackPrep(trackId: 0, bpm: 126, camelotKey: "8A",
+                                   analysisUpdatedAt: Date(timeIntervalSince1970: 100),
+                                   syncID: "PREP-REMOTE-1", bpmOverride: 130)
+        let envelope = DJTrackPrepEnvelope(prep: incoming, trackSyncID: syncID, trackKeys: [])
+        let applied = try await store.applyIncomingDJTrackPrep(envelope)
+        XCTAssertEqual(applied, 1)
+
+        let row = try await store.dbQueue.read { db in try DJTrackPrep.fetchOne(db, key: trackID) }
+        XCTAssertEqual(row?.bpm, 126)
+        XCTAssertEqual(row?.camelotKey, "8A")
+        XCTAssertEqual(row?.bpmOverride, 130)
+        XCTAssertEqual(row?.syncID, "PREP-REMOTE-1")
+
+        // An older incoming update must not clobber a newer local one.
+        let stale = DJTrackPrep(trackId: 0, bpm: 90, camelotKey: "1A",
+                                analysisUpdatedAt: Date(timeIntervalSince1970: 50),
+                                syncID: "PREP-REMOTE-1", bpmOverride: nil)
+        let staleEnvelope = DJTrackPrepEnvelope(prep: stale, trackSyncID: syncID, trackKeys: [])
+        _ = try await store.applyIncomingDJTrackPrep(staleEnvelope)
+        let unchanged = try await store.dbQueue.read { db in try DJTrackPrep.fetchOne(db, key: trackID) }
+        XCTAssertEqual(unchanged?.bpm, 126, "an older update must lose against the already-applied newer one")
     }
 
     func testLoadBrowserMetadataPrefersCurrentDiscoveryAnalysisAndOverride() async throws {
@@ -98,21 +92,4 @@ final class DJTrackPrepStoreTests: XCTestCase {
         XCTAssertEqual(info?.camelotKey, "8B")
     }
 
-    func testLoopCheckRejectsHalfSetAndReversedRows() async throws {
-        let (store, trackID) = try await makeStoreWithTrack()
-        do {
-            try await store.dbQueue.write { db in
-                var row = DJTrackPrep(trackId: trackID, loopInSeconds: 9)
-                try row.insert(db)
-            }
-            XCTFail("a half-set loop must be rejected")
-        } catch { }
-        do {
-            try await store.dbQueue.write { db in
-                var row = DJTrackPrep(trackId: trackID, loopInSeconds: 12, loopOutSeconds: 11)
-                try row.insert(db)
-            }
-            XCTFail("a reversed loop must be rejected")
-        } catch { }
-    }
 }

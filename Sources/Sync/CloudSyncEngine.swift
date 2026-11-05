@@ -169,11 +169,6 @@ public final class CloudSyncEngine: NSObject, ObservableObject {
         enqueue(recordIDs: ids)
     }
 
-    public func enqueueDJTrackPrep(trackId: Int64) async {
-        guard let syncID = try? await store.ensureDJTrackPrepSyncID(trackId: trackId) else { return }
-        enqueue(recordIDs: [RecordMapping.recordID(type: .djTrackPrep, syncID: syncID, zoneID: zoneID)])
-    }
-
     private func accountStatus() async -> SyncGating.AccountStatus {
         do {
             switch try await container.accountStatus() {
@@ -271,15 +266,6 @@ extension CloudSyncEngine: CKSyncEngineDelegate {
             else { return nil }
             let keys = (try? await store.trackIdentityKeys(trackId: analysis.trackId)) ?? []
             return RecordMapping.record(from: analysis, trackSyncID: trackSyncID, trackKeys: keys, zoneID: zoneID)
-        case .djTrackPrep:
-            guard let prep = try? await store.djTrackPrepBySyncID(syncID),
-                  prep.trackId >= 0 else { return nil }
-            let trackID = prep.trackId
-            let trackSyncID: String?
-            do { trackSyncID = try await store.trackSyncID(trackId: trackID) }
-            catch { trackSyncID = nil }
-            let keys = (try? await store.trackIdentityKeys(trackId: trackID)) ?? []
-            return RecordMapping.record(from: prep, trackSyncID: trackSyncID, trackKeys: keys, zoneID: zoneID)
         default:
             return nil
         }

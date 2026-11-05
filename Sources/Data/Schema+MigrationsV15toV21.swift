@@ -474,5 +474,33 @@ extension Schema {
                 try db.execute(sql: "DROP TABLE discovery_transition_profile")
             }
         }
+        if shouldRegister("v44", upTo: target) {
+            migrator.registerMigration("v44") { db in
+                // dj_track_prep (v27/v30): of its 17 non-key columns, only bpm, camelotKey,
+                // bpmOverride (read by djLoadTrackInfo), syncID and analysisUpdatedAt (sync
+                // bookkeeping) have any reader anywhere — the DJ console that wrote hot cues,
+                // loops, and a full analysis-payload blob into the other 13 is gone. A plain
+                // `ALTER TABLE ... DROP COLUMN` can't remove loopInSeconds/loopOutSeconds:
+                // SQLite refuses to drop a column its own CHECK constraint (v27) references.
+                // Rebuild the table instead — the standard SQLite-recommended shape for a
+                // schema change `DROP COLUMN` itself can't make (default `foreignKeyChecks:
+                // .deferred` disables FK enforcement for this migration's body, same as SQLite's
+                // own documented 12-step table-rebuild procedure, then re-verifies at the end).
+                try db.create(table: "dj_track_prep_v44") { t in
+                    t.column("trackId", .integer).primaryKey().references("track", onDelete: .cascade)
+                    t.column("bpm", .double)
+                    t.column("camelotKey", .text)
+                    t.column("analysisUpdatedAt", .datetime)
+                    t.column("syncID", .text).unique()
+                    t.column("bpmOverride", .double)
+                }
+                try db.execute(sql: """
+                    INSERT INTO dj_track_prep_v44 (trackId, bpm, camelotKey, analysisUpdatedAt, syncID, bpmOverride)
+                    SELECT trackId, bpm, camelotKey, analysisUpdatedAt, syncID, bpmOverride FROM dj_track_prep
+                    """)
+                try db.drop(table: "dj_track_prep")
+                try db.rename(table: "dj_track_prep_v44", to: "dj_track_prep")
+            }
+        }
     }
 }

@@ -160,22 +160,32 @@ final class RecordMappingTests: XCTestCase {
         XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
     }
 
-    func testDJTrackPrepRoundTripsIdentityAndMarkingFields() {
-        let prep = DJTrackPrep(trackId: 3, hotCuesJSON: "{\"1\":2.5}",
-                               cuePointSeconds: 1.0, loopInSeconds: 8, loopOutSeconds: 12,
-                               hotCuesUpdatedAt: Date(timeIntervalSince1970: 10),
-                               analysisAlgorithm: "pae-track-analysis-1.2", analysisPayloadVersion: 1,
-                               bpm: 128, camelotKey: "8B", analysisUpdatedAt: Date(timeIntervalSince1970: 11),
-                               syncID: "PREP-1", bpmOverride: 130, firstBeatOverride: 0.25,
-                               keyShiftSemitones: 2)
+    /// `RecordMapping.djTrackPrep(from:)` is decode-only now (nothing in this app ever enqueues a
+    /// `DJTrackPrep` record to push — `enqueueDJTrackPrep` was removed as dead code), so there's
+    /// no more encode half to round-trip against; this builds the `CKRecord` a legacy remote
+    /// record from an old app version's sync history would look like, by hand.
+    func testDJTrackPrepDecodesIdentityAndKeptFields() {
         let keys = [TrackIdentityKey(strength: .source, value: "source-hash"),
                     TrackIdentityKey(strength: .meta, value: "meta-hash")]
-        let record = RecordMapping.record(from: prep, trackSyncID: "TRK-1", trackKeys: keys, zoneID: zoneID)
+        let record = CKRecord(recordType: RecordMapping.RecordType.djTrackPrep.rawValue,
+                              recordID: RecordMapping.recordID(type: .djTrackPrep, syncID: "PREP-1", zoneID: zoneID))
+        record["syncID"] = "PREP-1" as CKRecordValue
+        record["trackSyncID"] = "TRK-1" as CKRecordValue
+        record["trackKeys"] = keys.map(\.cloudValue) as CKRecordValue
+        record["bpm"] = 128.0 as CKRecordValue
+        record["camelotKey"] = "8B" as CKRecordValue
+        record["analysisUpdatedAt"] = Date(timeIntervalSince1970: 11) as CKRecordValue
+        record["bpmOverride"] = 130.0 as CKRecordValue
+        // A legacy field this app never reads anymore — present on a real old record, and must
+        // not prevent decoding the fields that still matter.
+        record["hotCues"] = "{\"1\":2.5}" as CKRecordValue
+
         let decoded = RecordMapping.djTrackPrep(from: record)
         XCTAssertEqual(decoded?.prep.syncID, "PREP-1")
-        XCTAssertEqual(decoded?.prep.markings.loopOutSeconds, 12)
+        XCTAssertEqual(decoded?.prep.bpm, 128)
+        XCTAssertEqual(decoded?.prep.camelotKey, "8B")
+        XCTAssertEqual(decoded?.prep.analysisUpdatedAt, Date(timeIntervalSince1970: 11))
         XCTAssertEqual(decoded?.prep.bpmOverride, 130)
-        XCTAssertEqual(decoded?.prep.keyShiftSemitones, 2)
         XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
         XCTAssertEqual(decoded?.trackKeys, keys)
     }
