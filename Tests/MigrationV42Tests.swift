@@ -76,7 +76,7 @@ final class MigrationV42Tests: XCTestCase {
             trackId = db.lastInsertedRowID
         }
 
-        let asset = Asset(
+        var asset = Asset(
             id: nil, trackId: trackId, kind: .remote, bookmark: nil, relPath: nil,
             remoteURL: "https://example.test/song", altRemoteURL: nil, sizeBytes: nil,
             unsupportedReason: nil, remoteNodeID: "song-42", remoteNodePath: "artist/album/song-42",
