@@ -221,6 +221,15 @@ jobs:
         # overlay is what keeps that impossible.
         run: make project
 
+      - name: Diagnose generated Info.plist template (temporary)
+        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
+        run: |
+          echo "--- raw grep of the generated template, before any Xcode build-time substitution ---"
+          grep -n "TonearmDropboxClientID\|JamendoClientID" -A 1 Sources/App/Info.plist || echo "NOT FOUND IN TEMPLATE"
+          echo "--- does Secrets.xcconfig (as written) actually have real values at this point? ---"
+          grep -c "^TONEARM_DROPBOX_CLIENT_ID = .\+$" Config/Secrets.xcconfig && echo "dropbox: non-empty line present" || echo "dropbox: NO non-empty line"
+          grep -c "^TONEARM_JAMENDO_CLIENT_ID = .\+$" Config/Secrets.xcconfig && echo "jamendo: non-empty line present" || echo "jamendo: NO non-empty line"
+
       - name: Import Distribution Certificate
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         env:
