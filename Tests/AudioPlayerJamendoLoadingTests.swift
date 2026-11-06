@@ -35,18 +35,18 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
     private let fresh = URL(string: "https://example.test/fresh.mp3")!
     private var savedResolver: CatalogPlaybackURLResolver!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         savedResolver = AudioPlayer.shared.catalogPlaybackURLResolver
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         let p = AudioPlayer.shared
         p.ordinaryBuildItemHook = nil
         p.catalogPlaybackURLResolver = savedResolver
         p.clearQueuePlayback()
         p.queue = []
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func install(gate: Gate? = nil, spy: Spy) throws {
