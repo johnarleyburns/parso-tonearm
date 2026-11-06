@@ -481,11 +481,39 @@ public struct JamendoAPI: Sendable {
     /// than one retry for a genuinely non-empty tag.
     private let maxEmptyFirstPageRetries = 2
 
-    /// Looks up specific tracks by Jamendo id (the curated starter blends).
-    /// Order is the API's, so callers reorder by the ids they asked for.
+    /// Looks up specific tracks by Jamendo id (the curated starter blends, and —
+    /// `JamendoLocatorRefresh.configured`'s `refresh` closure — every already-imported Jamendo
+    /// track's play-time stream-URL refresh). Order is the API's, so callers reorder by the ids
+    /// they asked for.
+    ///
+    /// Real report: "Find -> Genre" Jamendo tracks (already imported, not the live browse
+    /// screen) wouldn't play at all. Root cause: `JamendoLocatorResolver.refreshURL` treats ANY
+    /// failure from this lookup — including a merely empty/partial result — as immediately fatal
+    /// (`JamendoResolveError.refreshFailed`), with no retry of its own. This lookup is subject to
+    /// the exact same confirmed-live upstream flake as `tracks(tag:offset:limit:)` (an identical
+    /// request answering a well-formed `success` envelope with zero/partial rows, then full rows
+    /// moments later) — a *single* track-ID lookup landing on that flake meant every play attempt
+    /// failed permanently, with nothing above this layer able to recover. Retry here, same as the
+    /// tag lookup, rather than relying on a higher layer that was never built to retry this.
     public func tracks(ids: [String]) async throws -> [JamendoTrack] {
         guard !clientID.isEmpty else { throw JamendoGenreError.notConfigured }
         guard !ids.isEmpty else { return [] }
+        var envelope = try await fetchByIDs(ids)
+        var attempt = 0
+        while Set(envelope.results.map(\.id)).intersection(ids).isEmpty, attempt < maxEmptyFirstPageRetries {
+            attempt += 1
+            try await Task.sleep(for: .milliseconds(400))
+            envelope = try await fetchByIDs(ids)
+        }
+        let matching = Set(envelope.results.map(\.id)).intersection(ids).count
+        if envelope.results.isEmpty || matching < ids.count {
+            Logger(subsystem: "guru.parso.platterhead", category: "jamendo").info(
+                "Jamendo id lookup: requested \(ids.count, privacy: .public), returned \(envelope.results.count, privacy: .public), matching \(matching, privacy: .public), status \(envelope.headers.status, privacy: .public), code \(envelope.headers.code, privacy: .public)")
+        }
+        return envelope.results
+    }
+
+    private func fetchByIDs(_ ids: [String]) async throws -> JamendoEnvelope {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("tracks"),
             resolvingAgainstBaseURL: false)
@@ -515,12 +543,7 @@ public struct JamendoAPI: Sendable {
         guard envelope.headers.code == 0, envelope.headers.status == "success" else {
             throw JamendoGenreError.catalogue(envelope.headers.errorMessage)
         }
-        let matching = Set(envelope.results.map(\.id)).intersection(ids).count
-        if envelope.results.isEmpty || matching < ids.count {
-            Logger(subsystem: "guru.parso.platterhead", category: "jamendo").info(
-                "Jamendo id lookup: requested \(ids.count, privacy: .public), returned \(envelope.results.count, privacy: .public), matching \(matching, privacy: .public), status \(envelope.headers.status, privacy: .public), code \(envelope.headers.code, privacy: .public)")
-        }
-        return envelope.results
+        return envelope
     }
 
     private func fetchTracksPage(tag: String, offset: Int, limit: Int) async throws -> Page {

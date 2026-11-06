@@ -77,7 +77,9 @@ final class JamendoAPITests: XCTestCase {
     }
 
     func testOtherQueryParametersArePreserved() async throws {
-        JamendoStubProtocol.body = envelope([])
+        // A non-empty, matching result — an empty one would now (correctly) trigger the
+        // empty-lookup retry below and just slow this test down for no reason.
+        JamendoStubProtocol.body = envelope(["1"])
         _ = try await makeAPI().tracks(ids: ["1", "2"])
         let query = try rawQuery()
         for part in ["client_id=cid", "format=json", "limit=2", "include=musicinfo",
@@ -94,6 +96,38 @@ final class JamendoAPITests: XCTestCase {
         let decoded = try await makeAPI().tracks(ids: ids)
         XCTAssertEqual(decoded.map(\.id), available)
         XCTAssertEqual(decoded.first?.audio, "https://example.test/\(ids[4]).mp3")
+    }
+
+    // MARK: - tracks(ids:) empty-lookup retry
+
+    /// Real report: "Find -> Genre" Jamendo tracks wouldn't play at all. Root cause: the
+    /// play-time locator refresh (`JamendoLocatorRefresh`) calls `tracks(ids: [trackID])` with no
+    /// retry of its own, and treats any failure as immediately fatal — so a single instance of
+    /// this same confirmed-live upstream flake (a well-formed `success` envelope with zero
+    /// matching rows) permanently failed that one play attempt.
+    func testEmptyIDLookupRetriesBeforeSucceeding() async throws {
+        JamendoStubProtocol.bodySequence = [envelope([]), envelope(["42"])]
+        let tracks = try await makeAPI().tracks(ids: ["42"])
+        XCTAssertEqual(tracks.map(\.id), ["42"])
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 2, "initial attempt + 1 retry")
+    }
+
+    /// A genuinely gone/invalid id must still resolve to an empty array (the caller decides what
+    /// that means) rather than retrying forever.
+    func testEmptyIDLookupGivesUpAfterExhaustingRetries() async throws {
+        JamendoStubProtocol.body = envelope([])
+        let tracks = try await makeAPI().tracks(ids: ["999999"])
+        XCTAssertTrue(tracks.isEmpty)
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries, then stop")
+    }
+
+    /// A partial match (some requested ids came back, some didn't) is not retried — only a
+    /// complete miss is treated as the transient-flake case.
+    func testPartiallyMatchingIDLookupIsNotRetried() async throws {
+        JamendoStubProtocol.body = envelope(["1"])
+        let tracks = try await makeAPI().tracks(ids: ["1", "2"])
+        XCTAssertEqual(tracks.map(\.id), ["1"])
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 1)
     }
 
     // MARK: - tags(tag:offset:limit:) empty-first-page retry
