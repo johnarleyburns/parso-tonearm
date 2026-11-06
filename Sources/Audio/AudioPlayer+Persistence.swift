@@ -23,7 +23,13 @@ extension AudioPlayer {
         isPlaying = true
         updateNowPlaying()
     }
-    func pause() { catalogPlaybackAutoplay = false; player.pause(); isPlaying = false; updateNowPlaying() }
+    func pause() {
+        catalogPlaybackAutoplay = false
+        stallWatchTask?.cancel()
+        player.pause()
+        isPlaying = false
+        updateNowPlaying()
+    }
 
     /// Nudges output volume by `delta`, clamped to [0, 1] — the Mac
     /// Playback menu's Increase/Decrease Volume commands (native-mac-

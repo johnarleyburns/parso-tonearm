@@ -166,6 +166,7 @@ extension AudioPlayer {
     func failRemotePlayback(_ failure: RemotePlaybackFailure) {
         ordinaryJamendoLoad = nil
         catalogPlaybackLoadTask = nil
+        stallWatchTask?.cancel()
         shutdownLoaders()
         itemStatusCancellable = nil
         player.pause()
@@ -197,7 +198,6 @@ extension AudioPlayer {
             return
         }
 
-        _ = stallModel.beginLoad()
         prefetchedURLs.removeAll()
 
         let built: (item: AVPlayerItem, loader: CachingResourceLoader?)?
@@ -234,7 +234,7 @@ extension AudioPlayer {
         item.preferredForwardBufferDuration = 120
         item.automaticallyPreservesTimeOffsetFromLive = false
 
-        replaceItem(item)
+        replaceItem(item, autoplay: autoplay)
         applyEQ(to: item, row: row)
         protectCacheKeys(for: asset)
         if autoplay {
@@ -321,6 +321,7 @@ extension AudioPlayer {
     /// (releasing the item and its scoped-access lease) and tells the user why.
     func failLocalPlayback(_ failure: LocalMediaFailure) {
         localReadinessTask?.cancel()
+        stallWatchTask?.cancel()
         itemStatusCancellable = nil
         player.pause()
         (player.currentItem as? LocalPlayerItem)?.releaseLease()
@@ -486,7 +487,7 @@ extension AudioPlayer {
         return asset.remoteURL
     }
 
-    func replaceItem(_ item: AVPlayerItem) {
+    func replaceItem(_ item: AVPlayerItem, autoplay: Bool) {
         let outgoing = player.currentItem
         player.replaceCurrentItem(with: item)
         if outgoing !== item {
@@ -494,6 +495,7 @@ extension AudioPlayer {
             LocalPlaybackDiagnostics.shared.record(outgoing is LocalPlayerItem ? .accessReleased : .playerReplaced, loadID: 0)
         }
         loadedSourceSampleRate = 0
+        let generation = stallModel.beginLoad()
         // TEMPORARY diagnostic — see loadCurrent's matching comment. Logs
         // every status transition (unknown -> readyToPlay/failed) and the
         // real underlying error if AVFoundation ever reports one, which
@@ -522,6 +524,9 @@ extension AudioPlayer {
                     default: break
                     }
                 }
+                if let self, status == .readyToPlay {
+                    self.stallModel.markReady(generation: generation)
+                }
                 loadingLog.notice("replaceItem: status change for \"\(trackTitle, privacy: .public)\" -> \(String(describing: status), privacy: .public), error=\(String(describing: item?.error), privacy: .public)")
             }
         // Drop EQ taps for items no longer in play (the outgoing current item,
@@ -544,6 +549,41 @@ extension AudioPlayer {
         }
         if let local = item as? LocalPlayerItem { watchLocalReadiness(of: local) } else { localReadinessTask?.cancel() }
         observeEnd(of: item)
+        watchStallProgress(generation: generation, autoplay: autoplay)
+    }
+
+    /// Gives a newly loaded, auto-playing item a bounded window to confirm real progress (the
+    /// periodic time observer's clock genuinely advancing — `stallModel.confirmPlayback`). Covers
+    /// the one gap none of the other failure paths catch: an item that opens and becomes ready
+    /// but then hangs in `.waitingToPlayAtSpecifiedRate` forever (a stuck remote buffer, or a
+    /// local file that opens but never actually decodes) — AVFoundation never reports this as an
+    /// error, so `failLocalPlayback`/`failRemotePlayback` never fire and the player would
+    /// otherwise sit silently stalled with no escape. Skips once per stuck track; after
+    /// `stallModel.maxConsecutiveSkips` in a row it stops and says so rather than silently
+    /// cycling through the rest of the queue (CLAUDE.md: no silent/magic background work). A
+    /// manually paused/not-yet-playing load (`autoplay == false`) is never watched — nothing is
+    /// "stalled" about a track that isn't expected to be advancing yet.
+    private func watchStallProgress(generation: Int, autoplay: Bool) {
+        stallWatchTask?.cancel()
+        guard autoplay else { return }
+        let timeout = stallEvaluationTimeout
+        stallWatchTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: timeout)
+            guard !Task.isCancelled, let self else { return }
+            switch self.stallModel.evaluateStall(generation: generation, autoPlay: true) {
+            case .healthy, .ignoreStale:
+                break
+            case .skip:
+                loadingLog.error("playback never confirmed progress (generation \(generation, privacy: .public)) — skipping to next")
+                self.next()
+            case .giveUp:
+                loadingLog.error("playback failed to confirm progress \(self.stallModel.maxConsecutiveSkips, privacy: .public) times in a row — stopping")
+                self.stallModel.resetSkipStreak()
+                self.networkSkipMessage = String(
+                    localized: "Playback stopped — too many tracks in a row failed to play", bundle: .module)
+                self.pause()
+            }
+        }
     }
 
     func observeEnd(of item: AVPlayerItem) {

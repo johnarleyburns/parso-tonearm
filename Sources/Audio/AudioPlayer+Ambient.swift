@@ -69,7 +69,7 @@ extension AudioPlayer {
         item.preferredForwardBufferDuration = 120
         item.automaticallyPreservesTimeOffsetFromLive = false
 
-        replaceItem(item)
+        replaceItem(item, autoplay: autoplay)
         if autoplay {
             player.play()
             isPlaying = true

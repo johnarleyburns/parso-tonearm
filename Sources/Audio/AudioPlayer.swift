@@ -179,6 +179,12 @@ public final class AudioPlayer: ObservableObject {
     var loaders: [CachingResourceLoader] = []
     let loaderQueue = DispatchQueue(label: "guru.parso.tonearm.loaders")
     var stallModel = StallModel()
+    /// Gives an auto-playing item a bounded window to confirm real progress before treating it as
+    /// stalled (`watchStallProgress`/`StallModel.evaluateStall`). Cancelled on any new load or on
+    /// an explicit pause/stop, so a stale check can never skip or stop playback the user already
+    /// moved on from.
+    var stallWatchTask: Task<Void, Never>?
+    var stallEvaluationTimeout: Duration = .seconds(12)
     var prefetchedURLs: [Int64: URL] = [:]
     /// Active prefetch loaders keyed by track id, so skipping a track can cancel
     /// its in-flight fetch (T3.5).
@@ -421,13 +427,19 @@ public final class AudioPlayer: ObservableObject {
             timeControlStatus: player.timeControlStatus,
             confirmedGeneration: stallModel.confirmedGeneration, loadGeneration: stallModel.loadGeneration)
         else { return }
-        if isPlaying {
+        // Decide from the real player state, not the cached `isPlaying` flag, and set the flag
+        // explicitly to the value this action just took rather than blindly toggling it — the
+        // cached flag and `handleTimeControlChange`'s mirror of real state are two independent
+        // writers, so a toggle can land on the wrong branch and then "fix" the flag by accident
+        // while doing nothing audible (a tap that looks like it did nothing).
+        if player.timeControlStatus != .paused {
             player.pause()
+            isPlaying = false
         } else {
             seekToStartIfAtEnd()
             player.play()
+            isPlaying = true
         }
-        isPlaying.toggle()
         updateNowPlaying()
     }
 
@@ -583,6 +595,7 @@ public final class AudioPlayer: ObservableObject {
 
     func clearQueuePlayback() {
         cancelCatalogPlaybackLoad()
+        stallWatchTask?.cancel()
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
         for loader in prefetchLoaders.values {

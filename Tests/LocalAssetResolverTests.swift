@@ -98,7 +98,7 @@ final class LocalAssetResolverTests: XCTestCase {
         player.localResolver = resolver(c)
 
         player.preloadedNextItem = player.buildItem(for: asset())?.item
-        player.replaceItem(player.buildItem(for: asset())!.item)
+        player.replaceItem(player.buildItem(for: asset())!.item, autoplay: false)
         XCTAssertEqual(c.starts, 2)
         XCTAssertEqual(c.stops, 0)
 
