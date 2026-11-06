@@ -46,11 +46,20 @@ public enum RemoteScopePlayback {
     /// only practical way to show real progress while a personal drive's folder tree, which can
     /// take several round-trip API calls to enumerate, is being scanned (CLAUDE.md: no silent
     /// background work). Cooperatively cancellable via the calling `Task`.
+    /// `onFolderVisited` is `@MainActor @Sendable`, matching the established pattern for a
+    /// UI-driving callback elsewhere in this codebase (`CloudSyncEngine.onDJTrackPrepApplied`,
+    /// `PhoneWatchRuntime.onChange`) — `AddFolderToLibrarySheet` passes one that mutates its own
+    /// `@State foldersVisited`/`tracksFound` directly, and Swift 6 rightly refuses to "send" a
+    /// MainActor-isolated closure into a plain, non-isolated parameter (confirmed by a real CI
+    /// failure: "sending value of non-Sendable type '(Int, Int) -> Void' risks causing data
+    /// races"). This keeps `allAudioNodes`/`collectAll` themselves non-isolated — free to run
+    /// their `provider.browse` network calls off the main actor — while guaranteeing the callback
+    /// itself always hops to MainActor to touch UI state safely.
     public static func allAudioNodes(
         in provider: any RemoteLibraryProvider,
         path: String,
         maxDepth: Int = 8,
-        onFolderVisited: (_ foldersVisited: Int, _ tracksFound: Int) -> Void = { _, _ in }
+        onFolderVisited: @MainActor @Sendable (_ foldersVisited: Int, _ tracksFound: Int) -> Void = { _, _ in }
     ) async -> [RemoteNode] {
         var visited: Set<String> = []
         var collected: [RemoteNode] = []
@@ -68,14 +77,14 @@ public enum RemoteScopePlayback {
         maxDepth: Int,
         collected: inout [RemoteNode],
         folders: inout Int,
-        onFolderVisited: (_ foldersVisited: Int, _ tracksFound: Int) -> Void
+        onFolderVisited: @MainActor @Sendable (_ foldersVisited: Int, _ tracksFound: Int) -> Void
     ) async {
         guard depth <= maxDepth, !visited.contains(path), !Task.isCancelled else { return }
         visited.insert(path)
         guard let nodes = try? await provider.browse(path: path) else { return }
         folders += 1
         collected.append(contentsOf: nodes.filter { $0.kind == .audio })
-        onFolderVisited(folders, collected.count)
+        await onFolderVisited(folders, collected.count)
         for node in nodes where node.kind != .audio {
             await collectAll(in: provider, path: node.path, visited: &visited, depth: depth + 1,
                              maxDepth: maxDepth, collected: &collected, folders: &folders,

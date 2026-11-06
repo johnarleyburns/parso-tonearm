@@ -3,6 +3,7 @@ import XCTest
 
 @testable import TonearmCore
 
+@MainActor
 final class RemoteScopePlaybackTests: XCTestCase {
 
     private func audioNode(_ id: String, path: String) -> RemoteNode {
