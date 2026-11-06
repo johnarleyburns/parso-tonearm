@@ -356,6 +356,8 @@ struct AddServerSheet: View {
             return WebDAVServerPolicy.canSubmit(url: urlText, username: username, password: password)
         case .jellyfin:
             return JellyfinServerPolicy.canSubmit(url: urlText, username: username, password: password)
+        case .emby:
+            return EmbyServerPolicy.canSubmit(url: urlText, username: username, password: password)
         case .plex:
             return PlexServerPolicy.canSubmit(url: urlText, token: token)
         case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
@@ -395,7 +397,7 @@ struct AddServerSheet: View {
 
     private var needsURL: Bool {
         switch connectorKind {
-        case .subsonic, .webDAV, .jellyfin, .plex: return true
+        case .subsonic, .webDAV, .jellyfin, .emby, .plex: return true
         default: return isIAConnector
         }
     }
@@ -403,7 +405,7 @@ struct AddServerSheet: View {
     private var needsUsernamePassword: Bool {
         if isIAPrivateList { return true }
         switch connectorKind {
-        case .subsonic, .webDAV, .jellyfin: return true
+        case .subsonic, .webDAV, .jellyfin, .emby: return true
         default: return false
         }
     }
@@ -428,6 +430,8 @@ struct AddServerSheet: View {
                     try await appState.addWebDAVServer(url: urlText, username: username, password: password)
                 case .jellyfin:
                     try await appState.addJellyfinServer(url: urlText, username: username, password: password)
+                case .emby:
+                    try await appState.addEmbyServer(url: urlText, username: username, password: password)
                 case .plex:
                     try await appState.addPlexServer(url: urlText, token: token)
                 case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:

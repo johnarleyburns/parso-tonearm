@@ -33,6 +33,7 @@ final class SourceFallbackIconTests: XCTestCase {
     func testRemoteServerIcons() {
         XCTAssertEqual(makeSource(kind: .subsonic).fallbackIcon, "server.rack")
         XCTAssertEqual(makeSource(kind: .jellyfin).fallbackIcon, "server.rack")
+        XCTAssertEqual(makeSource(kind: .emby).fallbackIcon, "server.rack")
         XCTAssertEqual(makeSource(kind: .plex).fallbackIcon, "server.rack")
     }
 

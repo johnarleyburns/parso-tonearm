@@ -56,6 +56,7 @@ final class RemoteLibraryProviderTests: XCTestCase {
         XCTAssertTrue(SourceKind.allCases.contains(.pCloud))
         XCTAssertTrue(SourceKind.allCases.contains(.box))
         XCTAssertTrue(SourceKind.allCases.contains(.yandexDisk))
+        XCTAssertTrue(SourceKind.allCases.contains(.emby))
     }
 
     func testProviderFactoryDeclaresEveryProductRemoteKindSupported() {

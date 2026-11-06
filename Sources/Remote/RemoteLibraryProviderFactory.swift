@@ -16,6 +16,8 @@ public enum RemoteLibraryProviderFactory {
             return try SMBProvider.from(source: source, credentialStore: credentialStore)
         case .jellyfin:
             return try JellyfinProvider.from(source: source, credentialStore: credentialStore)
+        case .emby:
+            return try EmbyProvider.from(source: source, credentialStore: credentialStore)
         case .plex:
             return try PlexProvider.from(source: source, credentialStore: credentialStore)
         case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
@@ -49,6 +51,8 @@ public enum RemoteLibraryProviderFactory {
             return [SMBFolderPolicy.credentialAccount(sourceID: sourceID)]
         case .jellyfin:
             return [JellyfinServerPolicy.credentialAccount(sourceID: sourceID)]
+        case .emby:
+            return [EmbyServerPolicy.credentialAccount(sourceID: sourceID)]
         case .plex:
             return [PlexServerPolicy.credentialAccount(sourceID: sourceID)]
         case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:

@@ -39,7 +39,7 @@ final class RemotePlaybackMetadataTests: XCTestCase {
             XCTAssertEqual(row.asset?.transientRemoteHeaders["X-Test-Provider"], kind.rawValue)
             XCTAssertEqual(row.asset?.transientRemoteSupportsByteRanges, kind != .smb)
 
-            if [.subsonic, .jellyfin, .plex].contains(kind) {
+            if [.subsonic, .jellyfin, .emby, .plex].contains(kind) {
                 XCTAssertEqual(row.album?.title, "Field Test Album")
                 XCTAssertEqual(row.album?.artist, "Field Test Artist")
                 XCTAssertEqual(row.track.trackNo, 7)
@@ -90,7 +90,7 @@ final class RemotePlaybackMetadataTests: XCTestCase {
     }
 
     private func richMetadata(for kind: SourceKind) -> RemoteTrackMetadata? {
-        guard [.subsonic, .jellyfin, .plex].contains(kind) else { return nil }
+        guard [.subsonic, .jellyfin, .emby, .plex].contains(kind) else { return nil }
         return RemoteTrackMetadata(
             title: "Field Test Track",
             artist: "Field Test Artist",

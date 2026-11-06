@@ -5,7 +5,7 @@ public enum PlaybackDisplayPolicy {
         switch source?.kind {
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             return "archive.org"
-        case .subsonic, .webDAV, .smb, .jellyfin, .plex,
+        case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex,
              .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
             return RemoteConnectorCatalog.connector(for: source?.kind ?? .local)?.title ?? "Remote"
         case .local, .none:

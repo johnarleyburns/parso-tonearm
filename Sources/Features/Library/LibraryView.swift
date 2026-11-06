@@ -494,7 +494,7 @@ struct AlbumCell: View {
         case .iaList: return String(localized: "List")
         case .iaCollection: return String(localized: "Collection")
         case .iaFavorites: return String(localized: "Favorites")
-        case .subsonic, .webDAV, .smb, .jellyfin, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
+        case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
             return RemoteConnectorCatalog.connector(for: source.kind)?.title ?? "Remote"
         }
     }

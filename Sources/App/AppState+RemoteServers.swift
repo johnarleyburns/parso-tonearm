@@ -84,6 +84,31 @@ extension AppState {
         )
     }
 
+    func addEmbyServer(url rawURL: String, username rawUsername: String, password: String) async throws {
+        let baseURL = try EmbyServerPolicy.normalizeBaseURL(rawURL)
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        let request = try EmbyAPI.request(
+            baseURL: baseURL,
+            endpoint: .authenticate(username: username, password: password)
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let auth = try EmbyAPI.decodeAuthentication(data)
+        let provider = EmbyProvider(baseURL: baseURL, userID: auth.userID, accessToken: auth.accessToken)
+        try await provider.refresh()
+
+        try await insertRemoteSource(
+            kind: .emby,
+            title: EmbyServerPolicy.displayName(baseURL: baseURL),
+            originalURL: baseURL.absoluteString,
+            iaIdentifier: auth.userID,
+            credential: Data(auth.accessToken.utf8),
+            credentialAccount: EmbyServerPolicy.credentialAccount
+        )
+    }
+
     func addPlexServer(url rawURL: String, token rawToken: String) async throws {
         let baseURL = try PlexServerPolicy.normalizeBaseURL(rawURL)
         let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)

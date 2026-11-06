@@ -150,6 +150,22 @@ public enum RemoteConnectorCatalog {
             )
         ),
         RemoteConnector(
+            sourceKinds: [.emby],
+            connectorID: "emby",
+            title: "Emby",
+            subtitle: "Music library server",
+            tier: .guided,
+            authKind: .usernamePassword,
+            icon: "server.rack",
+            guide: guide(
+                "Connect Emby",
+                prerequisites: "An Emby server URL and account with access to the music library.",
+                steps: "Enter the server URL, username, and password. Platterhead authenticates with Emby and browses album artists, albums, and tracks.",
+                troubleshooting: "Check reverse proxy paths and HTTPS certificate trust if authentication works in a browser but not in Platterhead. Emby Premiere unlocks client extras like Live TV/DVR and hardware transcoding — basic library browsing and streaming should work on a free server, but confirm against your own server if something unexpected is blocked.",
+                privacy: "Platterhead stores the Emby access token locally in Apple Keychain and sends it only to the server you add."
+            )
+        ),
+        RemoteConnector(
             sourceKinds: [.plex],
             connectorID: "plex",
             title: "Plex",

@@ -50,7 +50,7 @@ extension AppState {
 
     func remoteAccountLabel(for source: Source) -> String? {
         switch source.kind {
-        case .subsonic, .webDAV, .jellyfin:
+        case .subsonic, .webDAV, .jellyfin, .emby:
             return source.iaIdentifier
         case .plex:
             return String(localized: "Token saved")
@@ -71,7 +71,7 @@ extension AppState {
 
     func remoteCredentialStatus(for source: Source) -> String? {
         switch source.kind {
-        case .subsonic, .webDAV, .jellyfin:
+        case .subsonic, .webDAV, .jellyfin, .emby:
             return String(localized: "Password saved")
         case .plex:
             return String(localized: "Token saved")
