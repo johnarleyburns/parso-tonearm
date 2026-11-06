@@ -491,6 +491,9 @@ extension AudioPlayer {
 
     func replaceItem(_ item: AVPlayerItem, autoplay: Bool) {
         let outgoing = player.currentItem
+        // A non-autoplaying load must leave the engine paused: a still-running outgoing item's
+        // rate would otherwise carry over and flip `isPlaying` back on via the time-control observer.
+        if !autoplay { player.pause() }
         player.replaceCurrentItem(with: item)
         if outgoing !== item {
             (outgoing as? LocalPlayerItem)?.releaseLease()
@@ -537,8 +540,10 @@ extension AudioPlayer {
                 // `NSUnderlyingErrorKey`'s HTTP status), but nothing was listening for it on a
                 // plain remote item (only the Jamendo- and local-file-specific branches above
                 // were). Route a confirmed failure through the same stall verdict immediately
-                // instead of waiting out the generic timeout for a failure that already happened.
-                if let self, status == .failed, let item, self.player.currentItem === item,
+                // instead of waiting out the generic timeout for a failure that already happened. Only for an
+                // autoplaying load: a deliberately paused load must never be skipped (and thereby
+                // started) by a failure — same rule `watchStallProgress` applies.
+                if let self, autoplay, status == .failed, let item, self.player.currentItem === item,
                    self.ordinaryJamendoLoad == nil, !(item is LocalPlayerItem) {
                     let httpStatus = Self.httpStatus(of: item)
                     loadingLog.error("remote item failed to open (generation \(generation, privacy: .public), httpStatus=\(httpStatus ?? -1, privacy: .public)) — evaluating stall")
