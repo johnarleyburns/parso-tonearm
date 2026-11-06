@@ -542,6 +542,13 @@ extension AudioPlayer {
                    self.ordinaryJamendoLoad == nil, !(item is LocalPlayerItem) {
                     let httpStatus = Self.httpStatus(of: item)
                     loadingLog.error("remote item failed to open (generation \(generation, privacy: .public), httpStatus=\(httpStatus ?? -1, privacy: .public)) — evaluating stall")
+                    // Cancel the still-pending timeout watcher for this same generation here,
+                    // at the call site — not inside handleStallVerdict itself, which must stay
+                    // exactly as side-effect-free as the original timeout-only implementation
+                    // was (it's that Task's own body; self-cancelling mid-execution isn't
+                    // necessary and shifted test timing enough to destabilize an unrelated test).
+                    self.stallWatchTask?.cancel()
+                    self.stallWatchTask = nil
                     self.handleStallVerdict(generation: generation)
                     return
                 }
@@ -597,8 +604,6 @@ extension AudioPlayer {
     /// `replaceItem` — a confirmed failure and a silent stall are evaluated and acted on exactly
     /// the same way (same skip budget, same final message), just on a different trigger.
     private func handleStallVerdict(generation: Int) {
-        stallWatchTask?.cancel()
-        stallWatchTask = nil
         switch stallModel.evaluateStall(generation: generation, autoPlay: true) {
         case .healthy, .ignoreStale:
             break
