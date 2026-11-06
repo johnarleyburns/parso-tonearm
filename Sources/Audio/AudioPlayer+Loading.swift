@@ -529,29 +529,6 @@ extension AudioPlayer {
                 if let self, status == .readyToPlay {
                     self.stallModel.markReady(generation: generation)
                 }
-                // Real report: a cloud-drive track (Dropbox/Google Drive) that can't actually
-                // stream — an expired temp link, or a direct provider URL missing the bearer
-                // header that `Asset.transientRemoteHeaders` never persists across a relaunch —
-                // spun for the full stall-detection timeout before anything noticed. AVFoundation
-                // DOES report this as a real `.failed` status (confirmed via `errorLog()`/
-                // `NSUnderlyingErrorKey`'s HTTP status), but nothing was listening for it on a
-                // plain remote item (only the Jamendo- and local-file-specific branches above
-                // were). Route a confirmed failure through the same stall verdict immediately
-                // instead of waiting out the generic timeout for a failure that already happened.
-                if let self, status == .failed, let item, self.player.currentItem === item,
-                   self.ordinaryJamendoLoad == nil, !(item is LocalPlayerItem) {
-                    let httpStatus = Self.httpStatus(of: item)
-                    loadingLog.error("remote item failed to open (generation \(generation, privacy: .public), httpStatus=\(httpStatus ?? -1, privacy: .public)) — evaluating stall")
-                    // Cancel the still-pending timeout watcher for this same generation here,
-                    // at the call site — not inside handleStallVerdict itself, which must stay
-                    // exactly as side-effect-free as the original timeout-only implementation
-                    // was (it's that Task's own body; self-cancelling mid-execution isn't
-                    // necessary and shifted test timing enough to destabilize an unrelated test).
-                    self.stallWatchTask?.cancel()
-                    self.stallWatchTask = nil
-                    self.handleStallVerdict(generation: generation)
-                    return
-                }
                 loadingLog.notice("replaceItem: status change for \"\(trackTitle, privacy: .public)\" -> \(String(describing: status), privacy: .public), error=\(String(describing: item?.error), privacy: .public)")
             }
         // Drop EQ taps for items no longer in play (the outgoing current item,
@@ -596,26 +573,19 @@ extension AudioPlayer {
         stallWatchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: timeout)
             guard !Task.isCancelled, let self else { return }
-            self.handleStallVerdict(generation: generation)
-        }
-    }
-
-    /// Shared by the timeout-based watcher above and the immediate `.failed`-status handler in
-    /// `replaceItem` — a confirmed failure and a silent stall are evaluated and acted on exactly
-    /// the same way (same skip budget, same final message), just on a different trigger.
-    private func handleStallVerdict(generation: Int) {
-        switch stallModel.evaluateStall(generation: generation, autoPlay: true) {
-        case .healthy, .ignoreStale:
-            break
-        case .skip:
-            loadingLog.error("playback never confirmed progress (generation \(generation, privacy: .public)) — skipping to next")
-            next()
-        case .giveUp:
-            loadingLog.error("playback failed to confirm progress \(self.stallModel.maxConsecutiveSkips, privacy: .public) times in a row — stopping")
-            stallModel.resetSkipStreak()
-            networkSkipMessage = String(
-                localized: "Playback stopped — too many tracks in a row failed to play", bundle: .module)
-            pause()
+            switch self.stallModel.evaluateStall(generation: generation, autoPlay: true) {
+            case .healthy, .ignoreStale:
+                break
+            case .skip:
+                loadingLog.error("playback never confirmed progress (generation \(generation, privacy: .public)) — skipping to next")
+                self.next()
+            case .giveUp:
+                loadingLog.error("playback failed to confirm progress \(self.stallModel.maxConsecutiveSkips, privacy: .public) times in a row — stopping")
+                self.stallModel.resetSkipStreak()
+                self.networkSkipMessage = String(
+                    localized: "Playback stopped — too many tracks in a row failed to play", bundle: .module)
+                self.pause()
+            }
         }
     }
 

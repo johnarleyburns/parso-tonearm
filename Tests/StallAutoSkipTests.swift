@@ -84,14 +84,13 @@ final class StallAutoSkipTests: XCTestCase {
         XCTAssertFalse(player.isPlaying, "a manually-paused load must stay exactly as the caller left it")
     }
 
-    // NOTE: a planned integration test here (an immediate `.failed` AVPlayerItem status reacting
-    // well inside the stall timeout, not waiting it out) was pulled after it destabilized
-    // `testManuallyPausedLoadIsNeverWatchedForStalling` in CI — likely an async/ordering
-    // interaction with `AudioPlayer.shared` being a real shared singleton across tests, not
-    // reproducible in this sandbox (no simulator). The production fix itself
-    // (`AudioPlayer+Loading.swift`'s new `.failed`-status branch routing into
-    // `handleStallVerdict`) is unchanged and reviewed; re-add coverage for it once it can be
-    // iterated against a real simulator run rather than guessed at blind.
+    // NOTE: a planned fix+test here (reacting immediately to a confirmed remote `.failed`
+    // AVPlayerItem status instead of waiting out the full stall timeout) was reverted entirely —
+    // both the new test AND the production `.failed`-status branch in `AudioPlayer+Loading.swift`
+    // — after it destabilized `testManuallyPausedLoadIsNeverWatchedForStalling` in CI across
+    // three separate attempts (the new test alone; then with the production code's self-
+    // cancellation removed from the timeout path too), with no reproduction possible in this
+    // sandbox (no simulator). Revisit with real simulator access rather than guessing blind again.
 
     // MARK: - Helpers
 
