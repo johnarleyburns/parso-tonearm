@@ -106,8 +106,10 @@ final class JamendoAPITests: XCTestCase {
     /// this same confirmed-live upstream flake (a well-formed `success` envelope with zero
     /// matching rows) permanently failed that one play attempt.
     func testEmptyIDLookupRetriesBeforeSucceeding() async throws {
+        // makeAPI() resets bodySequence, so it must be set AFTER constructing the API, not before.
+        let api = makeAPI()
         JamendoStubProtocol.bodySequence = [envelope([]), envelope(["42"])]
-        let tracks = try await makeAPI().tracks(ids: ["42"])
+        let tracks = try await api.tracks(ids: ["42"])
         XCTAssertEqual(tracks.map(\.id), ["42"])
         XCTAssertEqual(JamendoStubProtocol.requests.count, 2, "initial attempt + 1 retry")
     }
@@ -136,8 +138,10 @@ final class JamendoAPITests: XCTestCase {
     /// returned a real, non-empty page on one attempt and then zero on the next TWO consecutive
     /// attempts moments later — a single retry isn't always enough.
     func testEmptyFirstPageRetriesUpToTwiceBeforeSucceeding() async throws {
+        // makeAPI() resets bodySequence, so it must be set AFTER constructing the API, not before.
+        let api = makeAPI()
         JamendoStubProtocol.bodySequence = [envelope([]), envelope([]), envelope(["1"])]
-        let page = try await makeAPI().tracks(tag: "dance", offset: 0, limit: 10)
+        let page = try await api.tracks(tag: "dance", offset: 0, limit: 10)
         XCTAssertEqual(page.tracks.map(\.id), ["1"])
         XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries")
     }
