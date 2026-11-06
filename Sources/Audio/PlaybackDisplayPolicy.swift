@@ -6,7 +6,7 @@ public enum PlaybackDisplayPolicy {
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             return "archive.org"
         case .subsonic, .webDAV, .smb, .jellyfin, .plex,
-             .dropbox, .googleDrive, .oneDrive, .pCloud, .jamendoGenre:
+             .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .jamendoGenre:
             return RemoteConnectorCatalog.connector(for: source?.kind ?? .local)?.title ?? "Remote"
         case .local, .none:
             return String(localized: "On Device", bundle: .module)

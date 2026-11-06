@@ -11,6 +11,7 @@ public struct CloudDriveServerPolicy {
         case .googleDrive: return "Google Drive"
         case .oneDrive: return "OneDrive"
         case .pCloud: return "pCloud"
+        case .box: return "Box"
         }
     }
 }
@@ -141,7 +142,12 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
         )
 
         switch provider {
-        case .googleDrive, .oneDrive:
+        case .googleDrive, .oneDrive, .box:
+            // Box's /2.0/files/{id}/content 302-redirects to a pre-signed dl.boxcloud.com URL on
+            // success rather than returning JSON — there's no temp-link body to decode the way
+            // Dropbox/pCloud have. Handing back this bearer-authed request URL directly (same
+            // shape as Google Drive/OneDrive) lets AVPlayer/URLSession follow that redirect
+            // transparently at play time instead of making an extra resolve-time round trip.
             guard let url = request.url else { throw URLError(.badURL) }
             return ResolvedAsset(
                 url: url,

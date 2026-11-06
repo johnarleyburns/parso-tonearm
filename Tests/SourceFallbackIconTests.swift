@@ -44,6 +44,7 @@ final class SourceFallbackIconTests: XCTestCase {
         XCTAssertEqual(makeSource(kind: .googleDrive).fallbackIcon, icon)
         XCTAssertEqual(makeSource(kind: .oneDrive).fallbackIcon, icon)
         XCTAssertEqual(makeSource(kind: .pCloud).fallbackIcon, icon)
+        XCTAssertEqual(makeSource(kind: .box).fallbackIcon, icon)
     }
 
     func testLocalFilesAndFolderIconsDiffer() {

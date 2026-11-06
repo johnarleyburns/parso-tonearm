@@ -127,4 +127,20 @@ final class OAuthCoreTests: XCTestCase {
         )
         XCTAssertEqual(config.scopes, [])
     }
+
+    func testBoxConfigCarriesItsClientSecretLikePCloud() throws {
+        // Box's own token-endpoint reference documents no code_verifier/code_challenge field —
+        // no PKCE support — so unlike Dropbox/Google Drive/OneDrive it must be a confidential
+        // client carrying a real secret, the same shape as pCloud above.
+        let config = try OAuthProviderConfig.cloudDrive(
+            provider: .box,
+            clientID: "box-client",
+            clientSecret: "box-secret",
+            redirectURI: URL(string: "tonearm://oauth/box")!
+        )
+        XCTAssertEqual(config.scopes, [])
+        XCTAssertEqual(config.clientSecret, "box-secret")
+        XCTAssertEqual(config.authorizationEndpoint, URL(string: "https://account.box.com/api/oauth2/authorize")!)
+        XCTAssertEqual(config.tokenEndpoint, URL(string: "https://api.box.com/oauth2/token")!)
+    }
 }

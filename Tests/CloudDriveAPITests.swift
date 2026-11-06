@@ -142,6 +142,44 @@ final class CloudDriveAPITests: XCTestCase {
         XCTAssertEqual(resolved.sizeBytes, 12_345)
     }
 
+    func testBoxRequestsUseFixedRootIdAndContentEndpoint() throws {
+        let root = try CloudDriveAPI.request(provider: .box, endpoint: .list(containerID: nil), accessToken: "token")
+        let rootComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(root.url), resolvingAgainstBaseURL: false))
+        let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(rootComponents.path, "/2.0/folders/0/items")
+        XCTAssertEqual(rootQuery["limit"], "1000")
+        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+
+        let child = try CloudDriveAPI.request(provider: .box, endpoint: .list(containerID: "123"), accessToken: "token")
+        XCTAssertTrue(child.url?.absoluteString.hasPrefix("https://api.box.com/2.0/folders/123/items") ?? false)
+
+        let content = try CloudDriveAPI.request(provider: .box, endpoint: .resolveFile(id: "456", path: nil), accessToken: "token")
+        XCTAssertEqual(content.url?.absoluteString, "https://api.box.com/2.0/files/456/content")
+        XCTAssertEqual(content.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+    }
+
+    func testDecodesBoxListing() throws {
+        let items = try CloudDriveAPI.decodeListing(provider: .box, data: data("""
+        {
+          "entries": [
+            { "type": "folder", "id": "111", "name": "Albums" },
+            { "type": "file", "id": "222", "name": "Song.flac", "size": 7890 }
+          ]
+        }
+        """))
+
+        XCTAssertEqual(items[0].kind, .folder)
+        XCTAssertEqual(items[1].id, "222")
+        XCTAssertEqual(items[1].sizeBytes, 7_890)
+        XCTAssertTrue(items[1].isAudio)
+    }
+
+    func testBoxResolvedAssetIsUnsupportedLikeGoogleAndOneDrive() {
+        XCTAssertThrowsError(try CloudDriveAPI.decodeResolvedAsset(provider: .box, data: data("{}"))) { error in
+            XCTAssertEqual(error as? CloudDriveAPI.Error, .unsupportedProvider)
+        }
+    }
+
     func testMalformedResponsesThrowProviderErrors() {
         XCTAssertThrowsError(try CloudDriveAPI.decodeListing(provider: .dropbox, data: data("{}"))) { error in
             XCTAssertEqual(error as? CloudDriveAPI.Error, .missingField("entries"))

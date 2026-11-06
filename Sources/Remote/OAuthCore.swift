@@ -137,6 +137,20 @@ public struct OAuthProviderConfig: Equatable, Codable, Sendable {
                 scopes: [],
                 apiEnvironment: .production(provider: provider)
             )
+        case .box:
+            // Box's own token-endpoint reference documents no code_verifier/code_challenge field
+            // — no PKCE support — so like pCloud this is a confidential client, not a PKCE-only
+            // public one; clientSecret is required (OAuthClientConfiguration enforces this).
+            return OAuthProviderConfig(
+                provider: provider,
+                clientID: trimmedClientID,
+                clientSecret: clientSecret,
+                authorizationEndpoint: URL(string: "https://account.box.com/api/oauth2/authorize")!,
+                tokenEndpoint: URL(string: "https://api.box.com/oauth2/token")!,
+                redirectURI: redirectURI,
+                scopes: [],
+                apiEnvironment: .production(provider: provider)
+            )
         }
     }
 

@@ -32,7 +32,7 @@ browse by artist, album and genre · queue and playlist editing · local import 
 Shortcuts, share extension · listening stats · scrobbling · lyrics · iCloud Sync (Music,
 playlists, favorites, artwork, presets) · parametric EQ · crossfeed · convolution ·
 bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
-**all 11 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud,
+**all 12 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud, Box,
 Subsonic/Navidrome, WebDAV, Jellyfin, Plex, SMB and Jamendo genre libraries)** · semantic vibe search ·
 auto-generated playlists · analysis stages 1–2 (BPM, key, energy) ·
 **Mixes** — build an explainable order from your own music with phrase-aware transitions · zero telemetry, no account.
@@ -75,6 +75,7 @@ routes your music through a Platterhead server.
 | Google Drive | Guided | OAuth + PKCE | Sign in with Drive readonly access, browse folders. |
 | OneDrive | Guided | OAuth + PKCE | Sign in with Microsoft `Files.Read`, browse folders. |
 | pCloud | Guided | OAuth | Sign in, then Platterhead uses the correct pCloud API host. |
+| Box | Guided | OAuth | Sign in, approve read-only file access, browse folders. |
 | Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. |
 | WebDAV | Guided | URL + username/password | Use a WebDAV endpoint for Nextcloud, ownCloud, rclone, or a NAS. |
 | Jellyfin | Guided | URL + username/password | Enter the Jellyfin URL and an account with music-library access. |
@@ -113,7 +114,7 @@ xcconfig variable the way the other three providers' client IDs are.
 Each provider's app-review form asks for a **Privacy Policy URL**:
 <https://johnarleyburns.github.io/parso-tonearm/> (published from this repo's `gh-pages` branch).
 
-**Before release:** each cloud-drive OAuth app (Dropbox, Google Drive, OneDrive, pCloud) starts
+**Before release:** each cloud-drive OAuth app (Dropbox, Google Drive, OneDrive, pCloud, Box) starts
 in that provider's own "development"/"testing" tier, where only accounts the owner explicitly
 allowlists in that provider's developer console can sign in — everyone else is blocked. Each
 provider must be submitted for and pass that provider's production/verification app review

@@ -358,7 +358,7 @@ struct AddServerSheet: View {
             return JellyfinServerPolicy.canSubmit(url: urlText, username: username, password: password)
         case .plex:
             return PlexServerPolicy.canSubmit(url: urlText, token: token)
-        case .dropbox, .googleDrive, .oneDrive, .pCloud:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
             return true
         case .smb:
             return true
@@ -380,7 +380,7 @@ struct AddServerSheet: View {
         switch connectorKind {
         case .smb:
             return String(localized: "Folder access is stored as a security-scoped bookmark. Files are not copied.")
-        case .dropbox, .googleDrive, .oneDrive, .pCloud:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
             return "OAuth tokens are stored locally in Apple Keychain. Platterhead lists audio files and resolves streams only on demand."
         default:
             return String(localized: "Credentials are stored locally in Apple Keychain. Platterhead requests a stream URL only when you play.")
@@ -430,7 +430,7 @@ struct AddServerSheet: View {
                     try await appState.addJellyfinServer(url: urlText, username: username, password: password)
                 case .plex:
                     try await appState.addPlexServer(url: urlText, token: token)
-                case .dropbox, .googleDrive, .oneDrive, .pCloud:
+                case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
                     if let cloudProvider = CloudDriveAPI.Provider(sourceKind: connectorKind) {
                         let config = try OAuthClientConfiguration.config(for: cloudProvider)
                         let oauthToken = try await oauthCoordinator.signIn(config: config)

@@ -144,7 +144,7 @@ struct ProvenanceChip: View {
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             return ("cloud", "ARCHIVE.ORG")
         case .subsonic, .webDAV, .smb, .jellyfin, .plex,
-             .dropbox, .googleDrive, .oneDrive, .pCloud, .jamendoGenre:
+             .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .jamendoGenre:
             return ("network", "REMOTE")
         }
     }

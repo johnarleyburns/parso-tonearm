@@ -205,6 +205,16 @@ public enum RemoteConnectorCatalog {
             icon: "externaldrive.connected.to.line.below",
             guide: cloudGuide("pCloud", permission: "pCloud file listing and download access")
         ),
+        RemoteConnector(
+            sourceKinds: [.box],
+            connectorID: "box",
+            title: "Box",
+            subtitle: "Sign in with Box",
+            tier: .guided,
+            authKind: .oauth,
+            icon: "externaldrive.connected.to.line.below",
+            guide: cloudGuide("Box", permission: "Box file listing and download access")
+        ),
         // "Jamendo genres" connector removed from Add Library/onboarding
         // per the user's request — Jamendo's real API has no personal/
         // private-collection concept to build an "add your own login" path

@@ -54,6 +54,7 @@ final class RemoteLibraryProviderTests: XCTestCase {
         XCTAssertTrue(SourceKind.allCases.contains(.googleDrive))
         XCTAssertTrue(SourceKind.allCases.contains(.oneDrive))
         XCTAssertTrue(SourceKind.allCases.contains(.pCloud))
+        XCTAssertTrue(SourceKind.allCases.contains(.box))
     }
 
     func testProviderFactoryDeclaresEveryProductRemoteKindSupported() {

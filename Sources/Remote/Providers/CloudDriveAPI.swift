@@ -6,6 +6,7 @@ public enum CloudDriveAPI {
         case googleDrive
         case oneDrive
         case pCloud
+        case box
 
         public init?(sourceKind: SourceKind) {
             switch sourceKind {
@@ -13,6 +14,7 @@ public enum CloudDriveAPI {
             case .googleDrive: self = .googleDrive
             case .oneDrive: self = .oneDrive
             case .pCloud: self = .pCloud
+            case .box: self = .box
             default: return nil
             }
         }
@@ -23,6 +25,7 @@ public enum CloudDriveAPI {
             case .googleDrive: return .googleDrive
             case .oneDrive: return .oneDrive
             case .pCloud: return .pCloud
+            case .box: return .box
             }
         }
     }
@@ -44,6 +47,8 @@ public enum CloudDriveAPI {
                 return Environment(baseURL: URL(string: "https://graph.microsoft.com")!)
             case .pCloud:
                 return Environment(baseURL: URL(string: "https://api.pcloud.com")!)
+            case .box:
+                return Environment(baseURL: URL(string: "https://api.box.com")!)
             }
         }
     }
@@ -171,6 +176,34 @@ public enum CloudDriveAPI {
             var request = URLRequest(url: components.url!)
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             return request
+
+        case (.box, .list(let containerID)):
+            // Box's root folder has the fixed, well-known id "0" — unlike Dropbox's empty path or
+            // Google Drive's "root" alias, Box has no alias and expects the literal id.
+            let folderID = containerID ?? "0"
+            var components = URLComponents(url: environment.baseURL
+                .appendingPathComponent("2.0", isDirectory: true)
+                .appendingPathComponent("folders", isDirectory: true)
+                .appendingPathComponent(folderID, isDirectory: true)
+                .appendingPathComponent("items"), resolvingAgainstBaseURL: false)!
+            components.queryItems = [
+                URLQueryItem(name: "fields", value: "name,size,type"),
+                // Box's own page max (not a real pagination loop — same single-page-request shape
+                // every other provider here uses; RemotePathPolicy.cappedPage truncates further).
+                URLQueryItem(name: "limit", value: "1000"),
+            ]
+            var request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+
+        case (.box, .resolveFile(let id, _)):
+            var request = URLRequest(url: environment.baseURL
+                .appendingPathComponent("2.0", isDirectory: true)
+                .appendingPathComponent("files", isDirectory: true)
+                .appendingPathComponent(id, isDirectory: true)
+                .appendingPathComponent("content"))
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
         }
     }
 
@@ -203,6 +236,12 @@ public enum CloudDriveAPI {
                 throw Error.missingField("metadata.contents")
             }
             return try contents.map(decodePCloudItem)
+        case .box:
+            guard let dict = object as? [String: Any],
+                  let entries = dict["entries"] as? [[String: Any]] else {
+                throw Error.missingField("entries")
+            }
+            return try entries.map(decodeBoxItem)
         }
     }
 
@@ -228,7 +267,7 @@ public enum CloudDriveAPI {
                 throw Error.missingField("hosts.path")
             }
             return ResolvedAsset(url: url, sizeBytes: fallbackSize)
-        case .googleDrive, .oneDrive:
+        case .googleDrive, .oneDrive, .box:
             throw Error.unsupportedProvider
         }
     }
@@ -294,6 +333,21 @@ public enum CloudDriveAPI {
             kind: isFolder ? .folder : .file,
             sizeBytes: int64(dict["size"]),
             contentType: string(dict["contenttype"]),
+            temporaryURL: nil
+        )
+    }
+
+    private static func decodeBoxItem(_ dict: [String: Any]) throws -> CloudDriveItem {
+        let id = try requiredString(dict["id"], field: "id")
+        let name = try requiredString(dict["name"], field: "name")
+        let isFolder = string(dict["type"]) == "folder"
+        return CloudDriveItem(
+            id: id,
+            name: name,
+            path: id,
+            kind: isFolder ? .folder : .file,
+            sizeBytes: int64(dict["size"]),
+            contentType: nil,
             temporaryURL: nil
         )
     }

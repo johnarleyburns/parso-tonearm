@@ -27,12 +27,25 @@ enum OAuthClientConfiguration {
         case .googleDrive: return GeneratedOAuthCredentials.googleDriveClientID
         case .oneDrive: return GeneratedOAuthCredentials.oneDriveClientID
         case .pCloud: return GeneratedOAuthCredentials.pCloudClientID
+        case .box: return GeneratedOAuthCredentials.boxClientID
+        }
+    }
+
+    /// pCloud and Box are the two confidential-client providers here (pCloud's token exchange
+    /// isn't PKCE-only; Box's token endpoint has no code_verifier/code_challenge field at all) —
+    /// both need a real client secret, unlike Dropbox/Google Drive/OneDrive's PKCE-only public
+    /// clients.
+    private static func clientSecret(for provider: CloudDriveAPI.Provider) -> String {
+        switch provider {
+        case .pCloud: return GeneratedOAuthCredentials.pCloudClientSecret
+        case .box: return GeneratedOAuthCredentials.boxClientSecret
+        case .dropbox, .googleDrive, .oneDrive: return ""
         }
     }
 
     static func config(for provider: CloudDriveAPI.Provider) throws -> OAuthProviderConfig {
         let clientID = clientID(for: provider)
-        let clientSecret = provider == .pCloud ? GeneratedOAuthCredentials.pCloudClientSecret : ""
+        let clientSecret = clientSecret(for: provider)
         let redirectURI = try redirectURI(for: provider)
         return try OAuthProviderConfig.cloudDrive(
             provider: provider,
