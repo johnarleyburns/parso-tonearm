@@ -106,6 +106,8 @@ final class DiscoverySearchViewModelTests: XCTestCase {
         d.vm.inputMode = .metadata
         d.vm.searchText = "mood"
         await settle(d.vm) { $0.screen.hasResults }
+        d.vm.setMatchingTracksOnly(true)
+        await settle(d.vm) { $0.screen.hasResults }
         var started: [[Int64]] = []
         let played = d.vm.playMood(metadata: [1: .init(bpm: 100, camelotKey: "8A"),
             2: .init(bpm: 104, camelotKey: "9A"), 3: .init(bpm: 170, camelotKey: "4B")]) {
@@ -115,6 +117,29 @@ final class DiscoverySearchViewModelTests: XCTestCase {
         XCTAssertEqual(started, [[1, 2]])
         XCTAssertTrue(d.played.value.isEmpty, "Queue playback must not invoke single-track playback")
         XCTAssertFalse(d.vm.playMood(metadata: [:], onPlayQueue: { _ in XCTFail("Do not start an incompatible/empty queue") }))
+    }
+
+    /// Real report: with "Mix-compatible tracks" off, pressing Play showed "completely different
+    /// tracks" than the displayed results. Root cause: `queueTrackIDs`'s BPM/key filtering ran
+    /// unconditionally, keyed only on whether `metadata` happened to have an entry for each
+    /// track — most tracks lack BPM/key analysis at any given moment (it's a separate, unordered
+    /// background stage from the semantic index that produces these search results at all), so
+    /// most of the displayed list was silently dropped. `matchingTracksOnly` must gate the
+    /// filtering itself: off means Play queues the displayed results, in their own order, full
+    /// stop — regardless of which (if any) have BPM/key metadata.
+    func testPlayMoodWithoutMatchingTracksOnlyPlaysEveryResultInDisplayOrder() async throws {
+        let rows = [Self.trackRow(id: 1, title: "First"), Self.trackRow(id: 2, title: "Second"), Self.trackRow(id: 3, title: "Third")]
+        let d = try await makeVM(metadata: { _ in .success(rows) })
+        d.vm.inputMode = .metadata
+        d.vm.searchText = "mood"
+        await settle(d.vm) { $0.screen.hasResults }
+        XCTAssertFalse(d.vm.matchingTracksOnly, "default must be off")
+        var started: [[Int64]] = []
+        // No track here has BPM/key metadata — under the old, always-filtering behavior this
+        // would drop every result and refuse to play at all.
+        let played = d.vm.playMood(metadata: [:]) { started.append($0.map(\.id)) }
+        XCTAssertTrue(played)
+        XCTAssertEqual(started, [[1, 2, 3]], "must queue the full displayed list, in order, unfiltered")
     }
 
     func testMetadataTextSearchProducesBrowseResults() async throws {

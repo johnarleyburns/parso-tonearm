@@ -327,13 +327,22 @@ public final class DiscoverySearchViewModel: ObservableObject {
     public func play(_ result: DiscoverySearchResult) { onPlay(result) }
 
     /// Start the current mood directly, not a single result or a mix-builder sheet.
+    ///
+    /// Real report: with "Mix-compatible tracks" OFF, Play still silently dropped every result
+    /// lacking BPM/key analysis and reordered the survivors into a compatibility chain — the
+    /// filtering in `MusicalMatchPolicy.queueTrackIDs` ran unconditionally, keyed only on whether
+    /// `metadata`/`energyByID` happened to have an entry, not on `matchingTracksOnly` at all. The
+    /// toggle must gate the filtering itself, not just the `startingFrom` reference: when it's
+    /// off, Play queues the displayed results in their own order, full stop.
     @discardableResult
     public func playMood(
         metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:],
         onPlayQueue: ([TrackRow]) -> Void
     ) -> Bool {
-        let ids = MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
-            energyByID: energies, startingFrom: matchingTracksOnly ? matchingReferenceTrackID : nil)
+        let ids = matchingTracksOnly
+            ? MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
+                energyByID: energies, startingFrom: matchingReferenceTrackID)
+            : results.map(\.trackID)
         let rows = Dictionary(results.map { ($0.trackID, $0.track) }, uniquingKeysWith: { first, _ in first })
         let queue = ids.compactMap { rows[$0] }
         guard !queue.isEmpty else { return false }
