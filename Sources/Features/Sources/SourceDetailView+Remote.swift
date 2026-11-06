@@ -74,7 +74,17 @@ extension SourceDetailView {
                 player.shuffle = true
                 rows.shuffle()
             }
-            player.play(tracks: rows, startAt: min(startAt, max(rows.count - 1, 0)), source: .source(source))
+            let startIndex = min(startAt, max(rows.count - 1, 0))
+            // Real report: playing straight from browsing (never "Add to Library" first) left
+            // the starting track's play history and favorite silently unrecorded — it carries a
+            // transient, negative id (RemoteTrackRowFactory) until persisted. Matches
+            // DiscoveryRuntimeController's own onPlay, which persists the track it's about to
+            // start for the same reason.
+            if rows.indices.contains(startIndex), rows[startIndex].id < 0,
+               let persisted = await appState.persistRemoteTrack(rows[startIndex]) {
+                rows[startIndex] = persisted
+            }
+            player.play(tracks: rows, startAt: startIndex, source: .source(source))
         } catch {
             remoteError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

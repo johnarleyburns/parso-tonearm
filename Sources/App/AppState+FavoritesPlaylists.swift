@@ -13,10 +13,26 @@ extension AppState {
         favoriteIds.contains(row.id)
     }
 
+    /// Real report: favoriting a track played straight from browsing a cloud-drive source (never
+    /// imported/added to the library first) silently never showed up in Favorites, nor in Jump
+    /// Back In for the same reason. Root cause: a browsed-but-not-yet-imported remote row carries
+    /// a transient, negative `id` (`RemoteTrackRowFactory`) that never exists in the `track`
+    /// table — writing `favorite`/`play_history` rows against it violates their foreign key and
+    /// throws, which `try?` swallowed with no user-visible sign anything had failed. Persist the
+    /// row first, exactly like `assignCustomArtwork(toTrack:)` already does for the same reason.
     func toggleFavorite(_ row: TrackRow) async {
-        let makeFavorite = !favoriteIds.contains(row.id)
-        try? await store.setFavorite(trackId: row.id, makeFavorite)
-        if makeFavorite { favoriteIds.insert(row.id) } else { favoriteIds.remove(row.id) }
+        var target = row
+        if target.id < 0 {
+            guard let persisted = await persistRemoteTrack(target) else { return }
+            target = persisted
+        }
+        let makeFavorite = !favoriteIds.contains(target.id)
+        do {
+            try await store.setFavorite(trackId: target.id, makeFavorite)
+        } catch {
+            return
+        }
+        if makeFavorite { favoriteIds.insert(target.id) } else { favoriteIds.remove(target.id) }
         favoriteRows = (try? await store.favoriteRows()) ?? favoriteRows
     }
 
