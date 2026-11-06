@@ -565,6 +565,7 @@ extension AudioPlayer {
     /// "stalled" about a track that isn't expected to be advancing yet.
     private func watchStallProgress(generation: Int, autoplay: Bool) {
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         guard autoplay else { return }
         let timeout = stallEvaluationTimeout
         stallWatchTask = Task { @MainActor [weak self] in
