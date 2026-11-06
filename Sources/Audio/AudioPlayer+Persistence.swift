@@ -26,6 +26,7 @@ extension AudioPlayer {
     func pause() {
         catalogPlaybackAutoplay = false
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         player.pause()
         isPlaying = false
         updateNowPlaying()

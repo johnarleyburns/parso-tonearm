@@ -596,6 +596,7 @@ public final class AudioPlayer: ObservableObject {
     func clearQueuePlayback() {
         cancelCatalogPlaybackLoad()
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         cancelCrossfade(resetVolume: true)
         shutdownLoaders()
         for loader in prefetchLoaders.values {

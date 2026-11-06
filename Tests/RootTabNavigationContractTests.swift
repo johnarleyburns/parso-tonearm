@@ -71,7 +71,9 @@ final class RootTabNavigationContractTests: XCTestCase {
 
     func testSharedNowPlayingDestinationKeepsZoomAndIsTabScoped() throws {
         let chrome = try source("Sources/Features/RootTabChrome.swift")
-        XCTAssertTrue(chrome.contains(".navigationDestination(isPresented: nowPlaying)"))
+        // item:, not isPresented: — the same boolean-driven-presentation fragility
+        // SettingsView.swift already diagnosed and fixed once for a sheet.
+        XCTAssertTrue(chrome.contains(".navigationDestination(item: nowPlayingItem)"))
         XCTAssertTrue(chrome.contains(".navigationTransition(.zoom(sourceID: \"now-playing\""))
         XCTAssertTrue(chrome.contains("appState.showNowPlaying && appState.tab == tab"))
         XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom"))

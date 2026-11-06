@@ -167,6 +167,7 @@ extension AudioPlayer {
         ordinaryJamendoLoad = nil
         catalogPlaybackLoadTask = nil
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         shutdownLoaders()
         itemStatusCancellable = nil
         player.pause()
@@ -322,6 +323,7 @@ extension AudioPlayer {
     func failLocalPlayback(_ failure: LocalMediaFailure) {
         localReadinessTask?.cancel()
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         itemStatusCancellable = nil
         player.pause()
         (player.currentItem as? LocalPlayerItem)?.releaseLease()
@@ -565,6 +567,7 @@ extension AudioPlayer {
     /// "stalled" about a track that isn't expected to be advancing yet.
     private func watchStallProgress(generation: Int, autoplay: Bool) {
         stallWatchTask?.cancel()
+        stallWatchTask = nil
         guard autoplay else { return }
         let timeout = stallEvaluationTimeout
         stallWatchTask = Task { @MainActor [weak self] in
