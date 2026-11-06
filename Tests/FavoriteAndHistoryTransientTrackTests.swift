@@ -34,18 +34,26 @@ final class FavoriteAndHistoryTransientTrackTests: XCTestCase {
     func testRecordPlayFailsForATransientNonExistentTrackId() async throws {
         let store = try makeStore()
         let transientId: Int64 = -1
-        XCTAssertThrowsError(try store.recordPlay(trackId: transientId),
-            "expected a foreign-key violation for a transient/non-existent trackId")
-        let recent = try store.recentlyPlayedRows()
+        do {
+            try await store.recordPlay(trackId: transientId)
+            XCTFail("expected a foreign-key violation for a transient/non-existent trackId")
+        } catch {
+            // Expected: GRDB surfaces the FK constraint failure.
+        }
+        let recent = try await store.recentlyPlayedRows()
         XCTAssertTrue(recent.isEmpty)
     }
 
     func testSetFavoriteFailsForATransientNonExistentTrackId() async throws {
         let store = try makeStore()
         let transientId: Int64 = -1
-        XCTAssertThrowsError(try store.setFavorite(trackId: transientId, true),
-            "expected a foreign-key violation for a transient/non-existent trackId")
-        let favorites = try store.favoriteRows()
+        do {
+            try await store.setFavorite(trackId: transientId, true)
+            XCTFail("expected a foreign-key violation for a transient/non-existent trackId")
+        } catch {
+            // Expected: GRDB surfaces the FK constraint failure.
+        }
+        let favorites = try await store.favoriteRows()
         XCTAssertTrue(favorites.isEmpty)
     }
 
@@ -55,12 +63,12 @@ final class FavoriteAndHistoryTransientTrackTests: XCTestCase {
         let store = try makeStore()
         let trackId = try await seedTrack(store)
 
-        try store.recordPlay(trackId: trackId)
-        let recent = try store.recentlyPlayedRows()
+        try await store.recordPlay(trackId: trackId)
+        let recent = try await store.recentlyPlayedRows()
         XCTAssertEqual(recent.map(\.id), [trackId])
 
-        try store.setFavorite(trackId: trackId, true)
-        let favorites = try store.favoriteRows()
+        try await store.setFavorite(trackId: trackId, true)
+        let favorites = try await store.favoriteRows()
         XCTAssertEqual(favorites.map(\.id), [trackId])
     }
 }
