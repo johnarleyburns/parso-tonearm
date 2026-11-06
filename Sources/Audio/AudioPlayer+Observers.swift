@@ -103,11 +103,18 @@ extension AudioPlayer {
             return
         }
         let key = AudioCache.key(for: remote)
+        // Real report: the "% cached" display got stuck on the PREVIOUS track's value after
+        // skipping — this fires every 0.5s with no cancellation or staleness check, so a slow
+        // lookup for an old track could resolve and overwrite the display after a newer track had
+        // already loaded and set its own (correct) state. Capture the track this lookup is for
+        // and refuse to apply a result once that track is no longer current.
+        let trackId = currentTrack?.track.id
         Task {
             let state = CacheGlyphState.of(await AudioCache.shared.meta(for: key))
             let map = await AudioCache.shared.rangeMap(for: key)
             let total = await AudioCache.shared.totalBytes(for: key) ?? 0
             await MainActor.run {
+                guard self.currentTrack?.track.id == trackId else { return }
                 self.cacheState = state
                 if state == .cached {
                     self.cachedFraction = 1
