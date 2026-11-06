@@ -14,7 +14,10 @@ import TonearmCore
 extension SourceDetailView {
     func load() async {
         if isBrowseableServer {
-            await loadRemote(path: remotePath)
+            // Real report: reopening a remote source always restarted at the root, even for a
+            // drive with the real library several folders deep. Returns to wherever the user
+            // last browsed instead (Source.lastBrowsedPath, schema v45).
+            await loadRemote(path: source.lastBrowsedPath ?? "")
         } else {
             tracks = await appState.tracks(for: source)
             heroArtworkId = await appState.firstArtworkId(for: source)
@@ -28,7 +31,23 @@ extension SourceDetailView {
         do {
             remoteNodes = try await appState.browseRemote(source: source, path: path)
             remotePath = path
+            if let id = source.id {
+                try? await appState.store.setSourceLastBrowsedPath(id: id, path: path.isEmpty ? nil : path)
+            }
         } catch {
+            // A remembered folder that no longer resolves (deleted/moved/renamed in a way that
+            // breaks it) must not leave the user stuck on a dead error with no way back — forget
+            // it and retry once at the root. `path.isEmpty` on that retry skips this branch, so
+            // it can't recurse; a genuine root-level failure (e.g. expired auth) still surfaces
+            // remoteError exactly as before.
+            if !path.isEmpty {
+                if let id = source.id {
+                    try? await appState.store.setSourceLastBrowsedPath(id: id, path: nil)
+                }
+                remoteBackStack = []
+                await loadRemote(path: "")
+                return
+            }
             remoteNodes = []
             remoteError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }

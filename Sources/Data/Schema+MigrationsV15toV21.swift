@@ -502,5 +502,17 @@ extension Schema {
                 try db.rename(table: "dj_track_prep_v44", to: "dj_track_prep")
             }
         }
+        if shouldRegister("v45", upTo: target) {
+            migrator.registerMigration("v45") { db in
+                // Remembers the last folder browsed in a remote source (Settings > Music
+                // Libraries > a source), so reopening it returns there instead of always
+                // restarting at the root. `RemoteNode.path` is already the provider's own
+                // real, permanent item ID for every cloud-drive/Subsonic/Jellyfin/Plex/IA
+                // provider (e.g. "folder/<driveFolderID>"), so persisting it is durable.
+                try db.alter(table: "source") { t in
+                    t.add(column: "lastBrowsedPath", .text)
+                }
+            }
+        }
     }
 }

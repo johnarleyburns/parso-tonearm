@@ -241,6 +241,16 @@ extension LibraryStore {
         }
     }
 
+    /// Persists the last folder browsed in a remote source's browser, so
+    /// reopening it returns there instead of always restarting at the root.
+    /// `nil` means the root.
+    public func setSourceLastBrowsedPath(id: Int64, path: String?) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "UPDATE source SET lastBrowsedPath = ? WHERE id = ?",
+                           arguments: [path, id])
+        }
+    }
+
     /// First track (by sort order) of a source, hydrated with album/asset.
     public func firstTrackRow(forSource sourceId: Int64) throws -> TrackRow? {
         try dbQueue.read { db in

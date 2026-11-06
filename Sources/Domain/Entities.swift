@@ -55,6 +55,11 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// Stable cross-device identity for iCloud sync (schema v7). Local `Int64`
     /// PKs remain the internal FK join key; `syncID` names the CloudKit record.
     public var syncID: String? = nil
+    /// Remembers the last folder browsed in a remote source's browser (schema
+    /// v45), so reopening it returns there instead of always restarting at the
+    /// root. Already the provider's own permanent item ID for every provider
+    /// except WebDAV/SMB (see `RemoteNode.path`), so this is durable.
+    public var lastBrowsedPath: String? = nil
 
     public init(id: Int64?,
                 kind: SourceKind,
@@ -69,7 +74,8 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
                 localIsFolder: Bool = false,
                 folderPath: String? = nil,
                 artworkTrackId: Int64? = nil,
-                syncID: String? = nil) {
+                syncID: String? = nil,
+                lastBrowsedPath: String? = nil) {
         self.id = id
         self.kind = kind
         self.iaIdentifier = iaIdentifier
@@ -84,6 +90,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
         self.folderPath = folderPath
         self.artworkTrackId = artworkTrackId
         self.syncID = syncID
+        self.lastBrowsedPath = lastBrowsedPath
     }
 
     /// SF Symbol shown over the gradient when no real artwork resolves.
