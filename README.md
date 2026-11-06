@@ -90,10 +90,13 @@ before using the production sign-in buttons:
 - `TONEARM_ONEDRIVE_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_ID`
 - `TONEARM_PCLOUD_CLIENT_SECRET` when your pCloud app requires it
+- `TONEARM_BOX_CLIENT_ID` and `TONEARM_BOX_CLIENT_SECRET` — Box's OAuth token endpoint has no PKCE support, so a client secret is required (confidential client), same as pCloud.
+- `TONEARM_YANDEX_CLIENT_ID` and, if your Yandex ID app registers as a confidential client rather than a public/PKCE one, `TONEARM_YANDEX_CLIENT_SECRET`.
 - `TONEARM_JAMENDO_CLIENT_ID` — the Jamendo application credential (register at devportal.jamendo.com); it is an application key, not a user login.
 
-Register the `tonearm://oauth/<provider>` redirect for Dropbox, OneDrive, and pCloud (where
-`<provider>` is `dropbox`, `oneDrive`, or `pCloud`). **Google Drive is a special case**: Google's
+Register the `tonearm://oauth/<provider>` redirect for Dropbox, OneDrive, pCloud, Box, and
+Yandex.Disk (where `<provider>` is `dropbox`, `oneDrive`, `pCloud`, `box`, or `yandexDisk`).
+**Google Drive is a special case**: Google's
 "iOS" OAuth client type has no free-text redirect-URI field — it ties the redirect to a
 reversed-client-ID custom scheme instead. Create the credential as type **iOS** with Bundle ID
 `guru.parso.tonearm`, then derive the scheme from the resulting Client ID by stripping

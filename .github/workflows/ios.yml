@@ -159,6 +159,10 @@ jobs:
           TONEARM_ONEDRIVE_CLIENT_ID: ${{ secrets.TONEARM_ONEDRIVE_CLIENT_ID }}
           TONEARM_PCLOUD_CLIENT_ID: ${{ secrets.TONEARM_PCLOUD_CLIENT_ID }}
           TONEARM_PCLOUD_CLIENT_SECRET: ${{ secrets.TONEARM_PCLOUD_CLIENT_SECRET }}
+          TONEARM_BOX_CLIENT_ID: ${{ secrets.TONEARM_BOX_CLIENT_ID }}
+          TONEARM_BOX_CLIENT_SECRET: ${{ secrets.TONEARM_BOX_CLIENT_SECRET }}
+          TONEARM_YANDEX_CLIENT_ID: ${{ secrets.TONEARM_YANDEX_CLIENT_ID }}
+          TONEARM_YANDEX_CLIENT_SECRET: ${{ secrets.TONEARM_YANDEX_CLIENT_SECRET }}
         run: |
           # Application credentials (as distinct from user logins) have to reach
           # a shipped binary but must never enter the repo (§54.2). Config/Base
@@ -187,6 +191,10 @@ jobs:
           write_if_set TONEARM_ONEDRIVE_CLIENT_ID "$TONEARM_ONEDRIVE_CLIENT_ID"
           write_if_set TONEARM_PCLOUD_CLIENT_ID "$TONEARM_PCLOUD_CLIENT_ID"
           write_if_set TONEARM_PCLOUD_CLIENT_SECRET "$TONEARM_PCLOUD_CLIENT_SECRET"
+          write_if_set TONEARM_BOX_CLIENT_ID "$TONEARM_BOX_CLIENT_ID"
+          write_if_set TONEARM_BOX_CLIENT_SECRET "$TONEARM_BOX_CLIENT_SECRET"
+          write_if_set TONEARM_YANDEX_CLIENT_ID "$TONEARM_YANDEX_CLIENT_ID"
+          write_if_set TONEARM_YANDEX_CLIENT_SECRET "$TONEARM_YANDEX_CLIENT_SECRET"
           echo "Application credentials written to Config/Secrets.xcconfig (values not logged)"
 
       - name: Install XcodeGen

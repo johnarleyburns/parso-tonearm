@@ -197,6 +197,10 @@ fields = [
     ("oneDriveClientID", "TONEARM_ONEDRIVE_CLIENT_ID"),
     ("pCloudClientID", "TONEARM_PCLOUD_CLIENT_ID"),
     ("pCloudClientSecret", "TONEARM_PCLOUD_CLIENT_SECRET"),
+    ("boxClientID", "TONEARM_BOX_CLIENT_ID"),
+    ("boxClientSecret", "TONEARM_BOX_CLIENT_SECRET"),
+    ("yandexClientID", "TONEARM_YANDEX_CLIENT_ID"),
+    ("yandexClientSecret", "TONEARM_YANDEX_CLIENT_SECRET"),
 ]
 
 with open("Sources/Features/Ingest/GeneratedOAuthCredentials.swift", "w", encoding="utf-8") as out:
