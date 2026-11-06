@@ -36,7 +36,7 @@ struct AddFolderToLibrarySheet: View {
             case .confirming:
                 Text(tracksFound == 0
                      ? String(localized: "No tracks found in this folder.")
-                     : String(localized: "Add \(tracksFound) track\(tracksFound == 1 ? "" : "s") to My Music?"))
+                     : String(localized: "Add ^[\(tracksFound) track](inflect: true) to My Music?"))
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("addFolder.confirmText")
             case .importing:
@@ -68,7 +68,7 @@ struct AddFolderToLibrarySheet: View {
     }
 
     private var scanningLabel: String {
-        String(localized: "Scanning… \(tracksFound) track\(tracksFound == 1 ? "" : "s") found in \(foldersVisited) folder\(foldersVisited == 1 ? "" : "s")")
+        String(localized: "Scanning… ^[\(tracksFound) track](inflect: true) found in ^[\(foldersVisited) folder](inflect: true)")
     }
 
     private func scan() async {
