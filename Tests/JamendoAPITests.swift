@@ -4,15 +4,26 @@ import XCTest
 private final class JamendoStubProtocol: URLProtocol {
     nonisolated(unsafe) static var requests: [URLRequest] = []
     nonisolated(unsafe) static var body = ""
+    /// Consumed in order, one per request, for tests that need a DIFFERENT response each call
+    /// (e.g. the empty-then-non-empty retry sequence) — falls back to repeating the last entry
+    /// (or `body`, if this is empty) once exhausted.
+    nonisolated(unsafe) static var bodySequence: [String] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        let index = Self.requests.count
         Self.requests.append(request)
+        let responseBody: String
+        if !Self.bodySequence.isEmpty {
+            responseBody = Self.bodySequence[min(index, Self.bodySequence.count - 1)]
+        } else {
+            responseBody = Self.body
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "1.1",
                                        headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
+        client?.urlProtocol(self, didLoad: Data(responseBody.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
@@ -32,6 +43,7 @@ final class JamendoAPITests: XCTestCase {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [JamendoStubProtocol.self]
         JamendoStubProtocol.requests = []
+        JamendoStubProtocol.bodySequence = []
         return JamendoAPI(clientID: "cid", session: URLSession(configuration: config))
     }
 
@@ -82,5 +94,35 @@ final class JamendoAPITests: XCTestCase {
         let decoded = try await makeAPI().tracks(ids: ids)
         XCTAssertEqual(decoded.map(\.id), available)
         XCTAssertEqual(decoded.first?.audio, "https://example.test/\(ids[4]).mp3")
+    }
+
+    // MARK: - tags(tag:offset:limit:) empty-first-page retry
+
+    /// Real report, confirmed live against the real API: an identical `tags=dance` request
+    /// returned a real, non-empty page on one attempt and then zero on the next TWO consecutive
+    /// attempts moments later — a single retry isn't always enough.
+    func testEmptyFirstPageRetriesUpToTwiceBeforeSucceeding() async throws {
+        JamendoStubProtocol.bodySequence = [envelope([]), envelope([]), envelope(["1"])]
+        let page = try await makeAPI().tracks(tag: "dance", offset: 0, limit: 10)
+        XCTAssertEqual(page.tracks.map(\.id), ["1"])
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries")
+    }
+
+    /// A tag that's genuinely empty (not just transiently flaky) must still resolve to an empty
+    /// page rather than throwing or retrying forever — exactly 3 attempts, then give up quietly.
+    func testEmptyFirstPageGivesUpAfterExhaustingRetries() async throws {
+        JamendoStubProtocol.body = envelope([])
+        let page = try await makeAPI().tracks(tag: "nonexistent-tag", offset: 0, limit: 10)
+        XCTAssertTrue(page.tracks.isEmpty)
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries, then stop")
+    }
+
+    /// Only the first page gets the retry treatment — a real end of a non-empty list (offset > 0)
+    /// must never be mistaken for the transient-empty-first-page flake.
+    func testEmptyLaterPageIsNeverRetried() async throws {
+        JamendoStubProtocol.body = envelope([])
+        let page = try await makeAPI().tracks(tag: "dance", offset: 50, limit: 10)
+        XCTAssertTrue(page.tracks.isEmpty)
+        XCTAssertEqual(JamendoStubProtocol.requests.count, 1, "no retry past the first page")
     }
 }

@@ -450,7 +450,7 @@ public struct JamendoAPI: Sendable {
         guard !clientID.isEmpty else { throw JamendoGenreError.notConfigured }
         guard !trimmed.isEmpty else { throw JamendoGenreError.catalogue("missing genre tag") }
 
-        let page = try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
+        var page = try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
         // Verified against the live endpoint: an identical `tracks?tags=…`
         // request intermittently answers a well-formed `status: success`
         // envelope with zero rows for a tag that, re-requested moments later
@@ -458,11 +458,28 @@ public struct JamendoAPI: Sendable {
         // replica or edge cache), not a genuinely empty genre. That is exactly
         // what makes a genre look broken to a user who only ever sees the
         // first page: the default genre and any single tap can land on the
-        // empty answer. One retry, first page only (`offset == 0`) so a real
+        // empty answer. Retries, first page only (`offset == 0`) so a real
         // end-of-list page beyond it is never mistaken for this.
-        guard page.tracks.isEmpty, offset == 0 else { return page }
-        return try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
+        //
+        // Real report, confirmed live: a single retry isn't always enough —
+        // the exact same `tags=dance` request returned a real, non-empty
+        // page (fullcount 25,941) on one attempt and then zero on the next
+        // TWO consecutive attempts moments later. Up to 2 retries now, with a
+        // short delay so a transient replica/cache miss has a moment to
+        // clear rather than being re-hit immediately.
+        guard offset == 0 else { return page }
+        var attempt = 0
+        while page.tracks.isEmpty, attempt < maxEmptyFirstPageRetries {
+            attempt += 1
+            try await Task.sleep(for: .milliseconds(400))
+            page = try await fetchTracksPage(tag: trimmed, offset: offset, limit: limit)
+        }
+        return page
     }
+
+    /// See `tracks(tag:offset:limit:)`'s doc comment — confirmed live to sometimes need more
+    /// than one retry for a genuinely non-empty tag.
+    private let maxEmptyFirstPageRetries = 2
 
     /// Looks up specific tracks by Jamendo id (the curated starter blends).
     /// Order is the API's, so callers reorder by the ids they asked for.
