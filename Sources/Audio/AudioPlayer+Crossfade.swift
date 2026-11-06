@@ -35,7 +35,20 @@ extension AudioPlayer {
             return
         }
 
-        let currentDuration = duration > 0 ? duration : (current.track.durationSec ?? 0)
+        // Real report: the volume swelled and dropped repeatedly for minutes in the middle of a
+        // track, nowhere near its end. Root cause: a remote/streamed item's AVPlayerItem.duration
+        // estimate can keep changing as more of the file loads (no exact Content-Length up
+        // front) — using that live, unstable value here made `fadeStart` drift back and forth
+        // across the current position, flickering the fade in and out of "active" throughout
+        // playback. The library's own stored duration is fixed once known and is authoritative
+        // here; only fall back to the live estimate when the library has no duration for this
+        // track at all.
+        let currentDuration: Double
+        if let known = current.track.durationSec, known > 0 {
+            currentDuration = known
+        } else {
+            currentDuration = duration
+        }
         let fadeStart = max(0, currentDuration - fadeSeconds)
         // Create the incoming item well before the fade so a stream has time to load.
         guard position >= fadeStart - Self.crossfadePrepareLeadSeconds else {

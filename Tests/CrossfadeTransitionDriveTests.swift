@@ -123,6 +123,32 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         XCTAssertTrue(player.transitionStartedForCurrentEdge, "the fade starts once the track is ready")
     }
 
+    /// Real report: the volume swelled and dropped repeatedly for minutes in the middle of a
+    /// track. A remote/streamed item's live `AVPlayerItem.duration` estimate can change as more
+    /// of the file loads — simulated here by setting `player.duration` far below the track's
+    /// real, library-known length. The fade window must be computed from that stable library
+    /// duration, not the fluctuating live one, so a mid-track position is never mistaken for
+    /// "near the end."
+    func testUnstableLiveDurationEstimateNeverDestabilizesTheFadeWindow() throws {
+        let player = try prepareOutgoing(fadeSeconds: 2)
+        let incoming = row(2, remoteURL: "https://example.invalid/next.mp3")
+        player.queue = [row(1), incoming]
+        // The real, library-known duration is outgoingSeconds (6s), fixed by `row(1)`'s
+        // `durationSec`. A buggy live estimate of 3s would put the old code's fade window
+        // starting at 1s (3 - 2 fadeSeconds) — well before the real fade window at 4s (6 - 2).
+        player.duration = 3
+
+        player.updateCrossfade(position: 2)
+        XCTAssertEqual(player.player.volume, player.outputLevel,
+            "position 2s must not be in the fade window — the real track is 6s long, not 3s")
+
+        // Even once the live estimate "corrects" upward, it must still never win over the
+        // library's own value.
+        player.duration = 6
+        player.updateCrossfade(position: 2)
+        XCTAssertEqual(player.player.volume, player.outputLevel)
+    }
+
     // MARK: - Helpers
 
     private func prepareOutgoing(fadeSeconds: Double) throws -> AudioPlayer {
