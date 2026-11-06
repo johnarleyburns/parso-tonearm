@@ -12,6 +12,7 @@ public struct CloudDriveServerPolicy {
         case .oneDrive: return "OneDrive"
         case .pCloud: return "pCloud"
         case .box: return "Box"
+        case .yandexDisk: return "Yandex.Disk"
         }
     }
 }
@@ -164,6 +165,25 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
                 provider: provider,
                 data: data,
                 fallbackSize: node.sizeBytes
+            )
+        case .yandexDisk:
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+                throw URLError(.badServerResponse)
+            }
+            let decoded = try CloudDriveAPI.decodeResolvedAsset(
+                provider: provider,
+                data: data,
+                fallbackSize: node.sizeBytes
+            )
+            // Unlike Dropbox/pCloud's self-contained temp links, Yandex's own docs say the
+            // returned href still needs the original OAuth token on the follow-up GET.
+            return ResolvedAsset(
+                url: decoded.url,
+                headers: authHeaders(access.accessToken),
+                supportsByteRanges: decoded.supportsByteRanges,
+                sizeBytes: decoded.sizeBytes,
+                metadata: decoded.metadata
             )
         }
     }

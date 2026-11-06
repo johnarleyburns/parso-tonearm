@@ -7,6 +7,7 @@ public enum CloudDriveAPI {
         case oneDrive
         case pCloud
         case box
+        case yandexDisk
 
         public init?(sourceKind: SourceKind) {
             switch sourceKind {
@@ -15,6 +16,7 @@ public enum CloudDriveAPI {
             case .oneDrive: self = .oneDrive
             case .pCloud: self = .pCloud
             case .box: self = .box
+            case .yandexDisk: self = .yandexDisk
             default: return nil
             }
         }
@@ -26,6 +28,7 @@ public enum CloudDriveAPI {
             case .oneDrive: return .oneDrive
             case .pCloud: return .pCloud
             case .box: return .box
+            case .yandexDisk: return .yandexDisk
             }
         }
     }
@@ -49,6 +52,8 @@ public enum CloudDriveAPI {
                 return Environment(baseURL: URL(string: "https://api.pcloud.com")!)
             case .box:
                 return Environment(baseURL: URL(string: "https://api.box.com")!)
+            case .yandexDisk:
+                return Environment(baseURL: URL(string: "https://cloud-api.yandex.net")!)
             }
         }
     }
@@ -204,6 +209,34 @@ public enum CloudDriveAPI {
                 .appendingPathComponent("content"))
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             return request
+
+        case (.yandexDisk, .list(let containerID)):
+            // Yandex's own resource "path" field already comes back disk:/-prefixed and is stored
+            // as-is as this app's folder id (CloudDriveItem.id), so a child folder's containerID
+            // is already the exact value this endpoint's own `path` parameter expects. The disk
+            // root is requested as "disk:/".
+            var components = URLComponents(url: environment.baseURL
+                .appendingPathComponent("v1", isDirectory: true)
+                .appendingPathComponent("disk", isDirectory: true)
+                .appendingPathComponent("resources"), resolvingAgainstBaseURL: false)!
+            components.queryItems = [
+                URLQueryItem(name: "path", value: containerID ?? "disk:/"),
+                URLQueryItem(name: "limit", value: "1000"),
+            ]
+            var request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+
+        case (.yandexDisk, .resolveFile(let id, _)):
+            var components = URLComponents(url: environment.baseURL
+                .appendingPathComponent("v1", isDirectory: true)
+                .appendingPathComponent("disk", isDirectory: true)
+                .appendingPathComponent("resources", isDirectory: true)
+                .appendingPathComponent("download"), resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "path", value: id)]
+            var request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
         }
     }
 
@@ -242,6 +275,13 @@ public enum CloudDriveAPI {
                 throw Error.missingField("entries")
             }
             return try entries.map(decodeBoxItem)
+        case .yandexDisk:
+            guard let dict = object as? [String: Any],
+                  let embedded = dict["_embedded"] as? [String: Any],
+                  let items = embedded["items"] as? [[String: Any]] else {
+                throw Error.missingField("_embedded.items")
+            }
+            return try items.map(decodeYandexItem)
         }
     }
 
@@ -265,6 +305,17 @@ public enum CloudDriveAPI {
                   let path = string(dict["path"]),
                   let url = URL(string: "https://\(host)\(path)") else {
                 throw Error.missingField("hosts.path")
+            }
+            return ResolvedAsset(url: url, sizeBytes: fallbackSize)
+        case .yandexDisk:
+            // The Link object: {"href": "...", "method": "GET", "templated": false}. Unlike
+            // Dropbox/pCloud's temp links, Yandex's own docs say this href still needs the
+            // original OAuth token on the follow-up request — CloudDriveProvider.resolve(node:)
+            // attaches that header itself after this decode, since the token isn't available here.
+            guard let dict = object as? [String: Any],
+                  let href = string(dict["href"]),
+                  let url = URL(string: href) else {
+                throw Error.missingField("href")
             }
             return ResolvedAsset(url: url, sizeBytes: fallbackSize)
         case .googleDrive, .oneDrive, .box:
@@ -348,6 +399,21 @@ public enum CloudDriveAPI {
             kind: isFolder ? .folder : .file,
             sizeBytes: int64(dict["size"]),
             contentType: nil,
+            temporaryURL: nil
+        )
+    }
+
+    private static func decodeYandexItem(_ dict: [String: Any]) throws -> CloudDriveItem {
+        let path = try requiredString(dict["path"], field: "path")
+        let name = try requiredString(dict["name"], field: "name")
+        let isFolder = string(dict["type"]) == "dir"
+        return CloudDriveItem(
+            id: path,
+            name: name,
+            path: path,
+            kind: isFolder ? .folder : .file,
+            sizeBytes: int64(dict["size"]),
+            contentType: string(dict["mime_type"]),
             temporaryURL: nil
         )
     }

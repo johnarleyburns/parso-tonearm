@@ -215,6 +215,16 @@ public enum RemoteConnectorCatalog {
             icon: "externaldrive.connected.to.line.below",
             guide: cloudGuide("Box", permission: "Box file listing and download access")
         ),
+        RemoteConnector(
+            sourceKinds: [.yandexDisk],
+            connectorID: "yandexDisk",
+            title: "Yandex.Disk",
+            subtitle: "Sign in with Yandex.Disk",
+            tier: .guided,
+            authKind: .oauth,
+            icon: "externaldrive.connected.to.line.below",
+            guide: cloudGuide("Yandex.Disk", permission: "Yandex.Disk read-only access")
+        ),
         // "Jamendo genres" connector removed from Add Library/onboarding
         // per the user's request — Jamendo's real API has no personal/
         // private-collection concept to build an "add your own login" path

@@ -298,7 +298,7 @@ struct SourceDetailView: View {
             // should name which account is connected right here, not just "private library" —
             // easy to lose track of which of several accounts a library belongs to otherwise.
             switch source.kind {
-            case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+            case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
                 if let account = appState.remoteAccountLabel(for: source), !account.isEmpty {
                     return "\(remoteProviderName) · \(account)"
                 }

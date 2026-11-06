@@ -180,6 +180,57 @@ final class CloudDriveAPITests: XCTestCase {
         }
     }
 
+    func testYandexDiskRequestsUseResourcesEndpointAndDiskRootPath() throws {
+        let root = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: nil), accessToken: "token")
+        let rootComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(root.url), resolvingAgainstBaseURL: false))
+        let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(rootComponents.path, "/v1/disk/resources")
+        XCTAssertEqual(rootQuery["path"], "disk:/")
+        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+
+        let child = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: "disk:/Music"), accessToken: "token")
+        let childComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(child.url), resolvingAgainstBaseURL: false))
+        let childQuery = Dictionary(uniqueKeysWithValues: (childComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(childQuery["path"], "disk:/Music")
+
+        let download = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .resolveFile(id: "disk:/Music/song.mp3", path: nil), accessToken: "token")
+        let downloadComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(download.url), resolvingAgainstBaseURL: false))
+        let downloadQuery = Dictionary(uniqueKeysWithValues: (downloadComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(downloadComponents.path, "/v1/disk/resources/download")
+        XCTAssertEqual(downloadQuery["path"], "disk:/Music/song.mp3")
+    }
+
+    func testDecodesYandexDiskListingFromEmbeddedItems() throws {
+        let items = try CloudDriveAPI.decodeListing(provider: .yandexDisk, data: data("""
+        {
+          "name": "Music",
+          "path": "disk:/Music",
+          "type": "dir",
+          "_embedded": {
+            "items": [
+              { "name": "Albums", "path": "disk:/Music/Albums", "type": "dir" },
+              { "name": "Song.mp3", "path": "disk:/Music/Song.mp3", "type": "file",
+                "size": 2468, "mime_type": "audio/mpeg" }
+            ]
+          }
+        }
+        """))
+
+        XCTAssertEqual(items[0].kind, .folder)
+        XCTAssertEqual(items[0].id, "disk:/Music/Albums")
+        XCTAssertEqual(items[1].sizeBytes, 2_468)
+        XCTAssertTrue(items[1].isAudio)
+    }
+
+    func testYandexDiskResolvedAssetDecodesHref() throws {
+        let resolved = try CloudDriveAPI.decodeResolvedAsset(provider: .yandexDisk, data: data("""
+        { "href": "https://downloader.dst.yandex.ru/disk/abc/Song.mp3", "method": "GET", "templated": false }
+        """), fallbackSize: 9_999)
+
+        XCTAssertEqual(resolved.url.absoluteString, "https://downloader.dst.yandex.ru/disk/abc/Song.mp3")
+        XCTAssertEqual(resolved.sizeBytes, 9_999)
+    }
+
     func testMalformedResponsesThrowProviderErrors() {
         XCTAssertThrowsError(try CloudDriveAPI.decodeListing(provider: .dropbox, data: data("{}"))) { error in
             XCTAssertEqual(error as? CloudDriveAPI.Error, .missingField("entries"))

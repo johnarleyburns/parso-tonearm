@@ -143,4 +143,26 @@ final class OAuthCoreTests: XCTestCase {
         XCTAssertEqual(config.authorizationEndpoint, URL(string: "https://account.box.com/api/oauth2/authorize")!)
         XCTAssertEqual(config.tokenEndpoint, URL(string: "https://api.box.com/oauth2/token")!)
     }
+
+    func testYandexDiskConfigRequestsReadOnlyScopeAndSupportsPKCEWithoutASecret() throws {
+        // Confirmed against Yandex ID's own OAuth docs: the authorization request accepts
+        // code_challenge/code_challenge_method and "you don't need to pass the secret key" once
+        // code_verifier is sent — a real PKCE public client, unlike Box/pCloud above.
+        let config = try OAuthProviderConfig.cloudDrive(
+            provider: .yandexDisk,
+            clientID: "yandex-client",
+            redirectURI: URL(string: "tonearm://oauth/yandexDisk")!
+        )
+        XCTAssertEqual(config.scopes, ["cloud_api:disk.read"])
+        XCTAssertNil(config.clientSecret)
+        XCTAssertEqual(config.authorizationEndpoint, URL(string: "https://oauth.yandex.com/authorize")!)
+        XCTAssertEqual(config.tokenEndpoint, URL(string: "https://oauth.yandex.com/token")!)
+
+        let pkce = OAuthPKCE(verifier: OAuthPKCE.randomVerifier())
+        let authURL = try config.authorizationURL(state: "state-1", pkce: pkce)
+        let query = Dictionary(uniqueKeysWithValues: (URLComponents(url: authURL, resolvingAgainstBaseURL: false)?.queryItems ?? [])
+            .map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(query["code_challenge_method"], "S256")
+        XCTAssertNotNil(query["code_challenge"])
+    }
 }

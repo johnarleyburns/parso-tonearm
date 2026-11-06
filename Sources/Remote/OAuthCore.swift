@@ -151,6 +151,25 @@ public struct OAuthProviderConfig: Equatable, Codable, Sendable {
                 scopes: [],
                 apiEnvironment: .production(provider: provider)
             )
+        case .yandexDisk:
+            // Confirmed against Yandex ID's own docs: the authorization request accepts
+            // code_challenge/code_challenge_method (S256) and the token request accepts
+            // code_verifier — real PKCE, and "you don't need to pass the secret key" once
+            // code_verifier is sent. This is the one Yandex-specific fact this session's earlier
+            // research pass left unverified — it puts Yandex in the PKCE-only public-client
+            // bucket with Dropbox/Google Drive/OneDrive, not the confidential-client bucket with
+            // Box/pCloud, though clientSecret is still threaded through (nil unless the owner's
+            // own app registration ends up needing one).
+            return OAuthProviderConfig(
+                provider: provider,
+                clientID: trimmedClientID,
+                clientSecret: clientSecret,
+                authorizationEndpoint: URL(string: "https://oauth.yandex.com/authorize")!,
+                tokenEndpoint: URL(string: "https://oauth.yandex.com/token")!,
+                redirectURI: redirectURI,
+                scopes: ["cloud_api:disk.read"],
+                apiEnvironment: .production(provider: provider)
+            )
         }
     }
 

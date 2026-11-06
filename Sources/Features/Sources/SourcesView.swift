@@ -336,7 +336,7 @@ struct SourceRow: View {
         case .iaList: return String(localized: "List · streams from archive.org")
         case .iaCollection: return String(localized: "Collection · streams from archive.org")
         case .iaFavorites: return String(localized: "Favorites · streams from archive.org")
-        case .subsonic, .webDAV, .smb, .jellyfin, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .jamendoGenre:
+        case .subsonic, .webDAV, .smb, .jellyfin, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
             return "\(RemoteConnectorCatalog.connector(for: source.kind)?.title ?? "Remote") library"
         }
     }

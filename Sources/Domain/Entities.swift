@@ -16,6 +16,7 @@ public enum SourceKind: String, Codable, CaseIterable, Sendable {
     case oneDrive
     case pCloud
     case box
+    case yandexDisk
     /// A Creative-Commons genre library from the Jamendo catalogue (§18A). The
     /// source's `iaIdentifier` is the genre path (`electronic/techno`), so a
     /// sub-genre is a different library from its parent (§18A.3).
@@ -105,7 +106,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
             return "music.note"
         case .subsonic, .jellyfin, .plex:
             return "server.rack"
-        case .webDAV, .smb, .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+        case .webDAV, .smb, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             return "externaldrive.connected.to.line.below"
         case .jamendoGenre:
             return "music.note.list"

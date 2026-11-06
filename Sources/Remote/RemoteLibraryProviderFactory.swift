@@ -18,7 +18,7 @@ public enum RemoteLibraryProviderFactory {
             return try JellyfinProvider.from(source: source, credentialStore: credentialStore)
         case .plex:
             return try PlexProvider.from(source: source, credentialStore: credentialStore)
-        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             return try CloudDriveProvider.from(source: source, credentialStore: credentialStore)
         case .jamendoGenre:
             return JamendoGenreProvider(clientID: JamendoAppConfig.clientID,
@@ -51,7 +51,7 @@ public enum RemoteLibraryProviderFactory {
             return [JellyfinServerPolicy.credentialAccount(sourceID: sourceID)]
         case .plex:
             return [PlexServerPolicy.credentialAccount(sourceID: sourceID)]
-        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             guard let provider = CloudDriveAPI.Provider(sourceKind: kind) else { return [] }
             return [CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: provider)]
         case .iaItem, .iaList, .iaCollection, .iaFavorites:

@@ -28,17 +28,22 @@ enum OAuthClientConfiguration {
         case .oneDrive: return GeneratedOAuthCredentials.oneDriveClientID
         case .pCloud: return GeneratedOAuthCredentials.pCloudClientID
         case .box: return GeneratedOAuthCredentials.boxClientID
+        case .yandexDisk: return GeneratedOAuthCredentials.yandexClientID
         }
     }
 
-    /// pCloud and Box are the two confidential-client providers here (pCloud's token exchange
-    /// isn't PKCE-only; Box's token endpoint has no code_verifier/code_challenge field at all) —
-    /// both need a real client secret, unlike Dropbox/Google Drive/OneDrive's PKCE-only public
-    /// clients.
+    /// pCloud and Box are confidential-client providers (pCloud's token exchange isn't
+    /// PKCE-only; Box's token endpoint has no code_verifier/code_challenge field at all) and need
+    /// a real client secret. Yandex ID confirmed real PKCE support ("you don't need to pass the
+    /// secret key" once code_verifier is sent) — it stays in the empty-secret bucket with
+    /// Dropbox/Google Drive/OneDrive unless the owner's own app registration says otherwise, in
+    /// which case filling in TONEARM_YANDEX_CLIENT_SECRET here is enough (OAuthProviderConfig
+    /// already threads an optional secret through regardless of PKCE usage).
     private static func clientSecret(for provider: CloudDriveAPI.Provider) -> String {
         switch provider {
         case .pCloud: return GeneratedOAuthCredentials.pCloudClientSecret
         case .box: return GeneratedOAuthCredentials.boxClientSecret
+        case .yandexDisk: return GeneratedOAuthCredentials.yandexClientSecret
         case .dropbox, .googleDrive, .oneDrive: return ""
         }
     }

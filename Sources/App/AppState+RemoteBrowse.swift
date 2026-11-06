@@ -54,7 +54,7 @@ extension AppState {
             return source.iaIdentifier
         case .plex:
             return String(localized: "Token saved")
-        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             return source.iaIdentifier
         case .smb:
             return String(localized: "Folder bookmark saved")
@@ -75,7 +75,7 @@ extension AppState {
             return String(localized: "Password saved")
         case .plex:
             return String(localized: "Token saved")
-        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box:
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             return "OAuth token saved"
         case .smb:
             return String(localized: "Bookmark saved")

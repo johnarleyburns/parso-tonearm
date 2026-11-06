@@ -16,6 +16,7 @@ final class RemoteConnectorCatalogTests: XCTestCase {
             .oneDrive,
             .pCloud,
             .box,
+            .yandexDisk,
             .iaItem,
             .iaList,
             .iaCollection,
@@ -57,7 +58,7 @@ final class RemoteConnectorCatalogTests: XCTestCase {
         let guided = Set(RemoteConnectorCatalog.all.filter { $0.tier == .guided }.flatMap(\.sourceKinds))
         let advanced = Set(RemoteConnectorCatalog.all.filter { $0.tier == .advanced }.flatMap(\.sourceKinds))
 
-        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .box, .subsonic, .webDAV, .jellyfin, .iaItem, .iaList, .iaCollection, .iaFavorites]))
+        XCTAssertEqual(guided, Set([.dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .subsonic, .webDAV, .jellyfin, .iaItem, .iaList, .iaCollection, .iaFavorites]))
         XCTAssertEqual(advanced, Set([.plex, .smb]))
     }
 
