@@ -89,15 +89,15 @@ public enum RemoteConnectorCatalog {
             connectorID: "subsonic",
             title: "Subsonic",
             proDisplayName: "Subsonic/Navidrome",
-            subtitle: "Subsonic or Navidrome",
+            subtitle: "Navidrome, Ampache, or Funkwhale",
             tier: .guided,
             authKind: .usernamePassword,
             icon: "server.rack",
             guide: guide(
                 "Connect Subsonic or Navidrome",
-                prerequisites: "A reachable Subsonic-compatible server URL, username, and password.",
+                prerequisites: "A reachable Subsonic-compatible server URL, username, and password. On Ampache, use the account's generated API key as the password, not the regular account password — Ampache hashes the two differently. On Funkwhale, use the separate Subsonic password from the pod's settings page, not the main account password; a pod admin can also disable Subsonic access entirely.",
                 steps: "Enter the server URL, username, and password. Platterhead pings the server, then browses artists, albums, and tracks through the Subsonic API.",
-                troubleshooting: "If connection fails, confirm the URL includes the correct path and port, HTTPS certificate trust is valid, and the account can stream music.",
+                troubleshooting: "If connection fails, confirm the URL includes the correct path and port, HTTPS certificate trust is valid, and the account can stream music. On Ampache, re-check that the password field holds the API key, not the account password. On Funkwhale, confirm Subsonic access is enabled for the account and that the dedicated Subsonic password is current. A server that connects but whose library always appears empty likely only partially implements the Subsonic API (common on Funkwhale) rather than being misconfigured.",
                 privacy: "Credentials are stored locally in Apple Keychain. Platterhead asks for stream URLs only when browsing or playing."
             )
         ),

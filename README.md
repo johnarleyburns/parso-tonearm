@@ -78,7 +78,7 @@ routes your music through a Platterhead server.
 | pCloud | Guided | OAuth | Sign in, then Platterhead uses the correct pCloud API host. |
 | Box | Guided | OAuth | Sign in, approve read-only file access, browse folders. |
 | Yandex.Disk | Guided | OAuth + PKCE | Sign in with read-only Disk access, browse folders. |
-| Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. |
+| Subsonic/Navidrome | Guided | URL + username/password | Enter your server URL and account credentials. Also reaches Ampache (use its API key as the password) and Funkwhale (use its separate Subsonic password) through the same Subsonic-compatible API. |
 | WebDAV | Guided | URL + username/password | Use a WebDAV endpoint for Nextcloud, ownCloud, rclone, or a NAS. |
 | Jellyfin | Guided | URL + username/password | Enter the Jellyfin URL and an account with music-library access. |
 | Jamendo genre libraries | Guided | none | Pick a genre (free, Creative-Commons music); each becomes its own library. Requires a Jamendo application `client_id` in `TONEARM_JAMENDO_CLIENT_ID`. |

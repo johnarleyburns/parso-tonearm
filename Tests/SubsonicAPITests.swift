@@ -291,3 +291,43 @@ final class SubsonicAPITests: XCTestCase {
         Data(string.utf8)
     }
 }
+
+// MARK: - Partial Subsonic implementations (Ampache/Funkwhale hardening)
+
+/// Always answers with a server-error status, regardless of which Subsonic endpoint was
+/// requested — enough to simulate a server (e.g. a Funkwhale pod with Subsonic access disabled,
+/// per Funkwhale's own docs) where neither getArtists nor getIndexes is reachable.
+private final class AlwaysFailingSubsonicStub: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: "1.1", headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
+final class SubsonicProviderPartialImplementationTests: XCTestCase {
+    private func makeProvider() -> SubsonicProvider {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [AlwaysFailingSubsonicStub.self]
+        return SubsonicProvider(
+            baseURL: URL(string: "https://pod.example.test")!,
+            username: "alice",
+            password: "password",
+            session: URLSession(configuration: config)
+        )
+    }
+
+    func testRootBrowseReturnsAnEmptyLibraryRatherThanThrowingWhenNeitherArtistEndpointIsReachable() async throws {
+        // Real gap this hardens: Funkwhale's own docs say it implements only "a subset" of the
+        // Subsonic API, and a pod admin can disable Subsonic access entirely server-wide — once
+        // AppState.addSubsonicServer's own ping has already validated the connection/credentials
+        // at add time, a later failure here reads as "nothing reachable through this API," which
+        // the existing "No music found" empty-browse state already represents honestly, not as a
+        // hard error that blocks the whole library from opening.
+        let nodes = try await makeProvider().browse(path: "")
+        XCTAssertEqual(nodes, [])
+    }
+}

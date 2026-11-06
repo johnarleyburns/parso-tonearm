@@ -150,13 +150,27 @@ public struct SubsonicProvider: RemoteLibraryProvider {
         return data
     }
 
+    /// Falls through getArtists -> getIndexes -> an empty library, never a thrown error, once
+    /// `refresh()`'s own ping has already validated the connection and credentials (every
+    /// `AppState.addSubsonicServer` call pings before saving the source, so by the time this runs
+    /// later a failure here is far more likely to be a Funkwhale-style partial Subsonic
+    /// implementation — Funkwhale's own docs say it implements only "a subset" of the API, and a
+    /// pod admin can disable Subsonic access entirely server-wide — than fresh bad credentials.
+    /// Surfacing that as "No music found" (the existing empty-browse UI state) is more honest
+    /// than a hard error for a server that genuinely has nothing reachable through this API, and
+    /// matches real-world Navidrome/Ampache/Funkwhale variance better than failing the whole
+    /// browse.
     private func browseArtists() async throws -> [SubsonicArtist] {
         do {
             let data = try await data(for: .getArtists)
             return try SubsonicAPI.decodeArtists(data, format: format)
         } catch {
-            let data = try await data(for: .getIndexes)
-            return try SubsonicAPI.decodeArtists(data, format: format)
+            do {
+                let data = try await data(for: .getIndexes)
+                return try SubsonicAPI.decodeArtists(data, format: format)
+            } catch {
+                return []
+            }
         }
     }
 
