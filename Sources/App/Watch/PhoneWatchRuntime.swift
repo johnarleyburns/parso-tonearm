@@ -225,7 +225,11 @@ final class PhoneWatchRuntime {
     /// change would churn the WCSession context for nothing (I-10).
     private func publishPlaybackIfChanged() async {
         let fingerprint = [
-            player.isPlaying ? "1" : "0",
+            // Matches what `playbackAdapter.snapshot(revision:)` actually sends
+            // (PhoneWatchPlaybackAdapter.swift) — otherwise a stall onset/recovery (isAdvancing
+            // flips, raw isPlaying doesn't) would change the pushed snapshot without changing
+            // this fingerprint, so the watch would never be told about it.
+            player.isAdvancing ? "1" : "0",
             String(player.index),
             String(player.queue.count),
             player.queue.indices.contains(player.index)

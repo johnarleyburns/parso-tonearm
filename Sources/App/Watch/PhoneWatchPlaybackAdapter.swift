@@ -45,7 +45,10 @@ public final class PhoneWatchPlaybackAdapter: PhoneWatchPlaybackBridge {
         let input = WatchPlaybackSnapshotBuilder.Input(
             revision: revision,
             source: queue.isEmpty ? .none : .localLibrary,
-            isPlaying: player.isPlaying,
+            // `isAdvancing` (not the raw, optimistic `isPlaying`) so the watch never reports
+            // "playing" during a buffering stall — matches the home-screen widget
+            // (WidgetSnapshotPublisher.swift), which already uses this derived value.
+            isPlaying: player.isAdvancing,
             queue: queue,
             index: player.index,
             elapsedSeconds: player.currentTime,
