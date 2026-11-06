@@ -31,11 +31,17 @@ private struct RootTabChrome: ViewModifier {
     @Environment(\.rootTabNowPlayingNamespace) private var namespace
     let tab: AppTab
 
-    private var nowPlaying: Binding<Bool> {
+    /// `.navigationDestination(isPresented:)`, re-derived independently inside each tab's own
+    /// `NavigationStack` from one shared `Bool`, is the exact class of SwiftUI boolean-driven-
+    /// presentation fragility `SettingsView.swift` already diagnosed and fixed once for a sheet
+    /// ("only some of them reliably present... a single `.sheet(item:)` bound to one optional
+    /// value doesn't have this failure mode"). `AppTab?` as the item is the equivalent fix here —
+    /// nil when not showing in this tab's stack, this tab's own case when it is.
+    private var nowPlayingItem: Binding<AppTab?> {
         Binding(
-            get: { appState.showNowPlaying && appState.tab == tab },
+            get: { (appState.showNowPlaying && appState.tab == tab) ? tab : nil },
             set: { showing in
-                if !showing { appState.showNowPlaying = false }
+                if showing == nil { appState.showNowPlaying = false }
             })
     }
 
@@ -44,7 +50,7 @@ private struct RootTabChrome: ViewModifier {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: accessoryHeight).allowsHitTesting(false)
             }
-            .navigationDestination(isPresented: nowPlaying) {
+            .navigationDestination(item: nowPlayingItem) { _ in
                 NowPlayingView()
                     .modifier(NowPlayingZoom(namespace: namespace))
             }

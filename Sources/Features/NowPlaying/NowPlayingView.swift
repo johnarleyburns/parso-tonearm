@@ -325,14 +325,24 @@ struct NowPlayingView: View {
             .accessibilityLabel("Previous Track")
             .accessibilityIdentifier("np.prev")
             Button { player.togglePlayPause() } label: {
-                Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                    .font(Typography.title)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
+                // Matches the mini player's buffering affordance (PlayerAccessory.swift): without
+                // it, this button looked falsely confident during exactly the window a tap might
+                // not do anything yet (still-unconfirmed first play, `shouldIgnoreToggle`).
+                if player.isStalled {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(Palette.ink)
+                        .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
+                } else {
+                    Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
+                        .font(Typography.title)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 66, height: 66).background(.ultraThinMaterial, in: Circle())
+                }
             }
-            .accessibilityLabel(player.isPlaying ? "Pause" : "Play")
+            .accessibilityLabel(player.isStalled ? "Buffering" : (player.isPlaying ? "Pause" : "Play"))
             .accessibilityIdentifier("np.playpause")
-            .accessibilityValue(player.isPlaying ? "playing" : "paused")
+            .accessibilityValue(player.isStalled ? "Buffering" : (player.isPlaying ? "playing" : "paused"))
             .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
             Button { player.next() } label: {
                 Image(systemName: "forward.fill").font(Typography.headline)
