@@ -30,6 +30,7 @@ struct SourceDetailView: View {
     @State private var showArtworkPicker = false
     @State private var showRemoveArtworkAlert = false
     @State var showLibrarySettings = false
+    @State private var showAddFolderToLibrary = false
 
     var body: some View {
         ScrollView {
@@ -53,6 +54,9 @@ struct SourceDetailView: View {
         }
         .sheet(isPresented: $showAddToPlaylist) {
             AddRemoteTracksSheet(source: source, nodes: audioNodesInScope, scopeTitle: scopeTitle)
+        }
+        .sheet(isPresented: $showAddFolderToLibrary) {
+            AddFolderToLibrarySheet(source: source, path: remotePath, scopeTitle: scopeTitle)
         }
         // Real report: Library Settings used to render inline at the bottom of the folder/
         // track list — confusing clutter on a long remote listing. Now a separate sheet,
@@ -166,6 +170,17 @@ struct SourceDetailView: View {
                         Label("Library Settings", systemImage: "gearshape")
                     }
                     .accessibilityIdentifier("source.librarySettings")
+                    // Only offered while browsing into an actual folder, not at the account
+                    // root — scoping to a folder is exactly what keeps this from pulling in
+                    // audio from unrelated folders elsewhere in the same remote account.
+                    if isBrowseableServer, !remotePath.isEmpty {
+                        Button {
+                            showAddFolderToLibrary = true
+                        } label: {
+                            Label("Add This Folder to My Music", systemImage: "folder.badge.plus")
+                        }
+                        .accessibilityIdentifier("source.addFolderToLibrary")
+                    }
                     Divider()
                 }
                 Button {

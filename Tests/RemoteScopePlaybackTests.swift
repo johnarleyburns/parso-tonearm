@@ -148,4 +148,82 @@ final class RemoteScopePlaybackTests: XCTestCase {
         let found = await RemoteScopePlayback.firstAudioNodes(in: provider, path: "")
         XCTAssertEqual(found.map(\.id), ["t1"])
     }
+
+    // MARK: - allAudioNodes ("Add This Folder to My Music")
+
+    /// Unlike `firstAudioNodes` (stops at the first branch with any audio, right for "Play"),
+    /// `allAudioNodes` must collect across every sibling branch.
+    func testAllAudioNodesCollectsAcrossEverySiblingBranch() async {
+        let provider = FakeProvider(tree: [
+            "": [directoryNode("artistA", path: "artist/A"),
+                 directoryNode("artistB", path: "artist/B")],
+            "artist/A": [audioNode("t1", path: "song/1")],
+            "artist/B": [audioNode("t2", path: "song/2"), audioNode("t3", path: "song/3")],
+        ])
+        let found = await RemoteScopePlayback.allAudioNodes(in: provider, path: "")
+        XCTAssertEqual(Set(found.map(\.id)), ["t1", "t2", "t3"])
+    }
+
+    func testAllAudioNodesIncludesTopLevelAudioAlongsideSubfolders() async {
+        let provider = FakeProvider(tree: [
+            "": [audioNode("t1", path: "song/1"),
+                 directoryNode("artistA", path: "artist/A")],
+            "artist/A": [audioNode("t2", path: "song/2")],
+        ])
+        let found = await RemoteScopePlayback.allAudioNodes(in: provider, path: "")
+        XCTAssertEqual(Set(found.map(\.id)), ["t1", "t2"])
+    }
+
+    func testAllAudioNodesRespectsDepthLimit() async {
+        let provider = FakeProvider(tree: [
+            "": [directoryNode("folder1", path: "folder/1")],
+            "folder/1": [directoryNode("folder2", path: "folder/2")],
+            "folder/2": [directoryNode("folder3", path: "folder/3")],
+            "folder/3": [directoryNode("folder4", path: "folder/4")],
+            "folder/4": [directoryNode("folder5", path: "folder/5")],
+            "folder/5": [directoryNode("folder6", path: "folder/6")],
+            "folder/6": [audioNode("deep", path: "song/deep")],
+        ])
+        let found = await RemoteScopePlayback.allAudioNodes(in: provider, path: "", maxDepth: 5)
+        XCTAssertTrue(found.isEmpty, "depth beyond maxDepth must not be reached")
+    }
+
+    func testAllAudioNodesCycleInPathsDoesNotHang() async {
+        let provider = FakeProvider(tree: [
+            "": [directoryNode("artistA", path: "artist/A")],
+            "artist/A": [directoryNode("loop", path: "artist/A"), audioNode("t1", path: "song/1")],
+        ])
+        let found = await RemoteScopePlayback.allAudioNodes(in: provider, path: "")
+        XCTAssertEqual(found.map(\.id), ["t1"])
+    }
+
+    func testAllAudioNodesTreatsAFailingBranchAsEmptyNotFatal() async {
+        let provider = FakeProvider(
+            tree: [
+                "": [directoryNode("artistA", path: "artist/A"),
+                     directoryNode("artistB", path: "artist/B")],
+                "artist/B": [audioNode("t1", path: "song/1")],
+            ],
+            failingPaths: ["artist/A"]
+        )
+        let found = await RemoteScopePlayback.allAudioNodes(in: provider, path: "")
+        XCTAssertEqual(found.map(\.id), ["t1"])
+    }
+
+    func testAllAudioNodesReportsProgressAsFoldersAreVisited() async {
+        let provider = FakeProvider(tree: [
+            "": [directoryNode("artistA", path: "artist/A"),
+                 directoryNode("artistB", path: "artist/B")],
+            "artist/A": [audioNode("t1", path: "song/1")],
+            "artist/B": [audioNode("t2", path: "song/2")],
+        ])
+        var folderCounts: [Int] = []
+        var trackCounts: [Int] = []
+        _ = await RemoteScopePlayback.allAudioNodes(in: provider, path: "") { folders, tracks in
+            folderCounts.append(folders)
+            trackCounts.append(tracks)
+        }
+        XCTAssertEqual(folderCounts, [1, 2, 3], "one folder visited at a time, monotonically increasing")
+        XCTAssertEqual(trackCounts, [0, 1, 2], "running track count after each folder is listed")
+    }
 }
