@@ -33,6 +33,20 @@ public struct RemotePlaylistIngest: Sendable {
                 if let nodeID = row.asset?.remoteNodeID, !nodeID.isEmpty { existingJamendoNode[nodeID] = row.id }
             }
         }
+        // Real report: re-browsing to and replaying the same Dropbox/Google Drive file created a
+        // genuine duplicate track every time, instead of finding the one already imported.
+        // URL-only dedup has more moving parts than it looks (base-URL construction, query
+        // encoding) across two independent `resolve()` calls than a stable provider-native id
+        // does. Jamendo already dedupes by `node.id` for exactly this class of reason ("a shared
+        // stream URL must not merge distinct tracks" — the same identity check, used the other
+        // direction, means a *different*-looking resolved URL must not be treated as a different
+        // track when the provider's own id says it's the same one). Extend that same node-id
+        // identity to every remote provider, not just Jamendo, checked before falling back to the
+        // URL match below.
+        var existingByNodeID: [String: Int64] = [:]
+        for row in existingRows {
+            if let nodeID = row.asset?.remoteNodeID, !nodeID.isEmpty { existingByNodeID[nodeID] = row.id }
+        }
         let oldAssets = Dictionary(existingRows.map { ($0.id, $0.asset) }, uniquingKeysWith: { a, _ in a })
         let album: Album
         if let found = try? await store.firstAlbum(sourceId: sourceID, title: source.title) {
@@ -70,6 +84,20 @@ public struct RemotePlaylistIngest: Sendable {
                         }
                         throw error
                     }
+                    existing[url] = id
+                    ids.append(id)
+                    continue
+                }
+                // Checked before the URL match: see the `existingByNodeID` comment above.
+                let trimmedNodeID = node.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                if source.kind != .jamendoGenre, !trimmedNodeID.isEmpty,
+                   let id = existingByNodeID[node.id] {
+                    // The resolved URL can legitimately differ from what's stored (a fresh temp
+                    // link, say) even though it's the same file — refresh the stored locator so a
+                    // later replay isn't working from an even-staler URL, then reuse the existing
+                    // track instead of duplicating it.
+                    try? await store.updateRemoteAssetURL(trackID: id, remoteURL: resolved.url,
+                                                          sizeBytes: resolved.sizeBytes ?? node.sizeBytes)
                     existing[url] = id
                     ids.append(id)
                     continue

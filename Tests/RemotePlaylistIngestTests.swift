@@ -35,6 +35,38 @@ final class RemotePlaylistIngestTests: XCTestCase {
         }
     }
 
+    /// Real report: re-browsing to and replaying the same Dropbox/Google Drive file created a
+    /// genuine duplicate track, rather than finding the one already imported, and the duplicate
+    /// then got favorited separately too ("it shows as not favorited" the second time, "clicking
+    /// favorites again creates another duplicate entry"). Simulates the second `persist` call
+    /// getting back a DIFFERENT resolved URL for the exact same provider node — the stable
+    /// identity (`node.id`) must still be recognized as the same track, not a new one.
+    func testSameNodeIDWithADifferentResolvedURLIsNotDuplicated() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await store.insertSource(Source(
+            id: nil, kind: .dropbox, iaIdentifier: nil, originalURL: nil, title: "Dropbox",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        let node = RemoteNode(id: "stable-drive-id-42", title: "Song", path: "/song.mp3", kind: .audio)
+
+        let first = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in
+            ResolvedAsset(url: URL(string: "https://example.test/first-temp-link")!)
+        }, source: source, store: store)
+        XCTAssertEqual(first.trackIDs.count, 1)
+
+        // Same node, a completely different resolved URL (e.g. a fresh, differently-signed temp
+        // link) -- must still resolve to the SAME track, not a second one.
+        let second = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in
+            ResolvedAsset(url: URL(string: "https://example.test/second-temp-link")!)
+        }, source: source, store: store)
+        XCTAssertEqual(second.trackIDs, first.trackIDs, "the same provider node must never be duplicated")
+
+        let rows = try await store.tracks(forSource: source.id!)
+        XCTAssertEqual(rows.count, 1, "must still be exactly one track, not two")
+        XCTAssertEqual(rows.first?.asset?.remoteURL, "https://example.test/second-temp-link",
+                       "the stored locator should refresh to the latest resolve, not stay stuck on the first")
+    }
+
     func testResolveFailureSkipsOnlyThatNode() async throws {
         enum Failure: Error { case expected }
         let store = try LibraryStore(inMemory: true)
