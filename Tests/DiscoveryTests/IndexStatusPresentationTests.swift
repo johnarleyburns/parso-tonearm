@@ -359,6 +359,40 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertTrue(text.contains("10 total"))
         XCTAssertTrue(text.contains("1.2.3 (456)"))
     }
+
+    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
+    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
+
+    func testCurrentTrackAndETAShowOnlyWhileActivelyIndexing() {
+        let track = IndexJobRepository.RunningTrackSummary(
+            id: 1, title: "Some Song", artistName: "Some Artist", completedWindows: 3, totalWindows: 10)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 50, complete: 10, queuedOrRunning: 40),
+                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
+        XCTAssertEqual(p.phase, .indexing)
+        XCTAssertEqual(p.currentTrackTitle, "Some Song")
+        XCTAssertEqual(p.currentTrackArtist, "Some Artist")
+        XCTAssertEqual(p.currentTrackFraction, 0.3)
+        XCTAssertNotNil(p.estimatedTimeRemainingText)
+    }
+
+    /// Real risk this guards against: a job can hold a `running` lease while the scheduler is
+    /// genuinely blocked (thermal/battery/playback) — `coverage` alone can't tell that apart from
+    /// real progress. Showing "30%" and an ETA for a track that is NOT actually advancing would be
+    /// exactly the fabricated-progress CLAUDE.md forbids.
+    func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicyDespiteARunningLease() {
+        let track = IndexJobRepository.RunningTrackSummary(
+            id: 1, title: "Stuck Song", artistName: nil, completedWindows: 1, totalWindows: 10)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 50, complete: 10, queuedOrRunning: 40),
+                blockReason: .thermalSerious,
+                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
+        XCTAssertEqual(p.phase, .blockedByPolicy)
+        XCTAssertNil(p.currentTrackTitle)
+        XCTAssertNil(p.estimatedTimeRemainingText)
+    }
 }
 
 /// `ModelDownloadProgress.aggregate(_:)` turns the live
@@ -453,38 +487,10 @@ final class ModelDownloadProgressAggregateTests: XCTestCase {
     }
 
     // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
-    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
-
-    func testCurrentTrackAndETAShowOnlyWhileActivelyIndexing() {
-        let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Some Song", artistName: "Some Artist", completedWindows: 3, totalWindows: 10)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 50, complete: 10, queuedOrRunning: 40),
-                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
-        XCTAssertEqual(p.phase, .indexing)
-        XCTAssertEqual(p.currentTrackTitle, "Some Song")
-        XCTAssertEqual(p.currentTrackArtist, "Some Artist")
-        XCTAssertEqual(p.currentTrackFraction, 0.3)
-        XCTAssertNotNil(p.estimatedTimeRemainingText)
-    }
-
-    /// Real risk this guards against: a job can hold a `running` lease while the scheduler is
-    /// genuinely blocked (thermal/battery/playback) — `coverage` alone can't tell that apart from
-    /// real progress. Showing "30%" and an ETA for a track that is NOT actually advancing would be
-    /// exactly the fabricated-progress CLAUDE.md forbids.
-    func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicyDespiteARunningLease() {
-        let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Stuck Song", artistName: nil, completedWindows: 1, totalWindows: 10)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 50, complete: 10, queuedOrRunning: 40),
-                blockReason: .thermalSerious,
-                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
-        XCTAssertEqual(p.phase, .blockedByPolicy)
-        XCTAssertNil(p.currentTrackTitle)
-        XCTAssertNil(p.estimatedTimeRemainingText)
-    }
+    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing") -- the two tests
+    // actually requiring IndexStatusPresentationTests' own coverage()/snapshot() helpers live
+    // there instead (this class has no access to another class' private members); these two
+    // below are pure IndexStatusPresentation statics, which don't need those helpers at all.
 
     func testEstimatedTimeRemainingTextIsNeverFabricatedWithoutARealRate() {
         XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: nil))

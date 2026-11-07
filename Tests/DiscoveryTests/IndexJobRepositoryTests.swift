@@ -519,8 +519,8 @@ final class IndexJobRepositoryTests: XCTestCase {
         _ = try await repo.enqueueOrRestart(
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        XCTAssertNil(try await repo.currentlyRunningTrack(pipelineVersion: 1),
-                     "nothing is running before a job is claimed")
+        let notYetRunning = try await repo.currentlyRunningTrack(pipelineVersion: 1)
+        XCTAssertNil(notYetRunning, "nothing is running before a job is claimed")
 
         let claim = try await repo.claimNextJob()!
         let fresh = try await repo.currentlyRunningTrack(pipelineVersion: 1)
@@ -543,8 +543,8 @@ final class IndexJobRepositoryTests: XCTestCase {
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
         try await repo.completeStage(
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
-        XCTAssertNil(try await repo.currentlyRunningTrack(pipelineVersion: 1),
-                     "a completed job no longer holds a running lease")
+        let afterCompletion = try await repo.currentlyRunningTrack(pipelineVersion: 1)
+        XCTAssertNil(afterCompletion, "a completed job no longer holds a running lease")
     }
 
     func testRecentCompletionRateMeasuresRealWallClockThroughputNotQueueWaitTime() async throws {
@@ -553,7 +553,8 @@ final class IndexJobRepositoryTests: XCTestCase {
         let repo = IndexJobRepository(writer: queue, clock: clock.now)
 
         // No completions yet -> nil, never a fabricated rate.
-        XCTAssertNil(try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now()))
+        let noCompletionsYet = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
+        XCTAssertNil(noCompletionsYet)
 
         // A job that sat queued for a long time before running must not count that wait as
         // "processing time" -- the rate is measured from real completion timestamps, not
@@ -570,10 +571,11 @@ final class IndexJobRepositoryTests: XCTestCase {
 
         // One completion inside a 300s trailing window -> rate = 1/300.
         let rate = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
-        XCTAssertEqual(rate, 1.0 / 300, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(rate), 1.0 / 300, accuracy: 0.0001)
 
         // The same completion falls outside a short trailing window measured later -> nil again.
         clock.advance(by: 301)
-        XCTAssertNil(try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now()))
+        let outsideWindow = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
+        XCTAssertNil(outsideWindow)
     }
 }
