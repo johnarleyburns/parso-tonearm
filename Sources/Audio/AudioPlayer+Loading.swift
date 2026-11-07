@@ -569,7 +569,12 @@ extension AudioPlayer {
         stallWatchTask?.cancel()
         stallWatchTask = nil
         guard autoplay else { return }
-        let timeout = stallEvaluationTimeout
+        // A remote stream legitimately needs far longer than a local file to open and buffer
+        // (cloud-drive auth, Jamendo link resolution, cold cache). Real report (#271): with the
+        // local-file window, every slow-starting remote track was declared "stalled" after 12s,
+        // skipped, and playback went back to paused with nothing ever playing.
+        let isRemoteItem = (player.currentItem?.asset as? AVURLAsset).map { !$0.url.isFileURL } ?? false
+        let timeout = isRemoteItem ? max(stallEvaluationTimeout, remoteStallEvaluationTimeout) : stallEvaluationTimeout
         stallWatchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: timeout)
             guard !Task.isCancelled, let self else { return }
@@ -578,6 +583,8 @@ extension AudioPlayer {
                 break
             case .skip:
                 loadingLog.error("playback never confirmed progress (generation \(generation, privacy: .public)) — skipping to next")
+                self.networkSkipMessage = String(
+                    localized: "Skipped a track that never started playing", bundle: .module)
                 self.next()
             case .giveUp:
                 loadingLog.error("playback failed to confirm progress \(self.stallModel.maxConsecutiveSkips, privacy: .public) times in a row — stopping")
