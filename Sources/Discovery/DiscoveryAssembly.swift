@@ -149,6 +149,10 @@ public actor DiscoveryAssembly {
         let remoteIndexingWiFiOnly = (try? await settings.isRemoteIndexingWiFiOnly()) ?? true
         let modelAvailable = await models.isModelResourceAvailable()
         let runtime = (try? await settings.runtime()) ?? DiscoveryRuntime(id: 1)
+        let currentlyIndexingTrack = try? await jobs.currentlyRunningTrack(
+            pipelineVersion: DiscoveryPipelineVersion.pipeline)
+        let recentCompletionRate = try? await jobs.recentCompletionRate(
+            pipelineVersion: DiscoveryPipelineVersion.pipeline)
         return IndexStatusSnapshot(
             coverage: coverage,
             isPaused: paused,
@@ -171,7 +175,9 @@ public actor DiscoveryAssembly {
             // see it actually progressing."
             thermalDiagnostic: lastBlockReason.flatMap {
                 Self.thermalDiagnostic(for: $0, snapshotProvider: snapshotProvider)
-            })
+            },
+            currentlyIndexingTrack: currentlyIndexingTrack,
+            recentCompletionRate: recentCompletionRate)
     }
 
     /// "Retry failed" status action (plan §10 action 4). Returns the count of

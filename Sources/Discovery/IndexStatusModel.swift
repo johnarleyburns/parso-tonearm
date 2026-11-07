@@ -183,6 +183,17 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
     /// Real numbers behind `schedulerBlockReason` when it is a thermal reason — see
     /// `ThermalDiagnostic`'s doc for why this must not be collapsed into the reason alone.
     public var thermalDiagnostic: ThermalDiagnostic?
+    /// The one track actively being worked on right now, with its own progress — real report:
+    /// "what track is being indexed, the % progress of the INDIVIDUAL TRACK, not just all
+    /// tracks." `nil` whenever nothing currently holds a running lease (idle, paused, or every
+    /// eligible job is parked waiting).
+    public var currentlyIndexingTrack: IndexJobRepository.RunningTrackSummary?
+    /// Tracks completed per second over a real trailing wall-clock window — `nil` when nothing
+    /// has completed recently enough to measure a rate (just started, paused, or blocked). The
+    /// presentation layer only turns this into an ETA while genuinely `.indexing` (see
+    /// `IndexStatusPresentation`) — never while paused/blocked, where no numeric estimate would
+    /// be honest.
+    public var recentCompletionRate: Double?
 
     public init(
         coverage: IndexJobRepository.Coverage,
@@ -199,7 +210,9 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         capturedAt: Date = Date(),
         currentEngine: DiscoveryExecutionPolicy.Engine? = nil,
         schedulerBlockReason: IndexBlockReason? = nil,
-        thermalDiagnostic: ThermalDiagnostic? = nil
+        thermalDiagnostic: ThermalDiagnostic? = nil,
+        currentlyIndexingTrack: IndexJobRepository.RunningTrackSummary? = nil,
+        recentCompletionRate: Double? = nil
     ) {
         self.coverage = coverage
         self.isPaused = isPaused
@@ -216,6 +229,8 @@ public struct IndexStatusSnapshot: Equatable, Sendable {
         self.currentEngine = currentEngine
         self.schedulerBlockReason = schedulerBlockReason
         self.thermalDiagnostic = thermalDiagnostic
+        self.currentlyIndexingTrack = currentlyIndexingTrack
+        self.recentCompletionRate = recentCompletionRate
     }
 }
 
@@ -256,6 +271,18 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     public var canResume: Bool
     public var canRetryFailed: Bool
     public var failedCount: Int
+    /// The individual track currently being worked on, and its own progress — real report:
+    /// "what track is being indexed, the % progress of the INDIVIDUAL TRACK." Only populated
+    /// while `phase == .indexing` (a track can hold a `running` lease while genuinely blocked —
+    /// see `schedulerBlockReason` — where showing "0%" for a track that isn't actually
+    /// progressing would be exactly the misleading status CLAUDE.md forbids).
+    public var currentTrackTitle: String?
+    public var currentTrackArtist: String?
+    public var currentTrackFraction: Double?
+    /// A rough, honestly-labeled estimate — never shown as a precise countdown. `nil` whenever an
+    /// estimate wouldn't be honest: not actively `.indexing`, or no track has finished recently
+    /// enough to measure a real rate yet.
+    public var estimatedTimeRemainingText: String?
 
     public static func make(from snapshot: IndexStatusSnapshot) -> IndexStatusPresentation {
         let c = snapshot.coverage
@@ -322,6 +349,12 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             detail = String(localized: "Indexing is idle.", bundle: .module)
         }
 
+        let currentTrack = phase == .indexing ? snapshot.currentlyIndexingTrack : nil
+        let remaining = c.queuedOrRunning + c.waiting
+        let eta = phase == .indexing
+            ? Self.estimatedTimeRemainingText(remaining: remaining, rate: snapshot.recentCompletionRate)
+            : nil
+
         return IndexStatusPresentation(
             phase: phase,
             headline: headline,
@@ -334,7 +367,11 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             canPause: !snapshot.isPaused && (c.queuedOrRunning > 0 || c.waiting > 0),
             canResume: snapshot.isPaused,
             canRetryFailed: canRetry,
-            failedCount: c.failed)
+            failedCount: c.failed,
+            currentTrackTitle: currentTrack?.title,
+            currentTrackArtist: currentTrack?.artistName,
+            currentTrackFraction: currentTrack?.fractionComplete,
+            estimatedTimeRemainingText: eta)
     }
 
     /// Real report this answers: "Waiting to continue. Indexing resumes
@@ -524,6 +561,25 @@ public struct IndexStatusPresentation: Equatable, Sendable {
             return String(localized: "Downloading the sound-search model — \(doneMB) of \(totalMB) MB (\(percent)%).", bundle: .module)
         }
         return String(localized: "Downloading the sound-search model — \(doneMB) of \(totalMB) MB.", bundle: .module)
+    }
+
+    /// Rough, honestly-labeled remaining-time text from a trailing-window completion rate — real
+    /// report: "ETAs for completing all indexing." Deliberately never a precise countdown: the
+    /// rate is a trailing average, not a guarantee, so this always reads "about" and rounds to
+    /// the nearest coarse unit rather than implying second-level precision CLAUDE.md's "no
+    /// silent/magic background work" principle would call overstated confidence.
+    static func estimatedTimeRemainingText(remaining: Int, rate: Double?) -> String? {
+        guard remaining > 0, let rate, rate > 0 else { return nil }
+        let seconds = Double(remaining) / rate
+        if seconds < 60 {
+            return String(localized: "Finishing up…", bundle: .module)
+        }
+        let minutes = Int((seconds / 60).rounded())
+        if minutes < 60 {
+            return String(localized: "About \(minutes) min remaining", bundle: .module)
+        }
+        let hours = Int((Double(minutes) / 60).rounded())
+        return String(localized: "About \(hours) hr remaining", bundle: .module)
     }
 
     private static func bytesToMB(_ bytes: Int64) -> Int {

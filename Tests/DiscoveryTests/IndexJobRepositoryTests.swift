@@ -508,4 +508,72 @@ final class IndexJobRepositoryTests: XCTestCase {
         XCTAssertEqual(list.first?.detail, "could not decode audio",
                        "must surface the real recorded error, not a generic label")
     }
+
+    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
+    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
+
+    func testCurrentlyRunningTrackReflectsTheOneClaimedJobsOwnProgress() async throws {
+        let queue = try makeQueue()
+        let repo = IndexJobRepository(writer: queue)
+        let trackID = try await seedTrack(queue, title: "Now Playing Track")
+        _ = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+
+        XCTAssertNil(try await repo.currentlyRunningTrack(pipelineVersion: 1),
+                     "nothing is running before a job is claimed")
+
+        let claim = try await repo.claimNextJob()!
+        let fresh = try await repo.currentlyRunningTrack(pipelineVersion: 1)
+        XCTAssertEqual(fresh?.id, trackID)
+        XCTAssertEqual(fresh?.title, "Now Playing Track")
+        XCTAssertNil(fresh?.fractionComplete, "no window count reported yet -> no fabricated 0%")
+
+        try await repo.recordWindowCompletion(
+            jobId: claim.job.id, leaseToken: claim.leaseToken,
+            checkpoint: DiscoveryWindowCheckpoint(
+                jobId: claim.job.id, revisionSignature: "r1", windowIndex: 0, startSeconds: 0,
+                embeddingVector: Data([1]), poolingWeight: 1, completedAt: Date()),
+            totalWindows: 4)
+        let partial = try await repo.currentlyRunningTrack(pipelineVersion: 1)
+        XCTAssertEqual(partial?.completedWindows, 1)
+        XCTAssertEqual(partial?.totalWindows, 4)
+        XCTAssertEqual(partial?.fractionComplete, 0.25)
+
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+        XCTAssertNil(try await repo.currentlyRunningTrack(pipelineVersion: 1),
+                     "a completed job no longer holds a running lease")
+    }
+
+    func testRecentCompletionRateMeasuresRealWallClockThroughputNotQueueWaitTime() async throws {
+        let queue = try makeQueue()
+        let clock = MutableTestClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let repo = IndexJobRepository(writer: queue, clock: clock.now)
+
+        // No completions yet -> nil, never a fabricated rate.
+        XCTAssertNil(try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now()))
+
+        // A job that sat queued for a long time before running must not count that wait as
+        // "processing time" -- the rate is measured from real completion timestamps, not
+        // (updatedAt - createdAt).
+        let trackID = try await seedTrack(queue, title: "Slow To Start")
+        _ = try await repo.enqueueOrRestart(
+            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
+        clock.advance(by: 3600) // sits queued for an hour
+        let claim = try await repo.claimNextJob()!
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
+        try await repo.completeStage(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+
+        // One completion inside a 300s trailing window -> rate = 1/300.
+        let rate = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
+        XCTAssertEqual(rate, 1.0 / 300, accuracy: 0.0001)
+
+        // The same completion falls outside a short trailing window measured later -> nil again.
+        clock.advance(by: 301)
+        XCTAssertNil(try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now()))
+    }
 }

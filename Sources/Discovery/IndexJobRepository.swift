@@ -550,4 +550,72 @@ public actor IndexJobRepository {
                 }
         }
     }
+
+    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
+    // progress of the INDIVIDUAL TRACK as it's being done, not just all tracks... ETAs").
+
+    /// The one track currently being actively worked on, if any — `nil` when nothing holds a
+    /// `running` lease right now (idle, paused, or every eligible job is parked waiting on
+    /// something). At most one job is ever `running` per process (`claimNextJob`'s single-claim
+    /// contract), so this is unambiguous.
+    public struct RunningTrackSummary: Identifiable, Equatable, Sendable {
+        public let id: Int64
+        public let title: String
+        public let artistName: String?
+        public let completedWindows: Int
+        public let totalWindows: Int
+        /// `nil` until the worker has reported a real window count for this track (freshly
+        /// claimed, or a track too short to need windowing) — never a fabricated 0% or 100%.
+        public var fractionComplete: Double? {
+            guard totalWindows > 0 else { return nil }
+            return min(1, max(0, Double(completedWindows) / Double(totalWindows)))
+        }
+    }
+
+    public func currentlyRunningTrack(pipelineVersion: Int) throws -> RunningTrackSummary? {
+        try writer.read { db in
+            try Row.fetchOne(
+                db,
+                sql: """
+                    SELECT t.id AS trackId, t.title AS title, a.name AS artistName,
+                           j.completedWindows AS completedWindows, j.totalWindows AS totalWindows
+                    FROM discovery_index_job j
+                    JOIN track t ON t.id = j.trackId
+                    LEFT JOIN artist a ON a.id = t.artistId
+                    WHERE j.pipelineVersion = ? AND j.state = 'running'
+                    ORDER BY j.updatedAt DESC
+                    LIMIT 1
+                    """,
+                arguments: [pipelineVersion]
+            ).map { row in
+                RunningTrackSummary(
+                    id: row["trackId"] as Int64, title: row["title"] as String,
+                    artistName: row["artistName"] as String?,
+                    completedWindows: row["completedWindows"] as Int,
+                    totalWindows: row["totalWindows"] as Int)
+            }
+        }
+    }
+
+    /// Tracks completed per second, measured over the real wall-clock trailing `window` (default
+    /// 5 minutes) rather than per-job duration (`updatedAt - createdAt`), which would wrongly
+    /// include however long a job sat queued/waiting before it ever actually ran. `nil` when
+    /// nothing has completed in that window — honestly "can't estimate yet" rather than a
+    /// fabricated rate from zero completions (CLAUDE.md: never overstate confidence).
+    public func recentCompletionRate(
+        pipelineVersion: Int, window: TimeInterval = 300, now: Date? = nil
+    ) throws -> Double? {
+        let cutoff = (now ?? clock()).addingTimeInterval(-window)
+        let count = try writer.read { db in
+            try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*) FROM discovery_index_job
+                    WHERE pipelineVersion = ? AND state = 'complete' AND updatedAt >= ?
+                    """,
+                arguments: [pipelineVersion, cutoff]) ?? 0
+        }
+        guard count > 0 else { return nil }
+        return Double(count) / window
+    }
 }
