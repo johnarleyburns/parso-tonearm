@@ -514,5 +514,57 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v46", upTo: target) {
+            migrator.registerMigration("v46") { db in
+                // Real report (owner's own words): "why would mood EVER return non bpm/
+                // camelot tracks: don't we index clap and bpm/camelot at the same time
+                // so the tracks either have both or neither? We should not be having
+                // some tracks with clap but missing bpm/camelot this breaks our mixing
+                // model." Confirmed root cause, already documented as a known gap in
+                // BoundedIndexWorker.finalizeEmbedding's own doc comment: the embedding
+                // commit (discovery_embedding) and the musical-analysis commit
+                // (discovery_track_analysis) are two separate transactions, moments
+                // apart in the same scheduler tick but still a real window. `indexed`
+                // is a single, cheap flag set TRUE only inside
+                // BoundedIndexWorker.commitAnalysis's own transaction, the one commit
+                // that can see both tables (musical analysis always runs strictly after
+                // embedding reaches a terminal state within the same job, per
+                // processNextUnit's dispatch guard), and only when discovery_embedding
+                // genuinely exists for that track. Deliberately NOT used to gate general
+                // CLAP/keyword search (VectorIndex, SearchRepository.eligibleTrackIDs'
+                // default) -- only Mood's mix-compatible candidate pool
+                // (`requireIndexed`) requires it; an embedding alone is still a
+                // perfectly good semantic/keyword match for Discover.
+                try db.alter(table: "track") { t in
+                    t.add(column: "indexed", .boolean).notNull().defaults(to: false)
+                }
+                // Backfill the common, already-correct case instantly: a track whose
+                // embedding AND analysis both already landed (however the old,
+                // non-atomic code got there) is retroactively marked indexed with no
+                // re-processing needed.
+                try db.execute(sql: """
+                    UPDATE track SET indexed = 1 WHERE id IN (
+                        SELECT e.trackId FROM discovery_embedding e
+                        INNER JOIN discovery_track_analysis a ON a.trackId = e.trackId
+                    )
+                    """)
+                // The genuinely inconsistent case: a job already marked terminal-
+                // complete on both stages whose track still lacks one of the two
+                // tables -- the exact "stuck half-indexed forever" bug, since nothing
+                // else would ever reclaim an already-terminal job. Reset it to a
+                // fresh, re-triable state so the scheduler picks it back up under the
+                // now-atomic commit path.
+                try db.execute(sql: """
+                    UPDATE discovery_index_job
+                    SET state = 'queued', embeddingStageState = 'pending',
+                        musicalAnalysisStageState = 'pending', nextAttemptAt = NULL,
+                        attemptCount = 0, leaseToken = NULL, leaseExpiresAt = NULL,
+                        errorCode = NULL, errorMessage = NULL, completedWindows = 0, totalWindows = 0
+                    WHERE embeddingStageState IN ('complete', 'failed', 'unsupported')
+                      AND musicalAnalysisStageState IN ('complete', 'failed', 'unsupported')
+                      AND trackId NOT IN (SELECT id FROM track WHERE indexed = 1)
+                    """)
+            }
+        }
     }
 }

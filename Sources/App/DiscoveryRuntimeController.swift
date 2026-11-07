@@ -377,7 +377,7 @@ final class DiscoveryRuntimeController {
     /// `AppState` playback path an ordinary library row uses.
     func searchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
         if let searchVM { return searchVM }
-        let vm = await buildSearchViewModel(appState: appState, player: player)
+        let vm = await buildSearchViewModel(appState: appState, player: player, requireFullyIndexed: false)
         searchVM = vm
         return vm
     }
@@ -392,11 +392,16 @@ final class DiscoveryRuntimeController {
     /// reuses the one shared `assembly.search` (`makeAssembly()` memoizes
     /// that separately from `searchVM`), so the CLAP model itself is never
     /// loaded twice.
+    /// Mood always requires `indexed` (migration v46 — CLAP + BPM/camelot/energy together, never
+    /// just the former): "so that mood searches ALWAYS return mix-ready results" (owner's own
+    /// words). Discover/"Find by sound" keeps its existing, broader contract.
     func makeSearchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
-        await buildSearchViewModel(appState: appState, player: player)
+        await buildSearchViewModel(appState: appState, player: player, requireFullyIndexed: true)
     }
 
-    private func buildSearchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
+    private func buildSearchViewModel(
+        appState: AppState, player: AudioPlayer, requireFullyIndexed: Bool
+    ) async -> DiscoverySearchViewModel {
         let assembly = await makeAssembly()
         let service = await assembly.search
         let coordinator = DiscoverySearchCoordinator(service: service)
@@ -448,7 +453,8 @@ final class DiscoveryRuntimeController {
                 Task { @MainActor in await DiscoveryRuntimeController.shared.analyzeTrack(trackID) }
             },
             onDownloadModels: {},
-            onOpenIndexStatus: {})
+            onOpenIndexStatus: {},
+            requireFullyIndexed: requireFullyIndexed)
     }
 
     /// "Analyze this track" for a stale/missing reference embedding (plan §9)

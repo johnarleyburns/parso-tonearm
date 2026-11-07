@@ -116,12 +116,17 @@ public actor SearchService {
     /// Run a text/filter query. `referenceTrackID` switches to similar-track
     /// mode (text is then ignored). `isCancelled` is polled through text
     /// inference and every scan block (plan §9); a cancelled search returns
-    /// `.cancelled` and updates nothing.
+    /// `.cancelled` and updates nothing. `requireFullyIndexed` is Mood's mix-compatible gate
+    /// (migration v46 `track.indexed`): when true, every returned result (and the keyword-
+    /// only/no-model-download fallback paths) is restricted to tracks that have BOTH a CLAP
+    /// embedding and BPM/camelot/energy analysis — never just the former. Discover/"Find by
+    /// sound" leaves this false and keeps its existing, broader contract unchanged.
     public func search(
         _ raw: DiscoverySearchQuery,
         referenceTrackID: Int64? = nil,
         matchingReferenceTrackID: Int64? = nil,
         matchingTracksOnly: Bool = false,
+        requireFullyIndexed: Bool = false,
         isCancelled: @escaping @Sendable () -> Bool = { false }
     ) async -> DiscoverySearchResponse {
         let start = DispatchTime.now()
@@ -164,17 +169,18 @@ public actor SearchService {
         if let referenceTrackID {
             return await runSimilar(
                 validated, referenceTrackID: referenceTrackID, coverage: coverage,
-                matchingTracksOnly: matchingTracksOnly,
+                matchingTracksOnly: matchingTracksOnly, requireFullyIndexed: requireFullyIndexed,
                 isCancelled: isCancelled, start: start)
         }
         if !validated.hasText {
             return await runFilterOnlyOrBrowse(
-                validated, coverage: coverage, isCancelled: isCancelled, start: start)
+                validated, coverage: coverage, requireFullyIndexed: requireFullyIndexed,
+                isCancelled: isCancelled, start: start)
         }
         return await runSemantic(
             validated, coverage: coverage,
             matchingReferenceTrackID: matchingReferenceTrackID,
-            matchingTracksOnly: matchingTracksOnly,
+            matchingTracksOnly: matchingTracksOnly, requireFullyIndexed: requireFullyIndexed,
             isCancelled: isCancelled, start: start)
     }
 
@@ -211,13 +217,14 @@ public actor SearchService {
     }
 
     private func runFilterOnlyOrBrowse(
-        _ q: ValidatedQuery, coverage: SearchRepository.Coverage,
+        _ q: ValidatedQuery, coverage: SearchRepository.Coverage, requireFullyIndexed: Bool,
         isCancelled: @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
         let mode: DiscoverySearchMode = q.hasHardMusicalFilter ? .filterOnly : .metadataBrowse
         do {
             let rows = try repo.orderedScopeRows(
-                for: q, applyHardFilters: q.hasHardMusicalFilter, limit: q.limit)
+                for: q, applyHardFilters: q.hasHardMusicalFilter,
+                requireIndexed: requireFullyIndexed, limit: q.limit)
             if isCancelled() { return cancelledResponse(mode, start) }
             let results = rows.map {
                 DiscoverySearchResult(track: $0, similarity: nil, finalScore: nil, breakdown: nil)
@@ -234,7 +241,7 @@ public actor SearchService {
 
     private func runSemantic(
         _ q: ValidatedQuery, coverage: SearchRepository.Coverage,
-        matchingReferenceTrackID: Int64?, matchingTracksOnly: Bool,
+        matchingReferenceTrackID: Int64?, matchingTracksOnly: Bool, requireFullyIndexed: Bool,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
         // Typed words also match titles, artists, albums and genres through
@@ -252,11 +259,19 @@ public actor SearchService {
         do {
             encoder = try await models.textEncoder(context: executionContext())
         } catch ModelManager.ModelManagerError.resourcesUnavailable {
-            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
+            if !keywords.isEmpty {
+                return keywordOnly(
+                    q, keywords, requireIndexed: requireFullyIndexed, coverage: coverage,
+                    start: start)
+            }
             return response(mode: .semantic, state: .modelMissing, results: [], coverage: coverage,
                 generation: nil, start: start)
         } catch {
-            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
+            if !keywords.isEmpty {
+                return keywordOnly(
+                    q, keywords, requireIndexed: requireFullyIndexed, coverage: coverage,
+                    start: start)
+            }
             return response(mode: .semantic, state: .modelDownloadFailed, results: [],
                 coverage: coverage, generation: nil, start: start)
         }
@@ -271,7 +286,11 @@ public actor SearchService {
                 coverage: coverage, generation: nil, start: start)
         }
         guard queryVector.count == EmbeddingSpace.current.dimensions else {
-            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
+            if !keywords.isEmpty {
+                return keywordOnly(
+                    q, keywords, requireIndexed: requireFullyIndexed, coverage: coverage,
+                    start: start)
+            }
             return response(mode: .semantic, state: .searchFailed, results: [], coverage: coverage,
                 generation: nil, start: start)
         }
@@ -304,13 +323,14 @@ public actor SearchService {
         return await scanAndRank(
             mode: .semantic, query: q, queryVector: queryVector, target: target,
             musicalMatch: musicalMatch, excludeTrackID: nil,
-            includeUnknownMusical: !q.hasHardMusicalFilter, keywords: keywords,
+            includeUnknownMusical: !q.hasHardMusicalFilter, requireFullyIndexed: requireFullyIndexed,
+            keywords: keywords,
             coverage: coverage, isCancelled: isCancelled, start: start)
     }
 
     private func runSimilar(
         _ q: ValidatedQuery, referenceTrackID: Int64, coverage: SearchRepository.Coverage,
-        matchingTracksOnly: Bool,
+        matchingTracksOnly: Bool, requireFullyIndexed: Bool,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime
     ) async -> DiscoverySearchResponse {
         let mode = DiscoverySearchMode.similar(referenceTrackID: referenceTrackID)
@@ -361,6 +381,7 @@ public actor SearchService {
             mode: mode, query: q, queryVector: queryVector, target: target,
             musicalMatch: musicalMatch,
             excludeTrackID: referenceTrackID, includeUnknownMusical: !q.hasHardMusicalFilter,
+            requireFullyIndexed: requireFullyIndexed,
             coverage: coverage, isCancelled: isCancelled, start: start)
     }
 
@@ -369,7 +390,7 @@ public actor SearchService {
     private func scanAndRank(
         mode: DiscoverySearchMode, query q: ValidatedQuery, queryVector: [Float],
         target: RankTarget, musicalMatch: MusicalMatchReference?,
-        excludeTrackID: Int64?, includeUnknownMusical: Bool,
+        excludeTrackID: Int64?, includeUnknownMusical: Bool, requireFullyIndexed: Bool = false,
         keywords: [Int64: SearchRepository.KeywordMatch] = [:],
         coverage: SearchRepository.Coverage,
         isCancelled: @escaping @Sendable () -> Bool, start: DispatchTime,
@@ -384,7 +405,9 @@ public actor SearchService {
                 generation: nil, start: start)
         }
         guard snapshot.rowCount > 0, snapshot.dimensions == queryVector.count else {
-            if !keywords.isEmpty { return keywordOnly(q, keywords, coverage: coverage, start: start) }
+            if !keywords.isEmpty, !requireFullyIndexed {
+                return keywordOnly(q, keywords, coverage: coverage, start: start)
+            }
             return response(
                 mode: mode, state: coverage.indexed == 0 ? .zeroIndexed : .noMatches,
                 results: [], coverage: coverage, generation: snapshot.generation, start: start)
@@ -393,7 +416,8 @@ public actor SearchService {
         // Eligibility: scope ∩ hard BPM/key, BEFORE top-K truncation (plan §9).
         let eligible: Set<Int64>
         do {
-            eligible = try repo.eligibleTrackIDs(for: q, musicalMatch: musicalMatch)
+            eligible = try repo.eligibleTrackIDs(
+                for: q, musicalMatch: musicalMatch, requireIndexed: requireFullyIndexed)
         } catch {
             return response(mode: mode, state: .searchFailed, results: [], coverage: coverage,
                 generation: snapshot.generation, start: start)
@@ -436,8 +460,10 @@ public actor SearchService {
         }
 
         // Keyword hits with no embedding yet (not indexed) still belong in
-        // the results; they rank on the keyword and musical fit alone.
-        if !keywords.isEmpty {
+        // the results; they rank on the keyword and musical fit alone. Mood's
+        // `requireFullyIndexed` gate skips this entirely — a track with no embedding
+        // necessarily has no analysis either, so it can never be mix-ready.
+        if !keywords.isEmpty, !requireFullyIndexed {
             let indexed = Set(snapshot.trackIDByRow)
             for (trackID, match) in keywords
             where trackID != excludeTrackID && eligible.contains(trackID) && !indexed.contains(trackID) {
@@ -484,6 +510,7 @@ public actor SearchService {
                 mode: mode, query: q, queryVector: queryVector, target: target,
                 musicalMatch: musicalMatch,
                 excludeTrackID: excludeTrackID, includeUnknownMusical: includeUnknownMusical,
+                requireFullyIndexed: requireFullyIndexed,
                 keywords: keywords,
                 coverage: coverage, isCancelled: isCancelled, start: start, attempt: 1)
         }
@@ -517,10 +544,11 @@ public actor SearchService {
     /// the typed words still find tracks, phrase hits first, then library order.
     private func keywordOnly(
         _ q: ValidatedQuery, _ keywords: [Int64: SearchRepository.KeywordMatch],
+        requireIndexed: Bool = false,
         coverage: SearchRepository.Coverage, start: DispatchTime
     ) -> DiscoverySearchResponse {
         do {
-            let eligible = try repo.eligibleTrackIDs(for: q)
+            let eligible = try repo.eligibleTrackIDs(for: q, requireIndexed: requireIndexed)
             let ids = keywords.keys.filter { eligible.contains($0) }
                 .sorted { a, b in
                     let (ba, bb) = (Self.keywordBoost(keywords[a]), Self.keywordBoost(keywords[b]))

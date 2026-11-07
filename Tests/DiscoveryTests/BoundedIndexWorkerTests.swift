@@ -259,6 +259,15 @@ final class BoundedIndexWorkerTests: XCTestCase {
         XCTAssertEqual(state.observedSizeBytes, Int64((try Data(contentsOf: wav)).count))
         XCTAssertNotNil(state.observedMTime)
 
+        // Real report (owner's own words): "why would mood EVER return non bpm/camelot tracks:
+        // don't we index clap and bpm/camelot at the same time..." -- `commitAnalysis` atomically
+        // flips `track.indexed` once both the embedding (above) and this analysis row exist;
+        // Mood's search gates on exactly this flag (migration v46).
+        let indexedFlag = try await queue.read { db in
+            try Bool.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
+        }
+        XCTAssertEqual(indexedFlag, true, "both embedding and analysis landed -- track must be marked indexed")
+
         // No window checkpoints survive a finalized embedding (plan §6).
         let leftoverCheckpoints = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_window_checkpoint")!

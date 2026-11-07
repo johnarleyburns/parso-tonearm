@@ -70,6 +70,13 @@ public final class DiscoverySearchViewModel: ObservableObject {
     private var generation: Int64 = 0
     private var metadataTask: Task<Void, Never>?
 
+    /// Mood's mix-compatible gate (migration v46 `track.indexed`): when true, every search this
+    /// view model runs through `coordinator.submit`/`service.search` is restricted to tracks
+    /// that have BOTH a CLAP embedding and BPM/camelot/energy analysis — so mood searches
+    /// ALWAYS return mix-ready results, never silently dropped only once Play is pressed. The
+    /// Discover/"Find by sound" screen leaves this false.
+    private let requireFullyIndexed: Bool
+
     public init(
         coordinator: DiscoverySearchCoordinator,
         service: SearchService,
@@ -77,7 +84,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
         onPlay: @escaping (DiscoverySearchResult) -> Void,
         onAnalyzeTrack: @escaping (Int64) -> Void = { _ in },
         onDownloadModels: @escaping () -> Void = {},
-        onOpenIndexStatus: @escaping () -> Void = {}
+        onOpenIndexStatus: @escaping () -> Void = {},
+        requireFullyIndexed: Bool = false
     ) {
         self.coordinator = coordinator
         self.service = service
@@ -86,6 +94,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
         self.onAnalyzeTrack = onAnalyzeTrack
         self.onDownloadModels = onDownloadModels
         self.onOpenIndexStatus = onOpenIndexStatus
+        self.requireFullyIndexed = requireFullyIndexed
     }
 
     // MARK: - Query building
@@ -169,7 +178,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
                 query,
                 referenceTrackID: referenceTrackID,
                 matchingReferenceTrackID: self.matchingReferenceTrackID,
-                matchingTracksOnly: self.matchingTracksOnly) { response in
+                matchingTracksOnly: self.matchingTracksOnly,
+                requireFullyIndexed: self.requireFullyIndexed) { response in
                 Task { @MainActor [weak self] in
                     self?.apply(response, gen: gen)
                 }
@@ -328,12 +338,14 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     /// Start the current mood directly, not a single result or a mix-builder sheet.
     ///
-    /// Real report: with "Mix-compatible tracks" OFF, Play still silently dropped every result
-    /// lacking BPM/key analysis and reordered the survivors into a compatibility chain — the
-    /// filtering in `MusicalMatchPolicy.queueTrackIDs` ran unconditionally, keyed only on whether
-    /// `metadata`/`energyByID` happened to have an entry, not on `matchingTracksOnly` at all. The
-    /// toggle must gate the filtering itself, not just the `startingFrom` reference: when it's
-    /// off, Play queues the displayed results in their own order, full stop.
+    /// Mix-compatible matching has no user-facing toggle anymore (migration v46 — every result
+    /// this view model can return is `requireFullyIndexed`, i.e. has BOTH a CLAP embedding and
+    /// BPM/camelot/energy, so chain-ordering by compatibility never has to drop a result for
+    /// missing data). `matchingTracksOnly` here is Mood's own live-playback-anchor bookkeeping
+    /// (`setMatchingReferenceTrackID`), not a setting: true whenever a reference track exists
+    /// and is itself analyzed, false only when there genuinely isn't one to chain against, in
+    /// which case Play falls back to the displayed order — which is itself still guaranteed
+    /// mix-ready, so nothing is silently dropped either way.
     @discardableResult
     public func playMood(
         metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:],

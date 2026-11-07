@@ -190,7 +190,8 @@ public struct SearchRepository: Sendable {
     /// for a 20,000-row scope.
     public func eligibleTrackIDs(
         for query: ValidatedQuery,
-        musicalMatch: MusicalMatchReference? = nil
+        musicalMatch: MusicalMatchReference? = nil,
+        requireIndexed: Bool = false
     ) throws -> Set<Int64> {
         try reader.read { db in
             guard let scope = Self.scopeSQL(query) else { return [] }
@@ -207,6 +208,15 @@ public struct SearchRepository: Sendable {
                 args.append(contentsOf: hardArgs)
             } else {
                 sql += " WHERE \(scope.whereClause)"
+            }
+            // Mood's mix-compatible candidate pool must only ever contain atomically
+            // fully-indexed tracks (migration v46's `track.indexed`) — general Discover/"Find by
+            // sound" search leaves this false and keeps its existing, deliberately broader
+            // contract: an embedding alone, even without musical analysis yet, is still a valid
+            // semantic/keyword match (see `EmbeddingSpaceTests.test128DimensionalRowIsQueryable`
+            // and `SearchService.scanAndRank`'s keyword-without-embedding fallback).
+            if requireIndexed {
+                sql += " AND t.indexed = 1"
             }
             let ids = try Int64.fetchAll(db, sql: sql, arguments: StatementArguments(args))
             return Set(ids)
@@ -315,7 +325,7 @@ public struct SearchRepository: Sendable {
     /// for filter-only and empty-text browse (plan §9). No fabricated
     /// semantic score.
     public func orderedScopeRows(
-        for query: ValidatedQuery, applyHardFilters: Bool, limit: Int
+        for query: ValidatedQuery, applyHardFilters: Bool, requireIndexed: Bool = false, limit: Int
     ) throws -> [TrackRow] {
         let ids: [Int64] = try reader.read { db in
             guard let scope = Self.scopeSQL(query) else { return [] }
@@ -331,6 +341,9 @@ public struct SearchRepository: Sendable {
                 args.append(contentsOf: hardArgs)
             } else {
                 sql += " WHERE \(scope.whereClause)"
+            }
+            if requireIndexed {
+                sql += " AND t.indexed = 1"
             }
             sql += " ORDER BY t.sortKey ASC, t.id ASC LIMIT ?"
             args.append(limit)

@@ -541,5 +541,50 @@ final class SearchServiceTests: XCTestCase {
         XCTAssertEqual(response.state, .cancelled)
         XCTAssertTrue(response.results.isEmpty)
     }
+
+    // MARK: - Mood's mix-compatible gate (migration v46 `track.indexed`)
+
+    /// Real report (owner's own words): "why would mood EVER return non bpm/camelot tracks...
+    /// we should not be having some tracks with clap but missing bpm/camelot." General Discover
+    /// search keeps finding an embedding-only track (its existing, deliberate, broader contract —
+    /// see `testOutOfScopeNearestMatchesExcluded` above); only `requireFullyIndexed` (Mood's gate)
+    /// excludes it.
+    func testRequireFullyIndexedExcludesEmbeddingOnlyTrack() async throws {
+        let queue = try SearchFixture.makeQueue()
+        try await queue.write { db in
+            let s = try SearchFixture.seedSource(db)
+            let t = try SearchFixture.seedTrack(db, sourceId: s, title: "embedding-only")
+            let a = try SearchFixture.seedAsset(db, trackId: t)
+            try SearchFixture.seedEmbedding(db, trackId: t, assetId: a, vector: [1, 0, 0, 0, 0, 0, 0, 0])
+            // Deliberately no analysis row and no `track.indexed` flip — exactly the
+            // half-indexed state migration v46 exists to make unreachable from Mood.
+        }
+        let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
+
+        let discover = await service.search(DiscoverySearchQuery(text: "x"))
+        XCTAssertEqual(discover.results.map(\.track.track.title), ["embedding-only"],
+            "general Discover search must still find an embedding-only track")
+
+        let mood = await service.search(DiscoverySearchQuery(text: "x"), requireFullyIndexed: true)
+        XCTAssertEqual(mood.results, [],
+            "Mood's mix-compatible gate must exclude a track with no BPM/camelot yet")
+    }
+
+    /// The companion case: once both tables exist and `track.indexed` is set (the atomic
+    /// `BoundedIndexWorker.commitAnalysis` flip), Mood's gate finds it just like Discover does.
+    func testRequireFullyIndexedIncludesFullyAnalyzedTrack() async throws {
+        let queue = try SearchFixture.makeQueue()
+        try await queue.write { db in
+            let s = try SearchFixture.seedSource(db)
+            let t = try SearchFixture.seedTrack(db, sourceId: s, title: "fully-indexed")
+            let a = try SearchFixture.seedAsset(db, trackId: t)
+            try SearchFixture.seedEmbedding(db, trackId: t, assetId: a, vector: [1, 0, 0, 0, 0, 0, 0, 0])
+            try SearchFixture.seedAnalysis(db, trackId: t, assetId: a, bpm: 120, key: "8A")
+            try db.execute(sql: "UPDATE track SET indexed = 1 WHERE id = ?", arguments: [t])
+        }
+        let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
+        let mood = await service.search(DiscoverySearchQuery(text: "x"), requireFullyIndexed: true)
+        XCTAssertEqual(mood.results.map(\.track.track.title), ["fully-indexed"])
+    }
 }
 #endif

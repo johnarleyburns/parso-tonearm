@@ -41,6 +41,7 @@ public actor DiscoverySearchCoordinator {
         referenceTrackID: Int64? = nil,
         matchingReferenceTrackID: Int64? = nil,
         matchingTracksOnly: Bool = false,
+        requireFullyIndexed: Bool = false,
         deliver: @escaping @Sendable (DiscoverySearchResponse) -> Void
     ) -> Int64 {
         generation += 1
@@ -61,6 +62,7 @@ public actor DiscoverySearchCoordinator {
                 query, referenceTrackID: referenceTrackID,
                 matchingReferenceTrackID: matchingReferenceTrackID,
                 matchingTracksOnly: matchingTracksOnly,
+                requireFullyIndexed: requireFullyIndexed,
                 isCancelled: { flag.isCancelled || Task.isCancelled })
             guard let self else { return }
             let isCurrent = await self.isCurrent(myGeneration)
