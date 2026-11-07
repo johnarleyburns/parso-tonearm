@@ -190,7 +190,10 @@ struct LibraryView: View {
         if entry.kind == .song, let row = entry.rows.first {
             Button {
                 if let idx = playbackRows.firstIndex(where: { $0.id == row.id }) {
-                    player.play(tracks: playbackRows, startAt: idx, source: .library)
+                    Task {
+                        let fresh = await appState.freshenedQueueStart(playbackRows, startAt: idx)
+                        player.play(tracks: fresh, startAt: idx, source: .library)
+                    }
                 }
             } label: {
                 TrackRowView(row: row, showArtwork: true)
@@ -334,7 +337,10 @@ private struct LibraryGroupDetailView: View {
                 cta.padding(.top, 14).padding(.bottom, 12)
                 ForEach(Array(entry.rows.enumerated()), id: \.element.id) { idx, row in
                     Button {
-                        player.play(tracks: entry.rows, startAt: idx, source: .library)
+                        Task {
+                            let fresh = await appState.freshenedQueueStart(entry.rows, startAt: idx)
+                            player.play(tracks: fresh, startAt: idx, source: .library)
+                        }
                     } label: {
                         TrackRowView(row: row, showArtwork: true)
                     }
@@ -404,12 +410,21 @@ private struct LibraryGroupDetailView: View {
 
     private var cta: some View {
         HStack(spacing: 10) {
-            Button { player.play(tracks: entry.rows, startAt: 0, source: .library) } label: {
+            Button {
+                Task {
+                    let fresh = await appState.freshenedQueueStart(entry.rows, startAt: 0)
+                    player.play(tracks: fresh, startAt: 0, source: .library)
+                }
+            } label: {
                 ctaLabel(icon: "play.fill", title: "Play")
             }
             Button {
                 player.shuffle = true
-                player.play(tracks: entry.rows.shuffled(), startAt: 0, source: .library)
+                let shuffled = entry.rows.shuffled()
+                Task {
+                    let fresh = await appState.freshenedQueueStart(shuffled, startAt: 0)
+                    player.play(tracks: fresh, startAt: 0, source: .library)
+                }
             } label: {
                 ctaLabel(icon: "shuffle", title: "Shuffle")
             }

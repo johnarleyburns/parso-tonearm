@@ -64,20 +64,20 @@ struct TrackDetailCard: View {
 
             VStack(spacing: 8) {
                 actionButton("Play Now", icon: "play.fill", style: .primary) {
-                    player.playSingle(row)
                     dismiss()
+                    Task { player.playSingle(await appState.freshenedForPlayback(row)) }
                 }
                 .accessibilityIdentifier("trackDetail.playNow")
 
                 actionButton("Play Next", icon: "arrow.turn.down.right", style: .secondary) {
-                    player.insertNext(row)
                     dismiss()
+                    Task { player.insertNext(await appState.freshenedForPlayback(row)) }
                 }
                 .accessibilityIdentifier("trackDetail.playNext")
 
                 actionButton("Add to Queue", icon: "text.badge.plus", style: .secondary) {
-                    player.appendToQueue(row)
                     dismiss()
+                    Task { player.appendToQueue(await appState.freshenedForPlayback(row)) }
                 }
                 .accessibilityIdentifier("trackDetail.addToQueue")
 

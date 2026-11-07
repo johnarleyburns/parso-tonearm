@@ -263,4 +263,64 @@ extension AppState {
         try RemoteLibraryProviderFactory.provider(for: source)
     }
 
+    /// Re-resolves a persisted remote track's stream URL/auth headers fresh from its provider
+    /// right before playback, instead of trusting whatever was loaded from the database.
+    ///
+    /// Real report: a favorited Google Drive/Dropbox track played fine once, then stopped
+    /// playing entirely. Root cause: `Asset.transientRemoteHeaders`/
+    /// `transientRemoteSupportsByteRanges` are deliberately NOT persisted (confirmed by
+    /// `RemotePlaylistIngestTests`'s own "transient credentials" assertion) — they're only ever
+    /// correct in the exact in-memory session that first resolved them. Google Drive/OneDrive/
+    /// Box's URLs are direct, bearer-auth-required links (no header survives a relaunch); Dropbox/
+    /// pCloud's stored `remoteURL` is itself a temp link that expires after a few hours
+    /// regardless of headers. Jamendo already has its own dedicated re-resolution path
+    /// (`JamendoLocatorResolver`); this gives every other remote provider the same safety net at
+    /// the one call site most real plays go through (`TrackDetailCard`'s Play Now/Play Next/Add
+    /// to Queue — Favorites, Jump Back In, Mood results, Top 10 all route through it per its own
+    /// doc comment). Falls back to the row completely unchanged on any failure — this can only
+    /// ever help, never make a play attempt worse than it already was.
+    ///
+    /// Skips re-resolving entirely when the track is already fully cached under its EXISTING
+    /// URL: Dropbox/pCloud/Yandex's resolved URL is a fresh, differently-signed temp link on
+    /// every single call (confirmed from `CloudDriveAPI`'s own per-provider resolve behavior) —
+    /// overwriting `asset.remoteURL` before checking the cache would change
+    /// `AudioCache.key(for:)`'s hash input, making an already-downloaded file's cache key no
+    /// longer match and silently breaking playback that worked fine before this function
+    /// existed. A genuinely complete local file needs no network/URL at all.
+    func freshenedForPlayback(_ row: TrackRow) async -> TrackRow {
+        guard let asset = row.asset, asset.kind == .remote,
+              let source = row.source, source.kind != .jamendoGenre,
+              let nodeID = asset.remoteNodeID, !nodeID.isEmpty
+        else { return row }
+        if let existingURLString = asset.remoteURL, let existingURL = URL(string: existingURLString),
+           AudioCache.completeCacheExists(for: existingURL),
+           FileManager.default.fileExists(atPath: AudioCache.fileURL(for: AudioCache.key(for: existingURL)).path) {
+            return row
+        }
+        guard let provider = try? remoteProvider(for: source) else { return row }
+        let node = RemoteNode(id: nodeID, title: row.track.title,
+                              path: asset.remoteNodePath ?? nodeID, kind: .audio,
+                              sizeBytes: asset.sizeBytes, durationSec: row.track.durationSec)
+        guard let resolved = try? await provider.resolve(node: node) else { return row }
+        var freshAsset = asset
+        freshAsset.remoteURL = resolved.url.absoluteString
+        freshAsset.transientRemoteHeaders = resolved.headers
+        freshAsset.transientRemoteSupportsByteRanges = resolved.supportsByteRanges
+        var freshRow = row
+        freshRow.asset = freshAsset
+        return freshRow
+    }
+
+    /// `freshenedForPlayback(_:)`, applied to just the row a multi-track queue is about to start
+    /// on — the one `AudioPlayer` loads immediately, where a stale URL/missing header would be
+    /// felt as "nothing happens" right now. Tracks later in the queue aren't freshened here (that
+    /// needs re-resolution woven into `AudioPlayer`'s own track-advance path, not done yet); this
+    /// unblocks the immediate, most common case — tapping a track/album/"Play all" — cheaply.
+    func freshenedQueueStart(_ rows: [TrackRow], startAt: Int) async -> [TrackRow] {
+        guard rows.indices.contains(startAt) else { return rows }
+        var updated = rows
+        updated[startAt] = await freshenedForPlayback(rows[startAt])
+        return updated
+    }
+
 }
