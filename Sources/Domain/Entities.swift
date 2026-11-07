@@ -177,6 +177,13 @@ public struct Track: Identifiable, Equatable, Codable, Sendable {
     public var rgTrackPeak: Double? = nil
     public var rgAlbumPeak: Double? = nil
     public var syncID: String? = nil
+    /// True only once BOTH `discovery_embedding` (CLAP) and `discovery_track_analysis`
+    /// (BPM/camelot/energy) exist for this track, set atomically in the same transaction as
+    /// whichever of the two commits second (always musical analysis — see
+    /// `BoundedIndexWorker.commitAnalysis`'s doc comment and migration v46). Mood/mix-compatible
+    /// search must filter on this, not merely on `discovery_embedding`'s existence, or a track
+    /// can surface with CLAP but no BPM/key to actually mix-match against.
+    public var indexed: Bool = false
 
     public init(id: Int64?,
                 albumId: Int64?,
@@ -196,7 +203,8 @@ public struct Track: Identifiable, Equatable, Codable, Sendable {
                 rgAlbumGain: Double? = nil,
                 rgTrackPeak: Double? = nil,
                 rgAlbumPeak: Double? = nil,
-                syncID: String? = nil) {
+                syncID: String? = nil,
+                indexed: Bool = false) {
         self.id = id
         self.albumId = albumId
         self.sourceId = sourceId
@@ -216,6 +224,7 @@ public struct Track: Identifiable, Equatable, Codable, Sendable {
         self.rgTrackPeak = rgTrackPeak
         self.rgAlbumPeak = rgAlbumPeak
         self.syncID = syncID
+        self.indexed = indexed
     }
 }
 

@@ -445,6 +445,22 @@ public actor BoundedIndexWorker: IndexJobExecuting {
                 analysisScopeSeconds: scopeSeconds,
                 completedAt: completedAt)
             try analysisRow.upsert(db)
+            // Real report: Mood search could return a track with a CLAP embedding but no BPM/
+            // camelot yet, because the embedding commit (`finalizeEmbeddingOutcome`, above) and
+            // this analysis commit are two separate transactions. Musical analysis always runs
+            // strictly after embedding reaches a terminal state within the same job
+            // (`processNextUnit`'s dispatch guard), so this is the one commit that can see BOTH
+            // tables — atomically flip the single `track.indexed` flag search must gate on
+            // (migration v46) here, but only when the embedding genuinely succeeded: a failed/
+            // unsupported embedding leaves no `discovery_embedding` row, and such a track could
+            // never surface via CLAP search anyway, so it correctly stays un-indexed rather than
+            // being marked ready on the strength of analysis alone.
+            let hasEmbedding = try Int.fetchOne(
+                db, sql: "SELECT 1 FROM discovery_embedding WHERE trackId = ?", arguments: [trackId]
+            ) != nil
+            if hasEmbedding {
+                try db.execute(sql: "UPDATE track SET indexed = 1 WHERE id = ?", arguments: [trackId])
+            }
         }
     }
 

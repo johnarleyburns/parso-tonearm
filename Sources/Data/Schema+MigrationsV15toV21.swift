@@ -514,5 +514,61 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v46", upTo: target) {
+            migrator.registerMigration("v46") { db in
+                // Real report: Mood search could return a track that has a CLAP embedding
+                // (`discovery_embedding`) but no BPM/camelot/energy yet (`discovery_track_analysis`)
+                // — `BoundedIndexWorker` commits those two tables as two SEPARATE transactions
+                // (embedding first, musical analysis moments later, in the same scheduler tick —
+                // see that file's own "Known gap" doc comment on `finalizeEmbeddingOutcome`), so a
+                // search landing in that real, if usually brief, window would see an embedding
+                // with nothing to BPM/key-match against. `indexed` is a single, cheap flag set
+                // TRUE only once the LATER of the two commits (always musical analysis, since
+                // `BoundedIndexWorker.processNextUnit` only ever dispatches to musical analysis
+                // once embedding has already reached a terminal state) finds the embedding row
+                // already present and sets this flag in the SAME transaction as its own
+                // insert — see `BoundedIndexWorker.commitAnalysis`. Search must filter on this
+                // flag, not merely on `discovery_embedding`'s existence.
+                try db.alter(table: "track") { t in
+                    t.add(column: "indexed", .boolean).notNull().defaults(to: false)
+                }
+                // Backfill the common, already-correct case instantly: a track whose embedding
+                // AND analysis both already landed (however the old, non-atomic code got there)
+                // is retroactively marked indexed with no re-processing needed.
+                try db.execute(sql: """
+                    UPDATE track SET indexed = 1 WHERE id IN (
+                        SELECT e.trackId FROM discovery_embedding e
+                        INNER JOIN discovery_track_analysis a ON a.trackId = e.trackId
+                    )
+                    """)
+                // The genuinely inconsistent case: a job already marked terminal-complete
+                // (`discovery_index_job`'s own `isComplete`, i.e. both stage columns reached a
+                // terminal state) whose track still lacks one of the two tables — the exact
+                // "stuck half-indexed forever" bug, since nothing re-claims an already-terminal
+                // job on its own. Reset it to a fresh, re-triable state so the scheduler picks
+                // it back up under the now-atomic commit path; a track that keeps genuinely
+                // failing one stage (e.g. truly unsupported audio) will correctly terminal-fail
+                // again and stay un-indexed, not loop forever (bounded by
+                // `IndexJobRepository.maxTransientFailures`).
+                // No separate checkpoint cleanup needed: a job whose embeddingStageState is
+                // already terminal either reached `.complete` (finalizeEmbeddingOutcome already
+                // deleted its own checkpoints on success) or `.failed`/`.unsupported` (at most a
+                // few stale rows, and recordWindowCompletion inserts with `onConflict: .replace`
+                // keyed on (jobId, windowIndex), so re-processing safely overwrites them — no
+                // risk of duplication or corruption). A broader, unscoped DELETE here would risk
+                // destroying a genuinely different, still-in-progress job's legitimate
+                // checkpoints merely for sharing the same resting `queued`/`pending` state.
+                try db.execute(sql: """
+                    UPDATE discovery_index_job
+                    SET state = 'queued', embeddingStageState = 'pending',
+                        musicalAnalysisStageState = 'pending', nextAttemptAt = NULL,
+                        attemptCount = 0, leaseToken = NULL, leaseExpiresAt = NULL,
+                        errorCode = NULL, errorMessage = NULL, completedWindows = 0, totalWindows = 0
+                    WHERE embeddingStageState IN ('complete', 'failed', 'unsupported')
+                      AND musicalAnalysisStageState IN ('complete', 'failed', 'unsupported')
+                      AND trackId NOT IN (SELECT id FROM track WHERE indexed = 1)
+                    """)
+            }
+        }
     }
 }

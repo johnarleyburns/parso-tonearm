@@ -68,7 +68,9 @@ public struct SearchRepository: Sendable {
         public var state: State
         /// Total tracks in the selected scope (before musical filters).
         public var totalInScope: Int
-        /// Tracks in scope with a completed embedding row.
+        /// Tracks in scope that are fully, atomically indexed (`track.indexed`, migration v46 —
+        /// both the CLAP embedding and the BPM/camelot/energy analysis have committed, never one
+        /// without the other).
         public var indexed: Int
         /// Tracks in scope with an index job not yet complete.
         public var awaitingIndex: Int
@@ -113,12 +115,16 @@ public struct SearchRepository: Sendable {
                 db, sql: "SELECT COUNT(*) FROM track t WHERE \(scope.whereClause)",
                 arguments: scope.arguments) ?? 0
 
+            // `t.indexed = 1` (migration v46), not merely a `discovery_embedding` join: a track
+            // isn't really ready for search until BPM/camelot/energy has ALSO committed (see
+            // `VectorIndex.rebuild`'s matching filter) — counting embedding alone here would
+            // report "indexed"/"ready" for a scope that the actual candidate pool doesn't agree
+            // is searchable yet.
             let indexed = try Int.fetchOne(
                 db,
                 sql: """
                     SELECT COUNT(*) FROM track t
-                    JOIN discovery_embedding e ON e.trackId = t.id
-                    WHERE \(scope.whereClause)
+                    WHERE t.indexed = 1 AND \(scope.whereClause)
                     """,
                 arguments: scope.arguments) ?? 0
 
