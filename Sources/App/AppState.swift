@@ -52,6 +52,13 @@ final class AppState: ObservableObject {
     @Published var recentlyAdded: [TrackRow] = []
     @Published var favoriteRows: [TrackRow] = []
     @Published var favoriteIds: Set<Int64> = []
+    /// Real report: re-browsing to and replaying/favoriting the same Dropbox/Google Drive file in
+    /// quick succession created a genuine duplicate track — a second `persistRemoteTrack` call
+    /// for the same provider node could start before the first one's insert had committed, so
+    /// neither saw the other's not-yet-written row. Keyed by `"<sourceID>:<nodeID-or-URL>"`
+    /// (`AppState+Downloads.swift`'s `persistRemoteTrack`); a second call for the same identity
+    /// awaits the first one's in-flight `Task` instead of starting its own.
+    var pendingRemotePersists: [String: Task<TrackRow?, Never>] = [:]
     @Published var listeningStats: ListeningStats.Summary = .empty
     @Published var searchText: String = ""
     @Published var searchResults: [TrackRow] = []

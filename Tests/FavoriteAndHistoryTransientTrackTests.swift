@@ -102,4 +102,28 @@ final class FavoriteAndHistoryGuardOrderingTests: XCTestCase {
         XCTAssertLessThan(persist.lowerBound, play.lowerBound,
             "the starting track must be persisted before playback begins, so its play history/favorite can be recorded")
     }
+
+    /// Real report: re-browsing to and replaying/favoriting the same remote file in quick
+    /// succession (a double-tap, or tapping again before the first attempt's feedback arrives)
+    /// could run two `persistRemoteTrack` calls for the same provider node concurrently, neither
+    /// seeing the other's not-yet-committed insert — a genuine duplicate track. Pins that a
+    /// second call for the same identity key awaits the first one's own in-flight work, rather
+    /// than exercising the real race directly (needs a live remote provider + precise timing, per
+    /// this file's own established pattern above).
+    func testPersistRemoteTrackAwaitsAnInFlightCallForTheSameIdentityInsteadOfRacingIt() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/App/AppState+Downloads.swift"),
+            encoding: .utf8)
+        let guardCheck = try XCTUnwrap(source.range(of: "if let inFlight = pendingRemotePersists[identityKey]"))
+        let awaitExisting = try XCTUnwrap(source.range(of: "return await inFlight.value"))
+        let startNewTask = try XCTUnwrap(source.range(of: "pendingRemotePersists[identityKey] = task"))
+        let cleanup = try XCTUnwrap(source.range(of: "pendingRemotePersists[identityKey] = nil"))
+        XCTAssertLessThan(guardCheck.lowerBound, awaitExisting.lowerBound,
+            "an in-flight call for the same identity must be checked and awaited, not re-started")
+        XCTAssertLessThan(awaitExisting.lowerBound, startNewTask.lowerBound,
+            "the in-flight-await branch must come before a new task is ever registered")
+        XCTAssertLessThan(startNewTask.lowerBound, cleanup.lowerBound,
+            "the identity key must be cleared again after the new task finishes, or every later call for it would hang")
+    }
 }

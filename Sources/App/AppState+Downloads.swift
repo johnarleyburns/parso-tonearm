@@ -155,7 +155,29 @@ extension AppState {
 
     /// Turns an in-memory browsed row into a durable library row while retaining
     /// its transient authorization long enough to pin the bytes.
+    ///
+    /// Real report: re-browsing to and replaying/favoriting the same remote file in quick
+    /// succession (e.g. a double-tap, or tapping again before the first attempt's UI feedback
+    /// arrives) could create a genuine duplicate track — a second call for the same provider
+    /// node could start, read `existingRows`, and insert a new row before the first call's own
+    /// insert had committed, so neither one ever saw the other's row. A second call for the same
+    /// identity now awaits the first call's own in-flight work instead of racing it.
     func persistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
+        guard row.id < 0, let asset = row.asset, let rawURL = asset.remoteURL else { return row }
+        let identityKey = "\(row.source?.id ?? -1):\(asset.remoteNodeID ?? rawURL)"
+        if let inFlight = pendingRemotePersists[identityKey] {
+            return await inFlight.value
+        }
+        let task = Task { @MainActor [weak self] () -> TrackRow? in
+            await self?.performPersistRemoteTrack(row)
+        }
+        pendingRemotePersists[identityKey] = task
+        let result = await task.value
+        pendingRemotePersists[identityKey] = nil
+        return result
+    }
+
+    private func performPersistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
         guard row.id < 0, var source = row.source, let asset = row.asset,
               let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return row }
         // Ad-hoc Jamendo browsing uses a synthetic source. Persist/reuse it
