@@ -37,7 +37,8 @@ final class TonearmSmokeUITests: XCTestCase {
         element("listen.settings").tap()
         let playback = element("settings.section.playback")
         XCTAssertTrue(playback.waitForExistence(timeout: 10))
-        if element("settings.streamOnCellular").exists { playback.tap() }
+        // Sections are flat/always-expanded now (no tap needed to reveal content).
+        XCTAssertTrue(element("settings.streamOnCellular").exists)
         let watch = app.buttons["settings.watch"]
         XCTAssertTrue(watch.isHittable)
         XCTAssertEqual(watch.frame.minX, app.frame.maxX - watch.frame.maxX, accuracy: 1)
@@ -94,12 +95,9 @@ final class TonearmSmokeUITests: XCTestCase {
         element("listen.settings").tap()
         let playbackSection = element("settings.section.playback")
         XCTAssertTrue(playbackSection.waitForExistence(timeout: 10))
-        if element("settings.streamOnCellular").exists { playbackSection.tap() }
-        XCTAssertFalse(element("settings.streamOnCellular").exists)
-        playbackSection.tap()
-        XCTAssertTrue(element("settings.streamOnCellular").waitForExistence(timeout: 5))
-        playbackSection.tap()
-        XCTAssertFalse(element("settings.streamOnCellular").exists)
+        // Sections are flat/always-expanded now — no tap needed to reveal content.
+        XCTAssertTrue(element("settings.streamOnCellular").waitForExistence(timeout: 5),
+                      "Playback settings should be visible without expanding a section")
         let watchSettings = app.buttons["settings.watch"]
         XCTAssertTrue(watchSettings.isHittable, "Apple Watch must be reachable without pages of scrolling")
         XCTAssertTrue(watchSettings.waitForExistence(timeout: 10))

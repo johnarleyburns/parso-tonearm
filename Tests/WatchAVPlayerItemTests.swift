@@ -122,7 +122,9 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertTrue(settings.contains("Section { watchCard }"))
         XCTAssertFalse(settings.contains("collapsibleSection(\"Advanced\""))
         XCTAssertFalse(settings.contains("DisclosureGroup(title"), "Expanded cards must not inherit one-sided disclosure indentation")
-        XCTAssertTrue(settings.contains("if expanded.wrappedValue {"))
+        XCTAssertFalse(settings.contains("expanded.wrappedValue"),
+                       "Settings sections are flat/always-expanded now, matching parso-voxglass's layout")
+        XCTAssertTrue(settings.contains("func settingsSection"))
         XCTAssertTrue(settings.contains("VStack(alignment: .leading, spacing: 16) { content() }"))
         XCTAssertTrue(settings.contains(".padding(.horizontal, 18)"))
         let nowPlaying = try String(contentsOf: root.appendingPathComponent("Sources/Features/NowPlaying/NowPlayingView.swift"), encoding: .utf8)

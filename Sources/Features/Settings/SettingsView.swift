@@ -45,9 +45,6 @@ struct SettingsView: View {
     @State var icloudSync = SyncGating.isEnabled
     @State var showWatchSettings = false
     @AppStorage("appearanceMode") var appearanceMode = AppearanceMode.system.rawValue
-    @AppStorage("settings.playbackExpanded") private var playbackExpanded = false
-    @AppStorage("settings.libraryExpanded") private var libraryExpanded = false
-    @AppStorage("settings.accountExpanded") private var accountExpanded = false
     let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
         ("500 MB", 500 * 1024 * 1024),
@@ -66,7 +63,7 @@ struct SettingsView: View {
                 Section { watchCard }
                 #endif
                 if shows(.playback) {
-                    collapsibleSection("Playback", expanded: $playbackExpanded, identifier: "settings.section.playback") {
+                    settingsSection("Playback", identifier: "settings.section.playback") {
                         behaviorCard
                         keepPlayingCard
                         #if os(iOS)
@@ -75,7 +72,7 @@ struct SettingsView: View {
                     }
                 }
                 if shows(.library) {
-                    collapsibleSection("Library & Storage", expanded: $libraryExpanded, identifier: "settings.section.library") {
+                    settingsSection("Library & Storage", identifier: "settings.section.library") {
                         if appState.starterMerge != nil { starterMergeCard }
                         musicLibrariesCard
                         soundIndexCard
@@ -84,7 +81,7 @@ struct SettingsView: View {
                     }
                 }
                 if shows(.account) {
-                    collapsibleSection("Account & About", expanded: $accountExpanded, identifier: "settings.section.account") {
+                    settingsSection("Account & About", identifier: "settings.section.account") {
                         appearanceCard
                         privacyCard
                         SupportDevelopmentCard()
@@ -174,37 +171,32 @@ struct SettingsView: View {
         #endif
     }
 
+    /// A flat, always-visible section (matching `../parso-voxglass`'s Settings
+    /// layout) — a plain header above its content, no expand/collapse. Settings
+    /// used to hide each group behind a tap; the owner found that an
+    /// unnecessary extra step, so every row here is reachable without first
+    /// expanding anything.
     @ViewBuilder
-    private func collapsibleSection<Content: View>(_ title: LocalizedStringKey,
-        expanded: Binding<Bool>, identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+    private func settingsSection<Content: View>(_ title: LocalizedStringKey,
+        identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         if macPane == nil {
             VStack(alignment: .leading, spacing: 0) {
-                Button {
-                    withAnimation { expanded.wrappedValue.toggle() }
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
-                            .frame(width: 26)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(title).font(Typography.headline)
-                            Text(sectionDetail(identifier)).font(Typography.caption)
-                                .foregroundStyle(Palette.inkTertiary)
-                        }
-                        Spacer()
-                        Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
+                HStack(spacing: 12) {
+                    Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
+                        .frame(width: 26)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(Typography.headline)
+                        Text(sectionDetail(identifier)).font(Typography.caption)
                             .foregroundStyle(Palette.inkTertiary)
                     }
+                    Spacer()
+                }
+                .padding(15)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier(identifier)
+                Divider().overlay(Palette.hairline).padding(.horizontal, 15)
+                VStack(alignment: .leading, spacing: 14) { content() }
                     .padding(15)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityValue(expanded.wrappedValue ? "Expanded" : "Collapsed")
-                    .accessibilityIdentifier(identifier)
-                if expanded.wrappedValue {
-                    Divider().overlay(Palette.hairline).padding(.horizontal, 15)
-                    VStack(alignment: .leading, spacing: 14) { content() }
-                        .padding(15)
-                }
             }
             .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
         } else {
