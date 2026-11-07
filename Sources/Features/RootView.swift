@@ -13,10 +13,21 @@ struct RootView: View {
         appState.watchManagement.banner != nil && !transferBannerDismissed
     }
 
+    /// Real report: taps on the floating mini-player bar were often landing on whatever scroll
+    /// content sat underneath it instead. Root cause: this value is what every tab reserves as
+    /// bottom clearance for the accessory (`RootTabChrome.swift`'s `safeAreaInset`), but it didn't
+    /// match the accessory's REAL footprint below — the accessory is placed with
+    /// `.padding(.bottom, 58)` (see `body`, just below), so its visible bar spans from 58pt up to
+    /// `58 + content height` above the absolute bottom. The old `+ 12` tail here reserved far less
+    /// than that real `58`, leaving a real gap where scrollable content could sit directly behind
+    /// the visible, supposedly-on-top bar — SwiftUI's `zIndex` governs paint order, not whether a
+    /// `UIHostingController`-hosted `TabView`'s own content can still receive a touch that lands
+    /// in that unreserved gap. The tail here must equal that same `58` exactly, not a smaller,
+    /// separately-guessed number.
     private var accessoryHeight: CGFloat {
         guard !appState.showNowPlaying else { return 0 }
         let count = (player.currentTrack != nil ? 1 : 0) + (showsTransferBanner ? 1 : 0)
-        return count == 0 ? 0 : CGFloat(count) * 56 + CGFloat(count - 1) * 4 + 12
+        return count == 0 ? 0 : CGFloat(count) * 56 + CGFloat(count - 1) * 4 + 58
     }
 
     var body: some View {

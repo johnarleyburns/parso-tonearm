@@ -53,6 +53,7 @@ struct MiniPlayerAccessory: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .frame(height: 56)
+        .contentShape(Rectangle())
         .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Now Playing")
