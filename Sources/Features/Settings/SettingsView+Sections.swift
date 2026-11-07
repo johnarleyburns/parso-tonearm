@@ -20,7 +20,9 @@ extension SettingsView {
     /// ui-simplification-plan.md item 1) — everything here is still
     /// reachable, just behind one extra tap instead of always visible.
     var advancedSection: some View {
-        Button { activeSheet = .advanced } label: {
+        NavigationLink {
+            advancedForm
+        } label: {
             SettingsRow(icon: "ellipsis.circle", title: "Advanced", detail: nil)
                 .padding(15)
                 .contentShape(Rectangle())
@@ -30,29 +32,26 @@ extension SettingsView {
         .glassSurface(cornerRadius: 18)
     }
 
+    /// Pushed from `advancedSection` onto Settings' own `NavigationStack` — no
+    /// stack/Done button of its own (same reasoning as `SourcesView.
+    /// ownsNavigationStack`); its own rows (`toolsCard`/`jamendoCard`) still
+    /// present their sheets from here exactly as they did from Settings' root.
     var advancedForm: some View {
-        NavigationStack {
-            Form {
-                Section("Preparation") {
-                    toolsCard
-                    jamendoCard
-                }
-                Section("Storage") {
-                    clearCard
-                    customArtworkCard
-                }
+        Form {
+            Section("Preparation") {
+                toolsCard
+                jamendoCard
             }
-            .foregroundStyle(Palette.ink)
-            .scrollContentBackground(.hidden)
-            .background(Palette.libraryBackground.ignoresSafeArea())
-            .navigationTitle("Advanced")
-            .compactNavigationTitle()
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { activeSheet = nil }.tint(Palette.accent)
-                }
+            Section("Storage") {
+                clearCard
+                customArtworkCard
             }
         }
+        .foregroundStyle(Palette.ink)
+        .scrollContentBackground(.hidden)
+        .background(Palette.libraryBackground.ignoresSafeArea())
+        .navigationTitle("Advanced")
+        .compactNavigationTitle()
     }
 
     var appVersionString: String {

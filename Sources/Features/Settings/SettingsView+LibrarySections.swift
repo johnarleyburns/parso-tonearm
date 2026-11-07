@@ -37,7 +37,9 @@ extension SettingsView {
     }
 
     var musicLibrariesCard: some View {
-        Button { activeSheet = .musicLibraries } label: {
+        NavigationLink {
+            SourcesView(ownsNavigationStack: false)
+        } label: {
             SettingsRow(icon: "externaldrive", title: "Music Libraries",
                         detail: Text("Local folders, servers & cloud"),
                         count: appState.sources.isEmpty ? nil : appState.sources.count)

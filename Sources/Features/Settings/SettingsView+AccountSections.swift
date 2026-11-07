@@ -89,7 +89,9 @@ extension SettingsView {
     }
 
     var privacyCard: some View {
-        Button { activeSheet = .privacy } label: {
+        NavigationLink {
+            PrivacyView(ownsNavigationStack: false)
+        } label: {
             SettingsRow(icon: "hand.raised", title: "Privacy",
                         detail: Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect"))
                 .padding(15)
@@ -102,7 +104,9 @@ extension SettingsView {
 
     var aboutCard: some View {
         VStack(spacing: 0) {
-            Button { activeSheet = .thirdPartyNotices } label: {
+            NavigationLink {
+                ThirdPartyNoticesView(ownsNavigationStack: false)
+            } label: {
                 SettingsRow(icon: "doc.text", title: "Terms", detail: Text("GPLv3+ · third-party notices"))
                     .contentShape(Rectangle())
             }

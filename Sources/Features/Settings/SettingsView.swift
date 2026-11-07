@@ -15,7 +15,7 @@ import UIKit
 /// A single `.sheet(item:)` bound to one optional value doesn't have this
 /// failure mode, since there is only ever one sheet identity to track.
 enum SettingsSheet: Identifiable {
-    case privacy, thirdPartyNotices, musicLibraries, eq, tools, jamendoKey, cacheManagement, soundIndex, advanced
+    case eq, tools, jamendoKey, cacheManagement, soundIndex
     var id: Self { self }
 }
 
@@ -112,15 +112,11 @@ struct SettingsView: View {
         .task { await refresh() }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
-            case .privacy: PrivacyView()
-            case .thirdPartyNotices: ThirdPartyNoticesView()
-            case .musicLibraries: SourcesView()
             case .eq: EQView()
             case .tools: ToolsView()
             case .jamendoKey: JamendoCredentialView()
             case .cacheManagement: cacheManagementSheet
             case .soundIndex: SoundIndexSheet()
-            case .advanced: advancedForm
             }
         }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
@@ -224,26 +220,41 @@ struct SettingsView: View {
 
 struct PrivacyView: View {
     @Environment(\.dismiss) private var dismiss
+    /// Settings pushes this (it already owns a `NavigationStack`) rather than presenting it as a
+    /// sheet — same reasoning as `SourcesView.ownsNavigationStack`.
+    var ownsNavigationStack = true
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Platterhead collects nothing.")
-                        .font(Typography.headline)
-                    privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
-                    privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
-                    privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
-                    privacyPoint("Network contact", "Jamendo for the built-in Creative Commons mood-starter library and its own genre libraries, archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList).")
-                    privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
-                    privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
-                }
-                .foregroundStyle(Palette.ink)
-                .padding(20)
+        Group {
+            if ownsNavigationStack {
+                NavigationStack { content }
+            } else {
+                content
             }
-            .background(Palette.libraryBackground.ignoresSafeArea())
-            .navigationTitle("Privacy")
-            .compactNavigationTitle()
-            .toolbar {
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Platterhead collects nothing.")
+                    .font(Typography.headline)
+                privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
+                privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
+                privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
+                privacyPoint("Network contact", "Jamendo for the built-in Creative Commons mood-starter library and its own genre libraries, archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList).")
+                privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
+                privacyPoint("The cache is temporary", "Streamed audio is kept in an LRU cache so recently played music works offline. It is evicted automatically and can be cleared anytime.")
+            }
+            .foregroundStyle(Palette.ink)
+            .padding(20)
+        }
+        .background(Palette.libraryBackground.ignoresSafeArea())
+        .navigationTitle("Privacy")
+        .compactNavigationTitle()
+        .toolbar {
+            if ownsNavigationStack {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.accent)
                 }
@@ -266,33 +277,48 @@ struct PrivacyView: View {
 /// behind these determinations.
 struct ThirdPartyNoticesView: View {
     @Environment(\.dismiss) private var dismiss
+    /// Settings pushes this (it already owns a `NavigationStack`) rather than presenting it as a
+    /// sheet — same reasoning as `SourcesView.ownsNavigationStack`.
+    var ownsNavigationStack = true
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Third-party notices")
-                        .font(Typography.headline)
-                    privacyPoint("License — GNU GPL v3.0 or later",
-                        "Platterhead is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
-                    privacyPoint("Semantic / vibe search",
-                        "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
-                    privacyPoint("Stem separation — Demucs (current default)",
-                        "Splitting a track into vocals/drums/bass/other uses Demucs/htdemucs (Meta). Spleeter (Deezer, MIT code and weights) ships alongside it as a fallback backend. Demucs's pretrained weights are not established as commercially clean — Meta's own maintainers have stated on record that the released weights are provided for scientific purposes only — so shipping Demucs as the default here reflects this app's own licensing determination, made independently of parso-audio-engine's own stance (that engine still recommends Spleeter as its default for anyone who hasn't made that determination themselves). See docs/GPL-BACKENDS.md in this app's source for the full reasoning and how to switch back.")
-                    privacyPoint("MP3 export — LAME",
-                        "The optional \"Also export MP3\" option on a finished recording uses LAME 3.100 (libmp3lame), licensed LGPL-2.1-or-later. LAME's source is vendored in this app's own source tree (Sources/CLAMEBridge) — parso-audio-engine itself never links or depends on LAME; it only declares the protocol this app's LAME wrapper implements. Recordings themselves are always saved as M4A/AAC; MP3 is produced only as an additional copy at export time. See docs/GPL-BACKENDS.md and docs/BYO-CODEC.md (parso-audio-engine) for how this works.")
-                    privacyPoint("Vendored audio/DSP libraries",
-                        "Platterhead's audio engine vendors permissively-licensed open-source libraries for decode/encode and DSP (libFLAC, libebur128, libsamplerate, libogg/libopus, and others) — BSD, MIT, and public-domain terms. See parso-audio-engine's ATTRIBUTION.md for the complete per-file list.")
-                    privacyPoint("GRDB.swift", "SQLite access, MIT licensed.")
-                    privacyPoint("Jamendo — Creative Commons music",
-                        "The built-in Mood Starter library and every Jamendo genre library you add stream Creative Commons-licensed tracks from Jamendo (jamendo.com). Each track keeps its own real license (shown on its library's detail screen) exactly as Jamendo publishes it — Platterhead adds no restrictions of its own and changes no track's license.")
-                }
-                .foregroundStyle(Palette.ink)
-                .padding(20)
+        Group {
+            if ownsNavigationStack {
+                NavigationStack { content }
+            } else {
+                content
             }
-            .background(Palette.libraryBackground.ignoresSafeArea())
-            .navigationTitle("Terms & Notices")
-            .compactNavigationTitle()
-            .toolbar {
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Third-party notices")
+                    .font(Typography.headline)
+                privacyPoint("License — GNU GPL v3.0 or later",
+                    "Platterhead is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
+                privacyPoint("Semantic / vibe search",
+                    "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
+                privacyPoint("Stem separation — Demucs (current default)",
+                    "Splitting a track into vocals/drums/bass/other uses Demucs/htdemucs (Meta). Spleeter (Deezer, MIT code and weights) ships alongside it as a fallback backend. Demucs's pretrained weights are not established as commercially clean — Meta's own maintainers have stated on record that the released weights are provided for scientific purposes only — so shipping Demucs as the default here reflects this app's own licensing determination, made independently of parso-audio-engine's own stance (that engine still recommends Spleeter as its default for anyone who hasn't made that determination themselves). See docs/GPL-BACKENDS.md in this app's source for the full reasoning and how to switch back.")
+                privacyPoint("MP3 export — LAME",
+                    "The optional \"Also export MP3\" option on a finished recording uses LAME 3.100 (libmp3lame), licensed LGPL-2.1-or-later. LAME's source is vendored in this app's own source tree (Sources/CLAMEBridge) — parso-audio-engine itself never links or depends on LAME; it only declares the protocol this app's LAME wrapper implements. Recordings themselves are always saved as M4A/AAC; MP3 is produced only as an additional copy at export time. See docs/GPL-BACKENDS.md and docs/BYO-CODEC.md (parso-audio-engine) for how this works.")
+                privacyPoint("Vendored audio/DSP libraries",
+                    "Platterhead's audio engine vendors permissively-licensed open-source libraries for decode/encode and DSP (libFLAC, libebur128, libsamplerate, libogg/libopus, and others) — BSD, MIT, and public-domain terms. See parso-audio-engine's ATTRIBUTION.md for the complete per-file list.")
+                privacyPoint("GRDB.swift", "SQLite access, MIT licensed.")
+                privacyPoint("Jamendo — Creative Commons music",
+                    "The built-in Mood Starter library and every Jamendo genre library you add stream Creative Commons-licensed tracks from Jamendo (jamendo.com). Each track keeps its own real license (shown on its library's detail screen) exactly as Jamendo publishes it — Platterhead adds no restrictions of its own and changes no track's license.")
+            }
+            .foregroundStyle(Palette.ink)
+            .padding(20)
+        }
+        .background(Palette.libraryBackground.ignoresSafeArea())
+        .navigationTitle("Terms & Notices")
+        .compactNavigationTitle()
+        .toolbar {
+            if ownsNavigationStack {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.tint(Palette.accent)
                 }
