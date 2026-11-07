@@ -380,12 +380,19 @@ struct MoodView: View {
             guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
             await prepareMoodModel()
-            moodModel?.setMatchingReferenceTrackID(
-                player.currentTrack?.id, enabled: player.currentTrack?.id != nil)
+            let trackID = player.currentTrack?.id
+            moodModel?.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
             await refreshMoodReadiness()
         }
         .onChange(of: player.currentTrack?.id) { _, trackID in
-            moodModel?.setMatchingReferenceTrackID(trackID, enabled: trackID != nil)
+            moodModel?.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
+        }
+        // The currently-playing track's OWN indexing can complete mid-session with no track
+        // change at all — re-check readiness for the same track so matching upgrades on its own
+        // once analysis actually lands, rather than needing the user to switch tracks and back.
+        .onChange(of: appState.musicalInfoRevision) { _, _ in
+            let trackID = player.currentTrack?.id
+            moodModel?.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
         }
         .task {
             while !Task.isCancelled {
@@ -402,6 +409,22 @@ struct MoodView: View {
         }) {
             IndexStatusView(model: indexStatusModel)
         }
+    }
+
+    /// Real report: Mood auto-enabled mix-compatible matching against whatever track happened to
+    /// be loaded (even just restored into a persisted queue, never necessarily playing), with no
+    /// check that it was actually analyzed yet — hitting `SearchService`'s intentional hard block
+    /// (`.matchingReferenceUnavailable`, tested and relied on by Find Music's own explicit opt-in
+    /// toggle, so that shared behavior can't change) constantly in practice, since a reference
+    /// track's own BPM/camelot analysis is a background job racing everything else. Checking
+    /// readiness here first, before ever asking for matching, means Mood just shows plain
+    /// semantic results instead of blocking — mix-compatible ordering kicks in automatically once
+    /// the reference actually finishes indexing (BPM/camelot is global via `musicalInfo`, not read
+    /// from the `DiscoverySearchViewModel`'s own candidate pool, so this works even on Mood's very
+    /// first load before any search has run).
+    private func isReadyForMatching(_ trackID: Int64?) -> Bool {
+        guard let trackID, let info = appState.musicalInfo[trackID] else { return false }
+        return info.bpm != nil && info.camelotKey != nil
     }
 
     private func prepareMoodModel() async {
@@ -554,15 +577,6 @@ private struct MoodEntryPointSection: View {
                 MoodPillPicker(pills: genrePills, selection: genreSelectionBinding, kind: "genre")
             }
 
-            if moodModel.matchingReferenceTrackID != nil {
-                Toggle("Mix-compatible tracks", isOn: Binding(
-                    get: { moodModel.matchingTracksOnly },
-                    set: { moodModel.setMatchingTracksOnly($0) }))
-                    .font(Typography.callout)
-                    .tint(Palette.accent)
-                    .accessibilityIdentifier("mood.matchingTracks")
-            }
-
             MoodActionRow(canPlay: !moodModel.results.isEmpty, starting: startingPlayback, onPlay: onPlay)
 
             Group {
@@ -632,9 +646,7 @@ private struct MoodEntryPointSection: View {
                     .buttonStyle(.bordered)
             }
         case .noMatches:
-            hint(moodModel.matchingTracksOnly
-                ? "No mix-compatible tracks matched this mood. Turn off Mix-compatible tracks or try different pills."
-                : "No tracks matched that mood yet. Try different pills or fewer of them.")
+            hint("No tracks matched that mood yet. Try different pills or fewer of them.")
         case .emptyLibrary:
             hint("Your library is empty. Add music to try a mood.")
         case .emptyScope, .sourceUnavailable:
@@ -644,9 +656,13 @@ private struct MoodEntryPointSection: View {
                 hint("Something went wrong running that search.")
                 Button("Retry") { moodModel.retry() }.buttonStyle(.bordered)
             }
-        case .matchingReferenceUnavailable:
-                hint("Mix-compatible mood results need BPM and key analysis for the current track.")
-        case .validationError, .analyzeReference, .staleSuppressed, .results:
+        // Mix-compatible matching is now always attempted, never a toggle, and gracefully
+        // degrades to plain semantic results when the reference track isn't analyzed yet
+        // (`SearchService.runSemantic`/`runSimilar`) instead of hard-blocking — so this state
+        // should no longer be reachable from Mood. Kept handled (not removed) since the
+        // underlying `DiscoverySearchScreenState` case is shared with other search surfaces.
+        case .matchingReferenceUnavailable, .validationError, .analyzeReference, .staleSuppressed,
+             .results:
             EmptyView()
         }
     }

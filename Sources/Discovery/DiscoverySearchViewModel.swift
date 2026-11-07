@@ -328,12 +328,13 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     /// Start the current mood directly, not a single result or a mix-builder sheet.
     ///
-    /// Real report: with "Mix-compatible tracks" OFF, Play still silently dropped every result
-    /// lacking BPM/key analysis and reordered the survivors into a compatibility chain — the
-    /// filtering in `MusicalMatchPolicy.queueTrackIDs` ran unconditionally, keyed only on whether
-    /// `metadata`/`energyByID` happened to have an entry, not on `matchingTracksOnly` at all. The
-    /// toggle must gate the filtering itself, not just the `startingFrom` reference: when it's
-    /// off, Play queues the displayed results in their own order, full stop.
+    /// Mix-compatible matching has no user-facing toggle anymore (migration v46 — every result
+    /// `DiscoverySearchViewModel` can return is now guaranteed `indexed`, i.e. has BOTH a CLAP
+    /// embedding and BPM/camelot/energy, so chain-ordering by compatibility never has to drop a
+    /// result for missing data). `matchingTracksOnly` here is Mood's own live-playback-anchor
+    /// bookkeeping (`setMatchingReferenceTrackID`), not a setting: it's true whenever a reference
+    /// track exists and false only when there genuinely isn't one to chain against, in which case
+    /// Play falls back to the displayed order rather than inventing a reference.
     @discardableResult
     public func playMood(
         metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:],
