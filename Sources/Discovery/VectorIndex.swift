@@ -147,12 +147,6 @@ public actor VectorIndex {
 
     private func liveSignature() throws -> Signature {
         try writer.read { db in
-            // Scoped to `indexed = 1` tracks, matching `rebuild(signature:)`'s own candidate
-            // filter exactly — otherwise a track whose embedding already existed (counted here
-            // before) flipping to `indexed = 1` later (once musical analysis also lands, see
-            // `BoundedIndexWorker.commitAnalysis`) would never change this signature, since its
-            // `discovery_embedding` row itself is untouched at that moment, and the live index
-            // would never notice it just became eligible.
             let row = try Row.fetchOne(
                 db,
                 sql: """
@@ -160,7 +154,6 @@ public actor VectorIndex {
                            COALESCE(SUM(trackId), 0) AS s,
                            COALESCE(MAX(completedAt), '') AS m
                     FROM discovery_embedding
-                    WHERE trackId IN (SELECT id FROM track WHERE indexed = 1)
                     """)
             return Signature(
                 count: row?["c"] ?? 0,
@@ -181,19 +174,13 @@ public actor VectorIndex {
             preprocessing: space.preprocessingVersion, sampling: space.samplingVersion)
 
         // Only rows in the current embedding space are scanned; any other
-        // dimension/version is ignored, never selected as "newest". Real report: Mood search
-        // could return a track with a CLAP embedding but no BPM/camelot yet, because this was
-        // the candidate pool for semantic matching and it never checked whether musical
-        // analysis had ALSO landed — `track.indexed` (migration v46) is the single flag set
-        // atomically once both have, and gating here is what actually keeps an embedding-only
-        // track out of search results, not just out of the mix-compatible queue built from them.
+        // dimension/version is ignored, never selected as "newest".
         let rows: [DiscoveryEmbedding] = try writer.read { db in
             try DiscoveryEmbedding
                 .filter(Column("modelVersion") == head.model)
                 .filter(Column("preprocessingVersion") == head.preprocessing)
                 .filter(Column("samplingVersion") == head.sampling)
                 .filter(Column("dimensions") == head.dims)
-                .filter(sql: "trackId IN (SELECT id FROM track WHERE indexed = 1)")
                 .order(Column("trackId").asc)
                 .fetchAll(db)
         }
