@@ -84,6 +84,32 @@ final class StallAutoSkipTests: XCTestCase {
         XCTAssertFalse(player.isPlaying, "a manually-paused load must stay exactly as the caller left it")
     }
 
+    /// Issue #271: a remote (non-file) stream gets the longer remote window, so a slow-starting
+    /// cloud-drive/Jamendo track is not declared stalled and paused after the local-file window.
+    func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() throws {
+        let player = AudioPlayer.shared
+        let savedLocal = player.stallEvaluationTimeout
+        let savedRemote = player.remoteStallEvaluationTimeout
+        defer {
+            player.stallEvaluationTimeout = savedLocal
+            player.remoteStallEvaluationTimeout = savedRemote
+        }
+        player.stallEvaluationTimeout = .milliseconds(80)
+        player.remoteStallEvaluationTimeout = .seconds(30)
+
+        player.repeatMode = .off
+        player.queue = [row(1)]
+        player.index = 0
+
+        let item = AVPlayerItem(url: URL(string: "https://example.invalid/slow.mp3")!)
+        player.isPlaying = true
+        player.replaceItem(item, autoplay: true)
+
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(player.stallModel.consecutiveSkips, 0,
+            "a remote load must not be evaluated as stalled by the short local-file window")
+    }
+
     // NOTE: a planned fix+test here (reacting immediately to a confirmed remote `.failed`
     // AVPlayerItem status instead of waiting out the full stall timeout) was reverted entirely —
     // both the new test AND the production `.failed`-status branch in `AudioPlayer+Loading.swift`

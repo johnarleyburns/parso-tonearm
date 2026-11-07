@@ -185,6 +185,8 @@ public final class AudioPlayer: ObservableObject {
     /// moved on from.
     var stallWatchTask: Task<Void, Never>?
     var stallEvaluationTimeout: Duration = .seconds(12)
+    /// Window for remote (non-file) items, which can legitimately take much longer to start.
+    var remoteStallEvaluationTimeout: Duration = .seconds(60)
     var prefetchedURLs: [Int64: URL] = [:]
     /// Active prefetch loaders keyed by track id, so skipping a track can cancel
     /// its in-flight fetch (T3.5).
