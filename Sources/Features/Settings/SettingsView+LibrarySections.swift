@@ -38,23 +38,11 @@ extension SettingsView {
 
     var musicLibrariesCard: some View {
         Button { activeSheet = .musicLibraries } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Music Libraries").font(Typography.callout)
-                    Text(
-                        appState.sources.isEmpty
-                            ? "Local folders, servers & cloud"
-                            : "\(appState.sources.count) connected"
-                    )
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "externaldrive", title: "Music Libraries",
+                        detail: Text("Local folders, servers & cloud"),
+                        count: appState.sources.isEmpty ? nil : appState.sources.count)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.musicLibraries")
@@ -68,15 +56,9 @@ extension SettingsView {
     /// opens constantly.
     var soundIndexCard: some View {
         Button { activeSheet = .soundIndex } label: {
-            HStack {
-                Text("Sound Index").font(Typography.callout)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "waveform", title: "Sound Index", detail: nil)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.soundIndex")
@@ -134,19 +116,10 @@ extension SettingsView {
 
     var eqRow: some View {
         Button { activeSheet = .eq } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("10-band EQ").font(Typography.callout)
-                    Text("Presets and custom curves")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "slider.vertical.3")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "slider.vertical.3", title: "10-band EQ",
+                        detail: Text("Presets and custom curves"))
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.eq")
@@ -201,22 +174,11 @@ extension SettingsView {
     #if os(iOS)
     var watchCard: some View {
         Button { showWatchSettings = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "applewatch")
-                    .font(.title2).foregroundStyle(Palette.accent).frame(width: 26)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Apple Watch").font(Typography.headline)
-                    Text("Downloads, connection and sync")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Typography.body)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .glassSurface(cornerRadius: 18)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "applewatch", title: "Apple Watch",
+                        detail: Text("Downloads, connection and sync"))
+                .padding(15)
+                .glassSurface(cornerRadius: 18)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.watch")
@@ -231,20 +193,11 @@ extension SettingsView {
     /// then takes precedence (plan 6.3).
     var jamendoCard: some View {
         Button { activeSheet = .jamendoKey } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Jamendo key").font(Typography.callout)
-                    Text("Use your own application key for genre libraries")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "key")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .glassSurface(cornerRadius: 18)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "key", title: "Jamendo key",
+                        detail: Text("Use your own application key for genre libraries"))
+                .padding(15)
+                .glassSurface(cornerRadius: 18)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.jamendo.key")
@@ -252,20 +205,11 @@ extension SettingsView {
 
     var toolsCard: some View {
         Button { activeSheet = .tools } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tools").font(Typography.callout)
-                    Text("Smart playlists, tags, duplicates, parametric EQ and more")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "wrench.and.screwdriver")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .glassSurface(cornerRadius: 18)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "wrench.and.screwdriver", title: "Tools",
+                        detail: Text("Smart playlists, tags, duplicates, parametric EQ and more"))
+                .padding(15)
+                .glassSurface(cornerRadius: 18)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.tools")
