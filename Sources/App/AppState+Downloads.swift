@@ -188,8 +188,22 @@ extension AppState {
         let result = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in resolved },
                                                         source: source, store: store)
         guard let id = result.trackIDs.first,
-              let persisted = try? await store.tracks(forSource: source.id ?? -1).first(where: { $0.id == id })
+              var persisted = try? await store.tracks(forSource: source.id ?? -1).first(where: { $0.id == id })
         else { return nil }
+        // Real report: a track played fine straight from browsing but then failed to actually
+        // play — the re-fetched `persisted` row's `Asset.transientRemoteHeaders`/
+        // `transientRemoteSupportsByteRanges` reset to empty/default, because those fields are
+        // deliberately NOT persisted columns (confirmed by `RemotePlaylistIngestTests`'s own
+        // "transient credentials" assertion) — this function's own doc comment says it retains
+        // "its transient authorization long enough to pin the bytes," but the DB round-trip above
+        // silently threw that authorization away for whoever plays the RETURNED row (every
+        // `playRemote`/`toggleFavorite` caller). Carry the original, just-resolved row's transient
+        // fields forward onto the durable one.
+        if var persistedAsset = persisted.asset {
+            persistedAsset.transientRemoteHeaders = asset.transientRemoteHeaders
+            persistedAsset.transientRemoteSupportsByteRanges = asset.transientRemoteSupportsByteRanges
+            persisted.asset = persistedAsset
+        }
         _ = await download(rows: [row])
         await reload()
         return persisted
