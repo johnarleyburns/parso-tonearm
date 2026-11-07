@@ -31,9 +31,10 @@ struct SettingsRow: View {
                 }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Typography.callout)
+                Text(title).font(Typography.callout).minimumScaleFactor(0.82)
                 if let detail {
                     detail.font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                        .contentTransition(.numericText())
                 }
             }
 

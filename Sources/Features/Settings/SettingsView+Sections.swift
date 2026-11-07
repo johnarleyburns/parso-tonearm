@@ -21,18 +21,9 @@ extension SettingsView {
     /// reachable, just behind one extra tap instead of always visible.
     var advancedSection: some View {
         Button { activeSheet = .advanced } label: {
-            HStack {
-                ViewThatFits(in: .horizontal) {
-                    Text("Advanced").font(Typography.callout)
-                    Text("More settings").font(Typography.callout)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "ellipsis.circle", title: "Advanced", detail: nil)
+                .padding(15)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.advanced")
@@ -103,21 +94,11 @@ extension SettingsView {
     /// sheet opened from here; nothing about setting the limit changes.
     var cacheSummaryCard: some View {
         Button { activeSheet = .cacheManagement } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Streaming Cache").font(Typography.callout)
-                    Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                        .contentTransition(.numericText())
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .glassSurface(cornerRadius: 18)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "internaldrive", title: "Streaming Cache",
+                        detail: Text("\(TimeFmt.megabytes(cacheUsed)) of \(TimeFmt.megabytes(cacheLimit)) used"))
+                .padding(15)
+                .glassSurface(cornerRadius: 18)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.cache")

@@ -90,18 +90,11 @@ extension SettingsView {
 
     var privacyCard: some View {
         Button { activeSheet = .privacy } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Privacy").font(Typography.callout)
-                    Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-            .padding(15)
-            .glassSurface(cornerRadius: 18)
-            .contentShape(Rectangle())
+            SettingsRow(icon: "hand.raised", title: "Privacy",
+                        detail: Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect"))
+                .padding(15)
+                .glassSurface(cornerRadius: 18)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("settings.privacy")
@@ -110,31 +103,24 @@ extension SettingsView {
     var aboutCard: some View {
         VStack(spacing: 0) {
             Button { activeSheet = .thirdPartyNotices } label: {
-                HStack {
-                    aboutRow("Terms", "GPLv3+ · third-party notices")
-                    Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                .contentShape(Rectangle())
+                SettingsRow(icon: "doc.text", title: "Terms", detail: Text("GPLv3+ · third-party notices"))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.thirdPartyNotices")
             Divider().overlay(Palette.hairline)
             Link(destination: URL(string: "https://johnarleyburns.github.io/parso-tonearm/")!) {
-                HStack {
-                    aboutRow("Privacy Policy", "View the full policy")
-                    Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                .contentShape(Rectangle())
+                SettingsRow(icon: "shield", title: "Privacy Policy",
+                            detail: Text("View the full policy"), trailingIcon: "arrow.up.right")
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.privacyPolicyURL")
             Divider().overlay(Palette.hairline)
             Link(destination: URL(string: "https://github.com/johnarleyburns/parso-tonearm")!) {
-                HStack {
-                    aboutRow("Source", "View on GitHub")
-                    Image(systemName: "arrow.up.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                .contentShape(Rectangle())
+                SettingsRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source",
+                            detail: Text("View on GitHub"), trailingIcon: "arrow.up.right")
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Divider().overlay(Palette.hairline)
