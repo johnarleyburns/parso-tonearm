@@ -359,6 +359,60 @@ final class IndexStatusPresentationTests: XCTestCase {
         XCTAssertTrue(text.contains("10 total"))
         XCTAssertTrue(text.contains("1.2.3 (456)"))
     }
+
+    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
+    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
+
+    func testCurrentTrackAndETAShowOnlyWhileActivelyIndexing() {
+        let track = IndexJobRepository.RunningTrackSummary(
+            id: 1, title: "Some Song", artistName: "Some Artist", completedWindows: 3, totalWindows: 10)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 50, complete: 10, queuedOrRunning: 40),
+                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
+        XCTAssertEqual(p.phase, .indexing)
+        XCTAssertEqual(p.currentTrackTitle, "Some Song")
+        XCTAssertEqual(p.currentTrackArtist, "Some Artist")
+        XCTAssertEqual(p.currentTrackFraction, 0.3)
+        XCTAssertNotNil(p.estimatedTimeRemainingText)
+    }
+
+    /// Real risk this guards against: a job can hold a `running` lease while the scheduler is
+    /// genuinely blocked (thermal/battery/playback) — `coverage` alone can't tell that apart from
+    /// real progress. Showing "30%" and an ETA for a track that is NOT actually advancing would be
+    /// exactly the fabricated-progress CLAUDE.md forbids.
+    func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicyDespiteARunningLease() {
+        let track = IndexJobRepository.RunningTrackSummary(
+            id: 1, title: "Stuck Song", artistName: nil, completedWindows: 1, totalWindows: 10)
+        let p = IndexStatusPresentation.make(
+            from: snapshot(
+                coverage(total: 50, complete: 10, queuedOrRunning: 40),
+                blockReason: .thermalSerious,
+                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
+        XCTAssertEqual(p.phase, .blockedByPolicy)
+        XCTAssertNil(p.currentTrackTitle)
+        XCTAssertNil(p.estimatedTimeRemainingText)
+    }
+
+    func testEstimatedTimeRemainingTextIsNeverFabricatedWithoutARealRate() {
+        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: nil))
+        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 0, rate: 1.0 / 60))
+        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: 0))
+    }
+
+    func testEstimatedTimeRemainingTextRoundsToCoarseHonestUnits() {
+        // 10 remaining at 1 track/10s = 100s -> minutes bucket, rounds to nearest minute.
+        let minutes = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 10, rate: 1.0 / 10)
+        XCTAssertEqual(minutes, "About 2 min remaining")
+
+        // 1000 remaining at 1 track/10s = 10,000s (~2.78h) -> hours bucket.
+        let hours = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1000, rate: 1.0 / 10)
+        XCTAssertEqual(hours, "About 3 hr remaining")
+
+        // Under a minute remaining -> no false minute-precision, just "finishing up".
+        let soon = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1, rate: 1.0 / 10)
+        XCTAssertEqual(soon, "Finishing up…")
+    }
 }
 
 /// `ModelDownloadProgress.aggregate(_:)` turns the live
@@ -450,60 +504,6 @@ final class ModelDownloadProgressAggregateTests: XCTestCase {
     func testTotalOfSeveralMBIsNotNegligible() {
         let real = ModelDownloadProgress(completedBytes: 42 * 1_048_576, totalBytes: 137 * 1_048_576)
         XCTAssertFalse(real.isNegligibleTotal)
-    }
-
-    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
-    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
-
-    func testCurrentTrackAndETAShowOnlyWhileActivelyIndexing() {
-        let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Some Song", artistName: "Some Artist", completedWindows: 3, totalWindows: 10)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 50, complete: 10, queuedOrRunning: 40),
-                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
-        XCTAssertEqual(p.phase, .indexing)
-        XCTAssertEqual(p.currentTrackTitle, "Some Song")
-        XCTAssertEqual(p.currentTrackArtist, "Some Artist")
-        XCTAssertEqual(p.currentTrackFraction, 0.3)
-        XCTAssertNotNil(p.estimatedTimeRemainingText)
-    }
-
-    /// Real risk this guards against: a job can hold a `running` lease while the scheduler is
-    /// genuinely blocked (thermal/battery/playback) — `coverage` alone can't tell that apart from
-    /// real progress. Showing "30%" and an ETA for a track that is NOT actually advancing would be
-    /// exactly the fabricated-progress CLAUDE.md forbids.
-    func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicyDespiteARunningLease() {
-        let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Stuck Song", artistName: nil, completedWindows: 1, totalWindows: 10)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 50, complete: 10, queuedOrRunning: 40),
-                blockReason: .thermalSerious,
-                currentlyIndexingTrack: track, recentCompletionRate: 1.0 / 60))
-        XCTAssertEqual(p.phase, .blockedByPolicy)
-        XCTAssertNil(p.currentTrackTitle)
-        XCTAssertNil(p.estimatedTimeRemainingText)
-    }
-
-    func testEstimatedTimeRemainingTextIsNeverFabricatedWithoutARealRate() {
-        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: nil))
-        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 0, rate: 1.0 / 60))
-        XCTAssertNil(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: 0))
-    }
-
-    func testEstimatedTimeRemainingTextRoundsToCoarseHonestUnits() {
-        // 10 remaining at 1 track/10s = 100s -> minutes bucket, rounds to nearest minute.
-        let minutes = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 10, rate: 1.0 / 10)
-        XCTAssertEqual(minutes, "About 2 min remaining")
-
-        // 1000 remaining at 1 track/10s = 10,000s (~2.78h) -> hours bucket.
-        let hours = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1000, rate: 1.0 / 10)
-        XCTAssertEqual(hours, "About 3 hr remaining")
-
-        // Under a minute remaining -> no false minute-precision, just "finishing up".
-        let soon = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1, rate: 1.0 / 10)
-        XCTAssertEqual(soon, "Finishing up…")
     }
 }
 #endif

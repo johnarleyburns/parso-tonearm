@@ -70,8 +70,14 @@ enum SearchFixture {
         modelVersion: Int = DiscoveryPipelineVersion.model,
         preprocessingVersion: Int = DiscoveryPipelineVersion.preprocessing,
         samplingVersion: Int = DiscoveryPipelineVersion.sampling,
-        completedAt: Date = Date()
+        completedAt: Date = Date(),
+        indexed: Bool = true
     ) throws {
+        // Search gates on `track.indexed` (migration v46), which the real worker sets atomically
+        // once embedding + analysis both exist; fixtures default to a fully indexed track.
+        if indexed {
+            try db.execute(sql: "UPDATE track SET indexed = 1 WHERE id = ?", arguments: [trackId])
+        }
         let unit = SemanticPooling.l2Normalized(padded(vector))
         let (int8, scale) = VectorQuantization.quantize(unit)
         var row = DiscoveryEmbedding(

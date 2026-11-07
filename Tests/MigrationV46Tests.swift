@@ -29,21 +29,33 @@ final class MigrationV46Tests: XCTestCase {
         return db.lastInsertedRowID
     }
 
+    /// `discovery_embedding`/`discovery_track_analysis` have a real FK on `assetId`, so each track
+    /// needs a genuine asset row; reuse one per track.
+    private func assetId(_ db: Database, trackId: Int64) throws -> Int64 {
+        if let id = try Int64.fetchOne(db, sql: "SELECT id FROM asset WHERE trackId = ?", arguments: [trackId]) {
+            return id
+        }
+        try db.execute(sql: """
+            INSERT INTO asset (trackId, kind, relPath, syncID) VALUES (?, 'localRef', 'a.m4a', ?)
+            """, arguments: [trackId, UUID().uuidString])
+        return db.lastInsertedRowID
+    }
+
     private func insertEmbedding(_ db: Database, trackId: Int64) throws {
         try db.execute(sql: """
             INSERT INTO discovery_embedding
                 (trackId, assetId, assetRevision, modelVersion, preprocessingVersion,
                  samplingVersion, dimensions, quantizedVector, scale, completedAt)
-            VALUES (?, 1, 1, 1, 1, 1, 1, x'00', 1.0, ?)
-            """, arguments: [trackId, Date()])
+            VALUES (?, ?, 1, 1, 1, 1, 1, x'00', 1.0, ?)
+            """, arguments: [trackId, try assetId(db, trackId: trackId), Date()])
     }
 
     private func insertAnalysis(_ db: Database, trackId: Int64) throws {
         try db.execute(sql: """
             INSERT INTO discovery_track_analysis
                 (trackId, assetId, assetRevision, analysisVersion, bpm, key, energy, completedAt)
-            VALUES (?, 1, 1, 1, 120, '8A', 5.0, ?)
-            """, arguments: [trackId, Date()])
+            VALUES (?, ?, 1, 1, 120, '8A', 5.0, ?)
+            """, arguments: [trackId, try assetId(db, trackId: trackId), Date()])
     }
 
     private func insertJob(

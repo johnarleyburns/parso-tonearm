@@ -322,7 +322,9 @@ extension Schema {
                 // v28 created the identity table; v30 also backfills rows
                 // imported before identity keys existed. This is synchronous
                 // launch migration work, not an invisible background job.
-                let tracks = try Track.fetchAll(db)
+                // `track.indexed` doesn't exist until v46, so select a constant for it rather than
+                // `SELECT *` (which would fail to decode `Track.indexed` at this schema version).
+                let tracks = try Track.fetchAll(db, sql: "SELECT *, 0 AS indexed FROM track")
                 for track in tracks {
                     let asset = try Asset.filter(Column("trackId") == track.id).fetchOne(db)
                     let source = try Source.fetchOne(db, key: track.sourceId)
