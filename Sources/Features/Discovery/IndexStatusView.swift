@@ -25,6 +25,7 @@ struct IndexStatusView: View {
                     if model.presentation != nil { loadStatusStrip }
                     if let p = model.presentation {
                         summaryCard(p)
+                        currentTrackCard(p)
                         // Real report: "I don't necessarily want to download
                         // ALL the files in my library, it's too many, I want
                         // to only index downloaded/on-device tracks" —
@@ -173,6 +174,43 @@ struct IndexStatusView: View {
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassSurface(cornerRadius: 18)
+    }
+
+    /// Real report: "what track is being indexed, the % progress of the INDIVIDUAL TRACK as it's
+    /// being done, not just all tracks... ETAs." Shows nothing (not even a placeholder) when
+    /// there's genuinely no current track or no honest ETA to report — matching
+    /// `IndexStatusPresentation`'s own rule of never fabricating progress for a track that isn't
+    /// actually being worked on right now.
+    @ViewBuilder
+    private func currentTrackCard(_ p: IndexStatusPresentation) -> some View {
+        if let title = p.currentTrackTitle {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(Palette.accent)
+                    Text("Indexing now").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                    Spacer()
+                    if let eta = p.estimatedTimeRemainingText {
+                        Text(eta).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                    }
+                }
+                Text(title).font(Typography.callout).lineLimit(1)
+                if let artist = p.currentTrackArtist {
+                    Text(artist).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                }
+                if let fraction = p.currentTrackFraction {
+                    ProgressView(value: fraction).tint(Palette.accent)
+                } else {
+                    // A freshly claimed job, or a track too short to need windowing — real
+                    // state, not a stuck 0%: say so instead of drawing an empty bar.
+                    Text("Starting…").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
+                }
+            }
+            .padding(15)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassSurface(cornerRadius: 18)
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private func countsCard(_ p: IndexStatusPresentation) -> some View {

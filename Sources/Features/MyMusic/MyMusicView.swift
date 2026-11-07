@@ -27,6 +27,13 @@ struct MyMusicView: View {
     /// `LibraryBrowse.Entry.self` from `LibraryView` — `NavigationPath`
     /// accepts any `Hashable` without unifying them under one shared type.
     @State private var navigationPath = NavigationPath()
+    /// Real report: "[Sound Index is] buried down in Settings, I'd like it to be reachable up in
+    /// My Music, maybe an Indexing icon they can click on with visually showing if it's currently
+    /// indexing/progressing or paused." Owned here (not constructed fresh inside the sheet) so the
+    /// toolbar icon's own live badge and the sheet it opens always reflect the exact same state —
+    /// same ownership pattern Settings' `SoundIndexSheet` already uses for the same reason.
+    @StateObject private var indexStatusModel = IndexStatusModel()
+    @State private var showIndexStatus = false
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -119,6 +126,15 @@ struct MyMusicView: View {
             .navigationTitle("My Music")
             .largeNavigationTitle()
             .rootTabChrome(.myMusic)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showIndexStatus = true } label: {
+                        indexStatusIcon
+                    }
+                    .accessibilityLabel(indexStatusAccessibilityLabel)
+                    .accessibilityIdentifier("mymusic.indexStatus")
+                }
+            }
         }
         .task {
             // On Mac the search field is the window toolbar's, and typing in
@@ -127,6 +143,48 @@ struct MyMusicView: View {
             appState.searchText = ""
             #endif
             consumePendingArtistFilter()
+        }
+        .task {
+            await indexStatusModel.refresh()
+            indexStatusModel.startPolling()
+        }
+        .onDisappear { indexStatusModel.stopPolling() }
+        .sheet(isPresented: $showIndexStatus) {
+            IndexStatusView(model: indexStatusModel)
+        }
+    }
+
+    /// A glyph + tint that visually distinguishes "actively indexing," "paused," "needs
+    /// attention" (failures) and "idle/up to date" at a glance, without opening the sheet —
+    /// exactly the user's own words ("visually showing if it's currently indexing/progressing or
+    /// paused"). Never fabricates a state: before the first real snapshot loads, this shows a
+    /// plain, untinted waveform rather than guessing.
+    @ViewBuilder
+    private var indexStatusIcon: some View {
+        let phase = indexStatusModel.presentation?.phase
+        switch phase {
+        case .indexing:
+            Image(systemName: "waveform")
+                .foregroundStyle(Palette.accent)
+                .symbolEffect(.variableColor.iterative, isActive: true)
+        case .paused:
+            Image(systemName: "waveform.slash").foregroundStyle(Palette.inkTertiary)
+        case .needsAttention:
+            Image(systemName: "waveform.badge.exclamationmark").foregroundStyle(Palette.danger)
+        case .waiting, .waitingForModel, .blockedByPolicy:
+            Image(systemName: "waveform.badge.magnifyingglass").foregroundStyle(Palette.inkTertiary)
+        case .upToDate, .emptyLibrary, .idle, nil:
+            Image(systemName: "waveform").foregroundStyle(Palette.inkSecondary)
+        }
+    }
+
+    private var indexStatusAccessibilityLabel: String {
+        switch indexStatusModel.presentation?.phase {
+        case .indexing: return String(localized: "Sound Index: indexing")
+        case .paused: return String(localized: "Sound Index: paused")
+        case .needsAttention: return String(localized: "Sound Index: needs attention")
+        case .waiting, .waitingForModel, .blockedByPolicy: return String(localized: "Sound Index: waiting")
+        default: return String(localized: "Sound Index")
         }
     }
 
