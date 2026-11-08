@@ -17,11 +17,10 @@ public struct SpectrogramDetector {
         self.channelTolerance = channelTolerance
     }
 
-    // The `UIImage`/`NSImage` convenience overload used to live here, but
-    // `PlatformImage` is a `Sources/DesignSystem` (app-target) typealias and
-    // this file compiles as part of the separate `TonearmCore` package
-    // module — it isn't visible here. Callers extract a `CGImage` themselves
-    // (native Mac app, docs/plans/native-mac-app-plan.md §2b) and call the
+    // A `UIImage` convenience overload used to live here, but `PlatformImage`
+    // is a `Sources/DesignSystem` (app-target) typealias and this file
+    // compiles as part of the separate `TonearmCore` package module — it
+    // isn't visible here. Callers extract a `CGImage` themselves and call the
     // `CGImage` overload below directly.
 
     public func isSpectrogram(_ cgImage: CGImage) -> Bool {

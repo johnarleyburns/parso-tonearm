@@ -1,9 +1,5 @@
 import Foundation
-#if os(macOS)
-import AppKit
-#else
 import UIKit
-#endif
 
 actor ArtworkStore {
     static let shared = ArtworkStore()
@@ -66,26 +62,13 @@ extension PlatformImage {
         guard maxSide > maxDimension else { return self }
         let scale = maxDimension / maxSide
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        #if os(macOS)
-        return PlatformImage(size: newSize, flipped: false) { rect in
-            self.draw(in: rect, from: .zero, operation: .copy, fraction: 1)
-            return true
-        }
-        #else
         let renderer = UIGraphicsImageRenderer(size: newSize)
         return renderer.image { _ in
             draw(in: CGRect(origin: .zero, size: newSize))
         }
-        #endif
     }
 
     func tonearmJPEGData(compressionQuality: CGFloat) -> Data? {
-        #if os(macOS)
-        // `NSImage` has no `jpegData(compressionQuality:)`; go through `NSBitmapImageRep`.
-        guard let tiff = tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
-        return rep.representation(using: .jpeg, properties: [.compressionFactor: compressionQuality])
-        #else
-        return jpegData(compressionQuality: compressionQuality)
-        #endif
+        jpegData(compressionQuality: compressionQuality)
     }
 }
