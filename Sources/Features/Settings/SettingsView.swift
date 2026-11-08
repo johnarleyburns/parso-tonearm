@@ -1,9 +1,7 @@
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if canImport(UIKit)
 import UIKit
-#endif
 
 /// Real report: "clicking Settings -> Music Libraries does nothing" — tapping
 /// worked and set its own `@State` bool, but the sheet never presented.
@@ -19,19 +17,10 @@ enum SettingsSheet: Identifiable {
     var id: Self { self }
 }
 
-/// A real macOS Settings pane (⌘,) — the same four groupings as
-/// `SettingsView.body`, each shown in its own tab of the Mac `Settings`
-/// scene. `nil` on iPhone, where `SettingsView` renders every section in one
-/// scroll.
-enum MacPreferencesPane {
-    case playback, library, account, advanced
-}
-
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
-    var macPane: MacPreferencesPane?
     @State var cacheUsed: Int64 = 0
     @State var cacheLimit: Int64 = SparseCacheStore.defaultLimit
     @State var cachedCount: Int = 0
@@ -52,62 +41,41 @@ struct SettingsView: View {
         ("10 GB", 10 * 1024 * 1024 * 1024)
     ]
 
-    private func shows(_ pane: MacPreferencesPane) -> Bool {
-        macPane == nil || macPane == pane
-    }
-
     var body: some View {
         NavigationStack {
             settingsLayout {
-                #if os(iOS)
                 Section { watchCard }
-                #endif
-                if shows(.playback) {
-                    settingsSection("Playback", identifier: "settings.section.playback") {
-                        behaviorCard
-                        keepPlayingCard
-                        #if os(iOS)
-                        SiriSettingsCard()
-                        #endif
-                    }
+                settingsSection("Playback", identifier: "settings.section.playback") {
+                    behaviorCard
+                    keepPlayingCard
+                    SiriSettingsCard()
                 }
-                if shows(.library) {
-                    settingsSection("Library & Storage", identifier: "settings.section.library") {
-                        if appState.starterMerge != nil { starterMergeCard }
-                        musicLibrariesCard
-                        soundIndexCard
-                        cacheSummaryCard
-                        syncCard
-                    }
+                settingsSection("Library & Storage", identifier: "settings.section.library") {
+                    if appState.starterMerge != nil { starterMergeCard }
+                    musicLibrariesCard
+                    soundIndexCard
+                    cacheSummaryCard
+                    syncCard
                 }
-                if shows(.account) {
-                    settingsSection("Account & About", identifier: "settings.section.account") {
-                        appearanceCard
-                        privacyCard
-                        SupportDevelopmentCard()
-                        aboutCard
-                    }
+                settingsSection("Account & About", identifier: "settings.section.account") {
+                    appearanceCard
+                    privacyCard
+                    SupportDevelopmentCard()
+                    aboutCard
                 }
-                if shows(.advanced) {
-                    Section {
-                        advancedSection
-                    }
+                Section {
+                    advancedSection
                 }
             }
-            #if os(macOS)
-            .formStyle(.grouped)
-            #endif
             .foregroundStyle(Palette.ink)
             .scrollContentBackground(.hidden)
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Settings")
-            #if os(iOS)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.accessibilityIdentifier("settings.done")
                 }
             }
-            #endif
         }
         .task { await refresh() }
         .sheet(item: $activeSheet) { sheet in
@@ -155,16 +123,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func settingsLayout<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
-        #if os(macOS)
-        Form { content() }
-        #else
         ScrollView {
             VStack(alignment: .leading, spacing: 16) { content() }
                 .padding(.horizontal, 18)
                 .padding(.top, 16)
                 .padding(.bottom, 48)
         }
-        #endif
     }
 
     /// A flat, always-visible section (matching `../parso-voxglass`'s Settings
@@ -175,29 +139,25 @@ struct SettingsView: View {
     @ViewBuilder
     private func settingsSection<Content: View>(_ title: LocalizedStringKey,
         identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
-        if macPane == nil {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 12) {
-                    Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
-                        .frame(width: 26)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(Typography.headline)
-                        Text(sectionDetail(identifier)).font(Typography.caption)
-                            .foregroundStyle(Palette.inkTertiary)
-                    }
-                    Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(Typography.headline)
+                    Text(sectionDetail(identifier)).font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary)
                 }
-                .padding(15)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier(identifier)
-                Divider().overlay(Palette.hairline).padding(.horizontal, 15)
-                VStack(alignment: .leading, spacing: 14) { content() }
-                    .padding(15)
+                Spacer()
             }
-            .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
-        } else {
-            Section(title, content: content)
+            .padding(15)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier(identifier)
+            Divider().overlay(Palette.hairline).padding(.horizontal, 15)
+            VStack(alignment: .leading, spacing: 14) { content() }
+                .padding(15)
         }
+        .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func sectionIcon(_ id: String) -> String {

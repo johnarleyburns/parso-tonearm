@@ -1,4 +1,3 @@
-#if os(iOS)
 import Intents
 import SwiftUI
 
@@ -63,4 +62,3 @@ struct SiriSettingsCard: View {
         }
     }
 }
-#endif

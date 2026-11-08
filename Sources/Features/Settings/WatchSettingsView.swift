@@ -1,5 +1,3 @@
-// iPhone-only: a Mac has no paired Apple Watch.
-#if os(iOS)
 import SwiftUI
 import TonearmCore
 
@@ -444,4 +442,3 @@ private struct WatchCollectionRowView: View {
         }
     }
 }
-#endif

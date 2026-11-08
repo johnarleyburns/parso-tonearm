@@ -1,9 +1,7 @@
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if canImport(UIKit)
 import UIKit
-#endif
 
 extension SettingsView {
     /// Adding the bundled Mood Starter tracks to the library: real progress, since when, and
@@ -173,7 +171,6 @@ extension SettingsView {
         DiscoverySyncActivityRow()
     }
 
-    #if os(iOS)
     var watchCard: some View {
         Button { showWatchSettings = true } label: {
             SettingsRow(icon: "applewatch", title: "Apple Watch",
@@ -188,7 +185,6 @@ extension SettingsView {
             WatchSettingsView()
         }
     }
-    #endif
 
     /// §18A.2: the app's own Jamendo key ships in the binary so genre libraries
     /// need no account (FR-LIB-9); a user may supply their own instead, which

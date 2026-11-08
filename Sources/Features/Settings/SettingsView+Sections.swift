@@ -1,9 +1,7 @@
 import ParsoAudioStreaming
 import SwiftUI
 import TonearmCore
-#if canImport(UIKit)
 import UIKit
-#endif
 
 extension SettingsView {
     var appearanceCard: some View {
@@ -78,9 +76,7 @@ extension SettingsView {
         }
         .alert("Custom Cache Limit", isPresented: $showCustomCacheLimit) {
             TextField("MB", text: $customCacheLimitMB)
-                #if os(iOS)
                 .keyboardType(.numberPad)
-                #endif
             Button("Cancel", role: .cancel) {}
             Button("Set") { applyCustomCacheLimit() }
         } message: {
