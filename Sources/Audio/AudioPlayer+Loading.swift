@@ -83,6 +83,27 @@ extension AudioPlayer {
                                      autoplay: autoplay)
             return
         }
+        if let freshen = remoteRowFreshener, asset.kind == .remote,
+           row.source?.kind != .jamendoGenre,
+           !(asset.remoteNodeID ?? "").isEmpty,
+           !(preloadedNextItem != nil && preloadedNextTrackId == row.track.id) {
+            // OAuth/cloud-drive and other provider-backed rows persist only a node reference: their
+            // stored URL is stale and their auth headers are never persisted. Re-resolve through the
+            // owning provider before every load, whatever UI path started playback.
+            catalogPlaybackAutoplay = autoplay
+            catalogPlaybackLoadTask?.cancel()
+            catalogPlaybackLoadTask = Task { @MainActor [weak self] in
+                let fresh = await freshen(row)
+                guard let self else { return }
+                guard !Task.isCancelled,
+                      self.catalogPlaybackLoadGeneration == generation,
+                      self.queueOccurrences.indices.contains(self.index),
+                      self.queueOccurrences[self.index] == occurrence else { return }
+                self.finishOrdinaryLoad(row: fresh, asset: fresh.asset ?? asset,
+                                        autoplay: self.catalogPlaybackAutoplay)
+            }
+            return
+        }
         finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
     }
 

@@ -247,6 +247,10 @@ final class AppState: ObservableObject {
     }
 
     func applySettingsToPlayer() {
+        AudioPlayer.shared.remoteRowFreshener = { [weak self] row in
+            guard let self else { return row }
+            return await self.freshenedForPlayback(row)
+        }
         AudioPlayer.shared.streamOnCellular = streamOnCellular
         AudioPlayer.shared.prefetchDepth = PrefetchDepthPolicy.clamp(prefetchDepth)
         AudioPlayer.shared.preferFLAC = preferFLAC
