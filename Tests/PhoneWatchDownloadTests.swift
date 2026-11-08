@@ -1041,7 +1041,6 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         clock.advance(30)
         try await managerA.tick()
-        try await managerA.requestRetry(trackID: "t3")
 
         let managerB = makeManager(dbQueue: db, resolver: resolver, transfer: transfer, clock: clock)
         try await managerB.resumeOutstanding()
