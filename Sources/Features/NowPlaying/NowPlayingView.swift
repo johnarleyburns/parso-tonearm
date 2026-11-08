@@ -1,7 +1,5 @@
 import SwiftUI
-#if !os(macOS)
 import UIKit
-#endif
 import TonearmCore
 
 struct NowPlayingView: View {
@@ -19,7 +17,6 @@ struct NowPlayingView: View {
     @State private var phoneDownloadTarget: TrackRow?
     @State private var phoneDownloadIsRemoval = false
     @State private var showPhoneDownloadConfirmation = false
-#if os(iOS)
     /// Track key whose watch transfer we toasted the *start* of, so we can toast its completion
     /// when it lands in the watch manifest.
     @State private var pendingWatchToastTrackID: String?
@@ -29,19 +26,15 @@ struct NowPlayingView: View {
     @State private var watchConfirmation: WatchTransferConfirmation?
     @State private var watchConfirmationTarget: TrackRow?
     @State private var showWatchConfirmation = false
-#endif
 
     var body: some View {
         ZStack {
             npBackground.ignoresSafeArea()
             nowPlayingScroll {
             VStack(spacing: 0) {
-                // The grabber belongs to the iPhone's swipe-down screen; on Mac
-                // Now Playing is the window's inspector column.
-                #if os(iOS)
+                // The grabber belongs to the iPhone's swipe-down screen.
                 Capsule().fill(Palette.ink.opacity(0.35))
                     .frame(width: 36, height: 5).padding(.top, 8)
-                #endif
 
                 ArtworkView(
                     image: npArtwork,
@@ -159,7 +152,6 @@ struct NowPlayingView: View {
         } message: {
             Text("This will remove the custom artwork for this track.")
         }
-#if os(iOS)
         .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
@@ -194,18 +186,12 @@ struct NowPlayingView: View {
             pendingWatchToastTrackID = nil
             ToastCenter.shared.error("Apple Watch download failed", icon: "applewatch.slash", tag: "dl.watch")
         }
-#endif
     }
 
-    /// One scroll surface on every platform: the queue renders inline (iPhone) so
-    /// the header and transport stay reachable however long the queue is.
+    /// The queue renders inline so the header and transport stay reachable however long the queue is.
     @ViewBuilder
     private func nowPlayingScroll<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        #if os(macOS)
-        ScrollView { content().padding(.vertical, 12) }
-        #else
         ScrollView { content() }
-        #endif
     }
 
     private func deleteArtwork() {
@@ -392,16 +378,12 @@ struct NowPlayingView: View {
             .accessibilityLabel("Add to Playlist")
             .accessibilityIdentifier("np.addToPlaylist")
 
-            #if os(iOS)
             AirPlayButton()
                 .frame(width: 44, height: 44)
                 .accessibilityIdentifier("np.airplay")
-            #endif
 
             phoneDownloadButton(for: player.currentTrack)
-            #if os(iOS)
             watchButton(for: player.currentTrack)
-            #endif
 
             Menu {
                 if !player.isAmbient, player.currentTrack != nil {
@@ -484,7 +466,6 @@ struct NowPlayingView: View {
         .contentShape(Circle())
     }
 
-    #if os(iOS)
     @ViewBuilder
     private func watchButton(for row: TrackRow?) -> some View {
         let state = displayedWatchState(for: row)
@@ -540,7 +521,6 @@ struct NowPlayingView: View {
         }
         return appState.watchGlyphState(for: row)
     }
-    #endif
 
     private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
         switch state {

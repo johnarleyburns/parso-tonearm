@@ -1,7 +1,5 @@
 import SwiftUI
-#if !os(macOS)
 import UIKit
-#endif
 import UniformTypeIdentifiers
 import TonearmCore
 
@@ -486,20 +484,16 @@ struct AddServerSheet: View {
     }
 }
 
-// Native Mac app (docs/plans/native-mac-app-plan.md §2a): this `UITextField`
-// wrapper exists because a plain SwiftUI `TextField` didn't reliably support
-// paste in some iOS sheet-presentation contexts (a real report this app
-// already worked around). macOS's `TextField` doesn't have that same
-// limitation, so the Mac build below uses the plain SwiftUI control
-// directly — no wrapper needed at all. `TextFieldKeyboardHint` replaces the
-// iOS-only `UIKeyboardType` in the shared call-site signature so both
-// platform implementations can share one interface.
+// This `UITextField` wrapper exists because a plain SwiftUI `TextField`
+// didn't reliably support paste in some iOS sheet-presentation contexts (a
+// real report this app already worked around). `TextFieldKeyboardHint`
+// replaces `UIKeyboardType` in the call-site signature so call sites don't
+// need to spell out a UIKit type directly.
 public enum TextFieldKeyboardHint {
     case url
     case `default`
 }
 
-#if !os(macOS)
 struct PasteCapableTextField: UIViewRepresentable {
     @Binding var text: String
     var prompt: String
@@ -592,38 +586,3 @@ final class PasteEnabledTextField: UITextField {
         pasteCoordinator?.textDidChange(self)
     }
 }
-#else
-struct PasteCapableTextField: View {
-    @Binding var text: String
-    var prompt: String
-    var isSecure: Bool
-    var keyboardType: TextFieldKeyboardHint
-    var accessibilityIdentifier: String? = nil
-
-    var body: some View {
-        Group {
-            if isSecure {
-                SecureField(prompt, text: $text)
-            } else {
-                TextField(prompt, text: $text)
-                    .textContentType(keyboardType == .url ? .URL : nil)
-            }
-        }
-        .font(Typography.callout.monospaced())
-        .textFieldStyle(.plain)
-        .autocorrectionDisabled()
-        .modifier(OptionalAccessibilityID(id: accessibilityIdentifier))
-    }
-}
-
-private struct OptionalAccessibilityID: ViewModifier {
-    let id: String?
-    func body(content: Content) -> some View {
-        if let id {
-            content.accessibilityIdentifier(id)
-        } else {
-            content
-        }
-    }
-}
-#endif

@@ -136,11 +136,7 @@ struct ProvenanceChip: View {
     private var badge: (String, String) {
         switch source?.kind {
         case .local, .none:
-            #if os(macOS)
-            return ("laptopcomputer", "ON DEVICE")
-            #else
             return ("iphone", "ON DEVICE")
-            #endif
         case .iaItem, .iaList, .iaCollection, .iaFavorites:
             return ("cloud", "ARCHIVE.ORG")
         case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex,
@@ -248,10 +244,8 @@ struct TrackContextMenu: ViewModifier {
     let row: TrackRow
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
-#if os(iOS)
     @State private var watchConfirmation: WatchTransferConfirmation?
     @State private var showWatchConfirmation = false
-#endif
 
     func body(content: Content) -> some View {
         content.contextMenu {
@@ -282,11 +276,8 @@ struct TrackContextMenu: ViewModifier {
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
             }
-            #if os(iOS)
             watchMenuItems
-            #endif
         }
-        #if os(iOS)
         .confirmationDialog(watchConfirmation?.title ?? "Apple Watch", isPresented: $showWatchConfirmation,
                             titleVisibility: .visible) {
             Button(watchConfirmation?.confirmTitle ?? "Confirm") {
@@ -302,10 +293,8 @@ struct TrackContextMenu: ViewModifier {
         } message: {
             Text(watchConfirmation?.message ?? "")
         }
-        #endif
     }
 
-    #if os(iOS)
     @ViewBuilder
     private var watchMenuItems: some View {
         let state = appState.watchGlyphState(for: row)
@@ -326,7 +315,6 @@ struct TrackContextMenu: ViewModifier {
             Label("Downloading to Apple Watch", systemImage: "applewatch")
         }
     }
-    #endif
 
     @ViewBuilder
     private var phoneMenuItems: some View {

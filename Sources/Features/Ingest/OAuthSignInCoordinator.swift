@@ -1,11 +1,7 @@
 import AuthenticationServices
 import Foundation
 import TonearmCore
-#if os(macOS)
-import AppKit
-#else
 import UIKit
-#endif
 
 @MainActor
 final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
@@ -19,11 +15,6 @@ final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticat
     }
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        #if os(macOS)
-        NSApplication.shared.keyWindow
-            ?? NSApplication.shared.windows.first
-            ?? ASPresentationAnchor()
-        #else
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         if let key = scenes.flatMap(\.windows).first(where: \.isKeyWindow) { return key }
         // Sign-in only starts from a sheet on screen, so there is always a connected window scene.
@@ -31,7 +22,6 @@ final class OAuthSignInCoordinator: NSObject, ObservableObject, ASWebAuthenticat
             preconditionFailure("OAuth sign-in started with no connected window scene")
         }
         return ASPresentationAnchor(windowScene: scene)
-        #endif
     }
 
     private func callbackURL(for authSession: OAuthAuthorizationSession) async throws -> URL {
