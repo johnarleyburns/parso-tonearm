@@ -137,6 +137,7 @@ public actor PhoneWatchDownloadManager {
     private var artworkPlans: [String: PhoneWatchArtworkResolution] = [:]
     private var artworkSentIDs: Set<String> = []
     private var isPumping = false
+    private var retryWakeTask: Task<Void, Never>?
 
     /// Allow time for the watch's install acknowledgement after WCSession finishes.
     public static let installationAcknowledgementTimeout: TimeInterval = 24 * 60 * 60
@@ -313,7 +314,7 @@ public actor PhoneWatchDownloadManager {
         if reconcileDownloads { try await reconcile() }
     }
 
-    /// Periodic reconciliation updates status but never retries a failed transfer automatically.
+    /// Periodic reconciliation also resumes persisted transient retries whose backoff elapsed.
     public func tick() async throws {
         try await reconcile()
     }
@@ -324,7 +325,8 @@ public actor PhoneWatchDownloadManager {
         guard !installed.contains(trackID.rawValue),
               var job = try await store.jobs().first(where: { $0.trackID == trackID.rawValue }),
               job.state == .sent || job.state == .transferring else { return }
-        try await failFromError(&job, code: code)
+        try await failFromError(&job, code: code, retryTransientFailures: true)
+        await armRetryWake()
     }
 
     /// Sender completion is not installation. It starts the watch acknowledgement grace
@@ -542,14 +544,15 @@ public actor PhoneWatchDownloadManager {
                     job.updatedAt = now()
                     try await store.upsertJob(job)
                 } catch let fault as WatchProtocolFault {
-                    try await failFromError(&job, code: fault.code)
+                    try await failFromError(&job, code: fault.code, retryTransientFailures: true)
                 } catch {
-                    try await failFromError(&job, code: .transferFailed)
+                    try await failFromError(&job, code: .transferFailed, retryTransientFailures: true)
                 }
             }
         }
         guard canNetwork else { return }
         await pumpArtwork()
+        await armRetryWake()
     }
 
     /// Artwork is dispatched after the audio queue has had its turn. It has no independent job
@@ -694,19 +697,47 @@ public actor PhoneWatchDownloadManager {
     // MARK: - Failure helpers
 
     private func fail(_ job: inout PhoneWatchDownloadJob, class cls: PhoneWatchFailureClass,
-                      code: WatchProtocolErrorCode, message: String) async throws {
-        job.state = .failed
+                      code: WatchProtocolErrorCode, message: String,
+                      retryTransientFailures: Bool = false) async throws {
         job.failureClass = cls
         job.errorCode = code.rawValue
-        job.message = message
         job.attempt += 1
-        job.nextAttemptAt = nil
+        if retryTransientFailures, cls.isRetryable,
+           job.attempt < PhoneWatchTransferScheduler.maxAutomaticAttempts {
+            let delay = PhoneWatchTransferScheduler.backoff(attempt: job.attempt)
+            job.state = .queued
+            job.nextAttemptAt = now().addingTimeInterval(delay)
+            job.message = "\(message) Retrying automatically."
+        } else {
+            job.state = .failed
+            job.nextAttemptAt = nil
+            job.message = cls.isRetryable ? "\(message) Retry this transfer?" : message
+        }
         job.updatedAt = now()
         try await store.upsertJob(job)
     }
 
-    private func failFromError(_ job: inout PhoneWatchDownloadJob, code: WatchProtocolErrorCode) async throws {
+    private func failFromError(_ job: inout PhoneWatchDownloadJob, code: WatchProtocolErrorCode,
+                               retryTransientFailures: Bool = false) async throws {
         try await fail(&job, class: PhoneWatchTransferScheduler.classify(code),
-                       code: code, message: code.safeDisplayMessage + " Retry this transfer?")
+                       code: code, message: code.safeDisplayMessage,
+                       retryTransientFailures: retryTransientFailures)
+    }
+
+    /// A lifecycle tick is not guaranteed to land when the backoff ends. Keep one wakeup for the
+    /// earliest persisted retry; a later lifecycle or manifest tick remains a safe fallback.
+    private func armRetryWake() async {
+        let next = (try? await store.jobs())?
+            .compactMap(\.nextAttemptAt)
+            .filter { $0 > now() }
+            .min()
+        retryWakeTask?.cancel()
+        guard let next else { retryWakeTask = nil; return }
+        let delay = max(0, next.timeIntervalSince(now()))
+        retryWakeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            try? await self?.tick()
+        }
     }
 }
