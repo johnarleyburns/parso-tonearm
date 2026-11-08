@@ -167,7 +167,8 @@ final class RemoteIntegrationTests: XCTestCase {
         XCTAssertEqual(jellyfinTrack.metadata?.bitRateKbps, 900)
         let jellyfinAsset = try await jellyfin.resolve(node: jellyfinTrack)
         XCTAssertTrue(jellyfinAsset.url.absoluteString.contains("/Audio/track-1/stream"))
-        XCTAssertNotNil(jellyfinAsset.headers["X-Emby-Authorization"])
+        XCTAssertNotNil(jellyfinAsset.headers["Authorization"])
+        XCTAssertNil(jellyfinAsset.headers["X-Emby-Authorization"])
         try await assertAudioRequest(jellyfinAsset, expectedStatus: 206)
         try await assertArtworkRequest(jellyfinTrack.metadata?.artwork)
 
