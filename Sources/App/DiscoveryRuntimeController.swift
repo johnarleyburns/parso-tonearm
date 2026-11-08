@@ -8,11 +8,7 @@ import Combine
 import Foundation
 import TonearmCore
 import TonearmDiscovery
-#if os(macOS)
-import AppKit
-#else
 import UIKit
-#endif
 
 /// The iOS lifecycle adapter for the Discovery/CLAP indexing subsystem
 /// (IMPLEMENT_CLAP_PLAN.md §3: "App UI and iOS background lifecycle adapters
@@ -124,11 +120,7 @@ final class DiscoveryRuntimeController {
         let assembly = await makeAssembly()
         let sampler = self.sampler
         let settings = await assembly.settings
-        #if os(macOS)
-        let scheduler: any BackgroundTaskScheduling = NoopBackgroundTaskScheduler()
-        #else
         let scheduler: any BackgroundTaskScheduling = BGTaskSchedulerAdapter()
-        #endif
         let controller = DiscoveryBackgroundController(
             assembly: assembly,
             settings: settings,
@@ -170,11 +162,7 @@ final class DiscoveryRuntimeController {
     /// handler routes into the portable `DiscoveryBackgroundController`.
     func registerBackgroundTask() {
         guard !didRegisterBackgroundTask else { return }
-        #if os(macOS)
-        let scheduler: any BackgroundTaskScheduling = NoopBackgroundTaskScheduler()
-        #else
         let scheduler: any BackgroundTaskScheduling = BGTaskSchedulerAdapter()
-        #endif
         didRegisterBackgroundTask = scheduler.register(
             identifier: Self.backgroundTaskIdentifier
         ) { invocation in
@@ -272,10 +260,6 @@ final class DiscoveryRuntimeController {
     /// alongside it. Safe at any time: the model reloads lazily on the next `audioEncoder`/
     /// `textEncoder` call.
     private func observeMemoryWarnings() {
-        #if os(macOS)
-        // No `UIApplication.didReceiveMemoryWarningNotification` equivalent on
-        // macOS — the OS pages instead of jetsam-killing the process.
-        #else
         NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil, queue: .main
@@ -283,7 +267,6 @@ final class DiscoveryRuntimeController {
             guard let self else { return }
             Task { await self.assembly?.models.releaseCachedModel() }
         }
-        #endif
     }
 
     /// Playback gating (plan §6: "Playback active: Pause automatic audio
@@ -615,13 +598,8 @@ final class DiscoveryRuntimeController {
         let info = Bundle.main.infoDictionary
         let appVersion = info?["CFBundleShortVersionString"] as? String ?? "0"
         let build = info?["CFBundleVersion"] as? String ?? "0"
-        #if os(macOS)
-        let os = "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
-        let family = "Mac"
-        #else
         let os = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
         let family = "iPhone"
-        #endif
         return DiscoveryDiagnostics.make(
             snapshot: snapshot, appVersion: appVersion, buildNumber: build,
             osVersion: os, deviceFamily: family)
@@ -629,16 +607,8 @@ final class DiscoveryRuntimeController {
 
     // MARK: - Helpers
 
-    /// macOS apps aren't suspended in the background the way iOS apps are —
-    /// there is no `UIApplication.applicationState` equivalent that matters
-    /// for scheduling here, so Mac always reports foreground (native Mac app,
-    /// docs/plans/native-mac-app-plan.md §2c).
     private static func currentApplicationStateIsBackground() -> Bool {
-        #if os(macOS)
-        false
-        #else
         UIApplication.shared.applicationState == .background
-        #endif
     }
 }
 
