@@ -36,8 +36,4 @@ if rg -q '^[[:space:]]*WatchUITests:' project.yml; then
   check_ui_dir "WatchUITests" "watch"
 fi
 
-if rg -q '^[[:space:]]*[A-Za-z0-9_]*Mac[A-Za-z0-9_]*UITests:|platform:[[:space:]]*macOS' project.yml; then
-  check_ui_dir "MacUITests" "macOS"
-fi
-
 echo "UI smoke-test shape OK"

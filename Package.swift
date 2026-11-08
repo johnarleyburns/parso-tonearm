@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "TonearmCore",
     defaultLocalization: "en",
-    platforms: [.iOS("27.0"), .macOS(.v15), .watchOS(.v11)],
+    platforms: [.iOS("27.0"), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
@@ -34,9 +34,9 @@ let package = Package(
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioPlayback", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS, .macOS])),
+                         condition: .when(platforms: [.iOS])),
                 .product(name: "ParsoAudioCore", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS, .macOS]))
+                         condition: .when(platforms: [.iOS]))
             ],
             path: ".",
             exclude: [

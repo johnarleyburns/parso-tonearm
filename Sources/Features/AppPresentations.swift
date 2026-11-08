@@ -13,33 +13,23 @@ struct AppPresentations: ViewModifier {
         content
             .sheet(isPresented: $appState.showAddMenu) {
                 AddMenuSheet()
-                    #if os(iOS)
                     .presentationDetents([.height(365)])
                     .presentationBackground(.clear)
-                    #else
-                    .frame(width: 420, height: 340)
-                    #endif
             }
             .sheet(isPresented: $appState.showCreatePlaylist) {
                 CreatePlaylistSheet()
-                    .macSheetFrame(minWidth: 420, minHeight: 480)
             }
-            #if os(iOS)
             .sheet(isPresented: $appState.showWatchSettings) {
                 WatchSettingsView()
             }
-            #endif
             .sheet(isPresented: $appState.showAddSource) {
                 AddSourceSheet()
-                    .macSheetFrame(minWidth: 460, minHeight: 520)
             }
             .sheet(isPresented: $appState.showAddRemoteLibrary) {
                 AddServerSheet()
-                    .macSheetFrame(minWidth: 460, minHeight: 560)
             }
             .sheet(item: $appState.pickedFolder) { url in
                 AddFolderSheet(folderURL: url, folderBookmark: appState.pickedFolderBookmark)
-                    .macSheetFrame(minWidth: 460, minHeight: 420)
             }
             .onChange(of: player.networkSkipMessage) { _, message in
                 guard message != nil else { return }
@@ -61,8 +51,7 @@ struct AppPresentations: ViewModifier {
                 AppImport.route(urls, asSMB: appState.pendingImport == .smbFolder, appState: appState)
                 appState.pendingImport = nil
             }
-            // On its own (background) view: a Mac picker is a file importer
-            // too, and two importers on one view do not both present.
+            // On its own (background) view: two importers on one view do not both present.
             .background {
                 Color.clear.artworkImagePicker(isPresented: Binding(
                     get: { appState.artworkChangeTrackRow != nil },
@@ -75,14 +64,13 @@ struct AppPresentations: ViewModifier {
             }
             .sheet(item: $appState.metadataEditTrackRow) { row in
                 EditTrackMetadataSheet(row: row)
-                    .macSheetFrame(minWidth: 460, minHeight: 520)
             }
     }
 }
 
-/// What to do with folders/files the user picked in the importer or (on Mac)
-/// dropped onto the window: a folder opens the Add Folder options sheet, audio
-/// files are imported straight into the library.
+/// What to do with folders/files the user picked in the importer: a folder
+/// opens the Add Folder options sheet, audio files are imported straight
+/// into the library.
 @MainActor
 enum AppImport {
     static func route(_ urls: [URL], asSMB: Bool, appState: AppState) {
@@ -199,15 +187,3 @@ struct AppStatusBanners: View {
     }
 }
 
-extension View {
-    /// A Mac sheet sizes to its content's ideal size, which for these
-    /// phone-shaped forms is far too small; iPhone sheets fill the screen.
-    @ViewBuilder
-    func macSheetFrame(minWidth: CGFloat, minHeight: CGFloat) -> some View {
-        #if os(macOS)
-        frame(minWidth: minWidth, minHeight: minHeight)
-        #else
-        self
-        #endif
-    }
-}
