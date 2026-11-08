@@ -186,4 +186,3 @@ struct AppStatusBanners: View {
         }
     }
 }
-
