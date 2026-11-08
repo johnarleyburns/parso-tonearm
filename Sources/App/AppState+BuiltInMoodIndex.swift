@@ -35,7 +35,8 @@ extension AppState {
                 UserDefaults.standard.removeObject(forKey: key)
                 await reload()
             }
-            let tracks = try await Task.detached(priority: .utility) { try starter.tracks() }.value
+            let contract = EmbeddingSpace.current.starterContract
+            let tracks = try await Task.detached(priority: .utility) { try starter.tracks(expecting: contract) }.value
             guard !tracks.isEmpty else { return }
             let versions = StarterMergeVersions(
                 pipeline: DiscoveryPipelineVersion.pipeline, model: DiscoveryPipelineVersion.model,
@@ -55,7 +56,8 @@ extension AppState {
                 let chunk = Array(tracks[start..<min(start + Self.starterMergeChunk, tracks.count)])
                 let result = try await store.mergeStarterLibrary(
                     chunk, sourceTitle: Self.moodIndexSourceTitle,
-                    licenseText: "Creative Commons — attribution kept", versions: versions)
+                    licenseText: "Creative Commons — attribution kept", versions: versions,
+                    expecting: contract)
                 changed = changed || result.tracksAdded > 0 || result.analysesAdded > 0 || result.artworkFilled > 0
                 progress.added = min(tracks.count, start + chunk.count)
                 starterMerge = progress

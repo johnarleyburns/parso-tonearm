@@ -35,20 +35,23 @@ final class EmbeddingProjectionTests: XCTestCase {
     }
 
     func testStarterShipsNative128DimensionalEmbeddings() throws {
+        let contract = StarterEmbeddingContract(fingerprint: "test-fingerprint", dimensions: 128)
         let data = vectors(count: 60).map { Array($0 + $0) }
         let tracks = data.enumerated().map { index, vector -> BuiltInMoodTrack in
             let (bytes, scale) = EmbeddingProjection.quantize(vector)
             return BuiltInMoodTrack(
-                id: "jamendo-\(index)", title: "T\(index)", artist: "A", genre: "House", license: "cc-by",
+                id: "jamendo-\(index)", provider: "jamendo", providerTrackID: "\(index)",
+                embeddingSpaceFingerprint: contract.fingerprint,
+                title: "T\(index)", artist: "A", genre: "House", license: "cc-by",
                 licenseURL: nil, durationSec: 200, streamURL: "https://example.com/\(index).mp3", artworkURL: nil,
                 dimensions: 128, scale: scale, quantizedVector: bytes, bpm: 120, key: "8A", energy: 0.5,
-                analysisScopeSeconds: 60)
+                analysisScopeSeconds: 60, transitionProfile: nil)
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("starter-\(UUID().uuidString).sqlite")
         defer { try? FileManager.default.removeItem(at: url) }
-        try StarterLibraryWriter.create(at: url, tracks: tracks, meta: [:])
+        try StarterLibraryWriter.create(at: url, tracks: tracks, meta: [:], expecting: contract)
         let starter = try StarterLibrary(url: url)
-        let read = try starter.tracks()
+        let read = try starter.tracks(expecting: contract)
         XCTAssertEqual(read.count, 60)
         for track in read {
             let original = data[Int(track.id.dropFirst("jamendo-".count))!]

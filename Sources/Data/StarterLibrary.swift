@@ -67,44 +67,44 @@ public final class StarterLibrary: Sendable {
     }
 
     /// Every track, with the native 128-D embedding converted to the app's compact in-memory
-    /// quantized representation.
-    public func tracks() throws -> [BuiltInMoodTrack] {
-        try storedTracks()
+    /// quantized representation. Throws — without returning any rows — the moment a row's own
+    /// `embedding_space_fingerprint`/dimensions don't match `expecting`: a starter DB from a
+    /// retired model/projection generation is never partially trusted.
+    public func tracks(expecting contract: StarterEmbeddingContract) throws -> [BuiltInMoodTrack] {
+        try storedTracks(expecting: contract)
     }
 
-    private func storedTracks() throws -> [BuiltInMoodTrack] {
+    private func storedTracks(expecting contract: StarterEmbeddingContract) throws -> [BuiltInMoodTrack] {
         try dbQueue.read { db in
             try Row.fetchAll(db, sql: """
-                SELECT id, title, artist, genre, license, duration, stream_url,
-                       bpm, camelot, energy, emb_dimensions, emb_vector, transition_profile_json
+                SELECT id, provider, provider_track_id, embedding_space_fingerprint,
+                       title, artist, genre, license, duration, stream_url,
+                       bpm, camelot, energy, analysis_scope, emb_dimensions, emb_vector,
+                       transition_profile_version, transition_profile
                 FROM starter_track ORDER BY id
                 """).map { row in
                 let dimensions: Int = row["emb_dimensions"]
+                let fingerprint: String = row["embedding_space_fingerprint"]
+                guard fingerprint == contract.fingerprint, dimensions == contract.dimensions else {
+                    throw StarterLibraryError.embeddingSpaceMismatch(
+                        expected: contract.fingerprint, found: fingerprint)
+                }
                 let vector: Data = row["emb_vector"]
                 let floats = try Self.decodeNativeVector(vector, dimensions: dimensions)
                 let (quantized, scale) = EmbeddingProjection.quantize(floats)
-                let profile: TransitionProfile = try Self.decodeProfile(row["transition_profile_json"])
+                let profile: TransitionProfile? = try (row["transition_profile"] as Data?)
+                    .map { try TransitionProfile.decode($0) }
                 return BuiltInMoodTrack(
-                    id: row["id"], title: row["title"], artist: row["artist"], genre: row["genre"],
+                    id: row["id"], provider: row["provider"], providerTrackID: row["provider_track_id"],
+                    embeddingSpaceFingerprint: fingerprint,
+                    title: row["title"], artist: row["artist"], genre: row["genre"],
                     license: row["license"], licenseURL: nil, durationSec: row["duration"],
                     streamURL: row["stream_url"], artworkURL: nil,
                     dimensions: dimensions, scale: scale, quantizedVector: quantized,
-                    bpm: profile.bpm ?? row["bpm"], key: profile.key ?? row["camelot"],
-                    energy: profile.energy ?? row["energy"], analysisScopeSeconds: profile.analysisScopeSeconds)
+                    bpm: row["bpm"], key: row["camelot"], energy: row["energy"],
+                    analysisScopeSeconds: row["analysis_scope"], transitionProfile: profile)
             }
         }
-    }
-
-    private struct TransitionProfile: Decodable {
-        let bpm: Double?
-        let key: String?
-        let energy: Double?
-        let analysisScopeSeconds: Double?
-    }
-
-    private static func decodeProfile(_ json: String) throws -> TransitionProfile {
-        guard let data = json.data(using: .utf8) else { throw StarterLibraryError.invalidRow("transition profile") }
-        return try JSONDecoder().decode(TransitionProfile.self, from: data)
     }
 
     private static func decodeNativeVector(_ data: Data, dimensions: Int) throws -> [Float] {
@@ -129,13 +129,27 @@ public final class StarterLibrary: Sendable {
 public enum StarterLibraryError: Error, Equatable {
     case unsupportedFormat(String)
     case invalidRow(String)
+    /// A row's own `embedding_space_fingerprint`/dimensions don't match the contract the caller
+    /// passed in (`expecting:`) — the starter DB belongs to a different, retired model/projection
+    /// generation. Never partially trusted: the whole read/write is rejected, not just that row.
+    case embeddingSpaceMismatch(expected: String, found: String)
 }
 
 /// Test/developer helper for emitting the same native starter v4 schema that the shard assembler emits.
 public enum StarterLibraryWriter {
+    /// Rejects the whole write (no file left behind) the moment any track's own
+    /// `embeddingSpaceFingerprint`/`dimensions` don't match `expecting` — the one real producer of
+    /// this schema (the shard assembler, #195) must never emit a starter DB mixing rows from
+    /// different embedding-space generations.
     public static func create(at url: URL, tracks: [BuiltInMoodTrack], meta: [String: String],
-                              embeddingDimensions: Int? = nil) throws {
-        _ = embeddingDimensions // Native v4 deliberately does not project embeddings.
+                              expecting contract: StarterEmbeddingContract) throws {
+        for track in tracks {
+            guard track.embeddingSpaceFingerprint == contract.fingerprint,
+                  track.dimensions == contract.dimensions else {
+                throw StarterLibraryError.embeddingSpaceMismatch(
+                    expected: contract.fingerprint, found: track.embeddingSpaceFingerprint)
+            }
+        }
         try? FileManager.default.removeItem(at: url)
         var config = Configuration()
         config.journalMode = .default
@@ -149,24 +163,27 @@ public enum StarterLibraryWriter {
                     provider TEXT NOT NULL, provider_track_id TEXT NOT NULL, id TEXT NOT NULL UNIQUE,
                     batch_id TEXT NOT NULL REFERENCES starter_batch(batch_id), source_revision TEXT NOT NULL,
                     title TEXT NOT NULL, artist TEXT NOT NULL, genre TEXT NOT NULL, license TEXT NOT NULL,
-                    duration REAL NOT NULL, stream_url TEXT NOT NULL UNIQUE, bpm REAL, camelot TEXT, energy REAL,
+                    duration REAL NOT NULL, stream_url TEXT NOT NULL UNIQUE,
+                    embedding_space_fingerprint TEXT NOT NULL,
+                    bpm REAL, camelot TEXT, energy REAL, analysis_scope REAL,
                     emb_dimensions INTEGER NOT NULL, emb_vector BLOB NOT NULL,
-                    transition_profile_json TEXT NOT NULL, payload_sha256 TEXT NOT NULL,
+                    transition_profile_version INTEGER, transition_profile BLOB,
+                    payload_sha256 TEXT NOT NULL,
                     PRIMARY KEY (provider, provider_track_id));
                 """)
             try db.execute(sql: "INSERT INTO starter_batch VALUES (?, ?, ?, ?)",
                            arguments: ["test", "test", "test", tracks.count])
             for track in tracks {
                 let vector = EmbeddingProjection.dequantize(track.quantizedVector, scale: track.scale)
-                let profile = try JSONEncoder().encode(TransitionProfile(bpm: track.bpm, key: track.key,
-                                                                           energy: track.energy,
-                                                                           analysisScopeSeconds: track.analysisScopeSeconds))
+                let profileData = try track.transitionProfile?.encoded()
                 try db.execute(sql: """
-                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO starter_track VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, arguments: [
-                        "test", track.id, track.id, "test", "test", track.title, track.artist, track.genre,
-                        track.license, track.durationSec, track.streamURL, track.bpm, track.key, track.energy,
-                        vector.count, nativeVectorData(vector), String(decoding: profile, as: UTF8.self), track.id])
+                        track.provider, track.providerTrackID, track.id, "test", "test", track.title,
+                        track.artist, track.genre, track.license, track.durationSec, track.streamURL,
+                        track.embeddingSpaceFingerprint, track.bpm, track.key, track.energy,
+                        track.analysisScopeSeconds, vector.count, nativeVectorData(vector),
+                        track.transitionProfile?.version, profileData, track.id])
             }
             var allMeta = meta
             allMeta["format_version"] = String(StarterLibrary.formatVersion)
@@ -175,13 +192,6 @@ public enum StarterLibraryWriter {
             }
         }
         try queue.vacuum()
-    }
-
-    private struct TransitionProfile: Codable {
-        let bpm: Double?
-        let key: String?
-        let energy: Double?
-        let analysisScopeSeconds: Double?
     }
 
     private static func nativeVectorData(_ vector: [Float]) -> Data {

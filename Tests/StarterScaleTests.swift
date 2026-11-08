@@ -9,15 +9,18 @@ final class StarterScaleTests: XCTestCase {
         guard let count = ProcessInfo.processInfo.environment["TONEARM_STARTER_SCALE"].flatMap(Int.init) else {
             throw XCTSkip("TONEARM_STARTER_SCALE not set")
         }
-        let base = try XCTUnwrap(StarterLibrary.shared, "needs Resources/Starter/starter.sqlite").tracks()
+        let contract = StarterEmbeddingContract(fingerprint: "test-fingerprint", dimensions: 128)
+        let base = try XCTUnwrap(StarterLibrary.shared, "needs Resources/Starter/starter.sqlite").tracks(expecting: contract)
         let tracks = (0..<count).map { i -> BuiltInMoodTrack in
             let t = base[i % base.count]
             return BuiltInMoodTrack(
-                id: "jamendo-\(10_000_000 + i)", title: t.title, artist: t.artist + " \(i / base.count)",
+                id: "jamendo-\(10_000_000 + i)", provider: t.provider, providerTrackID: "\(10_000_000 + i)",
+                embeddingSpaceFingerprint: t.embeddingSpaceFingerprint,
+                title: t.title, artist: t.artist + " \(i / base.count)",
                 genre: t.genre, license: t.license, licenseURL: t.licenseURL, durationSec: t.durationSec,
                 streamURL: t.streamURL + "&copy=\(i)", artworkURL: t.artworkURL, dimensions: t.dimensions,
                 scale: t.scale, quantizedVector: t.quantizedVector, bpm: t.bpm, key: t.key, energy: t.energy,
-                analysisScopeSeconds: t.analysisScopeSeconds)
+                analysisScopeSeconds: t.analysisScopeSeconds, transitionProfile: t.transitionProfile)
         }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("scale-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -26,20 +29,21 @@ final class StarterScaleTests: XCTestCase {
         let clock = ContinuousClock()
         var t0 = clock.now
         try StarterLibraryWriter.create(at: dir.appendingPathComponent("starter.sqlite"), tracks: tracks,
-                                        meta: ["content_version": "scale"], embeddingDimensions: 128)
+                                        meta: ["content_version": "scale"], expecting: contract)
         let build = clock.now - t0
         let size = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("starter.sqlite").path)[.size] as? Int ?? 0
 
         t0 = clock.now
         let starter = try StarterLibrary(url: dir.appendingPathComponent("starter.sqlite"))
-        let read = try starter.tracks()
+        let read = try starter.tracks(expecting: contract)
         let readTime = clock.now - t0
 
         let store = try LibraryStore(inMemory: true)
         t0 = clock.now
         _ = try await store.mergeStarterLibrary(read, sourceTitle: "Mood Starter", licenseText: "cc",
                                                 versions: StarterMergeVersions(pipeline: 1, model: 1, preprocessing: 1,
-                                                                               sampling: 1, musicalAnalysis: 2))
+                                                                               sampling: 1, musicalAnalysis: 2),
+                                                expecting: contract)
         let merge = clock.now - t0
         t0 = clock.now
         let rows = try await store.allTrackRows()

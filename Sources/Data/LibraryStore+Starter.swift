@@ -25,15 +25,31 @@ public struct StarterMergeResult: Equatable, Sendable {
     public var artworkFilled: Int
 }
 
+/// A starter track's upstream catalog identity — the merge key `mergeStarterLibrary` matches
+/// existing rows against, never `asset.remoteURL` (mutable, shard-pipeline-reissuable metadata).
+struct StarterIdentity: Hashable {
+    let provider: String
+    let providerTrackID: String
+}
+
 extension LibraryStore {
     /// Merges the starter DB's tracks into the library in one transaction: the Mood Starter source,
     /// one album per genre, artists, tracks, remote assets, the CLAP embedding (+ a completed index
-    /// job) and tempo/key/energy — the rows on-device indexing would have produced. Tracks already
-    /// present (matched by stream URL) only get what they're missing (analysis, artwork). It
-    /// replaces ~4,000 per-row inserts, each its own transaction, after decoding a 5 MB JSON.
+    /// job) and tempo/key/energy — the rows on-device indexing would have produced. An existing
+    /// track is matched by its stable upstream identity (`starter_identity`, provider +
+    /// providerTrackID) — never by URL, which the shard pipeline can reissue for the same track
+    /// across content versions; a matched track's URL is refreshed in place rather than treated as
+    /// a new track. Only what's missing (analysis, artwork, a changed URL) is written for an
+    /// already-present track. It replaces ~4,000 per-row inserts, each its own transaction, after
+    /// decoding a 5 MB JSON.
+    ///
+    /// Throws without writing anything for the first entry whose own
+    /// `embeddingSpaceFingerprint`/`dimensions` don't match `expecting` — a starter catalog from a
+    /// retired model/projection generation is never partially merged.
     @discardableResult
     public func mergeStarterLibrary(_ tracks: [BuiltInMoodTrack], sourceTitle: String,
                                     licenseText: String, versions: StarterMergeVersions,
+                                    expecting contract: StarterEmbeddingContract,
                                     at date: Date = Date()) throws -> StarterMergeResult {
         try dbQueue.write { db in
             let sourceID: Int64
@@ -48,16 +64,16 @@ extension LibraryStore {
                 sourceID = source.id!
             }
 
-            var existing: [String: (trackID: Int64, assetID: Int64, artwork: String?)] = [:]
+            struct ExistingStarterTrack { let trackID: Int64; let assetID: Int64; let artwork: String? }
+            var existing: [StarterIdentity: ExistingStarterTrack] = [:]
             for row in try Row.fetchAll(db, sql: """
-                SELECT asset.remoteURL AS url, asset.trackId AS trackId, asset.id AS assetId,
-                       asset.persistedArtworkURL AS artwork
-                FROM asset JOIN track ON track.id = asset.trackId
-                WHERE track.sourceId = ? AND asset.remoteURL IS NOT NULL
-                """, arguments: [sourceID]) {
-                if let url: String = row["url"] {
-                    existing[url] = (row["trackId"], row["assetId"], row["artwork"])
-                }
+                SELECT si.provider AS provider, si.providerTrackID AS providerTrackID,
+                       si.trackId AS trackId, si.assetId AS assetId, asset.persistedArtworkURL AS artwork
+                FROM starter_identity si JOIN asset ON asset.id = si.assetId
+                """) {
+                let key = StarterIdentity(provider: row["provider"], providerTrackID: row["providerTrackID"])
+                existing[key] = ExistingStarterTrack(trackID: row["trackId"], assetID: row["assetId"],
+                                                     artwork: row["artwork"])
             }
             let analysed = Set(try Int64.fetchAll(db, sql: """
                 SELECT a.trackId FROM discovery_track_analysis a JOIN track t ON t.id = a.trackId
@@ -71,7 +87,17 @@ extension LibraryStore {
 
             var result = StarterMergeResult(sourceID: sourceID, tracksAdded: 0, analysesAdded: 0, artworkFilled: 0)
             for entry in tracks {
-                if let present = existing[entry.streamURL] {
+                guard entry.embeddingSpaceFingerprint == contract.fingerprint,
+                      entry.dimensions == contract.dimensions else {
+                    throw StarterLibraryError.embeddingSpaceMismatch(
+                        expected: contract.fingerprint, found: entry.embeddingSpaceFingerprint)
+                }
+                let identity = StarterIdentity(provider: entry.provider, providerTrackID: entry.providerTrackID)
+                if let present = existing[identity] {
+                    // The shard pipeline can reissue this track's stream URL across content
+                    // versions; refresh it in place rather than ever inserting a duplicate.
+                    try db.execute(sql: "UPDATE asset SET remoteURL = ? WHERE id = ?",
+                                   arguments: [entry.streamURL, present.assetID])
                     if present.artwork == nil, let artwork = entry.artworkURL {
                         try db.execute(sql: "UPDATE asset SET persistedArtworkURL = ? WHERE id = ?",
                                        arguments: [artwork, present.assetID])
@@ -122,6 +148,15 @@ extension LibraryStore {
                 try asset.insert(db)
                 let assetID = asset.id!
                 try refreshSearchIndex(trackID: trackID, db: db)
+                try db.execute(sql: """
+                    INSERT INTO starter_identity (provider, providerTrackID, trackId, assetId)
+                    VALUES (?, ?, ?, ?)
+                    """, arguments: [entry.provider, entry.providerTrackID, trackID, assetID])
+                // Guards a duplicate identity appearing twice within this same `tracks` batch
+                // (e.g. two providers legitimately sharing a numeric providerTrackID, already
+                // distinguished by `StarterIdentity` including `provider` — or a genuinely
+                // duplicated input row) from inserting a second track for it later in this loop.
+                existing[identity] = ExistingStarterTrack(trackID: trackID, assetID: assetID, artwork: entry.artworkURL)
 
                 var embedding = DiscoveryEmbedding(
                     trackId: trackID, assetId: assetID, assetRevision: 1, modelVersion: versions.model,

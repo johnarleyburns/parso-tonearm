@@ -566,5 +566,21 @@ extension Schema {
                     """)
             }
         }
+        if shouldRegister("v47", upTo: target) {
+            migrator.registerMigration("v47") { db in
+                // Durable upstream identity for a starter-merged track — (provider,
+                // providerTrackID), e.g. ("jamendo", "123456") — never the stream URL, which the
+                // shard pipeline can reissue for the same track. LibraryStore.mergeStarterLibrary
+                // looks up by this identity, not asset.remoteURL, so a changed URL updates the
+                // existing track/asset in place instead of inserting a duplicate.
+                try db.create(table: "starter_identity") { t in
+                    t.column("provider", .text).notNull()
+                    t.column("providerTrackID", .text).notNull()
+                    t.column("trackId", .integer).notNull().references("track", onDelete: .cascade)
+                    t.column("assetId", .integer).notNull().references("asset", onDelete: .cascade)
+                    t.primaryKey(["provider", "providerTrackID"])
+                }
+            }
+        }
     }
 }
