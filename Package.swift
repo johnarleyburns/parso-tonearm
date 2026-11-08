@@ -4,7 +4,12 @@ import PackageDescription
 let package = Package(
     name: "TonearmCore",
     defaultLocalization: "en",
-    platforms: [.iOS("27.0"), .watchOS(.v11)],
+    // .macOS stays declared even though there is no macOS app target:
+    // `swift test` runs on a macOS CI host (docs/plans/award-and-mix-plan.md
+    // §0/C3's own documented reasoning for this exact repo) and SwiftPM
+    // needs a macOS platform entry to build/run the package natively there.
+    // This is a CI-host build necessity, not product platform support.
+    platforms: [.iOS("27.0"), .macOS(.v15), .watchOS(.v11)],
     products: [
         .library(name: "TonearmCore", targets: ["TonearmCore"]),
         .library(name: "TonearmDiscovery", targets: ["TonearmDiscovery"]),
@@ -34,9 +39,9 @@ let package = Package(
                 .product(name: "ParsoAudioStreaming", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioPlayback", package: "parso-audio-engine"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS])),
+                         condition: .when(platforms: [.iOS, .macOS])),
                 .product(name: "ParsoAudioCore", package: "parso-audio-engine",
-                         condition: .when(platforms: [.iOS]))
+                         condition: .when(platforms: [.iOS, .macOS]))
             ],
             path: ".",
             exclude: [
