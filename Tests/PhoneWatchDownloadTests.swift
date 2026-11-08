@@ -387,7 +387,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
         XCTAssertTrue(sent.isEmpty, "Stopping a download during file conversion must prevent delivery")
     }
 
-    func testDeliveryFailureDuringEnqueueIsNotOverwrittenAsSent() async throws {
+    func testDeliveryFailureDuringEnqueueSchedulesAutomaticRetry() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -397,11 +397,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         }
         try await manager.setRoots([root("r", tracks: ["a"])])
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.state, .failed)
+        XCTAssertEqual(job?.state, .queued)
         XCTAssertEqual(job?.failureClass, .transient)
+        XCTAssertNotNil(job?.nextAttemptAt)
     }
 
-    func testAsynchronousDeliveryFailureRequiresUserApproval() async throws {
+    func testAsynchronousDeliveryFailureRetriesWithBackoff() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -410,21 +411,17 @@ final class PhoneWatchDownloadTests: XCTestCase {
                                   transfer: transfer, clock: clock)
         try await manager.setRoots([root("r", tracks: ["a"])])
         try await manager.transferFailed(trackID: "a", code: .transferFailed)
-        let failed = try await store.jobs().first
-        XCTAssertEqual(failed?.state, .failed)
-        XCTAssertEqual(failed?.failureClass, .transient)
+        let retrying = try await store.jobs().first
+        XCTAssertEqual(retrying?.state, .queued)
+        XCTAssertEqual(retrying?.failureClass, .transient)
+        XCTAssertEqual(retrying?.nextAttemptAt, clock.now.addingTimeInterval(5))
         try await manager.tick()
         let beforeRetry = await transfer.sentCount("a")
         XCTAssertEqual(beforeRetry, 1)
         clock.advance(6)
         try await manager.tick()
         let afterRetry = await transfer.sentCount("a")
-        XCTAssertEqual(afterRetry, 1)
-        clock.advance(100_000)
-        try await manager.tick()
-        let stillOne = await transfer.sentCount("a")
-        XCTAssertEqual(stillOne, 1)
-        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
+        XCTAssertEqual(afterRetry, 2)
         try await manager.ingestManifest(manifest(["a"]))
         try await manager.transferFailed(trackID: "a", code: .transferFailed)
         clock.advance(600)
@@ -874,12 +871,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
     // MARK: manager — retry classes
 
-    func testTransientFailureNeverRetriesOnTimerElapsed() async throws {
+    func testTransientFailureRetriesThreeTimesThenRequiresUserApproval() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
         let transfer = FakeTransfer()
-        await transfer.setFailOnce(["a"])
+        await transfer.setFailAlways(["a": .transferFailed])
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]),
                                   transfer: transfer, clock: clock)
 
@@ -887,10 +884,10 @@ final class PhoneWatchDownloadTests: XCTestCase {
         let stalled = await transfer.sent
         XCTAssertTrue(stalled.isEmpty)
         let failed = try await store.jobs().first
-        XCTAssertEqual(failed?.state, .failed)
+        XCTAssertEqual(failed?.state, .queued)
         XCTAssertEqual(failed?.failureClass, .transient)
         XCTAssertEqual(failed?.attempt, 1)
-        XCTAssertNil(failed?.nextAttemptAt)
+        XCTAssertEqual(failed?.nextAttemptAt, clock.now.addingTimeInterval(5))
 
         try await manager.tick()
         let stillStalled = await transfer.sent
@@ -899,8 +896,15 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(10)
         try await manager.tick()
         let retried = await transfer.sent
-        XCTAssertTrue(retried.isEmpty)
-        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
+        XCTAssertTrue(retried.isEmpty, "The second attempt also backs off before surfacing failure")
+        clock.advance(10)
+        try await manager.tick()
+        let terminal = try await store.jobs().first
+        XCTAssertEqual(terminal?.state, .failed)
+        XCTAssertEqual(terminal?.attempt, PhoneWatchTransferScheduler.maxAutomaticAttempts)
+        XCTAssertNil(terminal?.nextAttemptAt)
+        await transfer.setFailAlways([:])
+        try await manager.requestRetry(requestID: try XCTUnwrap(terminal?.requestID))
         let approved = await transfer.sent
         XCTAssertEqual(approved, ["a"])
     }

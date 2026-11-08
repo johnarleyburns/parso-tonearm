@@ -5,11 +5,15 @@ import TonearmWatchProtocol
 ///
 /// - Maximum two outstanding audio file transfers and one metadata/artwork transfer.
 /// - Priority order from §8.1, then FIFO by creation.
-/// - `failed` jobs re-enter only after `nextAttemptAt`; the manager sets that using `backoff`.
+/// - Transient failures are returned to `queued` with `nextAttemptAt`; terminal `failed` jobs
+///   require user action.
 /// - Transient failures back off and retry; auth/source/file failures never spin.
 public enum PhoneWatchTransferScheduler {
     public static let maxAudioInFlight = 2
     public static let maxMetadataInFlight = 1
+    /// A transient WatchConnectivity failure is normally a short reachability blip. Keep trying
+    /// it in the background, but surface a real failure rather than retrying forever.
+    public static let maxAutomaticAttempts = 3
 
     /// Bounded exponential backoff. Attempt 1 → base, doubling, capped.
     public static func backoff(attempt: Int, base: TimeInterval = 5,
