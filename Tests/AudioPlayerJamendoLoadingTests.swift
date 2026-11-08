@@ -93,6 +93,22 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertFalse(spy.urls.contains(stale))
     }
 
+    func testDropboxRowIsReResolvedThroughFreshenerBeforeItemIsBuilt() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        defer { player.remoteRowFreshener = nil }
+        let fresh = fresh
+        player.remoteRowFreshener = { row in
+            var r = row
+            r.asset?.remoteURL = fresh.absoluteString
+            return r
+        }
+        load([CatalogPlaybackURLResolverTests.row(kind: .dropbox, nodeID: "id:abc", url: stale)])
+        await settle()
+        XCTAssertEqual(spy.urls, [fresh.absoluteString], "OAuth cloud rows must be re-resolved, not played from the stale stored URL")
+    }
+
     func testStaleResolverCompletionCannotReplaceNewQueueOrResumeStoppedPlayback() async throws {
         let spy = Spy(), gate = Gate()
         try install(gate: gate, spy: spy)

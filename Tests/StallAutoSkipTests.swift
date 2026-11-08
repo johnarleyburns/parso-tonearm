@@ -21,6 +21,11 @@ final class StallAutoSkipTests: XCTestCase {
         // Deterministic "nowhere to skip to" path: with this on, a single-track queue could try
         // to extend itself via the real LibraryStore instead of just pausing.
         AudioPlayer.shared.keepPlayingEnabled = false
+        // The player is a shared singleton: drop any stall watch or skip streak a previous test
+        // (or an in-flight load) left behind so skip counts here are deterministic.
+        AudioPlayer.shared.stallWatchTask?.cancel()
+        AudioPlayer.shared.stallWatchTask = nil
+        AudioPlayer.shared.stallModel = StallModel()
     }
 
     override func tearDown() async throws {
