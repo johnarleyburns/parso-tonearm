@@ -566,13 +566,8 @@ private struct IndexTrackListSheet: View {
 }
 
 /// The redacted-diagnostics share sheet (plan §10.6). `ShareLink` is fully
-/// cross-platform SwiftUI (iOS 16+/macOS 13+, well within this project's
-/// deployment targets) — it renders the real `UIActivityViewController` on
-/// iOS and `NSSharingServicePicker` on macOS automatically, so this needs no
-/// platform-specific wrapper at all (native Mac app,
-/// docs/plans/native-mac-app-plan.md §2a — this file's own UIKit-only
-/// `UIActivityViewController`/`UIViewControllerRepresentable` wrapper is
-/// exactly the kind of real, but avoidable, port that section flagged).
+/// cross-platform SwiftUI — it renders the real `UIActivityViewController`
+/// on iOS automatically, so this needs no platform-specific wrapper at all.
 private struct DiagnosticsShareSheet: View {
     @Environment(\.dismiss) private var dismiss
     let text: String

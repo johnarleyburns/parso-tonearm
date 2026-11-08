@@ -1,6 +1,11 @@
 # Platterhead DJ — Platform & Monetization Strategy
 
-**Question on the table:** should the Pro/DJ tier be **iPhone-only** instead of the macOS-first
+**Superseded.** The DJ tab and every DJ view were removed from the app for good
+(`docs/plans/award-and-mix-plan.md` §0), and the native macOS app this strategy debate assumed as
+the alternative was also removed (#186). Kept only as the historical record of why "Mac-first"
+was rejected in favor of iPhone-first — not a description of any current or planned Mac support.
+
+**Question on the table (historical):** should the Pro/DJ tier be **iPhone-only** instead of the macOS-first
 product specced in `TONEARM_DJ_ARCHITECTURE.md`, on the theory that mobile is less contested
 than the desktop?
 
