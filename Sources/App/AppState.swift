@@ -140,9 +140,7 @@ final class AppState: ObservableObject {
     // The following are declared here (rather than in AppState+Watch.swift,
     // where they are used) because Swift extensions cannot hold stored
     // instance properties. `watchRuntime` is also used by `bootstrap()`
-    // below and by AppState+CustomArtwork.swift. The product ships on iPhone
-    // with an Apple Watch companion; a Mac has no paired watch, so the native
-    // Mac app (docs/plans/native-mac-parity.md) compiles none of this.
+    // below and by AppState+CustomArtwork.swift.
     #if os(iOS)
     var tickTask: Task<Void, Never>?
     lazy var watchRuntime = PhoneWatchRuntime(store: store, player: AudioPlayer.shared)

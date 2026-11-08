@@ -310,8 +310,7 @@ struct OptionalAccessibilityIdentifier: ViewModifier {
     }
 }
 
-/// docs/plans/macos-app-cloud-sync-plan.md §4 status surface (CLAUDE.md "no
-/// silent/magic background work") — real counts from `CloudSyncEngine`'s
+/// A status surface per CLAUDE.md's "no silent/magic background work" rule — real counts from `CloudSyncEngine`'s
 /// most recent pull pass. A separate view (rather than a computed property
 /// on `SettingsView`) so `@ObservedObject` can actually subscribe to
 /// `CloudSyncEngine`'s `@Published lastSyncActivity` — a computed property
