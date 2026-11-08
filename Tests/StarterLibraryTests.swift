@@ -1,4 +1,5 @@
 import XCTest
+import GRDB
 @testable import TonearmCore
 
 /// The starter DB: built on the Mac, merged into the library in one transaction.
@@ -142,7 +143,8 @@ final class StarterLibraryTests: XCTestCase {
         let store = try LibraryStore(inMemory: true)
         _ = try await store.mergeStarterLibrary([entry(0, analysed: false)], sourceTitle: "Mood Starter",
                                                 licenseText: "cc", versions: versions, expecting: contract)
-        let trackID = try XCTUnwrap(try await store.allTrackRows().first?.track.id)
+        let initialRows = try await store.allTrackRows()
+        let trackID = try XCTUnwrap(initialRows.first?.track.id)
         try await store.setFavorite(trackId: trackID, true)
         let playlist = try await store.insertPlaylist(Playlist(id: nil, title: "My Mix", kind: .manual,
                                                                 folderBookmark: nil, watch: false))
