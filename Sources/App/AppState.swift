@@ -21,6 +21,9 @@ enum PendingImport: Equatable {
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
+    /// Injectable so `download(rows:)`/`makeOffline(source:)` can be exercised against a stubbed
+    /// response in tests instead of making a real network call.
+    var downloadSession: URLSession = .shared
     /// Restored from the last launch (real report: "when I enter Platterhead it doesn't return to
     /// where I was, it starts from scratch" — the tab always reset to `.listen`, nothing persisted
     /// it). The playback queue/position already survive relaunch
