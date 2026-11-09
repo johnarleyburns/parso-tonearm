@@ -266,6 +266,10 @@ final class WatchAppAssembly {
             await diagnostics.record(.activation, "started")
             await diagnostics.record(.storeRecovery, launch.rawValue)
         }
+        if launch.requiresPhoneResync {
+            // The recovery notice promises a check against the iPhone; actually request it.
+            Task { await requestSyncStatus() }
+        }
         guard let repository, let audioDirectory else { return }
         Task {
             await Self.migrateLegacyAudioIfNeeded(into: audioDirectory, repository: repository)

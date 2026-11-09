@@ -871,6 +871,26 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
     // MARK: manager — retry classes
 
+    func testAllTracksMissingOnWatchAfterCatalogRebuildAreResentOnReconcile() async throws {
+        let db = try freshQueue()
+        let store = PhoneWatchDownloadStore(dbQueue: db)
+        let clock = TestClock()
+        let transfer = FakeTransfer()
+        await transfer.setFailAlways(["a": .transferFailed, "b": .transferFailed])
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a", "b"]),
+                                  transfer: transfer, clock: clock)
+        try await manager.setRoots([root("r1", tracks: ["a", "b"])])
+        for _ in 0..<3 { clock.advance(10); try await manager.tick() }
+        let exhausted = try await store.jobs()
+        XCTAssertEqual(exhausted.count, 2)
+        XCTAssertTrue(exhausted.allSatisfy { $0.state == .failed })
+
+        await transfer.setFailAlways([:])
+        try await manager.ingestManifest(manifest([]))
+        let sent = await transfer.sent
+        XCTAssertEqual(Set(sent), ["a", "b"])
+    }
+
     func testTransientFailureRetriesThreeTimesThenRequiresUserApproval() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)

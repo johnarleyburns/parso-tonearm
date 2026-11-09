@@ -73,3 +73,12 @@ final class WatchStoreBootstrapTests: XCTestCase {
         XCTAssertNil(result.container)
     }
 }
+
+final class WatchStoreLaunchResyncTests: XCTestCase {
+    func testOnlyRecoveredAndDegradedRequirePhoneResync() {
+        XCTAssertTrue(WatchStoreLaunchState.recovered.requiresPhoneResync)
+        XCTAssertTrue(WatchStoreLaunchState.degraded.requiresPhoneResync)
+        XCTAssertFalse(WatchStoreLaunchState.ready.requiresPhoneResync)
+        XCTAssertFalse(WatchStoreLaunchState.opening.requiresPhoneResync)
+    }
+}

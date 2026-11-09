@@ -305,11 +305,25 @@ public actor PhoneWatchDownloadManager {
         try await store.replaceManifest(entries)
         let roots = try await store.roots()
         let desired = Set(roots.flatMap(\.desiredTrackIDs))
+        // Jobs already failed before this manifest (e.g. retry-exhausted); tracks that this
+        // manifest newly reports lost still wait for the user's approval.
+        let alreadyFailed = Set(existing.filter { $0.state == .failed }.map(\.trackID))
         let lost = previouslyInstalled.subtracting(payload.readyTrackIDs.map(\.rawValue)).intersection(desired)
         for id in lost {
             var job = jobsByTrack[id] ?? PhoneWatchDownloadJob(trackID: id,
                 rootIDs: roots.filter { $0.desiredTrackIDs.contains(id) }.map(\.rootID))
             try await failFromError(&job, code: .transferFailed)
+        }
+        // A watch that reports nothing installed while roots still desire tracks has lost its
+        // catalog (e.g. store rebuilt after an upgrade). Retry-exhausted transfers were tuned for
+        // transient network failures, not this, so revive retryable failures without requiring
+        // the user's Try Again.
+        if payload.readyTrackIDs.isEmpty, !desired.isEmpty {
+            for job in try await store.jobs()
+            where job.state == .failed && alreadyFailed.contains(job.trackID)
+                && desired.contains(job.trackID) && (job.failureClass?.isRetryable ?? true) {
+                explicitRetryTrackIDs.insert(job.trackID)
+            }
         }
         if reconcileDownloads { try await reconcile() }
     }
