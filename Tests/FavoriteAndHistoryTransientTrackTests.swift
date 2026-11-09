@@ -178,7 +178,7 @@ final class JumpBackInClearSourceTests: XCTestCase {
     func testFavoritesCardRowCallSiteDoesNotOptIntoClear() throws {
         let source = try listenSource()
         let start = try XCTUnwrap(source.range(of: "cardRow(title: \"Favorites\", rows: appState.favoriteRows,"))
-        let end = try XCTUnwrap(source.range(of: "identifier: \"listen.favorites\")",
+        let end = try XCTUnwrap(source.range(of: "showNeverRecommend: true)",
                                 range: start.lowerBound..<source.endIndex))
         XCTAssertFalse(source[start.lowerBound..<end.upperBound].contains("onClear:"))
     }

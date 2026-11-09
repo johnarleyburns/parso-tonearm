@@ -90,6 +90,7 @@ struct ListenView: View {
 
     private func cardRow(title: LocalizedStringKey, rows: [TrackRow],
                          emptyMessage: LocalizedStringKey, identifier: String,
+                         showNeverRecommend: Bool = false,
                          onClear: (() -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -119,7 +120,8 @@ struct ListenView: View {
                                     RecentCard(row: row)
                                 }
                                 .buttonStyle(.plain)
-                                .trackContextMenu(row, showRemoveFromJumpBackIn: identifier == "listen.recent")
+                                .trackContextMenu(row, showRemoveFromJumpBackIn: identifier == "listen.recent",
+                                                  showNeverRecommend: showNeverRecommend)
                             }
                         }
                         .padding(.horizontal, 2)
@@ -141,7 +143,8 @@ struct ListenView: View {
 
     private var favorites: some View {
         cardRow(title: "Favorites", rows: appState.favoriteRows,
-                emptyMessage: "Your favorite music will appear here.", identifier: "listen.favorites")
+                emptyMessage: "Your favorite music will appear here.", identifier: "listen.favorites",
+                showNeverRecommend: true)
     }
 
     // MARK: - Listening Stats

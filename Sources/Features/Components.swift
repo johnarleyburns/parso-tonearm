@@ -243,6 +243,7 @@ enum TimeFmt {
 struct TrackContextMenu: ViewModifier {
     let row: TrackRow
     var showRemoveFromJumpBackIn: Bool = false
+    var showNeverRecommend: Bool = false
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var watchConfirmation: WatchTransferConfirmation?
@@ -284,6 +285,14 @@ struct TrackContextMenu: ViewModifier {
                     Label("Remove from Jump Back In", systemImage: "xmark.circle")
                 }
                 .accessibilityIdentifier("listen.recent.removeRow")
+            }
+            if showNeverRecommend, row.source != nil, row.asset?.remoteNodeID != nil {
+                Button {
+                    Task { await appState.excludeFromRecommendations(row) }
+                } label: {
+                    Label("Never Recommend This Track", systemImage: "hand.thumbsdown")
+                }
+                .accessibilityIdentifier("listen.favorites.neverRecommend")
             }
             watchMenuItems
         }
@@ -359,7 +368,9 @@ enum WatchTransferConfirmation: String, Identifiable {
 }
 
 extension View {
-    func trackContextMenu(_ row: TrackRow, showRemoveFromJumpBackIn: Bool = false) -> some View {
-        modifier(TrackContextMenu(row: row, showRemoveFromJumpBackIn: showRemoveFromJumpBackIn))
+    func trackContextMenu(_ row: TrackRow, showRemoveFromJumpBackIn: Bool = false,
+                          showNeverRecommend: Bool = false) -> some View {
+        modifier(TrackContextMenu(row: row, showRemoveFromJumpBackIn: showRemoveFromJumpBackIn,
+                                  showNeverRecommend: showNeverRecommend))
     }
 }

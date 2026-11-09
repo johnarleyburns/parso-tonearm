@@ -41,6 +41,14 @@ extension AppState {
         recentlyPlayed = (try? await store.recentlyPlayedRows()) ?? recentlyPlayed
     }
 
+    /// Permanently excludes a remote track from Keep Playing (it stays a Favorite). No-op for
+    /// local/non-remote rows, where the menu item is hidden.
+    func excludeFromRecommendations(_ row: TrackRow) async {
+        guard let kind = row.source?.kind, let nodeID = row.asset?.remoteNodeID else { return }
+        try? await store.excludeFromRecommendations(
+            sourceKind: kind, remoteNodeID: nodeID, reason: "neverRecommend")
+    }
+
     // MARK: - Playlists (TF6)
 
     @discardableResult
