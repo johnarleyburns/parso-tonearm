@@ -34,6 +34,13 @@ extension AppState {
         favoriteRows = (try? await store.favoriteRows()) ?? favoriteRows
     }
 
+    /// Temporarily removes one track from Jump Back In; playing it again brings it back.
+    func dismissFromJumpBackIn(_ row: TrackRow) async {
+        guard row.id > 0 else { return }
+        try? await store.dismissFromJumpBackIn(trackId: row.id)
+        recentlyPlayed = (try? await store.recentlyPlayedRows()) ?? recentlyPlayed
+    }
+
     // MARK: - Playlists (TF6)
 
     @discardableResult

@@ -23,6 +23,17 @@ extension LibraryStore {
         }
     }
 
+    /// Temporarily hides one track from Jump Back In until it is played again. Never touches
+    /// `play_history`.
+    public func dismissFromJumpBackIn(trackId: Int64) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO jump_back_in_dismissal (trackId, dismissedAt) VALUES (?, ?)
+                ON CONFLICT(trackId) DO UPDATE SET dismissedAt = excluded.dismissedAt
+                """, arguments: [trackId, Date()])
+        }
+    }
+
     /// Distinct tracks ordered by most-recently played, capped at `limit`.
     public func recentlyPlayedRows(limit: Int = 12) throws -> [TrackRow] {
         try dbQueue.read { db in
@@ -31,6 +42,8 @@ extension LibraryStore {
             JOIN (SELECT trackId, MAX(playedAt) AS lastPlayed
                   FROM play_history GROUP BY trackId) h
               ON h.trackId = track.id
+            LEFT JOIN jump_back_in_dismissal d ON d.trackId = track.id
+            WHERE d.dismissedAt IS NULL OR h.lastPlayed > d.dismissedAt
             ORDER BY h.lastPlayed DESC
             LIMIT ?
             """

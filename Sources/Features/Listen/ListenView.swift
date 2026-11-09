@@ -119,7 +119,7 @@ struct ListenView: View {
                                     RecentCard(row: row)
                                 }
                                 .buttonStyle(.plain)
-                                .trackContextMenu(row)
+                                .trackContextMenu(row, showRemoveFromJumpBackIn: identifier == "listen.recent")
                             }
                         }
                         .padding(.horizontal, 2)

@@ -183,3 +183,83 @@ final class JumpBackInClearSourceTests: XCTestCase {
         XCTAssertFalse(source[start.lowerBound..<end.upperBound].contains("onClear:"))
     }
 }
+
+final class JumpBackInDismissalTests: XCTestCase {
+    private func seed(_ store: LibraryStore) async throws -> Int64 {
+        let source = try await store.insertSource(
+            Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+                   title: "Src", addedAt: Date(), lastResolvedAt: nil,
+                   followUpdates: false, licenseText: nil, memberCapHit: false,
+                   localIsFolder: false, artworkTrackId: nil))
+        let track = try await store.insertTrack(
+            Track(id: nil, albumId: nil, sourceId: try XCTUnwrap(source.id), title: "Track",
+                  trackNo: 1, discNo: nil, durationSec: nil, codec: nil,
+                  sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "a"))
+        return try XCTUnwrap(track.id)
+    }
+
+    func testDismissedTrackIsExcludedFromJumpBackIn() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let id = try await seed(store)
+        try await store.recordPlay(trackId: id)
+        var rows = try await store.recentlyPlayedRows()
+        XCTAssertEqual(rows.map(\.id), [id])
+        try await store.dismissFromJumpBackIn(trackId: id)
+        rows = try await store.recentlyPlayedRows()
+        XCTAssertTrue(rows.isEmpty)
+    }
+
+    func testPlayingADismissedTrackAgainBringsItBackToJumpBackIn() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let id = try await seed(store)
+        try await store.recordPlay(trackId: id)
+        try await store.dismissFromJumpBackIn(trackId: id)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        try await store.recordPlay(trackId: id)
+        let rows = try await store.recentlyPlayedRows()
+        XCTAssertEqual(rows.map(\.id), [id])
+    }
+
+    func testDismissalNeverTouchesPlayHistoryOrListeningStats() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let id = try await seed(store)
+        try await store.recordPlay(trackId: id)
+        try await store.recordPlay(trackId: id)
+        let before = try await store.allPlayEvents()
+        try await store.dismissFromJumpBackIn(trackId: id)
+        let after = try await store.allPlayEvents()
+        XCTAssertEqual(before, after)
+        XCTAssertEqual(after.count, 2)
+    }
+
+    func testRedismissingAnAlreadyDismissedTrackUpsertsRatherThanDuplicating() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let id = try await seed(store)
+        try await store.recordPlay(trackId: id)
+        try await store.dismissFromJumpBackIn(trackId: id)
+        try await store.dismissFromJumpBackIn(trackId: id)
+        let count = try await store.dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM jump_back_in_dismissal WHERE trackId = ?",
+                             arguments: [id])
+        }
+        XCTAssertEqual(count, 1)
+    }
+
+    func testWiringIsInPlace() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        func src(_ p: String) throws -> String { try String(contentsOf: root.appendingPathComponent(p), encoding: .utf8) }
+        let app = try src("Sources/App/AppState+FavoritesPlaylists.swift")
+        let fn = try XCTUnwrap(app.range(of: "func dismissFromJumpBackIn(_ row: TrackRow) async {"))
+        let body = String(app[fn.lowerBound...].prefix(400))
+        XCTAssertTrue(body.contains("guard row.id > 0"))
+        XCTAssertTrue(body.contains("store.dismissFromJumpBackIn(trackId: row.id)"))
+        XCTAssertTrue(body.contains("recentlyPlayed = (try? await store.recentlyPlayedRows())"))
+        XCTAssertFalse(body.contains("reload()"))
+        let comp = try src("Sources/Features/Components.swift")
+        XCTAssertTrue(comp.contains("showRemoveFromJumpBackIn"))
+        XCTAssertTrue(comp.contains("appState.dismissFromJumpBackIn(row)"))
+        XCTAssertTrue(comp.contains("listen.recent.removeRow"))
+        let listen = try src("Sources/Features/Listen/ListenView.swift")
+        XCTAssertTrue(listen.contains(#"showRemoveFromJumpBackIn: identifier == "listen.recent""#))
+    }
+}
