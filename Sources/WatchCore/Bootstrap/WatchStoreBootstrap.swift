@@ -31,6 +31,11 @@ public struct WatchStoreBootstrapResult: @unchecked Sendable {
     }
 }
 
+extension WatchStoreLaunchState {
+    /// A rebuilt or unavailable catalog must ask the iPhone to re-verify and resend what it desires.
+    public var requiresPhoneResync: Bool { self == .recovered || self == .degraded }
+}
+
 public enum WatchStoreBootstrap {
     /// Computed rather than retained: SwiftData's Schema is non-Sendable, and this value has no
     /// mutable identity that needs to cross isolation domains.
