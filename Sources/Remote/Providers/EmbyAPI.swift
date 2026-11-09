@@ -1,7 +1,8 @@
 import Foundation
 
 /// Emby and Jellyfin share the same MediaBrowser-family wire protocol (Jellyfin is a historical
-/// fork of Emby): identical `X-Emby-Authorization`/`X-Emby-Token` headers, the same
+/// fork of Emby): the same `X-Emby-Authorization`/`X-Emby-Token` header names (Jellyfin has since
+/// moved its client-metadata header to the standard `Authorization`; Emby has not), the same
 /// `Users/AuthenticateByName` login call, and the same `Items`/`MediaSources` JSON shape. This
 /// is a deliberate near-duplicate of `JellyfinAPI.swift` rather than a shared/parameterized type,
 /// matching this codebase's existing one-class-per-branded-service convention (WebDAV/Jellyfin/
