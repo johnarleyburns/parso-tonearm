@@ -582,5 +582,18 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v48", upTo: target) {
+            migrator.registerMigration("v48") { db in
+                // Per-track, temporary "Remove from Jump Back In" dismissal. A track is hidden
+                // only while its dismissedAt is newer than its last play_history row.
+                try db.create(table: "jump_back_in_dismissal") { t in
+                    t.autoIncrementedPrimaryKey("id")
+                    t.column("trackId", .integer).notNull().unique().references("track", onDelete: .cascade)
+                    t.column("dismissedAt", .datetime).notNull()
+                    t.column("syncID", .text)
+                }
+            }
+        }
     }
 }

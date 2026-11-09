@@ -406,6 +406,13 @@ public struct PlayEvent: Identifiable, Equatable, Codable, Sendable {
     public var syncID: String? = nil
 }
 
+public struct JumpBackInDismissal: Identifiable, Equatable, Codable, Sendable {
+    public var id: Int64?
+    public var trackId: Int64
+    public var dismissedAt: Date
+    public var syncID: String? = nil
+}
+
 public struct Favorite: Identifiable, Equatable, Codable, Sendable {
     public var id: Int64?
     public var trackId: Int64

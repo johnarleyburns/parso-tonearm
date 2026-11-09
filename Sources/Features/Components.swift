@@ -242,6 +242,7 @@ enum TimeFmt {
 
 struct TrackContextMenu: ViewModifier {
     let row: TrackRow
+    var showRemoveFromJumpBackIn: Bool = false
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var watchConfirmation: WatchTransferConfirmation?
@@ -275,6 +276,14 @@ struct TrackContextMenu: ViewModifier {
                 let fav = appState.isFavorite(row)
                 Label(fav ? "Remove from Favorites" : "Add to Favorites",
                       systemImage: fav ? "heart.slash" : "heart")
+            }
+            if showRemoveFromJumpBackIn {
+                Button {
+                    Task { await appState.dismissFromJumpBackIn(row) }
+                } label: {
+                    Label("Remove from Jump Back In", systemImage: "xmark.circle")
+                }
+                .accessibilityIdentifier("listen.recent.removeRow")
             }
             watchMenuItems
         }
@@ -350,7 +359,7 @@ enum WatchTransferConfirmation: String, Identifiable {
 }
 
 extension View {
-    func trackContextMenu(_ row: TrackRow) -> some View {
-        modifier(TrackContextMenu(row: row))
+    func trackContextMenu(_ row: TrackRow, showRemoveFromJumpBackIn: Bool = false) -> some View {
+        modifier(TrackContextMenu(row: row, showRemoveFromJumpBackIn: showRemoveFromJumpBackIn))
     }
 }

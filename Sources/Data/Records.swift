@@ -65,6 +65,11 @@ extension PlayEvent: FetchableRecord, MutablePersistableRecord {
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
+extension JumpBackInDismissal: FetchableRecord, MutablePersistableRecord {
+    public static let databaseTableName = "jump_back_in_dismissal"
+    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
+}
+
 extension Favorite: FetchableRecord, MutablePersistableRecord {
     public static let databaseTableName = "favorite"
     public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
