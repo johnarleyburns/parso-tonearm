@@ -50,22 +50,6 @@ extension SettingsView {
         .glassSurface(cornerRadius: 18)
     }
 
-    /// Moved off the main Music tab (real report: it shouldn't show there
-    /// at all) into its own row here — same reachable status/controls
-    /// (IndexStatusView), just not competing for space on the tab everyone
-    /// opens constantly.
-    var soundIndexCard: some View {
-        Button { activeSheet = .soundIndex } label: {
-            SettingsRow(icon: "waveform", title: "Sound Index", detail: nil)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("settings.soundIndex")
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-    }
-
     var behaviorCard: some View {
         VStack(spacing: 0) {
             settingToggle(appState.streamOnCellular ? "Stream on cellular" : "Wi-Fi only",

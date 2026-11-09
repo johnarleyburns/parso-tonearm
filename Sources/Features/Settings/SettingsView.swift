@@ -13,7 +13,7 @@ import UIKit
 /// A single `.sheet(item:)` bound to one optional value doesn't have this
 /// failure mode, since there is only ever one sheet identity to track.
 enum SettingsSheet: Identifiable {
-    case eq, tools, jamendoKey, cacheManagement, soundIndex
+    case eq, tools, jamendoKey, cacheManagement
     var id: Self { self }
 }
 
@@ -55,7 +55,6 @@ struct SettingsView: View {
                 settingsSection("Library & Storage", identifier: "settings.section.library") {
                     if appState.starterMerge != nil { starterMergeCard }
                     musicLibrariesCard
-                    soundIndexCard
                     cacheSummaryCard
                     syncCard
                 }
@@ -85,7 +84,6 @@ struct SettingsView: View {
             case .tools: ToolsView()
             case .jamendoKey: JamendoCredentialView()
             case .cacheManagement: cacheManagementSheet
-            case .soundIndex: SoundIndexSheet()
             }
         }
         .confirmationDialog("Clear \(TimeFmt.megabytes(cacheUsed)) of cached audio?",
@@ -361,14 +359,4 @@ struct DiscoverySyncActivityRow: View {
         .padding(.top, 6)
         .accessibilityIdentifier("settings.icloudSync.discoveryActivity")
     }
-}
-
-
-/// Owns the Sound Index model for the lifetime of the sheet. Constructing
-/// `IndexStatusModel()` inline in the sheet builder would create a fresh
-/// model (and coordinator) on every re-evaluation, dropping the last good
-/// snapshot and orphaning the in-flight read.
-private struct SoundIndexSheet: View {
-    @StateObject private var model = IndexStatusModel()
-    var body: some View { IndexStatusView(model: model) }
 }
