@@ -24,8 +24,6 @@ struct WatchSettingsView: View {
                     if let shortfall = snapshot.storage?.spaceShortfall {
                         shortfallCard(shortfall)
                     }
-                    if !snapshot.activity.isEmpty { downloadingCard }
-                    if !snapshot.collections.isEmpty { collectionsCard }
                     if snapshot.isEmpty && snapshot.pairing.isPaired { emptyCard }
                     managementCard
                 }
@@ -131,62 +129,6 @@ struct WatchSettingsView: View {
         }
     }
 
-    // MARK: - Downloading
-
-    private var downloadingCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Audio File Transfers").font(Typography.callout)
-                Spacer()
-                NavigationLink {
-                    WatchDownloadQueueView()
-                } label: {
-                    Text("Queue").font(Typography.caption).foregroundStyle(Palette.accent)
-                }
-                .accessibilityIdentifier("settings.watch.queue")
-            }
-            .padding(.bottom, 10)
-
-            ForEach(Array(snapshot.activity.prefix(4))) { row in
-                WatchActivityRowView(row: row)
-                if row.id != snapshot.activity.prefix(4).last?.id {
-                    Divider().overlay(Palette.hairline).padding(.vertical, 8)
-                }
-            }
-            if snapshot.activity.count > 4 {
-                Text("+ \(snapshot.activity.count - 4) more")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                    .padding(.top, 8)
-            }
-        }
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-    }
-
-    // MARK: - Collections
-
-    private var collectionsCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Downloaded Collections")
-                .font(Typography.callout)
-                .padding(.bottom, 10)
-
-            ForEach(snapshot.collections) { row in
-                NavigationLink {
-                    WatchDownloadedCollectionDetailView(rootID: row.rootID, title: row.title)
-                } label: {
-                    WatchCollectionRowView(row: row)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("watchRoot.\(row.rootID)")
-                if row.id != snapshot.collections.last?.id {
-                    Divider().overlay(Palette.hairline).padding(.vertical, 8)
-                }
-            }
-        }
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-    }
 
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -334,111 +276,6 @@ enum WatchStageCopy {
         case .failed: return Palette.danger
         case .waitingForWiFi, .paused: return Palette.accent
         default: return Palette.inkSecondary
-        }
-    }
-}
-
-// MARK: - Rows
-
-private struct WatchActivityRowView: View {
-    let row: PhoneWatchManagementPresenter.ActivityRow
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: WatchStageCopy.icon(row.stage))
-                    .font(Typography.caption)
-                    .foregroundStyle(WatchStageCopy.tint(row.stage))
-                Text(row.title).font(Typography.callout).lineLimit(1)
-                Spacer()
-                Text(WatchStageCopy.text(row.stage))
-                    .font(Typography.caption)
-                    .foregroundStyle(WatchStageCopy.tint(row.stage))
-            }
-            if let message = row.failureMessage {
-                Text(message).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(2)
-            }
-            if row.stage == .awaitingInstallation {
-                Text("Apple no longer lists an active file transfer. The watch has not confirmed that this track is installed.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-            if let fraction = row.fractionComplete, let count = row.receivedChunkCount, let total = row.totalChunkCount {
-                ProgressView(value: fraction).tint(Palette.accent)
-                Text("\(Int(fraction * 100))% saved on watch · \(count)/\(total) chunks")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                Text("Saved chunks are retained when restarting.").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            } else if let fraction = row.fractionComplete, row.stage == .transferring {
-                ProgressView(value: fraction).tint(Palette.accent)
-                Text("\(Int(fraction * 100))% transferred by Apple transfer service")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-            if let size = row.expectedBytes, size > 0 {
-                Text(WatchByteFormat.string(size)).font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-            HStack(spacing: 14) {
-                if row.canRetry {
-                    Button(row.canCancel ? "Restart Transfer" : "Try Again") {
-                        Task { await appState.retryWatchJob(row.requestID) }
-                    }
-                        .font(Typography.caption).tint(Palette.accent)
-                }
-                if row.canCancel {
-                    Button("Cancel", role: .destructive) { Task { await appState.cancelWatchJob(row.requestID) } }
-                        .font(Typography.caption).tint(Palette.inkTertiary)
-                } else if row.canRetry {
-                    Button("Remove from Queue", role: .destructive) {
-                        Task { await appState.cancelWatchJob(row.requestID) }
-                    }
-                    .font(Typography.caption).tint(Palette.inkTertiary)
-                }
-            }
-            .buttonStyle(.plain)
-        }
-        .accessibilityIdentifier("watchJob.\(row.requestID)")
-    }
-}
-
-private struct WatchCollectionRowView: View {
-    let row: PhoneWatchManagementPresenter.CollectionRow
-
-    private var subtitle: String {
-        if row.paused { return String(localized: "Paused · \(row.readyCount) of \(row.desiredCount) downloaded") }
-        var parts: [String] = []
-        switch row.kind {
-        case .track: parts.append(String(localized: "Track"))
-        case .album: parts.append(String(localized: "Album · \(row.desiredCount) tracks"))
-        case .playlist: parts.append("\(row.desiredCount) tracks")
-        }
-        if row.isFullyReady {
-            parts.append(row.kind == .playlist ? String(localized: "Kept in sync") : String(localized: "Downloaded"))
-        } else if row.isPartial {
-            parts.append("\(row.readyCount) downloaded")
-        }
-        if row.failedCount > 0 { parts.append("\(row.failedCount) failed") }
-        return parts.joined(separator: " · ")
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: row.paused ? "pause.circle" : iconName)
-                .font(Typography.callout)
-                .foregroundStyle(row.paused ? Palette.accent : Palette.inkSecondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(Typography.callout).lineLimit(1)
-                Text(subtitle).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
-            }
-            Spacer()
-            Image(systemName: "chevron.right").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-        }
-        .contentShape(Rectangle())
-    }
-
-    private var iconName: String {
-        switch row.kind {
-        case .track: return "music.note"
-        case .album: return "square.stack"
-        case .playlist: return "music.note.list"
         }
     }
 }
