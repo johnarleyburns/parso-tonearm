@@ -1,4 +1,5 @@
 import Foundation
+import ParsoAudioStreaming
 
 public enum CloudDriveAPI {
     public enum Provider: String, CaseIterable, Equatable, Codable, Sendable {
@@ -334,7 +335,7 @@ public enum CloudDriveAPI {
             path: path,
             kind: tag == "folder" ? .folder : .file,
             sizeBytes: int64(dict["size"]),
-            contentType: nil,
+            contentType: inferredContentType(name: name),
             temporaryURL: nil
         )
     }
@@ -398,9 +399,19 @@ public enum CloudDriveAPI {
             path: id,
             kind: isFolder ? .folder : .file,
             sizeBytes: int64(dict["size"]),
-            contentType: nil,
+            contentType: inferredContentType(name: name),
             temporaryURL: nil
         )
+    }
+
+    /// Dropbox and Box never return a content type in their listing (unlike Google Drive's
+    /// `mimeType`/OneDrive's `file.mimeType`), and their resolved stream URLs are extensionless
+    /// signed links — AVFoundation gets no format hint at all once the file is cached and played
+    /// from disk. The listing's own file name is the one place these two providers do carry the
+    /// extension; reuse the same extension→MIME mapping the cache/player layer already applies to
+    /// a URL's path extension.
+    private static func inferredContentType(name: String) -> String? {
+        RemoteAudioURL.contentTypeMIME(for: URL(fileURLWithPath: name))
     }
 
     private static func decodeYandexItem(_ dict: [String: Any]) throws -> CloudDriveItem {

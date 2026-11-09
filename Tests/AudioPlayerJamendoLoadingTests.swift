@@ -109,6 +109,61 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertEqual(spy.urls, [fresh.absoluteString], "OAuth cloud rows must be re-resolved, not played from the stale stored URL")
     }
 
+    /// Real report: a cloud-drive track played fine the FIRST time a queue reached it directly,
+    /// but silently failed whenever it was reached via the near-gapless prefetch path instead —
+    /// `prefetchNext` read `asset.transientRemoteHeaders`/the stored `remoteURL` straight off the
+    /// queue, never through `remoteRowFreshener` the way `loadCurrent` does for the current track.
+    func testPrefetchNextFreshensACloudDriveRowBeforeBuildingItsLoader() async throws {
+        let player = AudioPlayer.shared
+        defer { player.remoteRowFreshener = nil; player.prefetchDepth = 0 }
+        let fresh = fresh
+        player.remoteRowFreshener = { row in
+            var r = row
+            r.asset?.remoteURL = fresh.absoluteString
+            return r
+        }
+        var current = CatalogPlaybackURLResolverTests.row(kind: .webDAV, nodeID: nil, url: "https://example.test/current.mp3")
+        current.track.id = 101
+        var next = CatalogPlaybackURLResolverTests.row(kind: .dropbox, nodeID: "id:abc", url: stale)
+        next.track.id = 102
+
+        player.queue = [current, next]
+        player.index = 0
+        player.prefetchDepth = 1
+        player.prefetchNext()
+        await settle()
+
+        XCTAssertEqual(player.prefetchedURLs[102], fresh,
+            "the prefetched-ahead row must use the freshened URL, not the stale one straight off the queue")
+    }
+
+    /// Same gap as the prefetch test above, for the near-gapless PRELOADED item
+    /// (`preloadNextItem`/the `finishOrdinaryLoad` branch that reuses it directly, bypassing
+    /// `loadCurrent`'s own freshening entirely).
+    func testPreloadNextItemFreshensACloudDriveRowBeforeBuildingItem() async throws {
+        let player = AudioPlayer.shared
+        defer { player.remoteRowFreshener = nil }
+        let fresh = fresh
+        player.remoteRowFreshener = { row in
+            var r = row
+            r.asset?.remoteURL = fresh.absoluteString
+            return r
+        }
+        var current = CatalogPlaybackURLResolverTests.row(kind: .webDAV, nodeID: nil, url: "https://example.test/current.mp3")
+        current.track.id = 201
+        var next = CatalogPlaybackURLResolverTests.row(kind: .dropbox, nodeID: "id:abc", url: stale)
+        next.track.id = 202
+
+        player.queue = [current, next]
+        player.index = 0
+        player.preloadNextItem()
+        await settle()
+
+        XCTAssertEqual(player.preloadedNextTrackId, 202)
+        XCTAssertEqual(player.preloadedNextLoader?.cacheKey, AudioCache.key(for: fresh),
+            "the preloaded item's loader must be built from the freshened URL, not the stale one straight off the queue")
+    }
+
     func testStaleResolverCompletionCannotReplaceNewQueueOrResumeStoppedPlayback() async throws {
         let spy = Spy(), gate = Gate()
         try install(gate: gate, spy: spy)

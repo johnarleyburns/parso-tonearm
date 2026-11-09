@@ -21,6 +21,13 @@ enum PendingImport: Equatable {
 @MainActor
 final class AppState: ObservableObject {
     let store: LibraryStore
+    /// Injectable so `download(rows:)`/`makeOffline(source:)` can be exercised against a stubbed
+    /// response in tests instead of making a real network call.
+    var downloadSession: URLSession = .shared
+    /// Result of the last "Check Downloaded Cloud Tracks" run (`repairPoisonedCloudDownloads`),
+    /// shown in Settings per CLAUDE.md's no-silent-background-work rule — the scan is manual and
+    /// one-shot, but its result must still be inspectable, not just acted on silently.
+    @Published var lastCacheRepairResult: CacheRepairResult?
     /// Restored from the last launch (real report: "when I enter Platterhead it doesn't return to
     /// where I was, it starts from scratch" — the tab always reset to `.listen`, nothing persisted
     /// it). The playback queue/position already survive relaunch

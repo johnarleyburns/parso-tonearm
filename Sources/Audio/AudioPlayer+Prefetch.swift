@@ -19,27 +19,53 @@ extension AudioPlayer {
             prefetchLoaders.removeValue(forKey: trackId)
             prefetchedURLs.removeValue(forKey: trackId)
         }
+        for (trackId, task) in prefetchFreshenTasks where !upcomingIds.contains(trackId) {
+            task.cancel()
+            prefetchFreshenTasks.removeValue(forKey: trackId)
+        }
         for row in upcoming {
             guard let trackId = row.track.id,
                   let asset = row.asset, asset.kind == .remote,
-                  asset.transientRemoteSupportsByteRanges,
-                  let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { continue }
+                  asset.transientRemoteSupportsByteRanges else { continue }
             guard playbackDecision(for: asset) != .skipWiFiOnly else { continue }
-            if prefetchLoaders[trackId] != nil { continue }  // already prefetching
-            prefetchedURLs[trackId] = remote
-            let loader = CachingResourceLoader(originalURL: remote, store: AudioCache.shared, config: AudioCache.loaderConfig(headers: asset.transientRemoteHeaders))
-            prefetchLoaders[trackId] = loader
-            loader.warm(upTo: 2 * 1024 * 1024)  // warm 2 MB to seed near-gapless
-            // "Opus when ready" (T2.4): fetch the Opus derivative and remux it to
-            // CAF so the NEXT play/repeat of this track upgrades to Opus. Cold play
-            // above stays on the instant FLAC/MP3 — no added latency on the tap.
-            if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
-                prefetchOpusAndRemux(opusURL)
+            if prefetchLoaders[trackId] != nil || prefetchFreshenTasks[trackId] != nil { continue }  // already (being) prefetched
+            // OAuth/cloud-drive rows persist only a node reference: their stored URL is stale and
+            // their auth headers are never persisted (same gap `loadCurrent` closes for the
+            // current track — real report: a prefetched-ahead cloud-drive track played fine the
+            // FIRST time a queue reached it directly, but silently failed whenever it was reached
+            // via this near-gapless prefetch path instead, since this loop read the stale,
+            // unauthenticated row straight off the queue). Re-resolve first when possible.
+            guard let freshen = remoteRowFreshener, !(asset.remoteNodeID ?? "").isEmpty else {
+                startPrefetchLoader(trackId: trackId, row: row, asset: asset)
+                continue
             }
-            // Cache the artwork alongside its music so prefetched tracks are
-            // fully available offline, not just their audio bytes.
-            bridge.prefetchArtwork(for: row)
+            prefetchFreshenTasks[trackId] = Task { @MainActor [weak self] in
+                let fresh = await freshen(row)
+                guard let self else { return }
+                self.prefetchFreshenTasks.removeValue(forKey: trackId)
+                guard !Task.isCancelled,
+                      self.queue.dropFirst(self.index + 1).prefix(self.prefetchDepth)
+                          .contains(where: { $0.track.id == trackId }) else { return }
+                self.startPrefetchLoader(trackId: trackId, row: fresh, asset: fresh.asset ?? asset)
+            }
         }
+    }
+
+    private func startPrefetchLoader(trackId: Int64, row: TrackRow, asset: Asset) {
+        guard let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { return }
+        prefetchedURLs[trackId] = remote
+        let loader = CachingResourceLoader(originalURL: remote, store: AudioCache.shared, config: AudioCache.loaderConfig(headers: asset.transientRemoteHeaders))
+        prefetchLoaders[trackId] = loader
+        loader.warm(upTo: 2 * 1024 * 1024)  // warm 2 MB to seed near-gapless
+        // "Opus when ready" (T2.4): fetch the Opus derivative and remux it to
+        // CAF so the NEXT play/repeat of this track upgrades to Opus. Cold play
+        // above stays on the instant FLAC/MP3 — no added latency on the tap.
+        if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
+            prefetchOpusAndRemux(opusURL)
+        }
+        // Cache the artwork alongside its music so prefetched tracks are
+        // fully available offline, not just their audio bytes.
+        bridge.prefetchArtwork(for: row)
     }
 
     /// Downloads a complete Opus derivative into the stream cache and remuxes it

@@ -97,7 +97,7 @@ final class FavoriteAndHistoryGuardOrderingTests: XCTestCase {
         let source = try String(
             contentsOf: root.appendingPathComponent("Sources/Features/Sources/SourceDetailView+Remote.swift"),
             encoding: .utf8)
-        let persist = try XCTUnwrap(source.range(of: "await appState.persistRemoteTrack(rows[startIndex])"))
+        let persist = try XCTUnwrap(source.range(of: "await appState.persistRemoteTrack(rows[startIndex], prefetchBytes: false)"))
         let play = try XCTUnwrap(source.range(of: "player.play(tracks: rows, startAt: startIndex"))
         XCTAssertLessThan(persist.lowerBound, play.lowerBound,
             "the starting track must be persisted before playback begins, so its play history/favorite can be recorded")

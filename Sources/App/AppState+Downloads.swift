@@ -30,18 +30,7 @@ extension AppState {
             // resolve) — keying on the fresh URL would fragment the cache
             // and defeat the "already downloaded" check on every call.
             let cacheKey = AudioCache.key(for: remoteURL)
-            let destURL = AudioCache.fileURL(for: cacheKey)
-
-            if !FileManager.default.fileExists(atPath: destURL.path) {
-                if let request = await fetchRequest(for: asset, source: source),
-                   let (data, _) = try? await URLSession.shared.data(for: request) {
-                    try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try? data.write(to: destURL, options: .atomic)
-                    await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
-                }
-            } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
-                await AudioCache.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey, durable: true)
-            }
+            await cacheCompletedDownload(cacheKey: cacheKey, remoteURL: remoteURL, asset: asset, source: source)
             completed += 1
             offlineProgress = OfflineProgress(sourceID: sourceID, completed: completed, total: estimate.trackCount, failed: false, message: nil)
         }
@@ -65,20 +54,10 @@ extension AppState {
             // on the stable persisted URL, never the possibly-fresh re-resolved
             // one.
             let cacheKey = AudioCache.key(for: remoteURL)
-            let destURL = AudioCache.fileURL(for: cacheKey)
             activePhoneDownloads.insert(row.id)
             do {
                 defer { activePhoneDownloads.remove(row.id) }
-                if !FileManager.default.fileExists(atPath: destURL.path) {
-                    if let request = await fetchRequest(for: asset, source: row.source),
-                       let (data, _) = try? await URLSession.shared.data(for: request) {
-                        try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                    try? data.write(to: destURL, options: .atomic)
-                        await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
-                    }
-                } else if let size = try? FileManager.default.attributesOfItem(atPath: destURL.path)[.size] as? NSNumber {
-                    await AudioCache.shared.adoptCompleteFile(byteCount: size.int64Value, for: cacheKey, durable: true)
-                }
+                await cacheCompletedDownload(cacheKey: cacheKey, remoteURL: remoteURL, asset: asset, source: row.source)
             }
             downloaded += 1
         }
@@ -100,6 +79,35 @@ extension AppState {
         return await RemoteAssetRefetch.request(for: asset) { node in
             try await provider.resolve(node: node)
         }
+    }
+
+    /// Shared by `makeOffline(source:)` and `download(rows:)`. Two real reports, both from a
+    /// track that genuinely couldn't be fetched (an expired Dropbox/pCloud temp link, a revoked
+    /// token):
+    /// 1. The fetch's HTTP status was never checked, so a 401/403/410 error-page body got
+    ///    written to disk and `adoptCompleteFile`'d anyway — a poisoned, permanently "downloaded"
+    ///    entry that fails every later play and is never retried.
+    /// 2. "Already downloaded, skip the fetch" was decided from bare `FileManager` file
+    ///    existence at the cache path, not from whether the entry is actually complete — a track
+    ///    mid-stream or mid-prefetch (a genuinely partial blob sitting at that same path,
+    ///    `CachingResourceLoader` writes to it incrementally) got adopted as a finished download
+    ///    purely because *some* file was there.
+    /// `AudioCache.completeCacheExists` is the one check that already tracks real completeness
+    /// (`SparseCacheStore`'s own byte-range bookkeeping, not a file-existence guess) — trust it
+    /// instead of re-deriving "complete" from whatever happens to be on disk right now.
+    private func cacheCompletedDownload(cacheKey: String, remoteURL: URL, asset: Asset, source: Source?) async {
+        if AudioCache.completeCacheExists(for: remoteURL) {
+            await AudioCache.shared.setDurable(true, for: cacheKey)
+            return
+        }
+        guard let request = await fetchRequest(for: asset, source: source),
+              let (data, response) = try? await downloadSession.data(for: request),
+              let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode)
+        else { return }
+        let destURL = AudioCache.fileURL(for: cacheKey)
+        try? FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: destURL, options: .atomic)
+        await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)
     }
 
     func phoneDownloadState(for row: TrackRow) -> PhoneDownloadState {
@@ -166,14 +174,24 @@ extension AppState {
     /// node could start, read `existingRows`, and insert a new row before the first call's own
     /// insert had committed, so neither one ever saw the other's row. A second call for the same
     /// identity now awaits the first call's own in-flight work instead of racing it.
-    func persistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
+    ///
+    /// `prefetchBytes` (default `true`, unchanged behavior for favorites/edit-metadata/
+    /// custom-artwork/watch-prep): whether to await the full download before returning. Real
+    /// report: a direct browse-and-play tap went dead for the entire download — `playRemote`
+    /// and `DiscoveryRuntimeController`'s mood-search `onPlay` await this call's result before
+    /// starting playback at all, and persistence itself only needs a real, positive track id
+    /// (so favorite/play-history writes have a valid foreign key) — not the bytes pinned to
+    /// disk. Those two callers pass `false`; the DB rows still get persisted and returned
+    /// immediately, and the download continues in the background exactly as it would have
+    /// finished anyway, just without blocking the tap that started it.
+    func persistRemoteTrack(_ row: TrackRow, prefetchBytes: Bool = true) async -> TrackRow? {
         guard row.id < 0, let asset = row.asset, let rawURL = asset.remoteURL else { return row }
         let identityKey = "\(row.source?.id ?? -1):\(asset.remoteNodeID ?? rawURL)"
         if let inFlight = pendingRemotePersists[identityKey] {
             return await inFlight.value
         }
         let task = Task { @MainActor [weak self] () -> TrackRow? in
-            await self?.performPersistRemoteTrack(row)
+            await self?.performPersistRemoteTrack(row, prefetchBytes: prefetchBytes)
         }
         pendingRemotePersists[identityKey] = task
         let result = await task.value
@@ -181,7 +199,7 @@ extension AppState {
         return result
     }
 
-    private func performPersistRemoteTrack(_ row: TrackRow) async -> TrackRow? {
+    private func performPersistRemoteTrack(_ row: TrackRow, prefetchBytes: Bool) async -> TrackRow? {
         guard row.id < 0, var source = row.source, let asset = row.asset,
               let rawURL = asset.remoteURL, let url = URL(string: rawURL) else { return row }
         // Ad-hoc Jamendo browsing uses a synthetic source. Persist/reuse it
@@ -207,7 +225,8 @@ extension AppState {
                               title: row.track.title,
                               path: asset.remoteNodePath ?? rawURL, kind: .audio,
                               sizeBytes: asset.sizeBytes,
-                              durationSec: row.track.durationSec)
+                              durationSec: row.track.durationSec,
+                              contentType: asset.remoteContentType)
         let resolved = ResolvedAsset(url: url, headers: asset.transientRemoteHeaders,
                                      supportsByteRanges: asset.transientRemoteSupportsByteRanges,
                                      sizeBytes: asset.sizeBytes)
@@ -230,7 +249,11 @@ extension AppState {
             persistedAsset.transientRemoteSupportsByteRanges = asset.transientRemoteSupportsByteRanges
             persisted.asset = persistedAsset
         }
-        _ = await download(rows: [row])
+        if prefetchBytes {
+            _ = await download(rows: [row])
+        } else {
+            Task { @MainActor [weak self] in _ = await self?.download(rows: [row]) }
+        }
         await reload()
         return persisted
     }

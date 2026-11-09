@@ -35,6 +35,30 @@ final class RemotePlaylistIngestTests: XCTestCase {
         }
     }
 
+    /// Real report: a Google Drive/Dropbox track played fine once (straight from browsing, where
+    /// `RemoteTrackRowFactory` sets `Asset.remoteContentType` on the in-memory row), then never
+    /// played again once persisted to the library and replayed from its now-complete cache —
+    /// `RemotePlaylistIngest.persist`'s own `Asset(...)` never carried `node.contentType` through
+    /// at all, so every DB-backed row lost the one format hint AVFoundation has for an
+    /// extensionless cloud-drive stream URL.
+    func testPersistCarriesTheProvidersContentTypeOntoTheSavedAsset() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try await store.insertSource(Source(
+            id: nil, kind: .googleDrive, iaIdentifier: nil, originalURL: nil, title: "Drive",
+            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+            licenseText: nil, memberCapHit: false))
+        var node = RemoteNode(id: "file-1", title: "Song", path: "/file-1", kind: .audio)
+        node.contentType = "audio/mp4"
+
+        let result = await RemotePlaylistIngest.persist(nodes: [node], resolve: { _ in
+            ResolvedAsset(url: URL(string: "https://example.test/alt=media")!)
+        }, source: source, store: store)
+        XCTAssertEqual(result.trackIDs.count, 1)
+
+        let rows = try await store.tracks(forSource: source.id!)
+        XCTAssertEqual(rows.first?.asset?.remoteContentType, "audio/mp4")
+    }
+
     /// Real report: re-browsing to and replaying the same Dropbox/Google Drive file created a
     /// genuine duplicate track, rather than finding the one already imported, and the duplicate
     /// then got favorited separately too ("it shows as not favorited" the second time, "clicking

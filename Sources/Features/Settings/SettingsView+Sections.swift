@@ -42,6 +42,7 @@ extension SettingsView {
             }
             Section("Storage") {
                 clearCard
+                cloudDownloadRepairCard
                 customArtworkCard
             }
         }

@@ -194,6 +194,11 @@ public final class AudioPlayer: ObservableObject {
     /// Active prefetch loaders keyed by track id, so skipping a track can cancel
     /// its in-flight fetch (T3.5).
     var prefetchLoaders: [Int64: CachingResourceLoader] = [:]
+    /// In-flight `remoteRowFreshener` calls for an upcoming prefetch, keyed by track id — lets a
+    /// track that drops out of the prefetch window cancel its freshen just like a loader, and
+    /// keeps a second `prefetchNext()` tick from starting a duplicate freshen for the same track
+    /// while the first is still resolving.
+    var prefetchFreshenTasks: [Int64: Task<Void, Never>] = [:]
     let retryPolicy = RetryPolicy()
     var unshuffledQueue: [TrackRow] = []
     /// Near-gapless (T2.5): the next queue item, preloaded (with its cache/EQ
@@ -201,6 +206,10 @@ public final class AudioPlayer: ObservableObject {
     var preloadedNextItem: AVPlayerItem?
     var preloadedNextTrackId: Int64?
     var preloadedNextLoader: CachingResourceLoader?
+    /// In-flight `remoteRowFreshener` call for the item `preloadNextItem()` is about to build —
+    /// cancelled by `dropPreloadedNext()`/a newer `preloadNextItem()` call the same way a
+    /// prefetch loader is.
+    var preloadFreshenTask: Task<Void, Never>?
     var loadedSourceSampleRate: Double = 0
     var crossfadePlayer: AVPlayer?
     var crossfadeNextTrackId: Int64?
@@ -609,6 +618,8 @@ public final class AudioPlayer: ObservableObject {
         }
         prefetchLoaders.removeAll()
         prefetchedURLs.removeAll()
+        for task in prefetchFreshenTasks.values { task.cancel() }
+        prefetchFreshenTasks.removeAll()
         dropPreloadedNext()
         Task { await AudioCache.shared.setProtectedKeys([]) }
 

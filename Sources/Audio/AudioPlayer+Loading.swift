@@ -480,6 +480,29 @@ extension AudioPlayer {
         guard let asset = row.asset, asset.unsupportedReason == nil else { return }
         guard playbackDecision(for: asset) != .skipWiFiOnly else { return }
         guard preloadedNextTrackId != row.track.id else { return }
+        // Same gap `loadCurrent`/`prefetchNext` close: an OAuth/cloud-drive row's stored URL is
+        // stale and its auth headers are never persisted. Real report: the near-gapless preload
+        // reused a stale, unauthenticated build of the NEXT track, so a queue reaching a
+        // cloud-drive track via this path (rather than a direct tap) silently failed.
+        guard let freshen = remoteRowFreshener, asset.kind == .remote,
+              row.source?.kind != .jamendoGenre, !(asset.remoteNodeID ?? "").isEmpty else {
+            buildAndStorePreloadedItem(row: row, asset: asset)
+            return
+        }
+        preloadFreshenTask?.cancel()
+        let trackId = row.track.id
+        preloadFreshenTask = Task { @MainActor [weak self] in
+            let fresh = await freshen(row)
+            guard let self else { return }
+            self.preloadFreshenTask = nil
+            guard !Task.isCancelled,
+                  self.upcomingQueueIndex().flatMap({ self.queue.indices.contains($0) ? self.queue[$0] : nil })?.track.id == trackId
+            else { return }
+            self.buildAndStorePreloadedItem(row: fresh, asset: fresh.asset ?? asset)
+        }
+    }
+
+    private func buildAndStorePreloadedItem(row: TrackRow, asset: Asset) {
         guard let built = buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
         applyEQ(to: built.item, row: row)
@@ -490,6 +513,8 @@ extension AudioPlayer {
 
     /// Discards the preloaded next item (and its scoped-access lease) without playing it.
     func dropPreloadedNext() {
+        preloadFreshenTask?.cancel()
+        preloadFreshenTask = nil
         preloadedNextLoader?.shutdown()
         (preloadedNextItem as? LocalPlayerItem)?.releaseLease()
         preloadedNextItem = nil

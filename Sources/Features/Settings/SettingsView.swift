@@ -33,6 +33,7 @@ struct SettingsView: View {
     @State var customCacheLimitMessage: String?
     @State var icloudSync = SyncGating.isEnabled
     @State var showWatchSettings = false
+    @State var isRepairingCloudDownloads = false
     @AppStorage("appearanceMode") var appearanceMode = AppearanceMode.system.rawValue
     let presets: [(String, Int64)] = [
         ("200 MB", 200 * 1024 * 1024),
