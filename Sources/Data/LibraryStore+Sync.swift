@@ -96,7 +96,62 @@ extension LibraryStore {
     // MARK: - Deletes
 
     public func deleteTrack(id: Int64) throws {
-        _ = try dbQueue.write { db in try Track.deleteOne(db, key: id) }
+        _ = try dbQueue.write { db in
+            // Snapshot the durable remote identity first so a later re-add of the same
+            // provider track stays excluded from Keep Playing.
+            try db.execute(sql: """
+                INSERT OR IGNORE INTO recommendation_exclusion
+                    (sourceKind, remoteNodeID, reason, excludedAt)
+                SELECT s.kind, a.remoteNodeID, 'removedFromLibrary', ?
+                FROM asset a JOIN track t ON t.id = a.trackId JOIN source s ON s.id = t.sourceId
+                WHERE a.trackId = ? AND a.remoteNodeID IS NOT NULL
+                """, arguments: [Date(), id])
+            return try Track.deleteOne(db, key: id)
+        }
+    }
+
+    // MARK: - Recommendation exclusions
+
+    public func excludeFromRecommendations(sourceKind: SourceKind, remoteNodeID: String,
+                                           reason: String) throws {
+        try dbQueue.write { db in
+            try db.execute(sql: """
+                INSERT INTO recommendation_exclusion (sourceKind, remoteNodeID, reason, excludedAt)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(sourceKind, remoteNodeID) DO UPDATE SET
+                    reason = excluded.reason, excludedAt = excluded.excludedAt
+                """, arguments: [sourceKind.rawValue, remoteNodeID, reason, Date()])
+        }
+    }
+
+    public func isExcludedFromRecommendations(sourceKind: SourceKind, remoteNodeID: String) throws -> Bool {
+        try dbQueue.read { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM recommendation_exclusion
+                              WHERE sourceKind = ? AND remoteNodeID = ?)
+                """, arguments: [sourceKind.rawValue, remoteNodeID]) ?? false
+        }
+    }
+
+    public func excludedRemoteNodeIDs(sourceKind: SourceKind) throws -> Set<String> {
+        try dbQueue.read { db in
+            Set(try String.fetchAll(db, sql: """
+                SELECT remoteNodeID FROM recommendation_exclusion WHERE sourceKind = ?
+                """, arguments: [sourceKind.rawValue]))
+        }
+    }
+
+    /// Current local track ids whose (source kind, remoteNodeID) identity is excluded —
+    /// resolves the durable identity to the *current* (possibly re-added) trackIds.
+    public func excludedTrackIDs() throws -> Set<Int64> {
+        try dbQueue.read { db in
+            Set(try Int64.fetchAll(db, sql: """
+                SELECT a.trackId FROM asset a
+                JOIN track t ON t.id = a.trackId JOIN source s ON s.id = t.sourceId
+                JOIN recommendation_exclusion e
+                  ON e.sourceKind = s.kind AND e.remoteNodeID = a.remoteNodeID
+                """))
+        }
     }
 
     public func deleteAlbum(id: Int64) throws {

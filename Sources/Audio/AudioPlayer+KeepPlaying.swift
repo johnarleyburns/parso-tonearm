@@ -126,8 +126,11 @@ extension AudioPlayer {
         }
     }
 
-    private func currentKeepPlayingExclusions() -> Set<Int64> {
-        Set(keepPlayingHistory).union(queue.compactMap { $0.track.id })
+    private func currentKeepPlayingExclusions() async -> Set<Int64> {
+        // Session exclusions plus the durable "never recommend" / removed-from-library identities
+        // resolved to their current local track ids (covers re-added tracks).
+        let durable = (try? await LibraryStore.shared.excludedTrackIDs()) ?? []
+        return Set(keepPlayingHistory).union(queue.compactMap { $0.track.id }).union(durable)
     }
 
     private func performKeepPlayingExtension() async {
@@ -139,7 +142,7 @@ extension AudioPlayer {
         // is a process-wide singleton and this task can otherwise keep
         // running well past the session (or test) that started it.
         guard !Task.isCancelled else { return }
-        let excluded = currentKeepPlayingExclusions()
+        let excluded = await currentKeepPlayingExclusions()
 
         // Keep Playing is an endless mix: continue from the last queued track under the mixing
         // rules first; the other continuations below are the fallback when nothing fits.
@@ -244,7 +247,7 @@ extension AudioPlayer {
         }
         guard !Task.isCancelled else { return }
         guard !rows.isEmpty else {
-            await extendWithFallback(reason: .unavailable, excluding: currentKeepPlayingExclusions())
+            await extendWithFallback(reason: .unavailable, excluding: await currentKeepPlayingExclusions())
             return
         }
         finishKeepPlayingExtension(with: rows, isFallback: isFallback, reason: reason)

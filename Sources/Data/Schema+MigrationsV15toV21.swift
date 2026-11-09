@@ -595,5 +595,20 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v49", upTo: target) {
+            migrator.registerMigration("v49") { db in
+                // Durable "never recommend" identity: a plain snapshot of
+                // (sourceKind, remoteNodeID) with deliberately NO foreign key to track/asset, so
+                // it survives deleting and re-adding the track (unlike starter_identity).
+                try db.create(table: "recommendation_exclusion") { t in
+                    t.column("sourceKind", .text).notNull()
+                    t.column("remoteNodeID", .text).notNull()
+                    t.column("reason", .text).notNull()
+                    t.column("excludedAt", .datetime).notNull()
+                    t.primaryKey(["sourceKind", "remoteNodeID"])
+                }
+            }
+        }
     }
 }
