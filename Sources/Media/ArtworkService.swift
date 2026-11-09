@@ -325,6 +325,18 @@ actor ArtworkService {
             if let image = await artwork(forIdentifier: id) { return (image, true) }
         }
 
+        // 1a. Embedded ID3/MP4 tag artwork, read straight from an already-complete local cache
+        // file — covers any remote provider that doesn't supply its own artwork metadata
+        // (Jellyfin items with no server-side image tag; Dropbox/Google Drive/pCloud/OneDrive/
+        // Box, which have no artwork concept at all today). Only attempted once the track is
+        // already fully cached (`AudioCache.cachedFileURL` returns nil otherwise), so this never
+        // costs an extra network round-trip just to peek at tags — the same reasoning that keeps
+        // step 2 below local-file-only.
+        if isRemote, let asset = row.asset,
+           let result = await remoteCachedEmbeddedArtwork(asset: asset, trackId: trackId) {
+            return result
+        }
+
         // For IA tracks the album row carries real artist/title; for local files the
         // album is a placeholder ("Local Files"/folder), so ignore it and rely on
         // embedded tags harvested below.
@@ -415,6 +427,40 @@ actor ArtworkService {
         store(image, forKey: key as NSString)
         writeDiskCache(image, key: key)
         return (image, true)
+    }
+
+    /// Reads embedded ID3/MP4 tag artwork from an already-complete local cache file for a
+    /// remote track whose provider supplied no artwork of its own (`remoteProviderArtwork`
+    /// already returned nil by the time this runs). Mirrors `liveLocalLoader`'s embedded-cover
+    /// decode below, but points at the streaming cache's blob instead of a security-scoped
+    /// local-file bookmark — no `LocalAssetResolver` lease is needed since this file is already
+    /// owned by the app's own cache, not an imported external URL.
+    private func remoteCachedEmbeddedArtwork(asset: Asset, trackId: Int64) async -> (image: PlatformImage, persistable: Bool)? {
+        guard let remoteStr = asset.remoteURL, let remoteURL = URL(string: remoteStr),
+              let fileURL = AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remoteURL) else { return nil }
+
+        let key = "remote-embedded-\(trackId)" as NSString
+        if let cached = memCache.object(forKey: key) {
+            return cached === Self.notFoundSentinel ? nil : (cached, true)
+        }
+        if let onDisk = readDiskCache(key: key as String) {
+            store(onDisk, forKey: key)
+            return (onDisk, true)
+        }
+
+        let avAsset = AVURLAsset(url: fileURL)
+        guard let metadata = try? await avAsset.load(.commonMetadata) else { return nil }
+        for item in metadata {
+            guard item.commonKey == .commonKeyArtwork,
+                  let data = try? await item.load(.dataValue),
+                  let art = EmbeddedArtworkDownsampler.downsample(data) else { continue }
+            let image = Self.platformImage(from: art.image)
+            store(image, forKey: key)
+            writeDiskCache(image, key: key as String)
+            return (image, true)
+        }
+        memCache.setObject(Self.notFoundSentinel, forKey: key)
+        return nil
     }
 
     /// External iTunes artwork lookup for a track, keyed and cached separately from

@@ -60,6 +60,19 @@ public enum AudioCache {
         layout.completeBlobExists(for: key(for: remote))
     }
 
+    /// The on-disk blob for `remote`, but only once it is fully cached — never a hint to start
+    /// a fetch. Lets `ArtworkService` try reading embedded ID3/MP4 tag artwork for a remote
+    /// provider that doesn't supply its own (a cloud-drive track, or a Jellyfin item missing a
+    /// server-side image tag) using bytes already on disk, instead of a fresh network
+    /// round-trip just to peek at tags. `layout` is injectable for tests; production call
+    /// sites use the default, real `AudioCache.layout`.
+    public static func cachedFileURL(forRemoteEmbeddedArtwork remote: URL,
+                                      layout: SparseCacheLayout = AudioCache.layout) -> URL? {
+        let key = key(for: remote)
+        guard layout.completeBlobExists(for: key) else { return nil }
+        return layout.blobURL(for: key)
+    }
+
     /// On-disk CAF sibling (a named derived artifact) for a remote Opus URL,
     /// whether or not it exists yet.
     public static func cafURL(forRemoteOpus url: URL) -> URL {
