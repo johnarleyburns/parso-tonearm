@@ -1,5 +1,32 @@
 import Foundation
 
+/// Captures the `Location` target of a Box content-endpoint redirect without following it — so
+/// resolving the real dl.boxcloud.com URL costs one declined redirect, never a downloaded body.
+/// `@unchecked Sendable`: `URLSessionTaskDelegate`'s redirect callback can land on any thread: the
+/// `NSLock` below is the explicit, auditable synchronization that makes shared mutable state across
+/// that callback and the awaiting task safe (CLAUDE.md requires an explained escape hatch, not an
+/// unexplained one).
+final class BoxRedirectCapture: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _redirectedURL: URL?
+
+    var redirectedURL: URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _redirectedURL
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                     willPerformHTTPRedirection response: HTTPURLResponse,
+                     newRequest: URLRequest,
+                     completionHandler: @escaping (URLRequest?) -> Void) {
+        lock.lock()
+        _redirectedURL = newRequest.url
+        lock.unlock()
+        completionHandler(nil)
+    }
+}
+
 public struct CloudDriveServerPolicy {
     public static func credentialAccount(sourceID: Int64, provider: CloudDriveAPI.Provider) -> String {
         "\(provider.rawValue):\(sourceID)"
@@ -143,13 +170,42 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
         )
 
         switch provider {
-        case .googleDrive, .oneDrive, .box:
-            // Box's /2.0/files/{id}/content 302-redirects to a pre-signed dl.boxcloud.com URL on
-            // success rather than returning JSON — there's no temp-link body to decode the way
-            // Dropbox/pCloud have. Handing back this bearer-authed request URL directly (same
-            // shape as Google Drive/OneDrive) lets AVPlayer/URLSession follow that redirect
-            // transparently at play time instead of making an extra resolve-time round trip.
+        case .googleDrive, .oneDrive:
+            // Neither API redirects cross-host for its content endpoint, so handing back this
+            // bearer-authed request URL directly is safe: AVPlayer/URLSession re-sends the same
+            // header on every later byte-range request against the SAME host that issued it.
             guard let url = request.url else { throw URLError(.badURL) }
+            return ResolvedAsset(
+                url: url,
+                headers: authHeaders(access.accessToken),
+                supportsByteRanges: true,
+                sizeBytes: node.sizeBytes
+            )
+        case .box:
+            // Box's /2.0/files/{id}/content 302-redirects to a pre-signed, self-authenticating
+            // dl.boxcloud.com URL on success — a DIFFERENT host than api.box.com. Real report:
+            // "100% cached, never plays" even on a build with the Dropbox/Google Drive fix.
+            // Root cause: this used to be grouped with Google Drive/OneDrive above, handing back
+            // the api.box.com URL + a Box OAuth bearer header; `CachingResourceLoader` resolves
+            // that redirect once, then reattaches the SAME bearer header to every later
+            // byte-range request against dl.boxcloud.com — a header that CDN URL never expects
+            // and can reject. Resolve the redirect once, here, and hand back the boxcloud.com
+            // URL alone with no headers — the same self-contained shape Dropbox/pCloud already
+            // use. `BoxRedirectCapture` declines the redirect (so no audio bytes are downloaded
+            // just to resolve a URL) and reports the `Location` target instead.
+            let capture = BoxRedirectCapture()
+            let (_, response) = try await session.data(for: request, delegate: capture)
+            if let redirectedURL = capture.redirectedURL {
+                return ResolvedAsset(
+                    url: redirectedURL,
+                    headers: [:],
+                    supportsByteRanges: true,
+                    sizeBytes: node.sizeBytes
+                )
+            }
+            // Box didn't redirect (unexpected, but not impossible) — fall back to the direct
+            // response URL with the original bearer header, same as before this fix.
+            guard let url = response.url ?? request.url else { throw URLError(.badURL) }
             return ResolvedAsset(
                 url: url,
                 headers: authHeaders(access.accessToken),
