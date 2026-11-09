@@ -146,7 +146,7 @@ public struct JellyfinProvider: RemoteLibraryProvider {
 
     private func authHeaders() -> [String: String] {
         [
-            "X-Emby-Authorization": JellyfinAPI.authorizationHeader(client: client, token: accessToken),
+            "Authorization": JellyfinAPI.authorizationHeader(client: client, token: accessToken),
             "X-Emby-Token": accessToken,
         ]
     }

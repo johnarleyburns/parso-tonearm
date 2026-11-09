@@ -19,9 +19,10 @@ final class JellyfinAPITests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/jellyfin/Users/AuthenticateByName")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
         XCTAssertEqual(
-            request.value(forHTTPHeaderField: "X-Emby-Authorization"),
+            request.value(forHTTPHeaderField: "Authorization"),
             #"MediaBrowser Client="TonearmTests", Device="iPhone", DeviceId="device-1", Version="0.1""#
         )
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-Emby-Authorization"))
         XCTAssertEqual(object["Username"], "alice")
         XCTAssertEqual(object["Pw"], "secret")
     }
@@ -42,9 +43,10 @@ final class JellyfinAPITests: XCTestCase {
         XCTAssertEqual(query["SortBy"], "ProductionYear,SortName")
         XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "token-1")
         XCTAssertEqual(
-            request.value(forHTTPHeaderField: "X-Emby-Authorization"),
+            request.value(forHTTPHeaderField: "Authorization"),
             #"MediaBrowser Client="Tonearm", Device="iPhone", DeviceId="tonearm-ios", Version="1.0", Token="token-1""#
         )
+        XCTAssertNil(request.value(forHTTPHeaderField: "X-Emby-Authorization"))
     }
 
     func testStreamRequestUsesAudioEndpointWithoutQueryToken() throws {
