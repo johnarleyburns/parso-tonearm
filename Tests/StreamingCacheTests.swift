@@ -196,4 +196,58 @@ final class StreamingCacheTests: XCTestCase {
         let stillThere = await store.contains("now-playing")
         XCTAssertTrue(stillThere)
     }
+
+    // MARK: - Remove from Phone must actually delete, not just unpin
+
+    /// Real report: tapping "Remove from Phone" (library rows and Jump Back In cards alike,
+    /// both routed through the same `trackContextMenu`) never actually frees the track — the
+    /// badge keeps showing it as downloaded no matter how many times it's tapped. `AudioCache`
+    /// is configured single-tier (`AudioCache.shared` passes the SAME root as both
+    /// `evictableRoot` and `durableRoot` — exactly what `makeStore()` above replicates), and in
+    /// that mode `setDurable(false, for:)` is documented ("nothing to move — just flip the
+    /// flag") to leave the blob and `meta.complete` completely untouched. Pins why
+    /// `AppState.removeDownloadFromPhone` calling only `setDurable(false, for:)` can never work.
+    func testSetDurableFalseAloneDoesNotRemoveACompleteEntryInSingleTierMode() async {
+        let store = makeStore()
+        await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
+        XCTAssertTrue(store.contains("track-key"))
+
+        await store.setDurable(false, for: "track-key")
+
+        let meta = await store.meta(for: "track-key")
+        XCTAssertEqual(meta?.complete, true, "single-tier setDurable(false) must not clear completeness")
+        XCTAssertTrue(store.contains("track-key"), "single-tier setDurable(false) must not remove the entry")
+    }
+
+    /// The actual fix: `remove(keys:)` is the one API that deletes the entry outright, which is
+    /// what `AppState.removeDownloadFromPhone` must call instead.
+    func testRemoveKeysActuallyDeletesACompleteDurableEntryInSingleTierMode() async {
+        let store = makeStore()
+        await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
+        XCTAssertTrue(store.contains("track-key"))
+
+        await store.remove(keys: ["track-key"])
+
+        XCTAssertFalse(store.contains("track-key"))
+    }
+
+    /// Source-inspection pin (established pattern: see
+    /// `FavoriteAndHistoryGuardOrderingTests` in `Tests/FavoriteAndHistoryTransientTrackTests.swift`
+    /// for exercising an `AppState` call site that needs a live singleton/provider isn't
+    /// practical) — asserts the real call site actually calls the deleting API, not the
+    /// single-tier-inert `setDurable(false, for:)`.
+    func testRemoveDownloadFromPhoneCallsRemoveNotJustSetDurableFalse() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/App/AppState+Downloads.swift"),
+            encoding: .utf8)
+        let function = try XCTUnwrap(source.range(of: "func removeDownloadFromPhone(rows: [TrackRow]) async {"))
+        let body = source[function.upperBound...]
+        let closingBrace = try XCTUnwrap(body.range(of: "\n    }\n"))
+        let functionBody = body[..<closingBrace.lowerBound]
+        XCTAssertTrue(functionBody.contains("AudioCache.shared.remove(keys:"),
+            "removeDownloadFromPhone must call remove(keys:) to actually delete the cached entry")
+        XCTAssertFalse(functionBody.contains("AudioCache.shared.setDurable(false"),
+            "setDurable(false, for:) is a no-op in Tonearm's single-tier cache and must not be used to remove a download")
+    }
 }
