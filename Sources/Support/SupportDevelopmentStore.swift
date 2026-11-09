@@ -15,13 +15,18 @@ public protocol SupportDevelopmentPurchasing: Sendable {
 
 /// The real StoreKit-backed implementation. Kept in this same file so the StoreKit import
 /// boundary guard (`scripts/check-ci-guards.sh`) still only ever sees `import StoreKit` here.
-struct LiveSupportDevelopmentPurchasing: SupportDevelopmentPurchasing {
-    func loadProduct() async -> String? {
+/// `public` (and an explicit `public init()`) because it's referenced as a default argument
+/// value in `SupportDevelopmentStore`'s own `public init` — a default argument must be at least
+/// as visible as the initializer it belongs to.
+public struct LiveSupportDevelopmentPurchasing: SupportDevelopmentPurchasing {
+    public init() {}
+
+    public func loadProduct() async -> String? {
         let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
         return product?.displayPrice
     }
 
-    func purchase() async -> Bool {
+    public func purchase() async -> Bool {
         guard let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
         else { return false }
         do {
