@@ -209,7 +209,8 @@ extension AppState {
                               title: row.track.title,
                               path: asset.remoteNodePath ?? rawURL, kind: .audio,
                               sizeBytes: asset.sizeBytes,
-                              durationSec: row.track.durationSec)
+                              durationSec: row.track.durationSec,
+                              contentType: asset.remoteContentType)
         let resolved = ResolvedAsset(url: url, headers: asset.transientRemoteHeaders,
                                      supportsByteRanges: asset.transientRemoteSupportsByteRanges,
                                      sizeBytes: asset.sizeBytes)
