@@ -114,6 +114,39 @@ final class StreamingCacheTests: XCTestCase {
         XCTAssertTrue(noExt.hasSuffix("-"))
     }
 
+    // MARK: - Embedded-artwork fallback for remote providers with no artwork of their own
+    // (cloud-drive providers, or Jellyfin tracks missing a server-side image tag) — reads
+    // straight from an already-complete local cache file, never a fresh network round trip
+    // just to peek at tags.
+
+    func testCachedFileURLForRemoteEmbeddedArtworkIsNilUntilTheBlobIsComplete() async throws {
+        let store = makeStore()
+        let remote = URL(string: "https://example.com/track.mp3")!
+        let key = AudioCache.key(for: remote)
+
+        XCTAssertNil(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout),
+            "nothing has been cached for this URL yet")
+
+        let blob = store.layout.blobURL(for: key)
+        try FileManager.default.createDirectory(at: blob.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let bytes = Data("fake-audio-bytes".utf8)
+        try bytes.write(to: blob)
+        await store.adoptCompleteFile(byteCount: Int64(bytes.count), for: key, durable: true)
+
+        XCTAssertEqual(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout), blob)
+    }
+
+    func testCachedFileURLForRemoteEmbeddedArtworkIsNilForAnIncompleteEntry() async throws {
+        let store = makeStore()
+        let remote = URL(string: "https://example.com/partial.mp3")!
+        let key = AudioCache.key(for: remote)
+        await store.setContentLength(8192, for: key)
+        await store.recordWrite(range: 0..<100, for: key)   // far short of the declared total
+
+        XCTAssertNil(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout),
+            "an in-progress stream must never be sniffed for embedded tags")
+    }
+
     // MARK: - Serve / replay offline (old manual smoke)
 
     func testStreamedTrackReplaysFromCacheWithNetworkGone() async throws {
