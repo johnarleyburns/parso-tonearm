@@ -45,6 +45,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             settingsLayout {
+                Section { SupportDevelopmentCard() }
                 Section { watchCard }
                 settingsSection("Playback", identifier: "settings.section.playback") {
                     behaviorCard
@@ -61,7 +62,6 @@ struct SettingsView: View {
                 settingsSection("Account & About", identifier: "settings.section.account") {
                     appearanceCard
                     privacyCard
-                    SupportDevelopmentCard()
                     aboutCard
                 }
                 Section {
