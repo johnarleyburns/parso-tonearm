@@ -31,7 +31,7 @@ struct MyMusicView: View {
     /// My Music, maybe an Indexing icon they can click on with visually showing if it's currently
     /// indexing/progressing or paused." Owned here (not constructed fresh inside the sheet) so the
     /// toolbar icon's own live badge and the sheet it opens always reflect the exact same state —
-    /// same ownership pattern Settings' `SoundIndexSheet` already uses for the same reason.
+    /// the sheet owns one model for its whole lifetime.
     @StateObject private var indexStatusModel = IndexStatusModel()
     @State private var showIndexStatus = false
 
