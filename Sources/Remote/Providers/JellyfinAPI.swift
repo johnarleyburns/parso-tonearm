@@ -91,7 +91,7 @@ public enum JellyfinAPI {
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(authorizationHeader(client: client, token: token), forHTTPHeaderField: "X-Emby-Authorization")
+        request.setValue(authorizationHeader(client: client, token: token), forHTTPHeaderField: "Authorization")
         if let token, !token.isEmpty {
             request.setValue(token, forHTTPHeaderField: "X-Emby-Token")
         }

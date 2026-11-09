@@ -186,13 +186,13 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def require_jellyfin_auth(self):
-        header = self.headers.get("X-Emby-Authorization", "")
+        header = self.headers.get("Authorization", "")
         if 'Token="jellyfin-token"' not in header:
             return self.send_json({"error": "unauthorized"}, status=401)
         return True
 
     def require_jellyfin_client_auth(self):
-        header = self.headers.get("X-Emby-Authorization", "")
+        header = self.headers.get("Authorization", "")
         if not header.startswith("MediaBrowser Client="):
             return self.send_json({"error": "unauthorized"}, status=401)
         return True
