@@ -119,7 +119,7 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertTrue(downloads.contains("if source.id == nil"))
         XCTAssertTrue(downloads.contains("await store.insertSource(source)"))
         let settings = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/SettingsView.swift"), encoding: .utf8)
-        XCTAssertTrue(settings.contains("Section { watchCard }"))
+        XCTAssertTrue(settings.contains("settingsSection(\"Apple Watch\""))
         XCTAssertFalse(settings.contains("collapsibleSection(\"Advanced\""))
         XCTAssertFalse(settings.contains("DisclosureGroup(title"), "Expanded cards must not inherit one-sided disclosure indentation")
         XCTAssertFalse(settings.contains("expanded.wrappedValue"),

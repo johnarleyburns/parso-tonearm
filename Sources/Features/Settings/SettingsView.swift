@@ -45,25 +45,31 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             settingsLayout {
-                Section { SupportDevelopmentCard() }
-                Section { watchCard }
+                settingsSection("Support", identifier: "settings.section.support") {
+                    SupportDevelopmentCard()
+                }
+                settingsSection("Storage & Cache", identifier: "settings.section.storage") {
+                    cacheSummaryCard
+                }
                 settingsSection("Playback", identifier: "settings.section.playback") {
                     behaviorCard
                     keepPlayingCard
                     SiriSettingsCard()
                 }
-                settingsSection("Library & Storage", identifier: "settings.section.library") {
+                settingsSection("Library", identifier: "settings.section.library") {
                     if appState.starterMerge != nil { starterMergeCard }
                     musicLibrariesCard
-                    cacheSummaryCard
                     syncCard
+                }
+                settingsSection("Apple Watch", identifier: "settings.section.watch") {
+                    watchCard
                 }
                 settingsSection("Account & About", identifier: "settings.section.account") {
                     appearanceCard
                     privacyCard
                     aboutCard
                 }
-                Section {
+                settingsSection("Advanced", identifier: "settings.section.advanced") {
                     advancedSection
                 }
             }
@@ -138,39 +144,34 @@ struct SettingsView: View {
     @ViewBuilder
     private func settingsSection<Content: View>(_ title: LocalizedStringKey,
         identifier: String, @ViewBuilder content: @escaping () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: sectionIcon(identifier)).foregroundStyle(Palette.accent)
-                    .frame(width: 26)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(Typography.headline)
-                    Text(sectionDetail(identifier)).font(Typography.caption)
-                        .foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Typography.headline)
+                    .accessibilityAddTraits(.isHeader)
+                Text(sectionDetail(identifier)).font(Typography.caption)
+                    .foregroundStyle(Palette.inkTertiary)
             }
-            .padding(15)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier(identifier)
-            Divider().overlay(Palette.hairline).padding(.horizontal, 15)
             VStack(alignment: .leading, spacing: 14) { content() }
                 .padding(15)
-        }
-        .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 18))
-    }
-
-    private func sectionIcon(_ id: String) -> String {
-        switch id {
-        case "settings.section.playback": "play.circle"
-        case "settings.section.library": "externaldrive"
-        default: "person.crop.circle"
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Palette.hairline, lineWidth: 1)
+                }
         }
     }
 
     private func sectionDetail(_ id: String) -> LocalizedStringKey {
         switch id {
         case "settings.section.playback": "Listening, crossfade and Siri"
-        case "settings.section.library": "Sources, indexing and storage"
+        case "settings.section.support": "Help keep Platterhead free and open source"
+        case "settings.section.storage": "Cached audio and custom artwork"
+        case "settings.section.library": "Music sources and sync"
+        case "settings.section.watch": "Music on your Apple Watch"
+        case "settings.section.advanced": "Tools, credentials and cleanup"
         default: "Appearance, privacy and support"
         }
     }
