@@ -23,7 +23,7 @@ public enum AudioFileSniffer {
 
         // The specific poisoning shape this is for: an HTTP error body (JSON or HTML) saved as if
         // it were the audio file.
-        if let first = bytes.first, first == 0x7B || first == 0x5B || first == 0x3C { return false } // { [ <
+        if let first = bytes.first, first == 0x7B || first == 0x5B || first == 0x3C { return false } // JSON object/array, or HTML
         return true
     }
 }
