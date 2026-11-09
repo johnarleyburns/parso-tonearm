@@ -99,8 +99,14 @@ extension SourceDetailView {
             // transient, negative id (RemoteTrackRowFactory) until persisted. Matches
             // DiscoveryRuntimeController's own onPlay, which persists the track it's about to
             // start for the same reason.
+            //
+            // prefetchBytes: false — a second real report: this await used to also pin the full
+            // file to disk before player.play ever ran, so a direct browse-and-play tap on a
+            // cloud-drive track went dead for the entire download (and, until the content-type
+            // fix, then failed outright once "complete" with no format hint). Persisting the DB
+            // rows is all playback needs; the download continues in the background.
             if rows.indices.contains(startIndex), rows[startIndex].id < 0,
-               let persisted = await appState.persistRemoteTrack(rows[startIndex]) {
+               let persisted = await appState.persistRemoteTrack(rows[startIndex], prefetchBytes: false) {
                 rows[startIndex] = persisted
             }
             player.play(tracks: rows, startAt: startIndex, source: .source(source))

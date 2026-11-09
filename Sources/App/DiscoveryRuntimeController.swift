@@ -426,7 +426,10 @@ final class DiscoveryRuntimeController {
                 guard let appState, let player else { return }
                 Task { @MainActor in
                     var row = result.track
-                    if row.id < 0, let persisted = await appState.persistRemoteTrack(row) {
+                    // prefetchBytes: false — same real report as SourceDetailView+Remote's
+                    // playRemote: persisting only needs the DB rows (a valid id for play-
+                    // history/favorites), not the full file pinned to disk first.
+                    if row.id < 0, let persisted = await appState.persistRemoteTrack(row, prefetchBytes: false) {
                         row = persisted
                     }
                     player.play(tracks: [row], startAt: 0, source: .library)
