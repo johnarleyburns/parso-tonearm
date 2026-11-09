@@ -76,7 +76,10 @@ public final class SupportDevelopmentStore: ObservableObject {
     /// only record that the purchase happened, and it is never reset: a
     /// refund does not "revoke" it, because it never unlocked anything to
     /// revoke (business decision above).
-    public static let productID = "guru.parso.tonearm.support.dev"
+    /// `nonisolated` — a plain constant string, but `LiveSupportDevelopmentPurchasing`
+    /// (deliberately not `@MainActor`, since it must satisfy a plain `Sendable` async protocol)
+    /// reads it from outside this class's actor isolation.
+    public nonisolated static let productID = "guru.parso.tonearm.support.dev"
 
     private static let supporterDefaultsKey = "supporter.isSupporter"
 
