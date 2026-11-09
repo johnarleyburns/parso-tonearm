@@ -72,6 +72,12 @@ final class CloudDriveAPITests: XCTestCase {
         XCTAssertTrue(items[1].isAudio)
         XCTAssertFalse(items[2].isAudio)
         XCTAssertEqual(items[1].sizeBytes, 1_234)
+        // Real report: a Dropbox track played fine on first stream, then never again once fully
+        // cached — Dropbox's own API never returns a content type (unlike Google Drive's
+        // `mimeType`), and the cached file's extensionless blob name gave AVFoundation no format
+        // hint either. Derive it from the listing's own file name, the one place Dropbox does
+        // carry the extension.
+        XCTAssertEqual(items[1].contentType, "audio/flac")
     }
 
     func testDecodesGoogleDriveListing() throws {
@@ -172,6 +178,9 @@ final class CloudDriveAPITests: XCTestCase {
         XCTAssertEqual(items[1].id, "222")
         XCTAssertEqual(items[1].sizeBytes, 7_890)
         XCTAssertTrue(items[1].isAudio)
+        // Same gap as Dropbox (see testDecodesDropboxListingAndFiltersAudio): Box's listing
+        // never returns a content type either.
+        XCTAssertEqual(items[1].contentType, "audio/flac")
     }
 
     func testBoxResolvedAssetIsUnsupportedLikeGoogleAndOneDrive() {

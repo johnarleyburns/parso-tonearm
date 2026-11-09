@@ -125,7 +125,8 @@ public struct RemotePlaylistIngest: Sendable {
                     id: nil, trackId: trackID, kind: .remote, bookmark: nil, relPath: nil,
                     remoteURL: url, altRemoteURL: nil,
                     sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil,
-                    remoteNodeID: node.id, remoteNodePath: node.path))
+                    remoteNodeID: node.id, remoteNodePath: node.path,
+                    remoteContentType: node.contentType))
                 if source.kind == .jamendoGenre {
                     do {
                         // `node.id`, not the resolved URL, is the durable Jamendo identity.
