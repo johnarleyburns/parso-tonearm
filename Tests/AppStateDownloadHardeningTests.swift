@@ -1,28 +1,14 @@
 import XCTest
-import ParsoAudioStreaming
-@testable import TonearmCore
 
-/// Stubs `download(rows:)`'s own network fetch, not a provider — AppState.downloadSession is
-/// the injection seam.
-private final class DownloadStubProtocol: URLProtocol {
-    nonisolated(unsafe) static var statusCode = 200
-    nonisolated(unsafe) static var body = Data("fake audio bytes".utf8)
-    nonisolated(unsafe) static var requestCount = 0
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func startLoading() {
-        Self.requestCount += 1
-        let response = HTTPURLResponse(url: request.url!, statusCode: Self.statusCode,
-                                       httpVersion: "1.1", headerFields: [:])!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Self.body)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-    override func stopLoading() {}
-}
-
-/// Real reports this covers: a Dropbox/Google Drive track that genuinely couldn't stream (an
+/// `AppState` lives under `Sources/App/`, excluded from the `TonearmCore` SwiftPM target in
+/// `Package.swift` — `swift test` cannot import or construct it. Source-inspection is the
+/// established pattern for pinning this level of behavior (see
+/// `FavoriteAndHistoryGuardOrderingTests` in `Tests/FavoriteAndHistoryTransientTrackTests.swift`).
+/// The underlying mechanism this relies on — that `setDurable(false, for:)` alone cannot remove a
+/// single-tier entry, and that `remove(keys:)`/`completeCacheExists` are the real primitives —
+/// is exercised directly (no AppState needed) in `Tests/StreamingCacheTests.swift`.
+///
+/// Real reports this covers: a Dropbox/Google Drive track that genuinely couldn't be fetched (an
 /// expired temp link, a revoked token) got its error response body written to disk and marked
 /// `complete`/durable anyway — a poisoned, permanently "downloaded" entry that silently fails
 /// every later play and is never re-fetched (`download(rows:)`/`makeOffline(source:)` never
@@ -30,90 +16,53 @@ private final class DownloadStubProtocol: URLProtocol {
 /// already sitting at the same cache path `CachingResourceLoader` writes to) got adopted as a
 /// complete download purely because *some* file existed there, not because it actually was
 /// complete.
-@MainActor
 final class AppStateDownloadHardeningTests: XCTestCase {
-    private func stubSession() -> URLSession {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [DownloadStubProtocol.self]
-        DownloadStubProtocol.statusCode = 200
-        DownloadStubProtocol.body = Data("fake audio bytes".utf8)
-        DownloadStubProtocol.requestCount = 0
-        return URLSession(configuration: config)
+    private func source(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
-    private func makeRemoteRow(store: LibraryStore, url: String) async throws -> TrackRow {
-        let source = try await store.insertSource(Source(
-            id: nil, kind: .dropbox, iaIdentifier: nil, originalURL: nil, title: "Dropbox",
-            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
-            licenseText: nil, memberCapHit: false))
-        let track = try await store.insertTrack(Track(
-            id: nil, albumId: nil, sourceId: source.id!, title: "Track", trackNo: 1,
-            discNo: nil, durationSec: nil, codec: nil, sampleRate: nil,
-            bitDepthOrBitrate: nil, sortKey: "a"))
-        _ = try await store.insertAsset(Asset(
-            id: nil, trackId: track.id!, kind: .remote, bookmark: nil, relPath: nil,
-            remoteURL: url, altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil))
-        let rows = try await store.tracks(forSource: source.id!)
-        return try XCTUnwrap(rows.first)
+    private func cacheCompletedDownloadBody() throws -> Substring {
+        let downloadsSource = try source("Sources/App/AppState+Downloads.swift")
+        let function = try XCTUnwrap(downloadsSource.range(
+            of: "private func cacheCompletedDownload(cacheKey: String, remoteURL: URL, asset: Asset, source: Source?) async {"))
+        let body = downloadsSource[function.upperBound...]
+        let closingBrace = try XCTUnwrap(body.range(of: "\n    }\n"))
+        return body[..<closingBrace.lowerBound]
     }
 
-    func testFailedResponseIsNotWrittenOrAdoptedAsComplete() async throws {
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-        appState.downloadSession = stubSession()
-        DownloadStubProtocol.statusCode = 401
-        let url = "https://stub.test/\(UUID().uuidString)/expired-link.mp3"
-        let row = try await makeRemoteRow(store: appState.store, url: url)
-
-        let downloaded = await appState.download(rows: [row])
-
-        XCTAssertEqual(downloaded, 1, "download(rows:) still counts the attempt, same as before")
-        XCTAssertFalse(AudioCache.completeCacheExists(for: URL(string: url)!),
-            "a 401/expired-link response must never be written to disk and adopted as a complete download")
+    func testDownloadSessionIsInjectable() throws {
+        let appStateSource = try source("Sources/App/AppState.swift")
+        XCTAssertTrue(appStateSource.contains("var downloadSession: URLSession = .shared"),
+            "download(rows:)/makeOffline(source:) must fetch through an injectable session, not the hardcoded shared one, to be testable at all")
     }
 
-    func testAlreadyCompleteCacheEntryIsTrustedWithoutRefetching() async throws {
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-        appState.downloadSession = stubSession()
-        let url = "https://stub.test/\(UUID().uuidString)/already-cached.mp3"
-        let row = try await makeRemoteRow(store: appState.store, url: url)
-        let remoteURL = URL(string: url)!
-        let cacheKey = AudioCache.key(for: remoteURL)
-
-        // Simulate the track having already been fully streamed/prefetched earlier, under
-        // AudioCache's own completeness bookkeeping (not just "a file happens to exist").
-        await AudioCache.shared.adoptCompleteFile(byteCount: 17, for: cacheKey, durable: false)
-        XCTAssertTrue(AudioCache.completeCacheExists(for: remoteURL))
-
-        let downloaded = await appState.download(rows: [row])
-
-        XCTAssertEqual(downloaded, 1)
-        XCTAssertEqual(DownloadStubProtocol.requestCount, 0,
-            "an entry AudioCache already knows is complete must not be re-fetched over the network")
-        let meta = await AudioCache.shared.meta(for: cacheKey)
-        XCTAssertEqual(meta?.isDurable, true, "trusting an existing complete entry must still pin it durable")
+    func testCacheCompletedDownloadTrustsCompleteCacheExistsBeforeFetching() throws {
+        let body = try cacheCompletedDownloadBody()
+        let completeCheck = try XCTUnwrap(body.range(of: "if AudioCache.completeCacheExists(for: remoteURL) {"))
+        let setDurable = try XCTUnwrap(body.range(of: "await AudioCache.shared.setDurable(true, for: cacheKey)"))
+        let fetch = try XCTUnwrap(body.range(of: "downloadSession.data(for: request)"))
+        XCTAssertLessThan(completeCheck.lowerBound, setDurable.lowerBound)
+        XCTAssertLessThan(setDurable.lowerBound, fetch.lowerBound,
+            "an entry AudioCache already knows is complete must be trusted (and pinned durable) before any network fetch is attempted")
+        XCTAssertFalse(body.contains("FileManager.default.fileExists(atPath: destURL.path)"),
+            "the 'already downloaded, skip the fetch' decision must not be based on bare file existence any more")
     }
 
-    func testPartialBlobAtTheSamePathIsNotAdoptedAsComplete() async throws {
-        let appState = AppState(store: try LibraryStore(inMemory: true))
-        appState.downloadSession = stubSession()
-        let url = "https://stub.test/\(UUID().uuidString)/mid-stream.mp3"
-        let row = try await makeRemoteRow(store: appState.store, url: url)
-        let remoteURL = URL(string: url)!
-        let cacheKey = AudioCache.key(for: remoteURL)
+    func testCacheCompletedDownloadChecksTheResponseStatusBeforeAdopting() throws {
+        let body = try cacheCompletedDownloadBody()
+        let statusCheck = try XCTUnwrap(body.range(of: "(200 ..< 300).contains(http.statusCode)"))
+        let adopt = try XCTUnwrap(body.range(of: "await AudioCache.shared.adoptCompleteFile(byteCount: Int64(data.count), for: cacheKey, durable: true)"))
+        XCTAssertLessThan(statusCheck.lowerBound, adopt.lowerBound,
+            "a fetch must only be written to disk and adopted as complete once its HTTP status is actually 2xx")
+    }
 
-        // A genuinely partial blob: some bytes written (e.g. by a prefetch or an in-progress
-        // stream to the same cache path), but the cache's own bookkeeping knows it is NOT
-        // complete (a real expected total larger than what's been written so far).
-        await AudioCache.shared.setContentLength(1_000, for: cacheKey)
-        await AudioCache.shared.recordWrite(range: 0..<17, for: cacheKey)
-        XCTAssertFalse(AudioCache.completeCacheExists(for: remoteURL))
-
-        let downloaded = await appState.download(rows: [row])
-
-        XCTAssertEqual(downloaded, 1)
-        XCTAssertEqual(DownloadStubProtocol.requestCount, 1,
-            "a genuinely partial entry must be fetched fresh, not adopted as-is")
-        XCTAssertTrue(AudioCache.completeCacheExists(for: remoteURL),
-            "the fresh, successful fetch must leave the entry actually complete")
+    func testMakeOfflineAndDownloadBothRouteThroughTheSharedHardenedHelper() throws {
+        let downloadsSource = try source("Sources/App/AppState+Downloads.swift")
+        XCTAssertTrue(downloadsSource.contains("func makeOffline(source: Source) async -> Bool"))
+        XCTAssertTrue(downloadsSource.contains("func download(rows: [TrackRow]) async -> Int"))
+        let occurrences = downloadsSource.components(
+            separatedBy: "await cacheCompletedDownload(cacheKey: cacheKey, remoteURL: remoteURL, asset: asset, source:").count - 1
+        XCTAssertEqual(occurrences, 2, "both makeOffline(source:) and download(rows:) must call the same hardened helper")
     }
 }
