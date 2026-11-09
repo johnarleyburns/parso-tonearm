@@ -164,6 +164,59 @@ final class CloudDriveAPITests: XCTestCase {
         XCTAssertEqual(content.value(forHTTPHeaderField: "Authorization"), "Bearer token")
     }
 
+    /// Real report: Box login works, browsing and tapping play work, but it "spins for 30
+    /// seconds even though it says 100% cached" — never actually plays. Root cause: Box's
+    /// `/2.0/files/{id}/content` 302-redirects to a pre-signed, self-authenticating
+    /// dl.boxcloud.com URL — a DIFFERENT host than api.box.com — but `resolve(node:)` used to
+    /// hand back the api.box.com URL itself plus a Box OAuth bearer header (grouped with
+    /// Google Drive/OneDrive, neither of which redirects cross-host). `CachingResourceLoader`
+    /// resolves that redirect once, then reattaches the SAME bearer header to every later
+    /// byte-range request against dl.boxcloud.com, which never expects it and can reject it.
+    final class BoxRedirectStub: URLProtocol, @unchecked Sendable {
+        nonisolated(unsafe) static var capturedCDNRequestHeaders: [String: String]?
+        static let cdnURL = URL(string: "https://dl.boxcloud.com/d/1/final")!
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+        override func stopLoading() {}
+
+        override func startLoading() {
+            if request.url?.host == "api.box.com" {
+                let redirectResponse = HTTPURLResponse(
+                    url: request.url!, statusCode: 302, httpVersion: "HTTP/1.1",
+                    headerFields: ["Location": Self.cdnURL.absoluteString])!
+                client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: Self.cdnURL),
+                                     redirectResponse: redirectResponse)
+                client?.urlProtocol(self, didReceive: redirectResponse, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocolDidFinishLoading(self)
+            } else {
+                Self.capturedCDNRequestHeaders = request.allHTTPHeaderFields
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                                httpVersion: "HTTP/1.1", headerFields: [:])!
+                client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                client?.urlProtocolDidFinishLoading(self)
+            }
+        }
+    }
+
+    func testBoxResolveFollowsTheRedirectItselfAndDropsTheBearerHeaderForTheCDNURL() async throws {
+        BoxRedirectStub.capturedCDNRequestHeaders = nil
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [BoxRedirectStub.self]
+        let session = URLSession(configuration: config)
+
+        let remote = CloudDriveProvider(provider: .box, accessToken: "box-token", session: session)
+        let node = RemoteNode(id: "file:456", title: "Track", path: "file/456", kind: .audio)
+
+        let resolved = try await remote.resolve(node: node)
+
+        XCTAssertEqual(resolved.url, BoxRedirectStub.cdnURL)
+        XCTAssertTrue(resolved.headers.isEmpty,
+            "the boxcloud.com CDN URL is pre-signed and must never receive Tonearm's Box OAuth bearer header")
+        XCTAssertNil(BoxRedirectStub.capturedCDNRequestHeaders,
+            "resolve(node:) must decline the redirect itself, never actually fetch the CDN URL (let alone with a bearer header)")
+    }
+
     func testDecodesBoxListing() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .box, data: data("""
         {
