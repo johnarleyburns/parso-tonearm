@@ -15,6 +15,7 @@ struct ListenView: View {
     @State private var selectedTrackForDetail: TrackRow?
     @ScaledMetric(relativeTo: .body) private var collectionContentHeight: CGFloat = 188
     @State private var showSettings = false
+    @State private var showClearRecentConfirm = false
 
     var body: some View {
         ScrollView {
@@ -28,7 +29,8 @@ struct ListenView: View {
                 }
 
                 cardRow(title: "Jump Back In", rows: appState.recentlyPlayed,
-                        emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent")
+                        emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent",
+                        onClear: { showClearRecentConfirm = true })
                 favorites
                 statsCard(appState.listeningStats)
                     .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
@@ -56,6 +58,17 @@ struct ListenView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .confirmationDialog("Clear Jump Back In?", isPresented: $showClearRecentConfirm,
+                            titleVisibility: .visible) {
+            Button("Clear", role: .destructive) {
+                Task { await clearRecentHistory() }
+            }
+            .accessibilityIdentifier("listen.recent.clearConfirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This also resets Listening Stats — play counts, streaks, Top 10s, and Year in Review. This cannot be undone.")
+        }
+        .sensoryFeedback(.warning, trigger: showClearRecentConfirm)
     }
 
     /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
@@ -76,9 +89,20 @@ struct ListenView: View {
     // MARK: - Jump Back In / Favorites
 
     private func cardRow(title: LocalizedStringKey, rows: [TrackRow],
-                         emptyMessage: LocalizedStringKey, identifier: String) -> some View {
+                         emptyMessage: LocalizedStringKey, identifier: String,
+                         onClear: (() -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: title)
+            HStack(alignment: .firstTextBaseline) {
+                SectionHeader(title: title)
+                Spacer()
+                if let onClear {
+                    Button("Clear", action: onClear)
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                        .padding(.bottom, 10)
+                        .accessibilityIdentifier("listen.recent.clear")
+                }
+            }
             Group {
                 if !appState.didLoadLibraryOnce {
                     HStack { ProgressView(); Text("Loading…") }
@@ -107,6 +131,12 @@ struct ListenView: View {
         }
         .padding(.bottom, 20)
         .accessibilityIdentifier(identifier)
+    }
+
+    /// Runs only from the confirmed destructive dialog action.
+    private func clearRecentHistory() async {
+        try? appState.store.clearPlayHistory()
+        await appState.reload()
     }
 
     private var favorites: some View {

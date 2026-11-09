@@ -71,6 +71,34 @@ final class FavoriteAndHistoryTransientTrackTests: XCTestCase {
         let favorites = try await store.favoriteRows()
         XCTAssertEqual(favorites.map(\.id), [trackId])
     }
+
+    func testClearPlayHistoryEmptiesBothRecentlyPlayedAndTheRawEventLog() async throws {
+        let store = try makeStore()
+        let trackId = try await seedTrack(store)
+        try await store.recordPlay(trackId: trackId)
+        try await store.recordPlay(trackId: trackId)
+        let recentBefore = try await store.recentlyPlayedRows()
+        XCTAssertFalse(recentBefore.isEmpty)
+        let eventsBefore = try await store.allPlayEvents()
+        XCTAssertFalse(eventsBefore.isEmpty)
+
+        try await store.clearPlayHistory()
+
+        let recentAfter = try await store.recentlyPlayedRows()
+        XCTAssertTrue(recentAfter.isEmpty, "Jump Back In must be empty after clearing")
+        let eventsAfter = try await store.allPlayEvents()
+        XCTAssertTrue(eventsAfter.isEmpty, "Listening Stats' event source is also emptied (disclosed side effect)")
+    }
+
+    func testClearPlayHistoryLeavesFavoritesAndTracksUntouched() async throws {
+        let store = try makeStore()
+        let trackId = try await seedTrack(store)
+        try await store.recordPlay(trackId: trackId)
+        try await store.setFavorite(trackId: trackId, true)
+        try await store.clearPlayHistory()
+        let favorites = try await store.favoriteRows()
+        XCTAssertEqual(favorites.count, 1, "clearing play history must not touch favorites")
+    }
 }
 
 /// Source-inspection coverage for the two AppState/UI-layer call sites, mirroring the
@@ -125,5 +153,33 @@ final class FavoriteAndHistoryGuardOrderingTests: XCTestCase {
             "the in-flight-await branch must come before a new task is ever registered")
         XCTAssertLessThan(startNewTask.lowerBound, cleanup.lowerBound,
             "the identity key must be cleared again after the new task finishes, or every later call for it would hang")
+    }
+}
+
+final class JumpBackInClearSourceTests: XCTestCase {
+    private func listenSource() throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("Sources/Features/Listen/ListenView.swift"),
+                          encoding: .utf8)
+    }
+
+    func testJumpBackInClearButtonExistsCallsClearPlayHistoryAndIsConfirmedBeforeDestroying() throws {
+        let source = try listenSource()
+        XCTAssertTrue(source.contains("\"listen.recent.clear\""))
+        XCTAssertTrue(source.contains("\"listen.recent.clearConfirm\""))
+        XCTAssertTrue(source.contains("store.clearPlayHistory()"))
+        XCTAssertTrue(source.contains("role: .destructive"))
+        XCTAssertTrue(source.contains(".sensoryFeedback(.warning, trigger: showClearRecentConfirm)"))
+        let clearButton = try XCTUnwrap(source.range(of: "\"listen.recent.clear\""))
+        let destructiveCall = try XCTUnwrap(source.range(of: "store.clearPlayHistory()"))
+        XCTAssertLessThan(clearButton.lowerBound, destructiveCall.lowerBound)
+    }
+
+    func testFavoritesCardRowCallSiteDoesNotOptIntoClear() throws {
+        let source = try listenSource()
+        let start = try XCTUnwrap(source.range(of: "cardRow(title: \"Favorites\", rows: appState.favoriteRows,"))
+        let end = try XCTUnwrap(source.range(of: "identifier: \"listen.favorites\")",
+                                range: start.lowerBound..<source.endIndex))
+        XCTAssertFalse(source[start.lowerBound..<end.upperBound].contains("onClear:"))
     }
 }

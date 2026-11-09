@@ -14,6 +14,15 @@ extension LibraryStore {
         }
     }
 
+    /// Deletes all listening history. Also zeroes `ListeningStats` (built from the same
+    /// `play_history` rows via `allPlayEvents()`) — by design; the Jump Back In "Clear"
+    /// confirmation copy discloses this.
+    public func clearPlayHistory() throws {
+        try dbQueue.write { db in
+            _ = try PlayEvent.deleteAll(db)
+        }
+    }
+
     /// Distinct tracks ordered by most-recently played, capped at `limit`.
     public func recentlyPlayedRows(limit: Int = 12) throws -> [TrackRow] {
         try dbQueue.read { db in
