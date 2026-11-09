@@ -4,11 +4,13 @@
 
 Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs `swift test` only; a push runs no tests. The UI smoke/simulator suite is run by hand before a release (see below), not on every commit.
 
-Read [`docs/plans/tonearm-mvp-ios/HANDOFF.md`](docs/plans/tonearm-mvp-ios/HANDOFF.md) for the full operating brief. **§0 of that file is how to start a session** — the one-commit-per-task session model and the kickoff prompts.
-
 ## Three rules that get broken by being helpful
 
-- **Work on `main`; do not create a branch.** The owner's explicit preference — agents kept opening branches and abandoning them. Commit to `main` one task per commit, and **ask before `git push`**: pushing triggers CI and a TestFlight build, so push is the approval gate, not the branch.
+- **One task, one small branch, one PR, squash-automerge — direct push to `main` is blocked.** GitHub branch protection on `main` (added 2026-11-09) requires a pull request plus the `validate` status check (`.github/workflows/pr-validation.yml`); a bare `git push origin main` is rejected by GitHub itself (`GH013`, "Changes must be made through a pull request"). This supersedes the project's earlier "work on main, no branches" preference, which assumed direct push was possible. The workflow, per task:
+  1. Commit to a small, disposable, task-named branch off `main` (one task per commit, same discipline as before).
+  2. `git push -u origin <branch>`, then `gh pr create` into `main`.
+  3. `gh pr merge <PR> --auto --squash --delete-branch` — do this without asking first. `pr-validation.yml` is read-only (no write token, no signing/release secrets), so opening the PR cannot by itself trigger a TestFlight build; only an actual push to `main` can, and `.github/workflows/ios.yml` gates its archive/upload job to `github.event_name != 'pull_request'`. The automerge step is therefore the real approval gate the old "ask before push" rule was protecting — it only lands once `validate` passes, and the owner can always stop a PR by disabling automerge or by saying so before it's opened.
+  4. `--delete-branch` deletes the branch on merge (the repo's own `deleteBranchOnMerge` setting is `false`, so this flag — not the default — is what prevents agents from leaving abandoned branches behind).
 
 - **CI runs `swift test` only.** The UI regression suite (`make test-ui-regression`) is run by hand before a release. It needs Docker, a simulator and third-party demo servers. Do not wire it into CI, a git hook, or `make test-swift`. It lives in its own target and scheme (`TonearmUIRegressionTests` / `TonearmUIRegression`) so the smoke path cannot reach it — keep that separation.
 - **Never commit `.test-credentials`.** Real values live there and it is gitignored; `.test-credentials.example` carries key names only. No credential belongs in a test, a compose file, a script, or a spec.

@@ -59,9 +59,6 @@ pass/fail on the issue. Only the human owner closes issues.
 - **CarPlay** — *planned, pending Apple's entitlement approval.* It is deliberately absent
   from this list until it is real.
 
-The remote connector OAuth handoff plan lives in
-[`docs/plans/remote-oauth-connectors-handoff.md`](docs/plans/remote-oauth-connectors-handoff.md).
-
 ## Remote library connectors
 
 Remote libraries are free, but they still follow Platterhead's privacy rule: Platterhead
@@ -138,9 +135,9 @@ down.
 
 Platterhead ships in seven languages: English, Deutsch, Español, Français, 日本語, Português (Brasil) and 简体中文. It follows the iPhone's language; to pick a language just for Platterhead, open Settings → Apps → Platterhead → Language. Settings → About → Language lists every language in the build and links there.
 
-Every screen is translated: the iPhone app, Apple Watch app, widgets, Share extension, CarPlay, Siri and App Shortcuts phrases, the sound-index status, and the system permission prompts. Counts use each language's own plural rules. Genre and mood names are translated; provider names, Platterhead, BPM and Camelot keys stay as they are ([docs/l10n/GLOSSARY.md](docs/l10n/GLOSSARY.md)).
+Every screen is translated: the iPhone app, Apple Watch app, widgets, Share extension, CarPlay, Siri and App Shortcuts phrases, the sound-index status, and the system permission prompts. Counts use each language's own plural rules. Genre and mood names are translated; provider names, Platterhead, BPM and Camelot keys stay as they are.
 
-The translations are first drafts. Every entry is marked `needs_review` until a native speaker checks it in context ([docs/l10n/REVIEW.md](docs/l10n/REVIEW.md)). Strings are extracted by the Swift compiler: after changing UI text, run `scripts/sync-localization-catalogs.sh`, add the new keys in all seven languages, and `scripts/check-localization-catalogs.sh` (part of `make ci-guards`) fails if any language is missing.
+The translations are first drafts. Every entry is marked `needs_review` until a native speaker checks it in context. Strings are extracted by the Swift compiler: after changing UI text, run `scripts/sync-localization-catalogs.sh`, add the new keys in all seven languages, and `scripts/check-localization-catalogs.sh` (part of `make ci-guards`) fails if any language is missing.
 
 ## Building
 
