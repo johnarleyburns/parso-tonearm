@@ -135,7 +135,7 @@ struct ListenView: View {
 
     /// Runs only from the confirmed destructive dialog action.
     private func clearRecentHistory() async {
-        try? appState.store.clearPlayHistory()
+        try? await appState.store.clearPlayHistory()
         await appState.reload()
     }
 
