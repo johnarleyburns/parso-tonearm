@@ -80,7 +80,10 @@ public final class SupportDevelopmentStore: ObservableObject {
         Self.unavailableReason(didAttemptLoad: didAttemptProductLoad, isAvailable: isPurchaseAvailable)
     }
 
-    static func unavailableReason(didAttemptLoad: Bool, isAvailable: Bool) -> String? {
+    /// `nonisolated` — a pure function with no state access, but called directly from
+    /// non-`@MainActor` test code; `SupportDevelopmentStore` being `@MainActor` would otherwise
+    /// make this implicitly isolated too.
+    nonisolated static func unavailableReason(didAttemptLoad: Bool, isAvailable: Bool) -> String? {
         guard didAttemptLoad, !isAvailable else { return nil }
         return String(localized: "Couldn't reach the App Store to load the price. Check your connection and reopen Settings.")
     }
