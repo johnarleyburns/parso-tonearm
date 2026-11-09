@@ -144,7 +144,13 @@ extension AppState {
                   let remoteStr = asset.remoteURL,
                   let remoteURL = URL(string: remoteStr) else { continue }
             let cacheKey = AudioCache.key(for: remoteURL)
-            await AudioCache.shared.setDurable(false, for: cacheKey)
+            // `setDurable(false, for:)` is a no-op here: AudioCache.shared runs single-tier
+            // (evictableRoot == durableRoot), and in that mode setDurable only flips an in-memory
+            // flag — it never deletes the blob or clears `meta.complete`, so `phoneDownloadState`
+            // kept reporting `.downloaded` forever (real report: "Remove from Phone" never
+            // actually removes anything, in the library or in Jump Back In). `remove(keys:)` is
+            // the API that actually deletes the entry.
+            await AudioCache.shared.remove(keys: [cacheKey])
         }
         downloadRevision += 1
     }
