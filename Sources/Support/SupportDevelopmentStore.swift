@@ -1,6 +1,55 @@
 import Foundation
 import StoreKit
 
+/// Injection seam for tests. StoreKit's `Product`/`Transaction` have no public initializer
+/// outside Apple's simulator-only `StoreKitTest` framework (and that needs an Xcode scheme with
+/// a `.storekit` config attached), so `SupportDevelopmentStore`'s purchase/load business logic
+/// had never been exercised by a test at all. This speaks in the store's own vocabulary — a
+/// display price string and a purchase-succeeded bool — instead of StoreKit's types.
+public protocol SupportDevelopmentPurchasing: Sendable {
+    /// The product's localized display price, or nil if unavailable.
+    func loadProduct() async -> String?
+    /// Whether a verified purchase transaction completed.
+    func purchase() async -> Bool
+}
+
+/// The real StoreKit-backed implementation. Kept in this same file so the StoreKit import
+/// boundary guard (`scripts/check-ci-guards.sh`) still only ever sees `import StoreKit` here.
+struct LiveSupportDevelopmentPurchasing: SupportDevelopmentPurchasing {
+    func loadProduct() async -> String? {
+        let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
+        return product?.displayPrice
+    }
+
+    func purchase() async -> Bool {
+        guard let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
+        else { return false }
+        do {
+            switch try await product.purchase() {
+            case .success(let verification):
+                guard case .verified(let transaction) = verification else { return false }
+                guard transaction.productID == SupportDevelopmentStore.productID else {
+                    // Not our product — finish it anyway so it does not linger as an
+                    // unfinished transaction forever, but this call did not earn it.
+                    await transaction.finish()
+                    return false
+                }
+                // Consumables must be finished for StoreKit to consider them delivered;
+                // unlike the Pro non-consumable, there is no entitlement for a re-launch
+                // to re-derive, so finishing is the only step here.
+                await transaction.finish()
+                return true
+            case .userCancelled, .pending:
+                return false
+            @unknown default:
+                return false
+            }
+        } catch {
+            return false
+        }
+    }
+}
+
 /// Business decision (2026-09): Tonearm has no gated Pro features (see
 /// `current_status.md`). The only purchase left is this one, purely optional,
 /// one-time StoreKit **consumable** — "Contribute to Development". A
@@ -31,17 +80,21 @@ public final class SupportDevelopmentStore: ObservableObject {
     /// never cleared.
     @Published public private(set) var isSupporter: Bool
 
-    /// What the App Store says this product is and costs, once asked, or nil
-    /// while unanswered/unavailable. Never a hardcoded price — see
-    /// the reasoning above: never a hardcoded price.
-    @Published public private(set) var product: Product?
     @Published public private(set) var purchasing = false
     @Published public private(set) var didAttemptProductLoad = false
+    /// What the App Store says this product costs, once asked, or nil while unanswered/
+    /// unavailable. Never a hardcoded price — see `displayPrice`'s own doc.
+    @Published private var loadedDisplayPrice: String?
 
+    private let defaults: UserDefaults
+    private let purchasing_: SupportDevelopmentPurchasing
     private var updatesTask: Task<Void, Never>?
 
-    private init() {
-        isSupporter = UserDefaults.standard.bool(forKey: Self.supporterDefaultsKey)
+    public init(defaults: UserDefaults = .standard,
+                purchasing: SupportDevelopmentPurchasing = LiveSupportDevelopmentPurchasing()) {
+        self.defaults = defaults
+        self.purchasing_ = purchasing
+        isSupporter = defaults.bool(forKey: Self.supporterDefaultsKey)
     }
 
     /// Begins observing `Transaction.updates` (a consumable purchased on
@@ -60,42 +113,28 @@ public final class SupportDevelopmentStore: ObservableObject {
     /// Ask the App Store what this product is and costs, right now. Safe to
     /// call repeatedly — the settings card calls it on appear.
     public func loadProduct() async {
-        product = try? await Product.products(for: [Self.productID]).first
+        loadedDisplayPrice = await purchasing_.loadProduct()
         didAttemptProductLoad = true
     }
 
     /// StoreKit's own localised price, or an honest placeholder until it
     /// answers — never a hardcoded "$9.99" (the same reasoning as
     /// above).
-    public var displayPrice: String { product?.displayPrice ?? "—" }
+    public var displayPrice: String { loadedDisplayPrice ?? "—" }
 
     /// Whether the App Store is actually offering the product right now.
-    public var isPurchaseAvailable: Bool { product != nil }
+    public var isPurchaseAvailable: Bool { loadedDisplayPrice != nil }
 
     /// Initiates the one-time, optional purchase. Returns whether it was
     /// verified. Never gates anything on the result — the caller only shows a
     /// thank-you and the Supporter badge appears.
     @discardableResult
     public func purchase() async -> Bool {
-        var resolved = product
-        if resolved == nil {
-            resolved = try? await Product.products(for: [Self.productID]).first
-        }
-        guard let product = resolved else { return false }
         purchasing = true
         defer { purchasing = false }
-        do {
-            switch try await product.purchase() {
-            case .success(let verification):
-                return await handle(verification)
-            case .userCancelled, .pending:
-                return false
-            @unknown default:
-                return false
-            }
-        } catch {
-            return false
-        }
+        let ok = await purchasing_.purchase()
+        if ok { markSupporter() }
+        return ok
     }
 
     // MARK: - Verification
@@ -122,6 +161,6 @@ public final class SupportDevelopmentStore: ObservableObject {
     private func markSupporter() {
         guard !isSupporter else { return }
         isSupporter = true
-        UserDefaults.standard.set(true, forKey: Self.supporterDefaultsKey)
+        defaults.set(true, forKey: Self.supporterDefaultsKey)
     }
 }
