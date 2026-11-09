@@ -1,5 +1,6 @@
 import Foundation
 import ParsoAudioStreaming
+import TonearmCore
 
 extension AppState {
     /// Result of a `repairPoisonedCloudDownloads()` run — published via
