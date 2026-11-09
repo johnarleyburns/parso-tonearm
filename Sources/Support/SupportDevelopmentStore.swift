@@ -72,6 +72,19 @@ public final class SupportDevelopmentStore: ObservableObject {
     /// Whether the App Store is actually offering the product right now.
     public var isPurchaseAvailable: Bool { product != nil }
 
+    /// A specific, user-facing reason the purchase button is disabled — never nil while
+    /// there's nothing to report, and never a bare dead control with no explanation (CLAUDE.md
+    /// "no silent/magic background work"). `nil` before any load attempt (that's just "still
+    /// loading", already shown elsewhere) and once a product has loaded successfully.
+    public var unavailableReason: String? {
+        Self.unavailableReason(didAttemptLoad: didAttemptProductLoad, isAvailable: isPurchaseAvailable)
+    }
+
+    static func unavailableReason(didAttemptLoad: Bool, isAvailable: Bool) -> String? {
+        guard didAttemptLoad, !isAvailable else { return nil }
+        return String(localized: "Couldn't reach the App Store to load the price. Check your connection and reopen Settings.")
+    }
+
     /// Initiates the one-time, optional purchase. Returns whether it was
     /// verified. Never gates anything on the result — the caller only shows a
     /// thank-you and the Supporter badge appears.
