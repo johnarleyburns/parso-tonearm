@@ -57,6 +57,45 @@ extension SettingsView {
         .accessibilityIdentifier("settings.clearCache")
     }
 
+    /// Manual, visible entry point for `AppState.repairPoisonedCloudDownloads()` (real report:
+    /// a Dropbox/Google Drive track whose "downloaded" copy was actually an expired-link error
+    /// page, saved and marked complete before the fetch was hardened to check its HTTP status —
+    /// permanently broken until evicted). CLAUDE.md: no silent background work — shows that it's
+    /// running, and its last result, rather than just quietly acting.
+    var cloudDownloadRepairCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                Task {
+                    isRepairingCloudDownloads = true
+                    _ = await appState.repairPoisonedCloudDownloads()
+                    isRepairingCloudDownloads = false
+                }
+            } label: {
+                HStack {
+                    Text("Check Downloaded Cloud Tracks").font(Typography.callout)
+                    Spacer()
+                    if isRepairingCloudDownloads {
+                        ProgressView()
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isRepairingCloudDownloads)
+
+            if let result = appState.lastCacheRepairResult {
+                Text(result.repaired > 0
+                     ? "Checked \(result.checked), repaired \(result.repaired) broken download(s)."
+                     : "Checked \(result.checked), no problems found.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkTertiary)
+            }
+        }
+        .padding(15)
+        .glassSurface(cornerRadius: 18)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("settings.repairCloudDownloads")
+    }
+
     var customArtworkCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
