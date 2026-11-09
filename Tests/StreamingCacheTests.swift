@@ -210,13 +210,15 @@ final class StreamingCacheTests: XCTestCase {
     func testSetDurableFalseAloneDoesNotRemoveACompleteEntryInSingleTierMode() async {
         let store = makeStore()
         await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
-        XCTAssertTrue(store.contains("track-key"))
+        let before = await store.contains("track-key")
+        XCTAssertTrue(before)
 
         await store.setDurable(false, for: "track-key")
 
         let meta = await store.meta(for: "track-key")
         XCTAssertEqual(meta?.complete, true, "single-tier setDurable(false) must not clear completeness")
-        XCTAssertTrue(store.contains("track-key"), "single-tier setDurable(false) must not remove the entry")
+        let after = await store.contains("track-key")
+        XCTAssertTrue(after, "single-tier setDurable(false) must not remove the entry")
     }
 
     /// The actual fix: `remove(keys:)` is the one API that deletes the entry outright, which is
@@ -224,11 +226,13 @@ final class StreamingCacheTests: XCTestCase {
     func testRemoveKeysActuallyDeletesACompleteDurableEntryInSingleTierMode() async {
         let store = makeStore()
         await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
-        XCTAssertTrue(store.contains("track-key"))
+        let before = await store.contains("track-key")
+        XCTAssertTrue(before)
 
         await store.remove(keys: ["track-key"])
 
-        XCTAssertFalse(store.contains("track-key"))
+        let after = await store.contains("track-key")
+        XCTAssertFalse(after)
     }
 
     /// Source-inspection pin (established pattern: see
