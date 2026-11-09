@@ -121,8 +121,10 @@ public final class AudioPlayer: ObservableObject {
     var catalogPlaybackURLResolver = CatalogPlaybackURLResolver.live()
     var catalogPlaybackLoadTask: Task<Void, Never>?
     /// Re-resolves a provider-backed remote row (fresh URL + auth headers) just before it loads.
-    /// Installed by the app layer, which owns the providers and credentials.
-    var remoteRowFreshener: (@MainActor (TrackRow) async -> TrackRow)?
+    /// Installed by the app layer, which owns the providers and credentials. `public` — the app
+    /// layer (`AppState.applySettingsToPlayer()`, in `Sources/App`) is outside this module and
+    /// assigns it directly.
+    public var remoteRowFreshener: (@MainActor (TrackRow) async -> TrackRow)?
     var catalogPlaybackLoadGeneration = 0
     /// Autoplay intent of the pending Jamendo resolve; an explicit pause demotes it so a late
     /// result loads the item without starting playback.
