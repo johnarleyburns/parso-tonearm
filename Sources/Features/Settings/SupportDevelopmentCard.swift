@@ -57,7 +57,12 @@ struct SupportDevelopmentCard: View {
                 .disabled(store.purchasing || !store.isPurchaseAvailable)
                 .accessibilityIdentifier("settings.support.buy")
 
-                if let lastError {
+                if let reason = store.unavailableReason {
+                    Text(reason)
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                        .accessibilityIdentifier("settings.support.unavailable")
+                } else if let lastError {
                     Text(lastError)
                         .font(Typography.caption)
                         .foregroundStyle(Color.red.opacity(0.9))
