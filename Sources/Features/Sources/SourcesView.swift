@@ -136,7 +136,7 @@ struct SourcesView: View {
             // `nowPlaying` there compares against a tab that's never actually `.libraries`,
             // and the mini-player clearance inset defaults to zero outside RootView's own
             // environment — this only does anything while this screen really is the tab.
-            .rootTabChrome(.libraries)
+            .rootTabChrome(.libraries, path: ownsNavigationStack ? $navigationPath : nil)
             .navigationDestination(for: Source.self) { source in
                 SourceDetailView(source: source)
             }

@@ -30,6 +30,12 @@ private struct RootTabChrome: ViewModifier {
     @Environment(\.rootTabAccessoryHeight) private var accessoryHeight
     @Environment(\.rootTabNowPlayingNamespace) private var namespace
     let tab: AppTab
+    /// When the tab's stack has an explicit path (Libraries), Now Playing is pushed onto that
+    /// same path instead of a separate item-driven destination, so dismissing it pops exactly
+    /// one entry and never disturbs the folder/source entries beneath it.
+    var path: Binding<NavigationPath>?
+    @State private var pushedNowPlaying = false
+    @State private var depthBeforeNowPlaying = 0
 
     /// `.navigationDestination(isPresented:)`, re-derived independently inside each tab's own
     /// `NavigationStack` from one shared `Bool`, is the exact class of SwiftUI boolean-driven-
@@ -45,17 +51,48 @@ private struct RootTabChrome: ViewModifier {
             })
     }
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
+        let inset = content
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: accessoryHeight).allowsHitTesting(false)
             }
-            .navigationDestination(item: nowPlayingItem) { _ in
-                NowPlayingView()
-                    .modifier(NowPlayingZoom(namespace: namespace))
-            }
+        if let path {
+            inset
+                .navigationDestination(for: NowPlayingRoute.self) { _ in
+                    NowPlayingView()
+                        .modifier(NowPlayingZoom(namespace: namespace))
+                }
+                .onChange(of: appState.showNowPlaying) { _, showing in
+                    if showing, appState.tab == tab, !pushedNowPlaying {
+                        depthBeforeNowPlaying = path.wrappedValue.count
+                        pushedNowPlaying = true
+                        path.wrappedValue.append(NowPlayingRoute())
+                    } else if !showing, pushedNowPlaying {
+                        pushedNowPlaying = false
+                        if path.wrappedValue.count > depthBeforeNowPlaying {
+                            path.wrappedValue.removeLast()
+                        }
+                    }
+                }
+                .onChange(of: path.wrappedValue.count) { _, count in
+                    // Back button popped Now Playing: sync the shared flag.
+                    if pushedNowPlaying, count <= depthBeforeNowPlaying {
+                        pushedNowPlaying = false
+                        appState.showNowPlaying = false
+                    }
+                }
+        } else {
+            inset
+                .navigationDestination(item: nowPlayingItem) { _ in
+                    NowPlayingView()
+                        .modifier(NowPlayingZoom(namespace: namespace))
+                }
+        }
     }
 }
+
+private struct NowPlayingRoute: Hashable {}
 
 private struct NowPlayingZoom: ViewModifier {
     let namespace: Namespace.ID?
@@ -71,10 +108,12 @@ private struct NowPlayingZoom: ViewModifier {
 }
 
 extension View {
-    func rootTabChrome(_ tab: AppTab) -> some View { modifier(RootTabChrome(tab: tab)) }
+    func rootTabChrome(_ tab: AppTab, path: Binding<NavigationPath>? = nil) -> some View {
+        modifier(RootTabChrome(tab: tab, path: path))
+    }
 }
 #else
 extension View {
-    func rootTabChrome(_ tab: AppTab) -> some View { self }
+    func rootTabChrome(_ tab: AppTab, path: Binding<NavigationPath>? = nil) -> some View { self }
 }
 #endif

@@ -74,6 +74,12 @@ final class RootTabNavigationContractTests: XCTestCase {
         // item:, not isPresented: — the same boolean-driven-presentation fragility
         // SettingsView.swift already diagnosed and fixed once for a sheet.
         XCTAssertTrue(chrome.contains(".navigationDestination(item: nowPlayingItem)"))
+        // Tabs with an explicit NavigationPath (Libraries) push Now Playing onto that same path,
+        // so "<" pops one entry instead of collapsing the stack to the tab root.
+        XCTAssertTrue(chrome.contains(".navigationDestination(for: NowPlayingRoute.self)"))
+        XCTAssertTrue(chrome.contains("path.wrappedValue.append(NowPlayingRoute())"))
+        let sources = try source("Sources/Features/Sources/SourcesView.swift")
+        XCTAssertTrue(sources.contains(".rootTabChrome(.libraries, path: ownsNavigationStack ? $navigationPath : nil)"))
         XCTAssertTrue(chrome.contains(".navigationTransition(.zoom(sourceID: \"now-playing\""))
         XCTAssertTrue(chrome.contains("appState.showNowPlaying && appState.tab == tab"))
         XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom"))
