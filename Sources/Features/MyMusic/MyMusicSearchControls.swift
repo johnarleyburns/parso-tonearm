@@ -3,9 +3,9 @@ import TonearmCore
 import TonearmDiscovery
 
 enum MyMusicSearchMode: String, CaseIterable, Identifiable {
-    case all = "All"
-    case sound = "Find Mood"
-    case mix = "Find by BPM/Key"
+    case all = "By Name"
+    case sound = "By Mood"
+    case mix = "By BPM/Key"
 
     var id: String { rawValue }
 }
@@ -104,7 +104,7 @@ struct MyMusicSearchControls: View {
             }
         }
         .onChange(of: mode) { _, newMode in
-            // The single top text field exists in All and Find Mood only; Find Mix has no
+            // The single top text field exists in By Name and By Mood only; By BPM/Key has no
             // free-text input, so a query left behind would filter with nothing to clear it.
             if newMode == .mix { appState.searchText = "" }
             if newMode != .mix {

@@ -9,7 +9,7 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
 
     func testRenamedCopyAndStableIdentifiers() throws {
         let s = try source("Sources/Features/MyMusic/MyMusicSearchControls.swift")
-        for new in ["\"Find by BPM/Key\"", "\"Track BPM\"", "\"Camelot Key\""] {
+        for new in ["\"By BPM/Key\"", "\"Track BPM\"", "\"Camelot Key\""] {
             XCTAssertTrue(s.contains(new), new)
         }
         for old in ["\"Find Mix\"", "\"Mix BPM\"", "\"Mix Key\""] {
