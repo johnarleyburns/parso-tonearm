@@ -710,7 +710,6 @@ private struct MoodEntryPointSection: View {
     }
 
     private func refreshMoodDisplayOrder() async {
-        guard let moodModel else { return }
         var ids = moodModel.results.map(\.trackID)
         if let reference = moodModel.matchingReferenceTrackID { ids.append(reference) }
         moodDisplayMetadata = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
