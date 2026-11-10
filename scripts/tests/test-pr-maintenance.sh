@@ -102,6 +102,10 @@ eq "exhausted batch budget never updates another branch" "$r" no
 ( ACTIONS_STARTED=0; process_pr 98 ) >"$tmp/release-repair-out" 2>&1
 grep -q 'update-branch' "$MOCK_LOG" && r=yes || r=no
 eq "behind release-repair PR is updated" "$r" yes
+grep -Fq 'validation appeared and passed after the visibility delay; resuming' .github/scripts/pr-maintenance.sh && r=yes || r=no
+eq "late successful validation clears false stop" "$r" yes
+grep -Fq "GitHub's five-minute visibility window" .github/scripts/pr-maintenance.sh && r=yes || r=no
+eq "missing validation has visibility grace" "$r" yes
 
 # Git: modify/delete conflict resolved by accepting main's deletion, filenames with spaces.
 if [[ -z "${SKIP_GIT_TESTS:-}" ]]; then
