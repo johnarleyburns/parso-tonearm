@@ -512,11 +512,13 @@ final class PhoneWatchRuntime {
             else { row = try? await store.trackRow(syncID: id.rawValue) }
             if let row { trackTitles[rawID] = row.track.title }
         }
+        let fractions = PhoneWatchProtocolAdapter.activeAudioTransferFractions()
+        let stalled = await downloadManager.stalledTrackIDs(transferFractions: fractions)
         management = PhoneWatchManagementPresenter.snapshot(
             pairing: currentPairing(),
             roots: roots, jobs: jobs, manifestEntries: entries,
             watchManifest: lastWatchManifest, now: Date(),
-            transferFractions: PhoneWatchProtocolAdapter.activeAudioTransferFractions(),
+            transferFractions: fractions, stalledTrackIDs: stalled,
             syncHistory: syncHistory, trackTitles: trackTitles)
 
         onChange?()

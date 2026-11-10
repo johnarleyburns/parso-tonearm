@@ -119,6 +119,7 @@ public enum PhoneWatchManagementPresenter {
         case waitingForDelivery
         case awaitingInstallation
         case awaitingChunkConfirmation
+        case stalled
 
         public var isTerminal: Bool { self == .failed }
     }
@@ -201,6 +202,7 @@ public enum PhoneWatchManagementPresenter {
                                 watchManifest: WatchManifestPayload?,
                                 now: Date,
                                 transferFractions: [String: Double] = [:],
+                                stalledTrackIDs: Set<String> = [],
                                 chunkProgress: [String: PhoneWatchResumableAudioTransfer.Progress] = [:],
                                 syncHistory: SyncHistory = .init(),
                                 trackTitles: [String: String] = [:]) -> Snapshot {
@@ -248,8 +250,11 @@ public enum PhoneWatchManagementPresenter {
                     else if let fraction, fraction < 1 { stage = .waitingForDelivery }
                     else { stage = .awaitingInstallation }
                 } else { stage = activityStage(job.state, paused: allRootsPaused) }
+                let isStalled = !allRootsPaused && stalledTrackIDs.contains(job.trackID)
+                    && (job.state == .transferring || job.state == .sent)
+                if isStalled { stage = .stalled }
                 let chunk = chunkProgress[job.trackID]
-                if job.state == .sent && !allRootsPaused, let chunk {
+                if job.state == .sent && !allRootsPaused && !isStalled, let chunk {
                     stage = ActivityStage(rawValue: chunk.stage.rawValue) ?? .waitingForDelivery
                 }
                 var row = ActivityRow(
@@ -259,7 +264,7 @@ public enum PhoneWatchManagementPresenter {
                     stage: stage,
                     rootIDs: job.rootIDs,
                     failureMessage: job.state == .failed ? job.message : nil,
-                    canRetry: job.state == .failed || job.state == .cancelled,
+                    canRetry: job.state == .failed || job.state == .cancelled || isStalled,
                     canCancel: job.isActive || job.state == .sent)
                 row.fractionComplete = chunk?.checkpoint.fractionRetained ?? fraction
                 row.receivedChunkCount = chunk?.checkpoint.receivedChunkIndexes.count

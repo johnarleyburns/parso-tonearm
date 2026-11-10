@@ -264,6 +264,7 @@ enum WatchStageCopy {
         case .waitingForWiFi: return String(localized: "Waiting for Wi-Fi")
         case .failed: return String(localized: "Failed")
         case .paused: return String(localized: "Paused")
+        case .stalled: return String(localized: "Stuck — tap Try Again")
         case .waitingForDelivery: return String(localized: "Queued in Apple transfer service")
         case .awaitingInstallation: return String(localized: "Transfer submitted — syncing device status")
         case .awaitingChunkConfirmation: return String(localized: "Waiting for saved-chunk confirmation")
@@ -277,12 +278,14 @@ enum WatchStageCopy {
         case .waitingForWiFi: return "wifi.slash"
         case .failed: return "exclamationmark.circle"
         case .paused: return "pause.circle"
+        case .stalled: return "exclamationmark.triangle"
         }
     }
 
     static func tint(_ stage: PhoneWatchManagementPresenter.ActivityStage) -> Color {
         switch stage {
         case .failed: return Palette.danger
+        case .stalled: return Color.orange
         case .waitingForWiFi, .paused: return Palette.accent
         default: return Palette.inkSecondary
         }

@@ -15,6 +15,16 @@ public enum PhoneWatchTransferScheduler {
     /// it in the background, but surface a real failure rather than retrying forever.
     public static let maxAutomaticAttempts = 3
 
+    /// Seconds of zero fraction movement after which an outstanding transfer is considered stalled.
+    public static let stallThreshold: TimeInterval = 150
+
+    /// True once a transfer's fraction has not changed for `threshold`. Only the complete absence
+    /// of progress counts; a slow transfer that keeps moving is never stalled.
+    public static func isStalled(lastProgressAt: Date, now: Date,
+                                 threshold: TimeInterval = stallThreshold) -> Bool {
+        now.timeIntervalSince(lastProgressAt) >= threshold
+    }
+
     /// Bounded exponential backoff. Attempt 1 → base, doubling, capped.
     public static func backoff(attempt: Int, base: TimeInterval = 5,
                                cap: TimeInterval = 300) -> TimeInterval {

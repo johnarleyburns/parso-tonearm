@@ -243,7 +243,7 @@ public struct WatchDownloadRootStatus: Codable, Equatable, Sendable, Identifiabl
 public struct WatchDownloadActivity: Codable, Equatable, Sendable, Identifiable {
     public enum Stage: String, Codable, Sendable {
         case queued, preparing, waitingForDelivery, transferring, awaitingInstallation, awaitingChunkConfirmation
-        case waitingForWiFi, failed, paused
+        case waitingForWiFi, failed, paused, stalled
     }
     public var trackID: WatchTrackID
     public var title: String
