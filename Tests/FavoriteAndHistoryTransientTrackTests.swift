@@ -275,3 +275,16 @@ final class MoodPromptCommitSourceTests: XCTestCase {
         XCTAssertFalse(source.contains("promptDraft = newValue\n                moodModel.searchText = newValue"))
     }
 }
+
+final class MoodPlayQueueSourceTests: XCTestCase {
+    func testPlayMoodPassesMoodQueueSourceNotLibrary() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/Features/Listen/ListenView.swift"),
+                                encoding: .utf8)
+        let start = try XCTUnwrap(source.range(of: "private func playMood() async"))
+        let body = String(source[start.lowerBound...].prefix(1200))
+        XCTAssertTrue(body.contains("source: .mood(moodModel)"),
+            "playMood() must hand the player .mood(moodModel) so queue extension and 'Include in current mood' reach the running query")
+        XCTAssertFalse(body.contains("source: .library"))
+    }
+}
