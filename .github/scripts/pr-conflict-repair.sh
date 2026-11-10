@@ -163,18 +163,30 @@ escalate() { # n issue head kind detail
 }
 
 repair_pr() {
-  local n="$1" info issue branch head body method autom ms mergeable need_merge=false failed_run="" diag="" st attempts
+  local n="$1" info issue release_run managed_kind branch head body method autom ms mergeable need_merge=false failed_run="" diag="" st attempts
   info=$(gh pr view "$n" --json state,isCrossRepository,headRefName,headRefOid,body,autoMergeRequest) \
     || { echo "PR #$n: cannot read PR (infrastructure)" >&2; FAILED=1; return; }
   [[ $(jq -r .state <<<"$info") == OPEN ]] || { echo "PR #$n closed/merged: no-op"; return; }
   [[ $(jq -r .isCrossRepository <<<"$info") == false ]] || { echo "PR #$n is a fork: refused"; return; }
   branch=$(jq -r .headRefName <<<"$info"); body=$(jq -r '.body // ""' <<<"$info"); head=$(jq -r .headRefOid <<<"$info")
   issue=$(grep -o '<!-- claude-issue:[0-9]\+ -->' <<<"$body" | head -1 | grep -o '[0-9]\+')
-  [[ -n "$issue" && "$branch" =~ ^claude/issue-${issue}-[0-9]+$ ]] || { echo "PR #$n is not a Claude PR: ignored"; return; }
-  [[ $(gh issue view "$issue" --json author --jq .author.login) == "$owner" ]] || { echo "PR #$n: issue not owner-authored: refused"; return; }
-  local run_id=${branch##*-}
-  if [[ $(gh run view "$run_id" --json status --jq .status 2>/dev/null || echo completed) != completed ]]; then
-    echo "PR #$n: issue agent run $run_id still active: deferred (maintenance re-evaluates)"; return
+  if [[ -n "$issue" && "$branch" =~ ^claude/issue-${issue}-[0-9]+$ ]]; then
+    managed_kind=issue
+    [[ $(gh issue view "$issue" --json author --jq .author.login) == "$owner" ]] || { echo "PR #$n: issue not owner-authored: refused"; return; }
+    local run_id=${branch##*-}
+    if [[ $(gh run view "$run_id" --json status --jq .status 2>/dev/null || echo completed) != completed ]]; then
+      echo "PR #$n: issue agent run $run_id still active: deferred (maintenance re-evaluates)"; return
+    fi
+  else
+    release_run=$(grep -o '<!-- release-repair:[0-9]\+ -->' <<<"$body" | head -1 | grep -o '[0-9]\+')
+    if [[ -n "$release_run" && "$branch" == "claude/release-repair-${release_run}" ]]; then
+      managed_kind=release
+      issue="$n" # Persist repair state on the PR conversation itself.
+    else
+      echo "PR #$n is not an automation-managed PR: refusing repair" >&2
+      FAILED=1
+      return
+    fi
   fi
   autom=$(jq -r '.autoMergeRequest != null' <<<"$info"); method=$(jq -r '.autoMergeRequest.mergeMethod // "SQUASH"' <<<"$info")
 

@@ -3,6 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 script="$root/.github/scripts/release-repair.sh"
 workflow="$root/.github/workflows/release-repair.yml"
+delivery="$root/.github/scripts/record-testflight-delivery.sh"
 grep -Eq 'workflow_run:' "$workflow"
 grep -Eq 'conclusion == .failure.' "$workflow"
 grep -Eq 'fix\\\(release\\\)' "$script"
@@ -12,6 +13,11 @@ validate_line=$(grep -nF 'if validate "$attempt"' "$script" | cut -d: -f1)
 commit_line=$(grep -nE '^git commit -m "fix\(release\)' "$script" | cut -d: -f1)
 [[ "$validate_line" -lt "$commit_line" ]]
 grep -Fq 'No branch or PR was published.' "$script"
+grep -Fq '<!-- release-repair:' "$script"
+grep -Fq 'not an automation-managed PR: refusing repair' "$root/.github/scripts/pr-conflict-repair.sh"
+grep -Fq 'release-repair-resolved:' "$delivery"
+grep -Fq 'remove-label needs-human-review' "$delivery"
+grep -Fq 'issue close' "$delivery"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 printf 'Run logic tests\nTest LocalAudioRepairTests failed\nUpload artifact\n' >"$tmp/test-failure.log"
