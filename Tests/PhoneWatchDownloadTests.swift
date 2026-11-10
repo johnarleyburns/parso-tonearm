@@ -231,6 +231,33 @@ final class PhoneWatchDownloadTests: XCTestCase {
         let cancelled = await transfer.cancelled
         XCTAssertEqual(cancelled, ["whole"], "Only explicit consent cancels Apple's old file transfer")
     }
+    func testIsStalledOnlyAfterThresholdWithoutProgress() {
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        XCTAssertFalse(PhoneWatchTransferScheduler.isStalled(lastProgressAt: t0, now: t0))
+        XCTAssertTrue(PhoneWatchTransferScheduler.isStalled(
+            lastProgressAt: t0, now: t0.addingTimeInterval(PhoneWatchTransferScheduler.stallThreshold + 1)))
+    }
+
+    func testFrozenFractionSurfacesStalledAndRetryCancelsStaleTransfer() async throws {
+        let db = try freshQueue()
+        let clock = TestClock()
+        let transfer = FakeTransfer()
+        let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["fred"]), transfer: transfer, clock: clock)
+        try await manager.setRoots([root("r", tracks: ["fred"])])
+        await transfer.setOutstanding(["fred"])
+        var snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
+        XCTAssertNotEqual(snap.activities.first?.stage, .stalled)
+        clock.advance(PhoneWatchTransferScheduler.stallThreshold - 10)
+        snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
+        XCTAssertNotEqual(snap.activities.first?.stage, .stalled)
+        clock.advance(20)
+        snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
+        XCTAssertEqual(snap.activities.first?.stage, .stalled)
+        try await manager.requestRetry(trackID: "fred")
+        let cancelled = await transfer.cancelled
+        XCTAssertEqual(cancelled, ["fred"])
+    }
+
     func testPauseAndRemoveCancelSystemOwnedFilesAndResumeQueuesOneReplacement() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()

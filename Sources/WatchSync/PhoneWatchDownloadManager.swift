@@ -133,6 +133,8 @@ public actor PhoneWatchDownloadManager {
     private let publishArtworkBindings: @Sendable (String, String?, String?) async -> Void
 
     private var explicitRetryTrackIDs: Set<String> = []
+    /// trackID → last observed fraction and when it last changed (stall detection).
+    private var transferProgress: [String: (fraction: Double, at: Date)] = [:]
     private var desiredArtworkTrackIDs: Set<String> = []
     private var artworkPlans: [String: PhoneWatchArtworkResolution] = [:]
     private var artworkSentIDs: Set<String> = []
@@ -216,7 +218,19 @@ public actor PhoneWatchDownloadManager {
 
     /// A retry the user explicitly asked for — one attempt, higher priority (§8.1 bucket 2).
     public func requestRetry(trackID: String) async throws {
-        guard !Set(await transfer.outstandingTransfers().map(\.rawValue)).contains(trackID) else { return }
+        if Set(await transfer.outstandingTransfers().map(\.rawValue)).contains(trackID) {
+            // WatchConnectivity still owns the transfer; only a detected stall may be replaced.
+            guard let progress = transferProgress[trackID],
+                  PhoneWatchTransferScheduler.isStalled(lastProgressAt: progress.at, now: now()) else { return }
+            await transfer.cancelTransfer(trackID: WatchTrackID(trackID))
+            transferProgress[trackID] = nil
+            for var job in try await store.jobs() where job.trackID == trackID
+                && (job.state == .transferring || job.state == .sent) {
+                job.state = .cancelled
+                job.updatedAt = now()
+                try await store.upsertJob(job)
+            }
+        }
         explicitRetryTrackIDs.insert(trackID)
         try await reconcile()
     }
@@ -225,7 +239,7 @@ public actor PhoneWatchDownloadManager {
     /// funnels through the same explicit-retry path, which revives a failed *or* cancelled job.
     public func requestRetry(requestID: String) async throws {
         guard var job = try await store.jobs().first(where: { $0.requestID == requestID }) else { return }
-        if job.state == .sent || job.state == .failed {
+        if job.state == .sent || job.state == .failed || job.state == .transferring {
             guard !(try await store.installedTrackIDs()).contains(job.trackID) else { return }
             // An explicit restart is different from automatic reconciliation: cancel the
             // old system-owned transfer before scheduling one replacement, never two copies.
@@ -275,7 +289,28 @@ public actor PhoneWatchDownloadManager {
         job.updatedAt = now()
         try await store.upsertJob(job)
         await transfer.cancelTransfer(trackID: WatchTrackID(job.trackID))
+        transferProgress[job.trackID] = nil
         try await reconcile()
+    }
+
+    /// Records fresh fractions and returns the outstanding tracks whose fraction has not moved
+    /// for the stall threshold.
+    public func stalledTrackIDs(transferFractions: [String: Double]) async -> Set<String> {
+        let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
+        let current = now()
+        for track in transferProgress.keys where !outstanding.contains(track) { transferProgress[track] = nil }
+        var stalled: Set<String> = []
+        for track in outstanding {
+            let fraction = transferFractions[track] ?? 0
+            if let known = transferProgress[track], known.fraction == fraction {
+                if fraction < 1, PhoneWatchTransferScheduler.isStalled(lastProgressAt: known.at, now: current) {
+                    stalled.insert(track)
+                }
+            } else {
+                transferProgress[track] = (fraction, current)
+            }
+        }
+        return stalled
     }
 
     private func emitCurrentRoots() async throws {
@@ -611,6 +646,7 @@ public actor PhoneWatchDownloadManager {
         let outstanding = Set(await transfer.outstandingTransfers().map(\.rawValue))
         let desired = Set(roots.flatMap(\.desiredTrackIDs))
         let paused = Set(roots.filter(\.paused).map(\.rootID))
+        let stalled = await stalledTrackIDs(transferFractions: transferFractions)
         let activities = jobs.filter { desired.contains($0.trackID) && !installed.contains($0.trackID)
             && $0.state != .cancelled }.map { job -> WatchDownloadActivity in
             let stage: WatchDownloadActivity.Stage
@@ -620,11 +656,13 @@ public actor PhoneWatchDownloadManager {
             } else {
                 switch job.state {
                 case .queued: stage = .queued
+                case .transferring where stalled.contains(job.trackID): stage = .stalled
                 case .resolving, .transferring: stage = .preparing
                 case .waitingForWiFi: stage = .waitingForWiFi
                 case .failed: stage = .failed
                 case .sent:
-                    if let fraction, fraction > 0 && fraction < 1 { stage = .transferring }
+                    if stalled.contains(job.trackID) { stage = .stalled }
+                    else if let fraction, fraction > 0 && fraction < 1 { stage = .transferring }
                     else if outstanding.contains(job.trackID) && (fraction ?? 0) < 1 { stage = .waitingForDelivery }
                     else { stage = .awaitingInstallation }
                 case .cancelled: stage = .paused
