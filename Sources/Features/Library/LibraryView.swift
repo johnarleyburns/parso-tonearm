@@ -3,6 +3,7 @@ import TonearmCore
 import TonearmDiscovery
 
 struct LibraryView: View {
+    static let contentAreaMinHeight: CGFloat = 320
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @State private var internalMode: LibraryBrowseMode = .artists
@@ -103,7 +104,7 @@ struct LibraryView: View {
                                         .foregroundStyle(Palette.inkTertiary)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.top, 60)
+                                .padding(.top, 6)
                             } else if renderedPlaybackRows.isEmpty {
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
@@ -116,7 +117,8 @@ struct LibraryView: View {
                                             .padding(.horizontal, 2)
                                     }
                                 }
-                                .padding(.top, 60)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 6)
                             } else {
                                 ForEach(renderedSections) { section in
                                     SectionHeader(verbatim: section.indexTitle,
@@ -130,6 +132,7 @@ struct LibraryView: View {
                                 }
                             }
                         }
+                        .frame(minHeight: Self.contentAreaMinHeight, alignment: .top)
                         .padding(.horizontal, 18)
                         .padding(.trailing, renderedSections.count > 1 ? 22 : 0)
                         .padding(.bottom, 160)

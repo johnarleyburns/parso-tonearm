@@ -14,6 +14,8 @@ struct FindView: View {
     @State private var soundSearchRows: [TrackRow]?
     @State private var soundSearchRevision = 0
 
+    static let contentMinHeight: CGFloat = 320
+
     private var filter: MyMusicFilter {
         guard mode == .mix else { return .init() }
         return MyMusicFilter(
@@ -44,6 +46,7 @@ struct FindView: View {
                     }
                     .fixedSize(horizontal: false, vertical: true)
 
+                Group {
                 if hasSearchInput {
                 LibraryView(ownsNavigationStack: false,
                             externalMode: $browseMode,
@@ -60,6 +63,8 @@ struct FindView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityIdentifier("find.awaitingQuery")
                 }
+                }
+                .frame(minHeight: Self.contentMinHeight, alignment: .top)
             }
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Find")
