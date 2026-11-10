@@ -485,7 +485,7 @@ struct MoodView: View {
         let metadata = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
         let energies = (try? await appState.store.discoveryEnergies(trackIds: ids)) ?? [:]
         if !moodModel.playMood(metadata: metadata, energies: energies, onPlayQueue: { tracks in
-            player.play(tracks: tracks, startAt: 0, source: .library)
+            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
         }) {
             playbackMessage = String(localized: "No mix-compatible tracks for this mood yet. Index BPM and key, or choose another mood.")
         }
