@@ -4,6 +4,10 @@ import XCTest
 
 final class LibraryBrowseTests: XCTestCase {
 
+    func testBrowseModeOrderIsSongsArtistsAlbumsGenres() {
+        XCTAssertEqual(LibraryBrowseMode.allCases, [.songs, .artists, .albums, .genres])
+    }
+
     func testEmptyLibraryProducesNoSections() {
         for mode in LibraryBrowseMode.allCases {
             XCTAssertEqual(LibraryBrowse.sections(for: mode, rows: []), [], mode.rawValue)
