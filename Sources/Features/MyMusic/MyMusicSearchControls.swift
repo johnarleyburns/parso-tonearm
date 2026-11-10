@@ -56,7 +56,7 @@ struct MyMusicSearchControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if mode == .all { allSearchField }
+            if mode != .mix { allSearchField }
             HStack(spacing: 8) {
                 ForEach(MyMusicSearchMode.allCases) { option in
                     Button { mode = option } label: {
@@ -99,19 +99,26 @@ struct MyMusicSearchControls: View {
                 let model = await DiscoveryRuntimeController.shared.makeSearchViewModel(
                     appState: appState, player: player)
                 model.inputMode = .findBySound
+                model.searchText = appState.searchText
                 soundModel = model
             }
         }
         .onChange(of: mode) { _, newMode in
-            // The text field only exists in All; a query left behind would keep filtering
-            // the list with nothing on screen to show or clear it.
-            if newMode != .all { appState.searchText = "" }
+            // The single top text field exists in All and Find Mood only; Find Mix has no
+            // free-text input, so a query left behind would filter with nothing to clear it.
+            if newMode == .mix { appState.searchText = "" }
             if newMode != .mix {
                 bpmPreset = nil
                 mixKey = nil
             }
             if newMode != .sound {
                 onSoundRows(nil)
+            }
+        }
+        .onChange(of: appState.searchText) { _, text in
+            // One text box: the top field's keystrokes also drive the mood search.
+            if mode == .sound, let soundModel, soundModel.searchText != text {
+                soundModel.searchText = text
             }
         }
     }
@@ -122,7 +129,7 @@ struct MyMusicSearchControls: View {
         // library list below doesn't show its own field inside My Music, so this is it.
         // On Mac the same search lives in the window toolbar (⌘F).
         #if os(iOS)
-        SearchField(text: $appState.searchText, placeholder: "Search all your music…")
+        SearchField(text: $appState.searchText, placeholder: mode == .sound ? "Describe a sound, e.g. warm analog pads" : "Search all your music…")
             .accessibilityIdentifier("mymusic.search.text")
         #else
         EmptyView()
@@ -181,18 +188,6 @@ private struct MyMusicSoundQuery: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "waveform.and.magnifyingglass")
-                    .foregroundStyle(Palette.accent)
-                TextField("Describe a sound, e.g. warm analog pads", text: $model.searchText)
-                    .platformAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityLabel("Search by sound")
-            }
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .glassSurface(cornerRadius: 20)
-
             switch model.screen {
             case .loading:
                 Label("Searching your library…", systemImage: "magnifyingglass")
