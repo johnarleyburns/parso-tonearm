@@ -717,19 +717,20 @@ private struct MoodEntryPointSection: View {
     }
 
     private var moodResultsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(displayedMoodResults, id: \.track.id) { result in
-                    Button {
-                        selectedTrackForDetail = result.track
-                    } label: {
-                        RecentCard(row: result.track)
-                    }
-                    .buttonStyle(.plain)
-                    .trackContextMenu(result.track)
+        let results = displayedMoodResults
+        return LazyVStack(spacing: 0) {
+            ForEach(Array(results.enumerated()), id: \.element.track.id) { index, result in
+                Button {
+                    selectedTrackForDetail = result.track
+                } label: {
+                    TrackRowView(row: result.track, showArtwork: true)
+                }
+                .buttonStyle(.plain)
+                .trackContextMenu(result.track)
+                if index < results.count - 1 {
+                    Divider()
                 }
             }
-            .padding(.horizontal, 2)
         }
     }
 }
