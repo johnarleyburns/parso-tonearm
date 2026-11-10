@@ -25,7 +25,8 @@ permissions:
   actions: write
 # Every run sweeps ALL open Claude PRs, so one pending run covers any number of
 # coalesced requests: nothing is lost when a queued run is superseded. Runs are
-# serialized so there is a single orchestrator writer at a time.
+# serialized so there is a single orchestrator writer at a time; repairs remain
+# isolated by PR number in pr-conflict-repair.yml.
 concurrency:
   group: claude-pr-maintenance
   cancel-in-progress: false

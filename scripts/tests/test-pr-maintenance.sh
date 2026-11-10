@@ -87,9 +87,10 @@ grep -Eq 'pr (ready|merge|close)' "$MOCK_LOG" && r=yes || r=no
 eq "no ready/merge/close on behind PR" "$r" no
 eq "fork/non-Claude ignored" "$(jq '.open_claude_prs' "$tmp/report.json")" 1
 eq "behind counted" "$(jq '.behind' "$tmp/report.json")" 1
-eq "release reserves macOS capacity" "$(echo '{"workflow_runs":[{"path":".github/workflows/ios.yml"}]}' | macos_work_pending && echo busy || echo idle)" busy
-eq "main CI reserves macOS capacity" "$(echo '{"workflow_runs":[{"path":".github/workflows/ci.yml"}]}' | macos_work_pending && echo busy || echo idle)" busy
-eq "maintenance leaves macOS capacity available" "$(echo '{"workflow_runs":[{"path":".github/workflows/pr-maintenance.yml"}]}' | macos_work_pending && echo busy || echo idle)" idle
+if declare -F macos_work_pending >/dev/null; then
+  echo 'FAIL global macOS-work gate must not block unrelated PR maintenance' >&2
+  exit 1
+fi
 : >"$MOCK_LOG"
 ( ACTIONS_STARTED=1; decide() { echo update-branch; }; process_pr 97 ) >"$tmp/budget-out" 2>&1
 grep -q 'deferred until the next controlled batch' "$tmp/budget-out" && r=yes || r=no

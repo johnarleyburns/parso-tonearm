@@ -339,23 +339,11 @@ write_report() {
   fi
 }
 
-macos_work_pending() {
-  jq -e 'any(.workflow_runs[]?;
-    (.path // "" | test("/(ios|ci|clap-candidate-model|pr-validation|pr-conflict-repair|issue-to-pr)\\.yml$")))' >/dev/null
-}
-
 main() {
-  local prs n status runs
-  for status in in_progress queued pending waiting requested; do
-    runs=$(api "repos/${repo}/actions/runs?status=${status}&per_page=100") || {
-      echo 'Cannot verify macOS capacity; deferring all changes' >&2; exit 1;
-    }
-    if macos_work_pending <<<"$runs"; then
-      echo "macOS work is $status; preserving release priority and deferring this batch"
-      write_report
-      exit 0
-    fi
-  done
+  local prs n
+  # Repair jobs are isolated by PR number (see pr-conflict-repair.yml).  Do not
+  # make an unrelated queued, running, or failed macOS job a global stop: that
+  # used to prevent every other PR from being advanced or repaired.
   if [[ -n "${TARGET_PR:-}" ]]; then prs="$TARGET_PR"
   else prs=$(gh pr list --state open --base main --limit 200 --json number --jq 'sort_by(.number) | .[].number') || { echo 'cannot list PRs' >&2; exit 1; }
   fi
