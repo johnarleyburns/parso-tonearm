@@ -488,6 +488,8 @@ struct MoodView: View {
             player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
         }) {
             playbackMessage = String(localized: "No mix-compatible tracks for this mood yet. Index BPM and key, or choose another mood.")
+        } else {
+            appState.showNowPlaying = true
         }
     }
 
@@ -544,6 +546,8 @@ private struct MoodEntryPointSection: View {
     @Binding var showIndexStatus: Bool
     let startingPlayback: Bool
     let onPlay: () -> Void
+    @State private var moodDisplayMetadata: [Int64: DJLoadTrackInfo] = [:]
+    @State private var moodDisplayEnergies: [Int64: Double] = [:]
 
     /// A to Z, so a mood is easy to find.
     private var allMoodPills: [MoodPill] {
@@ -608,6 +612,10 @@ private struct MoodEntryPointSection: View {
                 if !moodModel.results.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         moodResultsRow
+                            .task(id: DisplayOrderKey(ids: moodModel.results.map(\.trackID),
+                                                      reference: moodModel.matchingReferenceTrackID)) {
+                                await refreshMoodDisplayOrder()
+                            }
                     }
                 } else {
                     moodStatusHint
@@ -697,10 +705,22 @@ private struct MoodEntryPointSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var displayedMoodResults: [DiscoverySearchResult] {
+        moodModel.displayResults(metadata: moodDisplayMetadata, energies: moodDisplayEnergies)
+    }
+
+    private func refreshMoodDisplayOrder() async {
+        guard let moodModel else { return }
+        var ids = moodModel.results.map(\.trackID)
+        if let reference = moodModel.matchingReferenceTrackID { ids.append(reference) }
+        moodDisplayMetadata = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
+        moodDisplayEnergies = (try? await appState.store.discoveryEnergies(trackIds: ids)) ?? [:]
+    }
+
     private var moodResultsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                ForEach(moodModel.results, id: \.track.id) { result in
+                ForEach(displayedMoodResults, id: \.track.id) { result in
                     Button {
                         selectedTrackForDetail = result.track
                     } label: {
@@ -715,6 +735,11 @@ private struct MoodEntryPointSection: View {
     }
 }
 
+private struct DisplayOrderKey: Hashable {
+    let ids: [Int64]
+    let reference: Int64?
+}
+
 private struct MoodActionRow: View {
     let canPlay: Bool
     let starting: Bool
@@ -722,7 +747,7 @@ private struct MoodActionRow: View {
 
     var body: some View {
         Button(action: onPlay) {
-            Label(starting ? "Starting…" : "Play", systemImage: "play.fill")
+            Label(starting ? "Starting…" : "Play Mood", systemImage: "play.fill")
                 .frame(maxWidth: .infinity).frame(height: 44)
                 .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(Palette.accentOnFill)

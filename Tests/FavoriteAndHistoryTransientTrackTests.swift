@@ -277,6 +277,15 @@ final class MoodPromptCommitSourceTests: XCTestCase {
 }
 
 final class MoodPlayQueueSourceTests: XCTestCase {
+    func testMoodPlayButtonSaysPlayMoodAndOpensNowPlaying() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent("Sources/Features/Listen/ListenView.swift"),
+                                encoding: .utf8)
+        XCTAssertTrue(source.contains("\"Play Mood\", systemImage"))
+        XCTAssertFalse(source.contains("\"Play\", systemImage"))
+        XCTAssertTrue(source.contains("} else {\n            appState.showNowPlaying = true"))
+    }
+
     func testPlayMoodPassesMoodQueueSourceNotLibrary() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent("Sources/Features/Listen/ListenView.swift"),
