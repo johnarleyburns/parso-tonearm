@@ -142,6 +142,23 @@ final class DiscoverySearchViewModelTests: XCTestCase {
         XCTAssertEqual(started, [[1, 2, 3]], "must queue the full displayed list, in order, unfiltered")
     }
 
+    func testDisplayResultsMatchQueuedOrderWithAndWithoutMatchingTracksOnly() async throws {
+        let rows = [Self.trackRow(id: 1, title: "First"), Self.trackRow(id: 2, title: "Second"), Self.trackRow(id: 3, title: "Incompatible")]
+        let d = try await makeVM(metadata: { _ in .success(rows) })
+        d.vm.inputMode = .metadata
+        d.vm.searchText = "mood"
+        await settle(d.vm) { $0.screen.hasResults }
+        let meta: [Int64: DJLoadTrackInfo] = [1: .init(bpm: 100, camelotKey: "8A"),
+            2: .init(bpm: 104, camelotKey: "9A"), 3: .init(bpm: 170, camelotKey: "4B")]
+        for enabled in [false, true] {
+            d.vm.setMatchingTracksOnly(enabled)
+            await settle(d.vm) { $0.screen.hasResults }
+            var started: [Int64] = []
+            XCTAssertTrue(d.vm.playMood(metadata: meta) { started = $0.map(\.id) })
+            XCTAssertEqual(d.vm.displayResults(metadata: meta).map(\.trackID), started)
+        }
+    }
+
     func testMetadataTextSearchProducesBrowseResults() async throws {
         let rows = [Self.trackRow(id: 1, title: "Blue"), Self.trackRow(id: 2, title: "Bluer")]
         let d = try await makeVM(metadata: { q in

@@ -336,6 +336,18 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     public func play(_ result: DiscoverySearchResult) { onPlay(result) }
 
+    /// The results in exactly the order (and with exactly the membership) `playMood` queues,
+    /// so the on-screen strip and the queue never silently diverge.
+    public func displayResults(
+        metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:]
+    ) -> [DiscoverySearchResult] {
+        guard matchingTracksOnly else { return results }
+        let ids = MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
+            energyByID: energies, startingFrom: matchingReferenceTrackID)
+        let byID = Dictionary(results.map { ($0.trackID, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { byID[$0] }
+    }
+
     /// Start the current mood directly, not a single result or a mix-builder sheet.
     ///
     /// Mix-compatible matching has no user-facing toggle anymore (migration v46 — every result
@@ -351,12 +363,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
         metadata: [Int64: DJLoadTrackInfo], energies: [Int64: Double] = [:],
         onPlayQueue: ([TrackRow]) -> Void
     ) -> Bool {
-        let ids = matchingTracksOnly
-            ? MusicalMatchPolicy.queueTrackIDs(results.map(\.trackID), metadata: metadata,
-                energyByID: energies, startingFrom: matchingReferenceTrackID)
-            : results.map(\.trackID)
-        let rows = Dictionary(results.map { ($0.trackID, $0.track) }, uniquingKeysWith: { first, _ in first })
-        let queue = ids.compactMap { rows[$0] }
+        let queue = displayResults(metadata: metadata, energies: energies).map(\.track)
         guard !queue.isEmpty else { return false }
         onPlayQueue(queue)
         return true
