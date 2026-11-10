@@ -5,7 +5,7 @@ import TonearmDiscovery
 enum MyMusicSearchMode: String, CaseIterable, Identifiable {
     case all = "All"
     case sound = "Find Mood"
-    case mix = "Find Mix"
+    case mix = "Find by BPM/Key"
 
     var id: String { rawValue }
 }
@@ -138,7 +138,7 @@ struct MyMusicSearchControls: View {
 
     private var mixControls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Mix BPM")
+            Text("Track BPM")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -152,7 +152,7 @@ struct MyMusicSearchControls: View {
             }
             .accessibilityIdentifier("mymusic.mix.bpm")
 
-            Text("Mix Key")
+            Text("Camelot Key")
                 .font(Typography.caption)
                 .foregroundStyle(Palette.inkTertiary)
             ScrollView(.horizontal, showsIndicators: false) {
