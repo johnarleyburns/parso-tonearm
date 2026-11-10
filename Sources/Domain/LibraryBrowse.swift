@@ -1,9 +1,9 @@
 import Foundation
 
 public enum LibraryBrowseMode: String, CaseIterable, Identifiable, Sendable {
+    case songs = "Songs"
     case artists = "Artists"
     case albums = "Albums"
-    case songs = "Songs"
     case genres = "Genres"
 
     public var id: String { rawValue }
