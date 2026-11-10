@@ -9,6 +9,16 @@ import TonearmWatchProtocol
 public enum PhoneWatchAudioPreparation {
     public static let bitRate = 128_000
     public static let sampleRate = 44_100.0
+
+    /// Size the watch will actually hold for a track: duration x the fixed AAC128 bitrate.
+    /// Used for pre-transcode estimates so the original (FLAC/ALAC/high-bitrate) file size is
+    /// never mistaken for the installed size. Falls back to `sourceBytes` without a duration.
+    public static func estimatedWatchBytes(durationSec: Double?, sourceBytes: Int64?) -> Int64? {
+        guard let d = durationSec, d.isFinite, d > 0 else { return sourceBytes }
+        let aac = Int64((d * Double(bitRate) / 8).rounded())
+        guard let source = sourceBytes, source > 0 else { return aac }
+        return min(aac, source)
+    }
     public static func isReadable(_ url: URL) -> Bool {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }

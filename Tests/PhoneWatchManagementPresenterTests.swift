@@ -271,3 +271,30 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         XCTAssertEqual(detail?.kind, .track)
     }
 }
+
+final class WatchTransferEstimateTests: XCTestCase {
+    func testEstimateUsesAAC128NotOriginalFileSize() {
+        // 4-minute FLAC (~40 MB) -> 240 s * 128 kbps / 8 = 3.84 MB
+        let bytes = PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: 240, sourceBytes: 40_000_000)
+        XCTAssertEqual(bytes, 3_840_000)
+    }
+
+    func testEstimateNeverExceedsSmallerSourceAndFallsBackWithoutDuration() {
+        XCTAssertEqual(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: 240, sourceBytes: 1_000_000), 1_000_000)
+        XCTAssertEqual(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: nil, sourceBytes: 5), 5)
+    }
+}
+
+final class WatchHeaderCardSourceTests: XCTestCase {
+    func testHeaderCardReadsUsedAndAvailableFields() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let source = try String(contentsOf: root.appendingPathComponent(
+            "Sources/Features/Settings/WatchSettingsView.swift"), encoding: .utf8)
+        let start = try XCTUnwrap(source.range(of: "headerCard"))
+        let end = try XCTUnwrap(source.range(of: "private func shortfallCard"))
+        let body = String(source[start.lowerBound..<end.lowerBound])
+        for field in ["storage.capacityBytes", "storage.freeBytes", "storage.usedFraction"] {
+            XCTAssertTrue(body.contains(field), "headerCard must render \(field)")
+        }
+    }
+}
