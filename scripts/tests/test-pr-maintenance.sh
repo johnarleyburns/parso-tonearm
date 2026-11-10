@@ -63,10 +63,11 @@ cat >"$tmp/gh" <<'MOCK'
 echo "gh $*" >>"$MOCK_LOG"
 a="$*"
 case "$a" in
-  "pr list"*) printf '97\n5\n6\n' ;;
+  "pr list"*) printf '97\n5\n6\n98\n' ;;
   "api repos/o/r/pulls/97") echo '{"state":"open","head":{"repo":{"full_name":"o/r"},"ref":"claude/issue-12-34","sha":"abc12345"},"body":"<!-- claude-issue:12 -->","draft":false,"mergeable_state":"behind","mergeable":true,"auto_merge":{"x":1},"labels":[]}' ;;
   "api repos/o/r/pulls/5") echo '{"state":"open","head":{"repo":{"full_name":"fork/r"},"ref":"claude/issue-1-1","sha":"f"},"body":"<!-- claude-issue:1 -->","draft":false,"labels":[]}' ;;
   "api repos/o/r/pulls/6") echo '{"state":"open","head":{"repo":{"full_name":"o/r"},"ref":"feature/x","sha":"g"},"body":"","draft":false,"labels":[]}' ;;
+  "api repos/o/r/pulls/98") echo '{"state":"open","head":{"repo":{"full_name":"o/r"},"ref":"claude/release-repair-42752874699","sha":"release123"},"body":"<!-- release-repair:42752874699 -->","draft":false,"mergeable_state":"behind","mergeable":true,"auto_merge":{"x":1},"labels":[]}' ;;
   *compare*) echo 3 ;;
   *"pr-validation.yml/runs"*) echo '{"workflow_runs":[{"status":"completed","conclusion":"success","created_at":"2026-01-01T00:00:00Z"}]}' ;;
   *"-X PUT"*update-branch*) echo '{}' ;;
@@ -85,8 +86,8 @@ grep -q 'update-branch' "$MOCK_LOG" && r=yes || r=no
 eq "strict behind branch is updated once" "$r" yes
 grep -Eq 'pr (ready|merge|close)' "$MOCK_LOG" && r=yes || r=no
 eq "no ready/merge/close on behind PR" "$r" no
-eq "fork/non-Claude ignored" "$(jq '.open_claude_prs' "$tmp/report.json")" 1
-eq "behind counted" "$(jq '.behind' "$tmp/report.json")" 1
+eq "fork/non-managed ignored" "$(jq '.open_claude_prs' "$tmp/report.json")" 2
+eq "managed behind PRs counted" "$(jq '.behind' "$tmp/report.json")" 2
 if declare -F macos_work_pending >/dev/null; then
   echo 'FAIL global macOS-work gate must not block unrelated PR maintenance' >&2
   exit 1
@@ -97,6 +98,10 @@ grep -q 'deferred until the next controlled batch' "$tmp/budget-out" && r=yes ||
 eq "second PR action is deferred" "$r" yes
 grep -q ' -X PUT ' "$MOCK_LOG" && r=yes || r=no
 eq "exhausted batch budget never updates another branch" "$r" no
+: >"$MOCK_LOG"
+( ACTIONS_STARTED=0; process_pr 98 ) >"$tmp/release-repair-out" 2>&1
+grep -q 'update-branch' "$MOCK_LOG" && r=yes || r=no
+eq "behind release-repair PR is updated" "$r" yes
 
 # Git: modify/delete conflict resolved by accepting main's deletion, filenames with spaces.
 if [[ -z "${SKIP_GIT_TESTS:-}" ]]; then

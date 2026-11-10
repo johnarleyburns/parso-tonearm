@@ -424,7 +424,7 @@ struct WatchSyncStatusView: View {
         case .waitingForWiFi: "Waiting for Wi-Fi"
         case .failed: "Download failed"
         case .paused: "Paused"
-        case .stalled: "Stuck — tap Try Again"
+        case .stalled: "Transfer stalled"
         }
     }
 }

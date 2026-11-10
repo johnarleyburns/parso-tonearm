@@ -159,13 +159,26 @@ is_transient_merge_error() {
 }
 
 process_pr() {
-  local n="$1" pr issue head ref draft ms mergeable behind state val autom stopped attempts action st runs
+  local n="$1" pr body issue release_run head ref draft ms mergeable behind state val autom stopped attempts action st runs
   pr=$(api "repos/${repo}/pulls/$n") || { INFRA=1; echo "PR #$n: API failure" >&2; return; }
   [[ $(jq -r .state <<<"$pr") == open ]] || return 0
   [[ $(jq -r '.head.repo.full_name' <<<"$pr") == "$repo" ]] || { echo "PR #$n: fork, ignored"; return 0; }
   ref=$(jq -r .head.ref <<<"$pr"); head=$(jq -r .head.sha <<<"$pr")
-  issue=$(jq -r '.body // ""' <<<"$pr" | grep -o '<!-- claude-issue:[0-9]\+ -->' | head -1 | grep -o '[0-9]\+')
-  [[ -n "$issue" && "$ref" =~ ^claude/issue-${issue}-[0-9]+$ ]] || { echo "PR #$n: not a Claude PR, ignored"; return 0; }
+  body=$(jq -r '.body // ""' <<<"$pr")
+  issue=$(grep -o '<!-- claude-issue:[0-9]\+ -->' <<<"$body" | head -1 | grep -o '[0-9]\+')
+  if [[ -n "$issue" && "$ref" =~ ^claude/issue-${issue}-[0-9]+$ ]]; then
+    : # Ordinary issue implementation PR.
+  else
+    # Release-repair PRs use a separate durable marker. They must still enter
+    # this maintenance path so a prior repair merging cannot strand the next
+    # repair behind main with auto-merge enabled but no branch update.
+    release_run=$(grep -o '<!-- release-repair:[0-9]\+ -->' <<<"$body" | head -1 | grep -o '[0-9]\+')
+    [[ -n "$release_run" && "$ref" == "claude/release-repair-${release_run}" ]] || {
+      echo "PR #$n: not an automation-managed PR, ignored"
+      return 0
+    }
+    issue="$n" # Store status/escalation comments on the release-repair PR.
+  fi
   draft=$(jq -r .draft <<<"$pr")
   ms=$(jq -r '.mergeable_state // "unknown"' <<<"$pr")
   mergeable=$(jq -r '.mergeable' <<<"$pr")
