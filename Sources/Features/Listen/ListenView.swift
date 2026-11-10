@@ -485,7 +485,7 @@ struct MoodView: View {
         let metadata = (try? await appState.store.djLoadTrackInfo(trackIds: ids)) ?? [:]
         let energies = (try? await appState.store.discoveryEnergies(trackIds: ids)) ?? [:]
         if !moodModel.playMood(metadata: metadata, energies: energies, onPlayQueue: { tracks in
-            player.play(tracks: tracks, startAt: 0, source: .library)
+            player.play(tracks: tracks, startAt: 0, source: .mood(moodModel))
         }) {
             playbackMessage = String(localized: "No mix-compatible tracks for this mood yet. Index BPM and key, or choose another mood.")
         }
@@ -560,15 +560,6 @@ private struct MoodEntryPointSection: View {
         Binding(get: { moodModel.genres }, set: { moodModel.genres = $0 })
     }
 
-    private var promptBinding: Binding<String> {
-        Binding(
-            get: { moodModel.searchText },
-            set: { newValue in
-                promptDraft = newValue
-                moodModel.searchText = newValue
-            })
-    }
-
     /// Toggling a pill adds/removes its `queryTerm` from the mood model's
     /// `positiveRefinements` — additive combination (plan §3.3), never a
     /// replace.
@@ -595,7 +586,8 @@ private struct MoodEntryPointSection: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
 
-            TextField(MoodView.promptPlaceholders[placeholderIndex], text: promptBinding)
+            TextField(MoodView.promptPlaceholders[placeholderIndex], text: $promptDraft)
+                .onSubmit { moodModel.searchText = promptDraft }
                 .textFieldStyle(.plain)
                 .font(Typography.callout)
                 .padding(.horizontal, 14)

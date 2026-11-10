@@ -202,6 +202,20 @@ process_pr() {
       dry || { gh pr edit "$n" --remove-label "$label" >/dev/null 2>&1; }  # head moved: resume
     fi
   fi
+  # GitHub can index a pull_request run after a close/reopen re-trigger has
+  # already been evaluated.  A successful run for the stopped head is
+  # authoritative: automatically resume instead of leaving a false permanent
+  # `validation-never-ran` stop behind.
+  if [[ "$stopped" == true && "$val" == success ]] \
+     && jq -e --arg k "validation-never-ran:${head}" '(.escalated // []) | index($k)' <<<"$st" >/dev/null; then
+    st=$(jq -c --arg k "validation-never-ran:${head}" \
+      '.attempts = 0 | .escalated = [(.escalated // [])[] | select(. != $k)] | del(.stopped_head, .reopen, .validation_missing_since_epoch)' <<<"$st")
+    attempts=0; stopped=false
+    dry || { gh pr edit "$n" --remove-label "$label" >/dev/null 2>&1; put_state "$n" "$st" "validation appeared and passed after the visibility delay; resuming"; }
+  fi
+  if [[ "$val" != missing ]] && jq -e 'has("validation_missing_since_epoch")' <<<"$st" >/dev/null; then
+    st=$(jq -c 'del(.validation_missing_since_epoch)' <<<"$st")
+  fi
   # One-time migration: stops caused by now-fixed automation defects (deleted-file
   # staging, inherited TARGET_PR, premature action_required) get a fresh budget
   # once per FIX_VERSION. Security stops (restricted-conflict, etc.) are untouched.
@@ -273,7 +287,21 @@ process_pr() {
         | { read -r id; [[ -n "$id" ]] && gh run rerun "$id" >/dev/null 2>&1; } || INFRA=1 ;;
     retrigger)
       # No pull_request run exists for this head (bot push that did not fire,
-      # or a lost event). Close/reopen is the supported way to re-emit it.
+      # or a lost event).  First allow GitHub five minutes to index the event;
+      # otherwise consecutive maintenance triggers can incorrectly exhaust the
+      # two close/reopen attempts before the check appears.
+      local now missing_since
+      now=$(date +%s)
+      missing_since=$(jq -r '.validation_missing_since_epoch // 0' <<<"$st")
+      if (( missing_since == 0 )); then
+        st=$(jq -c --argjson t "$now" '.validation_missing_since_epoch = $t' <<<"$st")
+        put_state "$n" "$st" "awaiting GitHub validation visibility for ${head:0:8} before any re-trigger"
+        return
+      fi
+      if (( now - missing_since < 300 )); then
+        echo "PR #$n: validation is still within GitHub's five-minute visibility window"
+        return
+      fi
       if [[ $(jq -r '.reopen // 0' <<<"$st") -lt 2 ]]; then
         gh pr close "$n" >/dev/null 2>&1 && gh pr reopen "$n" >/dev/null 2>&1 \
           && put_state "$n" "$(jq -c '.reopen = ((.reopen // 0) + 1)' <<<"$st")" "validation re-triggered for ${head:0:8}" || INFRA=1
