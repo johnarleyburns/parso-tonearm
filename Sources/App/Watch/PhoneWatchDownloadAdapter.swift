@@ -48,16 +48,19 @@ public struct PhoneWatchLibraryAudioResolver: PhoneWatchAudioResolving {
             return .unsupported(reason: reason)
         }
         if let url = Self.localURL(for: asset), PhoneWatchAudioPreparation.isReadable(url) {
-            return .ready(bytes: Self.byteCount(of: url) ?? asset.sizeBytes, sha256: nil)
+            return .ready(bytes: PhoneWatchAudioPreparation.estimatedWatchBytes(
+                durationSec: row.track.durationSec, sourceBytes: Self.byteCount(of: url) ?? asset.sizeBytes), sha256: nil)
         }
         // A playable remote track may be streaming-only on the phone. It is still transferable:
         // `resolve` materializes it into the durable stream cache immediately before dispatch.
         // Keep requested file references in the job pipeline even if the provider
         // no longer exposes them: resolve will report a visible preparation failure
         // instead of leaving a root with no job on "Waiting for the iPhone".
-        if asset.kind != .remote { return .ready(bytes: asset.sizeBytes, sha256: nil) }
+        let estimate = PhoneWatchAudioPreparation.estimatedWatchBytes(
+            durationSec: row.track.durationSec, sourceBytes: asset.sizeBytes)
+        if asset.kind != .remote { return .ready(bytes: estimate, sha256: nil) }
         guard asset.remoteURL.flatMap(URL.init(string:)) != nil else { return .unavailable }
-        return .ready(bytes: asset.sizeBytes, sha256: nil)
+        return .ready(bytes: estimate, sha256: nil)
     }
 
     private func resolveRow(_ id: WatchTrackID) async throws -> TrackRow? {

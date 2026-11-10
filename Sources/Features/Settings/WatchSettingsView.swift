@@ -69,6 +69,15 @@ struct WatchSettingsView: View {
                 Divider().overlay(Palette.hairline).padding(.vertical, 2)
                 Text("Downloaded \(storage.trackCount) tracks · \(bytes(storage.installedBytes))")
                     .font(Typography.callout)
+                if storage.hasReportedCapacity {
+                    let used = max(0, storage.capacityBytes - storage.freeBytes)
+                    Text("\(bytes(used)) of \(bytes(storage.capacityBytes)) used · \(bytes(storage.freeBytes)) available")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkSecondary)
+                    if let fraction = storage.usedFraction {
+                        ProgressView(value: fraction)
+                    }
+                }
             }
         }
         .padding(15)

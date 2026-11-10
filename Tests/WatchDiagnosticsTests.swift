@@ -30,7 +30,6 @@ final class WatchDiagnosticsTests: XCTestCase {
         XCTAssertTrue(view.contains("diagnostics.snapshot()"))
         XCTAssertFalse(view.contains("await "))
         let phone = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/WatchSettingsView.swift"), encoding: .utf8)
-        XCTAssertFalse(phone.contains("storage.usedFraction"))
         XCTAssertFalse(phone.contains("Total watch storage used"))
     }
 
