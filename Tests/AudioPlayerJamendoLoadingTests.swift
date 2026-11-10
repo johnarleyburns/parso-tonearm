@@ -93,6 +93,26 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertFalse(spy.urls.contains(stale))
     }
 
+    /// Issue #325: a fully downloaded Jamendo track must play from its local cache without a
+    /// live locator resolve; an incomplete cache still resolves (covered by the test above).
+    func testCompletelyCachedJamendoRowSkipsLiveResolve() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let staleURL = try XCTUnwrap(URL(string: stale))
+        let key = AudioCache.key(for: staleURL)
+        let blob = AudioCache.fileURL(for: key)
+        try FileManager.default.createDirectory(at: blob.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(count: 1000).write(to: blob)
+        await AudioCache.shared.adoptCompleteFile(byteCount: 1000, for: key, durable: false)
+        addTeardownBlock { await AudioCache.shared.remove(keys: [key]) }
+        XCTAssertTrue(AudioCache.completeCacheExists(for: staleURL))
+
+        load([jamendo()])
+        await settle()
+        XCTAssertEqual(spy.refreshes, 0, "complete local file must not hit the network resolver")
+        XCTAssertEqual(spy.urls, [stale], "item is built from the cached URL, not a re-signed one")
+    }
+
     func testDropboxRowIsReResolvedThroughFreshenerBeforeItemIsBuilt() async throws {
         let spy = Spy()
         try install(spy: spy)

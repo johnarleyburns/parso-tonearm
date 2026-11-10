@@ -78,6 +78,15 @@ extension AudioPlayer {
         }
 
         if row.source?.kind == .jamendoGenre, asset.kind == .remote {
+            // A fully downloaded copy needs no network or signed URL at all: play it from the cache
+            // under the URL it was cached with instead of re-resolving (a re-signed URL is a
+            // different cache key and would needlessly stream a file already on disk).
+            if let cachedString = asset.remoteURL, let cachedURL = URL(string: cachedString),
+               AudioCache.completeCacheExists(for: cachedURL),
+               FileManager.default.fileExists(atPath: AudioCache.fileURL(for: AudioCache.key(for: cachedURL)).path) {
+                finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
+                return
+            }
             startOrdinaryJamendoLoad(OrdinaryJamendoLoad(row: row, asset: asset, occurrence: occurrence,
                                                          generation: generation, retried: false),
                                      autoplay: autoplay)
