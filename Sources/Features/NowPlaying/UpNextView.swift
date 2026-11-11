@@ -303,7 +303,8 @@ private struct QueueRow: View {
 
             ArtworkView(trackRow: row,
                         seed: row.album?.title ?? row.track.title,
-                        cornerRadius: 6)
+                        cornerRadius: 6,
+                        thumbnailMaxDimension: 34)
                 .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 1) {
