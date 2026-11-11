@@ -57,6 +57,21 @@ final class NowPlayingRegressionUITests: XCTestCase {
         XCTAssertTrue(app.waitFor("np.playpause").isHittable, "controls reachable after scrolling back up")
     }
 
+    /// Queue rows use bounded 34pt thumbnails, so scrolling a long queue must
+    /// stay smooth. Hand-run lane: record the measurement before/after the fix.
+    /// Uses the scroll-deceleration signpost metric (requires a queue longer
+    /// than the screen; the regression launch seeds a multi-track queue).
+    func testQueueScrollPerformance() throws {
+        app = .launchForRegression()
+        openNowPlaying()
+        let list = app.element("np.queue.list")
+        XCTAssertTrue(list.waitForExistence(timeout: 10), "np.queue.list must exist")
+        measure(metrics: [XCTOSSignpostMetric.scrollDecelerationMetric]) {
+            app.swipeUp()
+            app.swipeDown()
+        }
+    }
+
     /// D-2 · Artwork is never covered by a "Tap to Change" affordance, and
     /// changing artwork lives in the overflow menu instead.
     func testArtworkHasNoOverlayAndArtworkActionsLiveInOverflow() throws {
