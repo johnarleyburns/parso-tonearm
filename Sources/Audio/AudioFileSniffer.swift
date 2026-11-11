@@ -26,4 +26,26 @@ public enum AudioFileSniffer {
         if let first = bytes.first, first == 0x7B || first == 0x5B || first == 0x3C { return false } // JSON object/array, or HTML
         return true
     }
+
+    /// Best-effort MIME type from a blob's leading bytes, used as the AVFoundation format hint for
+    /// an extensionless cache blob whose URL/provider gave no type. `nil` when unrecognized.
+    public static func mimeType(prefix: Data) -> String? {
+        let bytes = [UInt8](prefix)
+        guard bytes.count >= 4 else { return nil }
+        if bytes.starts(with: [0x49, 0x44, 0x33]) { return "audio/mpeg" }
+        if bytes.starts(with: [0x66, 0x4C, 0x61, 0x43]) { return "audio/flac" }
+        if bytes.starts(with: [0x4F, 0x67, 0x67, 0x53]) { return "audio/ogg" }
+        if bytes.starts(with: [0x52, 0x49, 0x46, 0x46]) { return "audio/wav" }
+        if bytes.starts(with: [0x46, 0x4F, 0x52, 0x4D]) { return "audio/aiff" }
+        if bytes.count >= 8, bytes[4...7].elementsEqual([0x66, 0x74, 0x79, 0x70]) { return "audio/mp4" }
+        if bytes[0] == 0xFF, (bytes[1] & 0xE0) == 0xE0 { return "audio/mpeg" }
+        return nil
+    }
+
+    /// Leading bytes of `url` (up to 64), or `nil` if unreadable.
+    public static func readPrefix(of url: URL) -> Data? {
+        guard let handle = FileHandle(forReadingAtPath: url.path) else { return nil }
+        defer { try? handle.close() }
+        return handle.readData(ofLength: 64)
+    }
 }

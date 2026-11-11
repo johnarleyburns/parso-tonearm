@@ -60,6 +60,17 @@ public enum AudioCache {
         layout.completeBlobExists(for: key(for: remote))
     }
 
+    /// The complete cached blob for `remote` only if it exists AND its bytes look like audio.
+    /// Single predicate shared by local playback eligibility and the "100% CACHED" display.
+    public static func playableCompleteBlobURL(for remote: URL) -> URL? {
+        let key = key(for: remote)
+        guard layout.completeBlobExists(for: key) else { return nil }
+        let url = layout.blobURL(for: key)
+        guard let prefix = AudioFileSniffer.readPrefix(of: url),
+              AudioFileSniffer.looksLikeAudio(prefix: prefix) else { return nil }
+        return url
+    }
+
     /// The on-disk blob for `remote`, but only once it is fully cached — never a hint to start
     /// a fetch. Lets `ArtworkService` try reading embedded ID3/MP4 tag artwork for a remote
     /// provider that doesn't supply its own (a cloud-drive track, or a Jellyfin item missing a

@@ -82,8 +82,7 @@ extension AudioPlayer {
             // under the URL it was cached with instead of re-resolving (a re-signed URL is a
             // different cache key and would needlessly stream a file already on disk).
             if let cachedString = asset.remoteURL, let cachedURL = URL(string: cachedString),
-               AudioCache.completeCacheExists(for: cachedURL),
-               FileManager.default.fileExists(atPath: AudioCache.fileURL(for: AudioCache.key(for: cachedURL)).path) {
+               AudioCache.playableCompleteBlobURL(for: cachedURL) != nil {
                 finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
                 return
             }
@@ -312,12 +311,15 @@ extension AudioPlayer {
             // play it directly and provide AVFoundation the format hint it cannot infer
             // from the extensionless cache filename.  This also makes cached playback
             // independent of Jamendo's current signed URL response.
-            if AudioCache.completeCacheExists(for: remote) {
-                let cachedURL = AudioCache.fileURL(for: AudioCache.key(for: remote))
-                if FileManager.default.fileExists(atPath: cachedURL.path) {
-                    loadingLog.notice("loadCurrent: using complete cached file for \(remote.absoluteString, privacy: .public) mime=\(assetOptions[AVURLAssetOverrideMIMETypeKey] as? String ?? "none", privacy: .public)")
-                    return (AVPlayerItem(asset: AVURLAsset(url: cachedURL, options: assetOptions)), nil)
+            if let cachedURL = AudioCache.playableCompleteBlobURL(for: remote) {
+                var cachedOptions = assetOptions
+                if cachedOptions[AVURLAssetOverrideMIMETypeKey] == nil,
+                   let prefix = AudioFileSniffer.readPrefix(of: cachedURL),
+                   let sniffed = AudioFileSniffer.mimeType(prefix: prefix) {
+                    cachedOptions[AVURLAssetOverrideMIMETypeKey] = sniffed
                 }
+                loadingLog.notice("loadCurrent: using complete cached file for \(remote.absoluteString, privacy: .public) mime=\(cachedOptions[AVURLAssetOverrideMIMETypeKey] as? String ?? "none", privacy: .public)")
+                return (AVPlayerItem(asset: AVURLAsset(url: cachedURL, options: cachedOptions)), nil)
             }
 
             if !asset.transientRemoteSupportsByteRanges {
@@ -444,7 +446,7 @@ extension AudioPlayer {
               let remote = URL(string: urlString) else {
             return asset.kind != .remote
         }
-        return AudioCache.completeCacheExists(for: remote)
+        return AudioCache.playableCompleteBlobURL(for: remote) != nil
     }
 
     func skipCurrentForWiFiOnly(row: TrackRow) {
