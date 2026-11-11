@@ -1,56 +1,96 @@
 import Foundation
 import StoreKit
 
+/// Result of asking the App Store for the contribution product. Speaks in the store's own
+/// vocabulary so feature UI and tests never touch StoreKit types.
+public enum SupportProductLookup: Equatable, Sendable {
+    /// The App Store returned a product with this ID and localized price.
+    case found(productID: String, displayPrice: String)
+    /// The lookup succeeded but the App Store has no such product for this build/storefront.
+    case productNotFound
+    /// StoreKit/network failure; `diagnostic` keeps the underlying error context.
+    case failed(diagnostic: String)
+}
+
+/// Outcome of a purchase attempt.
+public enum SupportPurchaseOutcome: Equatable, Sendable {
+    /// A verified transaction for the contribution product, already finished.
+    case success(productID: String)
+    case cancelled
+    case pending
+    case unverified
+    case productNotFound
+    case failed(diagnostic: String)
+}
+
+public enum SupportLoadState: Equatable, Sendable {
+    case notLoaded
+    case ready
+    case unavailable
+    case failed(diagnostic: String)
+}
+
 /// Injection seam for tests. StoreKit's `Product`/`Transaction` have no public initializer
-/// outside Apple's simulator-only `StoreKitTest` framework (and that needs an Xcode scheme with
-/// a `.storekit` config attached), so `SupportDevelopmentStore`'s purchase/load business logic
-/// had never been exercised by a test at all. This speaks in the store's own vocabulary — a
-/// display price string and a purchase-succeeded bool — instead of StoreKit's types.
+/// outside Apple's simulator-only `StoreKitTest` framework.
 public protocol SupportDevelopmentPurchasing: Sendable {
-    /// The product's localized display price, or nil if unavailable.
-    func loadProduct() async -> String?
-    /// Whether a verified purchase transaction completed.
-    func purchase() async -> Bool
+    func loadProduct() async -> SupportProductLookup
+    func purchase() async -> SupportPurchaseOutcome
 }
 
 /// The real StoreKit-backed implementation. Kept in this same file so the StoreKit import
 /// boundary guard (`scripts/check-ci-guards.sh`) still only ever sees `import StoreKit` here.
-/// `public` (and an explicit `public init()`) because it's referenced as a default argument
-/// value in `SupportDevelopmentStore`'s own `public init` — a default argument must be at least
-/// as visible as the initializer it belongs to.
 public struct LiveSupportDevelopmentPurchasing: SupportDevelopmentPurchasing {
     public init() {}
 
-    public func loadProduct() async -> String? {
-        let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
-        return product?.displayPrice
+    static func diagnostic(_ error: Error) -> String {
+        let ns = error as NSError
+        return "\(error.localizedDescription) (\(ns.domain) \(ns.code))"
     }
 
-    public func purchase() async -> Bool {
-        guard let product = try? await Product.products(for: [SupportDevelopmentStore.productID]).first
-        else { return false }
+    public func loadProduct() async -> SupportProductLookup {
+        do {
+            let products = try await Product.products(for: [SupportDevelopmentStore.productID])
+            guard let product = products.first(where: { $0.id == SupportDevelopmentStore.productID }) else {
+                return .productNotFound
+            }
+            return .found(productID: product.id, displayPrice: product.displayPrice)
+        } catch {
+            return .failed(diagnostic: Self.diagnostic(error))
+        }
+    }
+
+    public func purchase() async -> SupportPurchaseOutcome {
+        let product: Product
+        do {
+            let products = try await Product.products(for: [SupportDevelopmentStore.productID])
+            guard let found = products.first(where: { $0.id == SupportDevelopmentStore.productID }) else {
+                return .productNotFound
+            }
+            product = found
+        } catch {
+            return .failed(diagnostic: Self.diagnostic(error))
+        }
         do {
             switch try await product.purchase() {
             case .success(let verification):
-                guard case .verified(let transaction) = verification else { return false }
+                guard case .verified(let transaction) = verification else { return .unverified }
                 guard transaction.productID == SupportDevelopmentStore.productID else {
-                    // Not our product — finish it anyway so it does not linger as an
-                    // unfinished transaction forever, but this call did not earn it.
+                    // Not our product — finish it so it does not linger, but it earns nothing.
                     await transaction.finish()
-                    return false
+                    return .failed(diagnostic: "Unexpected product \(transaction.productID)")
                 }
-                // Consumables must be finished for StoreKit to consider them delivered;
-                // unlike the Pro non-consumable, there is no entitlement for a re-launch
-                // to re-derive, so finishing is the only step here.
+                // Consumables must be finished for StoreKit to consider them delivered.
                 await transaction.finish()
-                return true
-            case .userCancelled, .pending:
-                return false
+                return .success(productID: transaction.productID)
+            case .userCancelled:
+                return .cancelled
+            case .pending:
+                return .pending
             @unknown default:
-                return false
+                return .failed(diagnostic: "Unknown purchase result")
             }
         } catch {
-            return false
+            return .failed(diagnostic: Self.diagnostic(error))
         }
     }
 }
@@ -90,6 +130,8 @@ public final class SupportDevelopmentStore: ObservableObject {
 
     @Published public private(set) var purchasing = false
     @Published public private(set) var didAttemptProductLoad = false
+    @Published public private(set) var loadState: SupportLoadState = .notLoaded
+    @Published public private(set) var lastPurchaseOutcome: SupportPurchaseOutcome?
     /// What the App Store says this product costs, once asked, or nil while unanswered/
     /// unavailable. Never a hardcoded price — see `displayPrice`'s own doc.
     @Published private var loadedDisplayPrice: String?
@@ -119,46 +161,87 @@ public final class SupportDevelopmentStore: ObservableObject {
     }
 
     /// Ask the App Store what this product is and costs, right now. Safe to
-    /// call repeatedly — the settings card calls it on appear.
+    /// call repeatedly — the settings row calls it on appear.
     public func loadProduct() async {
-        loadedDisplayPrice = await purchasing_.loadProduct()
+        let lookup = await purchasing_.loadProduct()
+        switch lookup {
+        case .found(let id, let price) where id == Self.productID:
+            loadedDisplayPrice = price
+            loadState = .ready
+        case .found:
+            // Any other product ID is never purchasable here.
+            loadedDisplayPrice = nil
+            loadState = .unavailable
+        case .productNotFound:
+            loadedDisplayPrice = nil
+            loadState = .unavailable
+        case .failed(let diagnostic):
+            loadedDisplayPrice = nil
+            loadState = .failed(diagnostic: diagnostic)
+        }
         didAttemptProductLoad = true
     }
 
     /// StoreKit's own localised price, or an honest placeholder until it
-    /// answers — never a hardcoded "$9.99" (the same reasoning as
-    /// above).
+    /// answers — never a hardcoded price.
     public var displayPrice: String { loadedDisplayPrice ?? "—" }
 
     /// Whether the App Store is actually offering the product right now.
     public var isPurchaseAvailable: Bool { loadedDisplayPrice != nil }
 
-    /// A specific, user-facing reason the purchase button is disabled — never nil while
-    /// there's nothing to report, and never a bare dead control with no explanation (CLAUDE.md
-    /// "no silent/magic background work"). `nil` before any load attempt (that's just "still
-    /// loading", already shown elsewhere) and once a product has loaded successfully.
-    public var unavailableReason: String? {
-        Self.unavailableReason(didAttemptLoad: didAttemptProductLoad, isAvailable: isPurchaseAvailable)
+    /// A specific, user-facing reason the contribution can't be offered, distinguishing a
+    /// missing product from a StoreKit/network failure. `nil` while loading or when ready.
+    public var unavailableReason: String? { Self.unavailableReason(for: loadState) }
+
+    nonisolated static func unavailableReason(for state: SupportLoadState) -> String? {
+        switch state {
+        case .notLoaded, .ready:
+            return nil
+        case .unavailable:
+            return String(localized: "The contribution isn't available from the App Store right now.")
+        case .failed:
+            return String(localized: "The App Store couldn't load the contribution. Tap to try again.")
+        }
     }
 
-    /// `nonisolated` — a pure function with no state access, but called directly from
-    /// non-`@MainActor` test code; `SupportDevelopmentStore` being `@MainActor` would otherwise
-    /// make this implicitly isolated too.
-    nonisolated static func unavailableReason(didAttemptLoad: Bool, isAvailable: Bool) -> String? {
-        guard didAttemptLoad, !isAvailable else { return nil }
-        return String(localized: "Couldn't reach the App Store to load the price. Check your connection and reopen Settings.")
+    /// Diagnostic text of the last StoreKit failure (lookup or purchase), for diagnosis.
+    public var lastDiagnostic: String? {
+        if case .failed(let d) = loadState { return d }
+        if case .failed(let d) = lastPurchaseOutcome { return d }
+        return nil
     }
 
-    /// Initiates the one-time, optional purchase. Returns whether it was
-    /// verified. Never gates anything on the result — the caller only shows a
-    /// thank-you and the Supporter badge appears.
+    /// Initiates the one-time, optional purchase. Returns whether it was verified. Never gates
+    /// anything on the result. Ignored while a purchase is already in flight, or when the
+    /// product is not the one this build offers.
     @discardableResult
     public func purchase() async -> Bool {
+        guard !purchasing else { return false }
         purchasing = true
         defer { purchasing = false }
-        let ok = await purchasing_.purchase()
-        if ok { markSupporter() }
-        return ok
+        let outcome = await purchasing_.purchase()
+        lastPurchaseOutcome = outcome
+        if case .success(let id) = outcome, id == Self.productID {
+            markSupporter()
+            return true
+        }
+        return false
+    }
+
+    /// User-facing message for the last non-success purchase outcome, if any.
+    public var purchaseErrorMessage: String? {
+        switch lastPurchaseOutcome {
+        case .none, .success, .cancelled:
+            return nil
+        case .pending:
+            return String(localized: "Your contribution is pending approval.")
+        case .unverified:
+            return String(localized: "The App Store couldn't verify the purchase. Nothing was unlocked.")
+        case .productNotFound:
+            return String(localized: "The contribution isn't available from the App Store right now.")
+        case .failed:
+            return String(localized: "The contribution did not complete. Please try again.")
+        }
     }
 
     // MARK: - Verification

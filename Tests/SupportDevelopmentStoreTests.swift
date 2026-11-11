@@ -5,19 +5,27 @@ import XCTest
 /// initializer outside StoreKitTest (simulator-only), so this fake speaks in
 /// the store's own vocabulary instead of StoreKit's.
 final class FakeSupportDevelopmentPurchasing: SupportDevelopmentPurchasing, @unchecked Sendable {
-    var stubbedDisplayPrice: String?
-    var stubbedPurchaseResult = false
+    var stubbedLookup: SupportProductLookup = .productNotFound
+    var stubbedOutcome: SupportPurchaseOutcome = .cancelled
+    var stubbedDisplayPrice: String? {
+        get { nil }
+        set { stubbedLookup = newValue.map { .found(productID: SupportDevelopmentStore.productID, displayPrice: $0) } ?? .productNotFound }
+    }
+    var stubbedPurchaseResult: Bool {
+        get { stubbedOutcome == .success(productID: SupportDevelopmentStore.productID) }
+        set { stubbedOutcome = newValue ? .success(productID: SupportDevelopmentStore.productID) : .cancelled }
+    }
     private(set) var loadCallCount = 0
     private(set) var purchaseCallCount = 0
 
-    func loadProduct() async -> String? {
+    func loadProduct() async -> SupportProductLookup {
         loadCallCount += 1
-        return stubbedDisplayPrice
+        return stubbedLookup
     }
 
-    func purchase() async -> Bool {
+    func purchase() async -> SupportPurchaseOutcome {
         purchaseCallCount += 1
-        return stubbedPurchaseResult
+        return stubbedOutcome
     }
 }
 
@@ -134,5 +142,45 @@ final class SupportDevelopmentStoreTests: XCTestCase {
         XCTAssertEqual(fakeB.purchaseCallCount, 1)
         XCTAssertTrue(storeA.isSupporter)
         XCTAssertFalse(storeB.isSupporter)
+    }
+
+    func testWrongProductLookupIsUnavailable() async {
+        let fake = FakeSupportDevelopmentPurchasing()
+        fake.stubbedLookup = .found(productID: "other.product", displayPrice: "$1.00")
+        let store = makeStore(purchasing: fake)
+        await store.loadProduct()
+        XCTAssertEqual(store.loadState, .unavailable)
+        XCTAssertFalse(store.isPurchaseAvailable)
+    }
+
+    func testProductNotFoundAndTransportFailureAreDistinct() async {
+        let fake = FakeSupportDevelopmentPurchasing()
+        let store = makeStore(purchasing: fake)
+        fake.stubbedLookup = .productNotFound
+        await store.loadProduct()
+        XCTAssertEqual(store.loadState, .unavailable)
+        let notFoundReason = store.unavailableReason
+        fake.stubbedLookup = .failed(diagnostic: "offline (NSURLErrorDomain -1009)")
+        await store.loadProduct()
+        XCTAssertEqual(store.loadState, .failed(diagnostic: "offline (NSURLErrorDomain -1009)"))
+        XCTAssertEqual(store.lastDiagnostic, "offline (NSURLErrorDomain -1009)")
+        XCTAssertNotNil(store.unavailableReason)
+        XCTAssertNotEqual(store.unavailableReason, notFoundReason)
+    }
+
+    func testNonSuccessOutcomesLeaveSupporterFalse() async {
+        let outcomes: [SupportPurchaseOutcome] = [
+            .cancelled, .pending, .unverified, .productNotFound, .failed(diagnostic: "x"),
+            .success(productID: "other.product")]
+        for outcome in outcomes {
+            let fake = FakeSupportDevelopmentPurchasing()
+            fake.stubbedOutcome = outcome
+            let store = makeStore(purchasing: fake)
+            let ok = await store.purchase()
+            XCTAssertFalse(ok, "\(outcome)")
+            XCTAssertFalse(store.isSupporter, "\(outcome)")
+            XCTAssertFalse(store.purchasing)
+            XCTAssertEqual(store.lastPurchaseOutcome, outcome)
+        }
     }
 }
