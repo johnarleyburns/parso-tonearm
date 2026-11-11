@@ -62,7 +62,13 @@ final class RootTabNavigationContractTests: XCTestCase {
                      "Sources/Features/Listen/ListenView.swift", "Sources/Features/MyMusic/MyMusicView.swift",
                      "Sources/Features/Find/FindView.swift"] {
             let text = try source(path)
-            XCTAssertFalse(text.contains("hiddenNavigationBar"), path)
+            // Find may hide its bar only conditionally (while the search field is focused).
+            if path.hasSuffix("Find/FindView.swift") {
+                XCTAssertFalse(text.contains(".hiddenNavigationBar()"), path)
+                XCTAssertTrue(text.contains(".hiddenNavigationBar(when: queryFocused"), path)
+            } else {
+                XCTAssertFalse(text.contains("hiddenNavigationBar"), path)
+            }
             XCTAssertFalse(text.contains(".navigationBarHidden"), path)
             XCTAssertFalse(text.contains(".toolbar(.hidden, for: .navigationBar)"), path)
             XCTAssertFalse(text.contains("ScreenHeader"), path)

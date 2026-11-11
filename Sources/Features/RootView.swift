@@ -24,11 +24,16 @@ struct RootView: View {
     /// `UIHostingController`-hosted `TabView`'s own content can still receive a touch that lands
     /// in that unreserved gap. The tail here must equal that same `58` exactly, not a smaller,
     /// separately-guessed number.
-    private var accessoryHeight: CGFloat {
-        guard !appState.showNowPlaying else { return 0 }
-        let count = (player.currentTrack != nil ? 1 : 0) + (showsTransferBanner ? 1 : 0)
-        return count == 0 ? 0 : CGFloat(count) * 56 + CGFloat(count - 1) * 4 + 58
+    private var chrome: FindSearchChromeState {
+        FindSearchChromeState(
+            isFindActive: appState.tab == .find,
+            isQueryFocused: appState.findQueryFocused,
+            hasCurrentTrack: player.currentTrack != nil,
+            hasTransferBanner: showsTransferBanner,
+            isNowPlayingPresented: appState.showNowPlaying)
     }
+
+    private var accessoryHeight: CGFloat { chrome.accessoryHeight }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -54,6 +59,9 @@ struct RootView: View {
         .task { await announceWatchConnection() }
         .tint(Palette.accent)
         .modifier(AppPresentations())
+        .onChange(of: appState.tab) { _, tab in
+            if tab != .find { appState.findQueryFocused = false }
+        }
         .onChange(of: appState.watchManagement.banner == nil) { _, empty in
             if empty { transferBannerDismissed = false }
         }
@@ -117,10 +125,10 @@ struct RootView: View {
     @ViewBuilder
     private var tabAccessory: some View {
         VStack(spacing: 4) {
-            if showsTransferBanner {
+            if chrome.showsTransferBanner {
                 TransferPill { transferBannerDismissed = true }
             }
-            if player.currentTrack != nil {
+            if chrome.showsMiniPlayer {
                 MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
                     // Recreate the accessory when a playlist tap replaces an
                     // existing queue item so SwiftUI cannot retain an empty

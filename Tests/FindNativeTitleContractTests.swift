@@ -8,9 +8,12 @@ final class FindNativeTitleContractTests: XCTestCase {
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
         XCTAssertFalse(s.contains("ScreenHeader("), "custom Find header must be gone")
-        XCTAssertFalse(s.contains("hiddenNavigationBar"), "Find root must not hide its bar")
-        XCTAssertTrue(s.contains(".navigationTitle(\"Find\")"))
+        XCTAssertFalse(s.contains(".hiddenNavigationBar()"), "Find root must only hide its bar conditionally")
+        XCTAssertTrue(s.contains(".navigationTitle(\"Find\")"), "unfocused Find keeps the native title")
         XCTAssertTrue(s.contains(".largeNavigationTitle()"))
+        // Focused query: conditional bar hiding driven by the same signal the root shell reads.
+        XCTAssertTrue(s.contains("hiddenNavigationBar(when: queryFocused"))
+        XCTAssertTrue(s.contains("appState.findQueryFocused = "))
         XCTAssertTrue(s.contains("\"find.results\""))
         XCTAssertTrue(s.contains("\"find.awaitingQuery\""))
     }

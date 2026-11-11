@@ -13,6 +13,7 @@ struct FindView: View {
     @State private var mixKey: String?
     @State private var soundSearchRows: [TrackRow]?
     @State private var soundSearchRevision = 0
+    @State private var queryFocused = false
 
     static let contentMinHeight: CGFloat = 320
 
@@ -41,7 +42,8 @@ struct FindView: View {
                                               onSoundRows: { rows in
                                                   soundSearchRows = rows
                                                   soundSearchRevision &+= 1
-                                              })
+                                              },
+                                              isQueryFocused: $queryFocused)
                         findScopePicker
                     }
                     .fixedSize(horizontal: false, vertical: true)
@@ -69,7 +71,21 @@ struct FindView: View {
             .background(Palette.libraryBackground.ignoresSafeArea())
             .navigationTitle("Find")
             .largeNavigationTitle()
+            .hiddenNavigationBar(when: queryFocused && mode != .mix)
             .rootTabChrome(.find)
+        }
+        .onChange(of: queryFocused) { _, focused in
+            appState.findQueryFocused = focused
+        }
+        .onChange(of: appState.tab) { _, tab in
+            if tab != .find { queryFocused = false }
+        }
+        .onChange(of: appState.showNowPlaying) { _, showing in
+            if showing { queryFocused = false }
+        }
+        .onDisappear {
+            queryFocused = false
+            appState.findQueryFocused = false
         }
         .task(id: appState.didLoadLibraryOnce) {
             guard appState.didLoadLibraryOnce else { return }
