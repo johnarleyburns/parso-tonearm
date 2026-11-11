@@ -57,7 +57,11 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         "https://stale.example"
     ]
 
-    private func purgeFixtureCacheEntries() {
+    /// `static` so this never has to "send" `self` across an isolation boundary
+    /// from `setUp`/`tearDown` (Swift 6 region isolation flags that as a data-race
+    /// risk even though every call here is synchronous) - it only needs the
+    /// `static let fixtureURLs` and `AudioCache`'s own nonisolated statics.
+    private static func purgeFixtureCacheEntries() {
         for string in Self.fixtureURLs {
             guard let url = URL(string: string) else { continue }
             let key = AudioCache.key(for: url)
@@ -69,7 +73,7 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        purgeFixtureCacheEntries()
+        Self.purgeFixtureCacheEntries()
         savedResolver = AudioPlayer.shared.catalogPlaybackURLResolver
     }
 
@@ -93,7 +97,7 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertTrue(AudioCache.completeCacheExists(for: url),
                      "fixture setup must actually simulate a prior complete cache entry")
 
-        purgeFixtureCacheEntries()
+        Self.purgeFixtureCacheEntries()
 
         XCTAssertFalse(AudioCache.completeCacheExists(for: url),
                       "a stale complete cache entry must not survive setUp/tearDown, or it silently " +
@@ -101,7 +105,7 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
     }
 
     override func tearDown() {
-        purgeFixtureCacheEntries()
+        Self.purgeFixtureCacheEntries()
         let p = AudioPlayer.shared
         p.ordinaryBuildItemHook = nil
         p.catalogPlaybackURLResolver = savedResolver
