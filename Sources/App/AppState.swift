@@ -68,6 +68,9 @@ final class AppState: ObservableObject {
     var pendingRemotePersists: [String: Task<TrackRow?, Never>] = [:]
     @Published var listeningStats: ListeningStats.Summary = .empty
     @Published var searchText: String = ""
+    /// True only while the Find query field has keyboard focus. The root shell combines it with
+    /// the active tab (`FindSearchChromeState`) so a stale value can never hide other tabs' chrome.
+    @Published var findQueryFocused: Bool = false
     @Published var searchResults: [TrackRow] = []
     /// Shared musical metadata for My Music and the DJ load browser.  This is
     /// refreshed from the same persisted discovery/DJ-prep records after a

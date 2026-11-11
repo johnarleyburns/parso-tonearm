@@ -51,6 +51,8 @@ struct MyMusicSearchControls: View {
     @Binding var bpmPreset: MixBPMPreset?
     @Binding var mixKey: String?
     let onSoundRows: ([TrackRow]?) -> Void
+    /// Mirrors keyboard focus of the query field (By Name / By Mood only).
+    var isQueryFocused: Binding<Bool> = .constant(false)
 
     @State private var soundModel: DiscoverySearchViewModel?
 
@@ -106,7 +108,10 @@ struct MyMusicSearchControls: View {
         .onChange(of: mode) { _, newMode in
             // The single top text field exists in By Name and By Mood only; By BPM/Key has no
             // free-text input, so a query left behind would filter with nothing to clear it.
-            if newMode == .mix { appState.searchText = "" }
+            if newMode == .mix {
+                appState.searchText = ""
+                isQueryFocused.wrappedValue = false
+            }
             if newMode != .mix {
                 bpmPreset = nil
                 mixKey = nil
@@ -129,7 +134,8 @@ struct MyMusicSearchControls: View {
         // library list below doesn't show its own field inside My Music, so this is it.
         // On Mac the same search lives in the window toolbar (⌘F).
         #if os(iOS)
-        SearchField(text: $appState.searchText, placeholder: mode == .sound ? "Describe a sound, e.g. warm analog pads" : "Search all your music…")
+        SearchField(text: $appState.searchText, placeholder: mode == .sound ? "Describe a sound, e.g. warm analog pads" : "Search all your music…",
+                    isFocused: isQueryFocused)
             .accessibilityIdentifier("mymusic.search.text")
         #else
         EmptyView()

@@ -30,6 +30,47 @@ final class TonearmSmokeUITests: XCTestCase {
         XCTAssertFalse(element("settings.section.playback").exists)
     }
 
+    func testFindQueryFocusHidesTitleAndMiniPlayerThenRestores() throws {
+        launch()
+        app.buttons["My Music"].tap()
+        app.buttons["mymusic.scope.playlists"].tap()
+        element("playlist.ambient").tap()
+        element("ambient.track.ambient-rain").coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["mini.title"].waitForExistence(timeout: 10))
+
+        app.buttons["Find"].tap()
+        XCTAssertTrue(app.staticTexts["mini.title"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Find"].waitForExistence(timeout: 10))
+
+        for mode in ["find.mode.all", "find.mode.mood"] {
+            app.buttons[mode].tap()
+            let field = app.textFields["mymusic.search.text"]
+            XCTAssertTrue(field.waitForExistence(timeout: 10))
+            field.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 10))
+            XCTAssertTrue(waitForGone(app.navigationBars["Find"]), "Find nav chrome must hide on focus")
+            XCTAssertTrue(waitForGone(app.staticTexts["mini.title"]), "Mini-player must hide on focus")
+            XCTAssertTrue(element("find.awaitingQuery").isHittable)
+            app.keyboards.buttons["return"].tap()
+            XCTAssertTrue(app.navigationBars["Find"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["mini.title"].waitForExistence(timeout: 10))
+        }
+
+        app.buttons["find.mode.mix"].tap()
+        XCTAssertFalse(app.textFields["mymusic.search.text"].exists)
+        XCTAssertTrue(app.navigationBars["Find"].exists)
+        XCTAssertTrue(app.staticTexts["mini.title"].exists)
+    }
+
+    private func waitForGone(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element.exists || !element.isHittable { return true }
+            usleep(200_000)
+        }
+        return false
+    }
+
     func testSettingsCardsHaveEqualMarginsAndWatchSyncIsClear() throws {
         launch()
         openTab("Listen", anchor: "Listen")

@@ -38,6 +38,9 @@ struct ScreenHeader: View {
 struct SearchField: View {
     @Binding var text: String
     var placeholder: LocalizedStringKey
+    /// Optional focus mirror; callers that pass nothing keep their existing behavior.
+    var isFocused: Binding<Bool>?
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -47,7 +50,15 @@ struct SearchField: View {
                 .foregroundStyle(Palette.ink)
                 .autocorrectionDisabled()
                 .platformAutocapitalization(.never)
+                .focused($fieldFocused)
         }
+        .onChange(of: fieldFocused) { _, focused in
+            if isFocused?.wrappedValue != focused { isFocused?.wrappedValue = focused }
+        }
+        .onChange(of: isFocused?.wrappedValue ?? false) { _, wanted in
+            if fieldFocused != wanted { fieldFocused = wanted }
+        }
+        .onDisappear { isFocused?.wrappedValue = false }
         .font(Typography.body)
         .padding(.horizontal, 14)
         .frame(height: 40)
