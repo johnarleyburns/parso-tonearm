@@ -195,7 +195,9 @@ struct LibraryView: View {
                 if let idx = playbackRows.firstIndex(where: { $0.id == row.id }) {
                     Task {
                         let fresh = await appState.freshenedQueueStart(playbackRows, startAt: idx)
-                        player.play(tracks: fresh, startAt: idx, source: .library)
+                        player.playLibraryResult(fresh, startAt: idx) { text in
+                            ToastCenter.shared.info(text, tag: AudioPlayer.queueReplacedToastTag)
+                        }
                     }
                 }
             } label: {

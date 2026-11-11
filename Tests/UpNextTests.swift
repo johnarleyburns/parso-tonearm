@@ -124,4 +124,47 @@ final class UpNextTests: XCTestCase {
         player.play(tracks: tracks2, startAt: 1)
         XCTAssertEqual(player.upNextTracks.count, 1)
     }
+
+    // MARK: - Direct library play
+
+    private func libraryRows(_ prefix: String, _ ids: ClosedRange<Int>) -> [TrackRow] {
+        let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil, title: "T",
+                         addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+                         licenseText: nil, memberCapHit: false)
+        let album = Album(id: 1, sourceId: 1, title: "A", artist: "B")
+        return ids.map { i in
+            let t = Track(id: Int64(i), albumId: 1, sourceId: 1, title: "\(prefix)\(i)", trackNo: i,
+                          discNo: nil, durationSec: 60, codec: "MP3", sampleRate: nil,
+                          bitDepthOrBitrate: nil, sortKey: "\(i)")
+            let a = Asset(id: Int64(i), trackId: Int64(i), kind: .remote, bookmark: nil, relPath: nil,
+                          remoteURL: "https://archive.org/\(prefix)\(i).mp3", altRemoteURL: nil,
+                          sizeBytes: nil, unsupportedReason: nil)
+            return TrackRow(track: t, album: album, source: src, asset: a)
+        }
+    }
+
+    func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
+        let player = AudioPlayer.shared
+        player.play(tracks: libraryRows("Old", 1...5), startAt: 2)
+        let results = libraryRows("New", 20...24)
+        var messages: [String] = []
+
+        player.playLibraryResult(results, startAt: 1) { messages.append($0) }
+
+        XCTAssertEqual(player.queue.map(\.id), results.map(\.id))
+        XCTAssertEqual(player.index, 1)
+        XCTAssertEqual(player.queueSource, .library)
+        XCTAssertEqual(player.upNextTracks.map(\.track.title), ["New22", "New23", "New24"])
+        XCTAssertEqual(messages, ["Queue updated with New21"])
+        XCTAssertEqual(AudioPlayer.queueReplacedToastTag, "playback.queue-replaced")
+    }
+
+    func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
+        let player = AudioPlayer.shared
+        player.play(tracks: [], startAt: 0)
+        XCTAssertTrue(player.queue.isEmpty)
+        var messages: [String] = []
+        player.playLibraryResult(libraryRows("New", 20...22), startAt: 0) { messages.append($0) }
+        XCTAssertTrue(messages.isEmpty)
+    }
 }
