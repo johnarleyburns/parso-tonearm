@@ -215,6 +215,28 @@ extension AudioPlayer {
         }
     }
 
+    /// Explicit Next shares the natural-boundary handoff: when a prepared incoming item exists for
+    /// the exact successor occurrence (`index` already points at it), promote it instead of
+    /// cancelling it (which shuts down its loader) and cold-rebuilding. Returns false when there
+    /// is nothing usable to promote so the caller falls back to `loadCurrent`.
+    func promotePreparedCrossfadeForManualAdvance() -> Bool {
+        guard let incoming = crossfadePlayer,
+              crossfadeNextIndex == index,
+              queue.indices.contains(index),
+              crossfadeNextTrackId == queue[index].track.id,
+              incoming.currentItem != nil,
+              incoming.currentItem?.status != .failed else { return false }
+        cancelCatalogPlaybackLoad()
+        if keepPlayingBoundaryState != .idle { resetKeepPlayingBoundary() }
+        let row = queue[index]
+        finishCrossfade(to: index, row: row)
+        guard player === incoming else { return false }
+        player.play()
+        isPlaying = true
+        updateNowPlaying()
+        return true
+    }
+
     func cancelCrossfade(resetVolume: Bool) {
         guard crossfadePlayer != nil || crossfadeNextLoader != nil || crossfadeNextIndex != nil else {
             if resetVolume { player.volume = outputLevel }

@@ -559,6 +559,7 @@ public final class AudioPlayer: ObservableObject {
             }
             player.pause(); isPlaying = false; updateNowPlaying(); return
         }
+        if promotePreparedCrossfadeForManualAdvance() { return }
         loadCurrent(autoplay: true)
     }
 
