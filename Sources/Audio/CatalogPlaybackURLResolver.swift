@@ -17,11 +17,17 @@ struct CatalogPlaybackURLResolver: Sendable {
     }
 
     func resolve(row: TrackRow) async throws -> (catalogKey: String, url: URL)? {
-        guard let id = Self.jamendoTrackID(for: row) else {
-            // Durable provider identity is mandatory for Jamendo genre rows; a cached raw URL
-            // never stands in for it.
-            if row.source?.kind == .jamendoGenre { throw JamendoResolveError.permanent }
-            return nil
+        let id: String
+        if row.source?.kind == .jamendoGenre {
+            // A Jamendo genre row claims a provider-backed identity. Never
+            // downgrade a malformed one into ordinary raw-URL playback.
+            guard let resolvedID = Self.jamendoTrackID(for: row) else {
+                throw JamendoResolveError.permanent
+            }
+            id = resolvedID
+        } else {
+            guard let resolvedID = Self.jamendoTrackID(for: row) else { return nil }
+            id = resolvedID
         }
         // Browse/search rows deliberately have no persistent Source/Asset/catalog entry. Their
         // provider node ID is still durable for this in-memory queue and must be refreshed.
