@@ -110,7 +110,9 @@ extension AudioPlayer {
         // and refuse to apply a result once that track is no longer current.
         let trackId = currentTrack?.track.id
         Task {
-            let state = CacheGlyphState.of(await AudioCache.shared.meta(for: key))
+            var state = CacheGlyphState.of(await AudioCache.shared.meta(for: key))
+            // "Cached" only if the exact local artifact is playable audio (same predicate as playback).
+            if state == .cached, AudioCache.playableCompleteBlobURL(for: remote) == nil { state = .none }
             let map = await AudioCache.shared.rangeMap(for: key)
             let total = await AudioCache.shared.totalBytes(for: key) ?? 0
             await MainActor.run {
