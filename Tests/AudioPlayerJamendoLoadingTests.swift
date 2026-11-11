@@ -35,12 +35,77 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
     private let fresh = URL(string: "https://example.test/fresh.mp3")!
     private var savedResolver: CatalogPlaybackURLResolver!
 
+    /// Every remote URL any test in this file loads. `loadCurrent` consults the real,
+    /// persistent `AudioCache` (`~/Library/Caches/Tonearm/StreamCacheV2` in production,
+    /// unchanged for `swift test`) before this file's fake resolver is ever reached: if
+    /// a prior run — on a developer machine or a self-hosted CI runner that does not
+    /// get a clean filesystem between jobs — already wrote a complete blob under one of
+    /// these fixture URLs' cache keys, the "already fully cached, play from disk"
+    /// shortcut in `AudioPlayer+Loading.swift` fires on this run too, bypassing the
+    /// resolver and every assertion in this file that depends on it running. This is
+    /// what made `testJamendoRowMissingNodeIDFailsAndNeverBuildsRawURLItem` fail: a
+    /// stale complete blob for "https://stale.example" let a malformed Jamendo locator
+    /// skip straight to "cached" instead of being rejected. Purge every fixture URL's
+    /// cache entry before AND after each test, so this file never depends on — and
+    /// never leaves behind — real on-disk cache state.
+    private static let fixtureURLs: [String] = [
+        "https://example.test/stale.mp3",
+        "https://example.test/fresh.mp3",
+        "jamendo://track/99123",
+        "https://example.test/current.mp3",
+        "https://example.test/ia.mp3",
+        "https://stale.example"
+    ]
+
+    /// `static` so this never has to "send" `self` across an isolation boundary
+    /// from `setUp`/`tearDown` (Swift 6 region isolation flags that as a data-race
+    /// risk even though every call here is synchronous) - it only needs the
+    /// `static let fixtureURLs` and `AudioCache`'s own nonisolated statics.
+    private static func purgeFixtureCacheEntries() {
+        for string in Self.fixtureURLs {
+            guard let url = URL(string: string) else { continue }
+            let key = AudioCache.key(for: url)
+            for fileURL in [AudioCache.fileURL(for: key), AudioCache.metaURL(for: key)] {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
+    }
+
     override func setUp() {
         super.setUp()
+        Self.purgeFixtureCacheEntries()
         savedResolver = AudioPlayer.shared.catalogPlaybackURLResolver
     }
 
+    /// Reproduces the exact contamination that made
+    /// `testJamendoRowMissingNodeIDFailsAndNeverBuildsRawURLItem` fail (issue #351):
+    /// a prior run leaves a real "complete" cache entry under a fixture URL's key,
+    /// so `AudioCache.completeCacheExists` — the gate `AudioPlayer+Loading.swift`'s
+    /// "already fully cached, play from disk" shortcut checks before ever reaching
+    /// this file's fake resolver — wrongly reports true. Proves `setUp`/`tearDown`'s
+    /// purge actually removes that contamination rather than merely assuming a clean
+    /// starting directory.
+    func testPurgeFixtureCacheEntriesRemovesAPriorCompleteCacheEntry() async throws {
+        let url = URL(string: "https://stale.example")!
+        let key = AudioCache.key(for: url)
+        let blobURL = AudioCache.fileURL(for: key)
+        try FileManager.default.createDirectory(at: blobURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        let bytes = Data([0, 1, 2, 3])
+        try bytes.write(to: blobURL)
+        await AudioCache.shared.registerComplete(key: key, bytes: Int64(bytes.count), kind: "audio")
+        XCTAssertTrue(AudioCache.completeCacheExists(for: url),
+                     "fixture setup must actually simulate a prior complete cache entry")
+
+        Self.purgeFixtureCacheEntries()
+
+        XCTAssertFalse(AudioCache.completeCacheExists(for: url),
+                      "a stale complete cache entry must not survive setUp/tearDown, or it silently " +
+                      "bypasses the malformed-locator rejection path the same way it did for issue #351")
+    }
+
     override func tearDown() {
+        Self.purgeFixtureCacheEntries()
         let p = AudioPlayer.shared
         p.ordinaryBuildItemHook = nil
         p.catalogPlaybackURLResolver = savedResolver
