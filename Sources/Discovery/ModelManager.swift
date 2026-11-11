@@ -181,7 +181,12 @@ public actor ModelManager {
         // tokenizer enforces it, keeping `<s>` and re-appending `</s>` on
         // truncation (`RoBERTaTokenizer.encode`). No mel filterbank is needed
         // for the text path.
-        let spec = EmbeddingModelSpec.musicCLAPMetadata
+        var spec = EmbeddingModelSpec.musicCLAPMetadata
+        // The bundled int4 text encoder includes the same frozen 512 -> 128
+        // projection as the audio encoder and the persisted vector index.
+        // `musicCLAPMetadata` describes the upstream 512-D checkpoint, so
+        // override its legacy width before Core ML output extraction.
+        spec.dimensions = EmbeddingSpace.current.dimensions
         let loadableURL: URL
         do {
             loadableURL = try CompiledModelCache.loadableURL(for: encoderURL)

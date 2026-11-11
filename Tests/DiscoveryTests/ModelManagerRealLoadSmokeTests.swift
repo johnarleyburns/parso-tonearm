@@ -11,8 +11,8 @@ import XCTest
 /// filterbank are not present under `Resources/` on this host (a clean
 /// checkout that has not run `make models`), the test is skipped rather than
 /// failed. When they ARE present, it loads the real Core ML weights through
-/// `ModelManager` + `CoreMLSemanticModel` and asserts a real embedding of the
-/// expected 512-dim shape — not the deterministic fake.
+/// `ModelManager` + `CoreMLSemanticModel` and asserts a real embedding in the
+/// current persisted embedding space — not the deterministic fake.
 final class ModelManagerRealLoadSmokeTests: XCTestCase {
     /// `.../parso-tonearm` — this file lives at `Tests/DiscoveryTests/`.
     private var repoRoot: URL {
@@ -53,10 +53,10 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
     }
 
     /// Loads the REAL converted `CLAPTextEncoder` weights + RoBERTa tokenizer
-    /// through `ModelManager.textEncoder` and asserts a real 512-d, finite,
+    /// through `ModelManager.textEncoder` and asserts a real 128-d, finite,
     /// non-zero-norm text embedding — not the deterministic fake. This is the
     /// text-side parallel of `testLoadsRealEncoderAndProducesExpectedShapeEmbedding`.
-    func testLoadsRealTextEncoderAndProducesFinite512DEmbedding() async throws {
+    func testLoadsRealTextEncoderAndProducesEmbeddingInCurrentSpace() async throws {
         let r = realResources()
         try XCTSkipUnless(
             r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil,
@@ -77,11 +77,12 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
         // gated smoke test runnable in a normal `make test-local`.
         let manager = ModelManager(resourceProvider: { resolved })
         let encoder = try await manager.textEncoder(context: .background)
-        XCTAssertEqual(encoder.spec.dimensions, 512)
+        XCTAssertEqual(encoder.spec.dimensions, EmbeddingSpace.current.dimensions)
         XCTAssertEqual(encoder.spec.textMaxLength, 77)
 
         let a = try await encoder.embedText("gentle acoustic guitar")
-        XCTAssertEqual(a.count, 512, "real CLAP text embedding must be 512-dim")
+        XCTAssertEqual(a.count, EmbeddingSpace.current.dimensions,
+                       "real CLAP text embedding must match the persisted embedding space")
         XCTAssertTrue(a.allSatisfy { $0.isFinite }, "embedding must be finite")
         let norm = sqrt(a.reduce(0) { $0 + Double($1) * Double($1) })
         XCTAssertGreaterThan(norm, 0.01, "embedding must have non-zero norm")
