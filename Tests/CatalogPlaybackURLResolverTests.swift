@@ -78,6 +78,22 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
         XCTAssertTrue(calls.refreshIDs.isEmpty)
     }
 
+    /// Mood Starter is stored as a local source, but its remote asset is a
+    /// durable `jamendo://track/<id>` locator. It must be resolved before an
+    /// AVPlayer item is built; AVFoundation cannot play that custom scheme.
+    func testMoodStarterJamendoLocatorRefreshesWithoutCatalogLookup() async throws {
+        let calls = Calls()
+        let row = Self.row(
+            kind: .local, nodeID: nil, url: "jamendo://track/99123", sourceID: 1)
+
+        let result = try await resolver(FakeCatalog(), calls).resolve(row: row)
+
+        XCTAssertEqual(result?.url, fresh)
+        XCTAssertEqual(calls.refreshIDs, ["99123"])
+        XCTAssertEqual(calls.lookupCount, 0,
+                       "Mood Starter has no Jamendo genre-library catalog row")
+    }
+
     func testMissingCatalogIdentityFailsTruthfullyRatherThanUsingRawAssetURL() async throws {
         let store = FakeCatalog()
         let calls = Calls()

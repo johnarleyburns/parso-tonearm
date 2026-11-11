@@ -17,15 +17,10 @@ struct CatalogPlaybackURLResolver: Sendable {
     }
 
     func resolve(row: TrackRow) async throws -> (catalogKey: String, url: URL)? {
-        guard row.source?.kind == .jamendoGenre else { return nil }
-        // Durable provider identity is mandatory; a cached raw URL never stands in for it.
-        guard let id = row.asset?.remoteNodeID?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !id.isEmpty, Int64(id) != nil else {
-            throw JamendoResolveError.permanent
-        }
+        guard let id = Self.jamendoTrackID(for: row) else { return nil }
         // Browse/search rows deliberately have no persistent Source/Asset/catalog entry. Their
         // provider node ID is still durable for this in-memory queue and must be refreshed.
-        if row.source?.id == nil {
+        if row.source?.kind != .jamendoGenre || row.source?.id == nil {
             let fresh = try await resolver.refreshOnly(.jamendo(trackID: id, cachedURL: nil, expiry: nil))
             return (BlendCatalogTrack.jamendoKey(trackID: id), fresh.url)
         }
@@ -35,6 +30,28 @@ struct CatalogPlaybackURLResolver: Sendable {
         let fresh = try await resolver.refreshOnly(locator)
         await persist(key, fresh.url, fresh.expiry)
         return (key, fresh.url)
+    }
+
+    /// The bundled Mood Starter catalog is deliberately a `.local` source so
+    /// it does not impersonate a user-added Jamendo genre library. Its audio
+    /// locator is nevertheless a durable `jamendo://track/<numeric-id>`
+    /// provider reference, which must be resolved before handing anything to
+    /// AVFoundation. A custom `jamendo` scheme is not itself playable.
+    static func jamendoTrackID(for row: TrackRow) -> String? {
+        let candidate: String?
+        if row.source?.kind == .jamendoGenre {
+            candidate = row.asset?.remoteNodeID
+        } else if let raw = row.asset?.remoteURL,
+                  let url = URL(string: raw),
+                  url.scheme?.caseInsensitiveCompare("jamendo") == .orderedSame,
+                  url.host?.caseInsensitiveCompare("track") == .orderedSame {
+            candidate = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        } else {
+            candidate = nil
+        }
+        guard let id = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !id.isEmpty, Int64(id) != nil else { return nil }
+        return id
     }
 }
 #endif
