@@ -186,7 +186,11 @@ extension AppState {
     /// finished anyway, just without blocking the tap that started it.
     func persistRemoteTrack(_ row: TrackRow, prefetchBytes: Bool = true) async -> TrackRow? {
         guard row.id < 0, let asset = row.asset, let rawURL = asset.remoteURL else { return row }
-        let identityKey = "\(row.source?.id ?? -1):\(asset.remoteNodeID ?? rawURL)"
+        // Same canonical helper as the database path; a missing durable identity falls back to the
+        // URL only for this UI-level coalescing key (never as a database identity).
+        let identityKey = RemoteTrackIdentity.canonical(
+            sourceID: row.source?.id ?? -1, nodeID: asset.remoteNodeID)?.key
+            ?? "\(row.source?.id ?? -1)|url:\(rawURL)"
         if let inFlight = pendingRemotePersists[identityKey] {
             return await inFlight.value
         }
@@ -221,7 +225,7 @@ extension AppState {
         // `resolved` below is already known; what matters is what gets
         // PERSISTED, so a later re-resolve is possible — see
         // `Asset.remoteNodeID`'s doc).
-        let node = RemoteNode(id: asset.remoteNodeID ?? "now-playing-\(abs(row.id))",
+        let node = RemoteNode(id: asset.remoteNodeID ?? "",
                               title: row.track.title,
                               path: asset.remoteNodePath ?? rawURL, kind: .audio,
                               sizeBytes: asset.sizeBytes,

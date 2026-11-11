@@ -409,3 +409,23 @@ extension LibraryStore {
 public enum LibraryStoreError: Error, Equatable {
     case assetNotFound(Int64)
 }
+
+extension LibraryStore {
+    /// Atomically gets or creates the one canonical library track for the asset's source-scoped
+    /// remote identity, refreshing the locator in place on a match. See `RemoteTrackIdentity`.
+    public func upsertRemoteTrack(sourceID: Int64, track: Track, asset: Asset,
+                                  pathIsDurable: Bool = false) throws -> (trackID: Int64, created: Bool) {
+        try dbQueue.write { db in
+            let outcome = try RemoteTrackUpsert.upsert(db: db, sourceID: sourceID, track: track,
+                                                       asset: asset, pathIsDurable: pathIsDurable)
+            try self.refreshSearchIndex(trackID: outcome.trackID, db: db)
+            return (outcome.trackID, outcome.created)
+        }
+    }
+
+    /// Automatic maintenance pass (also run by migration v50): idempotent duplicate consolidation.
+    @discardableResult
+    public func consolidateRemoteDuplicates() throws -> RemoteTrackConsolidator.Report {
+        try dbQueue.write { db in try RemoteTrackConsolidator.run(db: db) }
+    }
+}

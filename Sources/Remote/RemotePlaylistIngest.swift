@@ -33,20 +33,6 @@ public struct RemotePlaylistIngest: Sendable {
                 if let nodeID = row.asset?.remoteNodeID, !nodeID.isEmpty { existingJamendoNode[nodeID] = row.id }
             }
         }
-        // Real report: re-browsing to and replaying the same Dropbox/Google Drive file created a
-        // genuine duplicate track every time, instead of finding the one already imported.
-        // URL-only dedup has more moving parts than it looks (base-URL construction, query
-        // encoding) across two independent `resolve()` calls than a stable provider-native id
-        // does. Jamendo already dedupes by `node.id` for exactly this class of reason ("a shared
-        // stream URL must not merge distinct tracks" — the same identity check, used the other
-        // direction, means a *different*-looking resolved URL must not be treated as a different
-        // track when the provider's own id says it's the same one). Extend that same node-id
-        // identity to every remote provider, not just Jamendo, checked before falling back to the
-        // URL match below.
-        var existingByNodeID: [String: Int64] = [:]
-        for row in existingRows {
-            if let nodeID = row.asset?.remoteNodeID, !nodeID.isEmpty { existingByNodeID[nodeID] = row.id }
-        }
         let oldAssets = Dictionary(existingRows.map { ($0.id, $0.asset) }, uniquingKeysWith: { a, _ in a })
         let album: Album
         if let found = try? await store.firstAlbum(sourceId: sourceID, title: source.title) {
@@ -88,52 +74,39 @@ public struct RemotePlaylistIngest: Sendable {
                     ids.append(id)
                     continue
                 }
-                // Checked before the URL match: see the `existingByNodeID` comment above.
-                let trimmedNodeID = node.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                if source.kind != .jamendoGenre, !trimmedNodeID.isEmpty,
-                   let id = existingByNodeID[node.id] {
-                    // The resolved URL can legitimately differ from what's stored (a fresh temp
-                    // link, say) even though it's the same file — refresh the stored locator so a
-                    // later replay isn't working from an even-staler URL, then reuse the existing
-                    // track instead of duplicating it.
-                    try? await store.updateRemoteAssetURL(trackID: id, remoteURL: resolved.url,
-                                                          sizeBytes: resolved.sizeBytes ?? node.sizeBytes)
-                    existing[url] = id
-                    ids.append(id)
-                    continue
-                }
-                // Jamendo identity is the node ID; a shared stream URL must not merge distinct tracks.
-                if source.kind != .jamendoGenre, let id = existing[url] { ids.append(id); continue }
+                // One atomic, database-enforced get-or-create per source-scoped remote identity
+                // (`RemoteTrackIdentity`): a rotated URL refreshes the stored locator in place.
                 let metadata = resolved.metadata ?? node.metadata
                 let number = metadata?.trackNumber ?? index + 1
-                let track = try await store.insertTrack(Track(
-                    id: nil, albumId: album.id, sourceId: sourceID,
-                    title: metadata?.title ?? node.title, trackNo: number,
-                    discNo: metadata?.discNumber,
-                    durationSec: metadata?.durationSec ?? node.durationSec,
-                    codec: metadata?.codec?.uppercased(), sampleRate: metadata?.sampleRate,
-                    bitDepthOrBitrate: metadata?.bitRateKbps.map { "\($0) kbps" },
-                    sortKey: String(format: "%06d", number), genre: metadata?.genre))
-                guard let trackID = track.id else { skipped += 1; continue }
-                // Persist the real provider node reference, not just the
-                // resolved URL — this is what later lets "Make Offline"/
-                // "Download" (and any future background re-index) get a fresh
-                // URL/headers via `RemoteLibraryProvider.resolve(node:)`
-                // instead of trusting a possibly-stale/expired `remoteURL`
-                // (see `Asset.remoteNodeID`'s doc).
-                _ = try await store.insertAsset(Asset(
-                    id: nil, trackId: trackID, kind: .remote, bookmark: nil, relPath: nil,
-                    remoteURL: url, altRemoteURL: nil,
-                    sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil,
-                    remoteNodeID: node.id, remoteNodePath: node.path,
-                    remoteContentType: node.contentType))
+                let outcome = try await store.upsertRemoteTrack(
+                    sourceID: sourceID,
+                    track: Track(
+                        id: nil, albumId: album.id, sourceId: sourceID,
+                        title: metadata?.title ?? node.title, trackNo: number,
+                        discNo: metadata?.discNumber,
+                        durationSec: metadata?.durationSec ?? node.durationSec,
+                        codec: metadata?.codec?.uppercased(), sampleRate: metadata?.sampleRate,
+                        bitDepthOrBitrate: metadata?.bitRateKbps.map { "\($0) kbps" },
+                        sortKey: String(format: "%06d", number), genre: metadata?.genre),
+                    asset: Asset(
+                        id: nil, trackId: 0, kind: .remote, bookmark: nil, relPath: nil,
+                        remoteURL: url, altRemoteURL: nil,
+                        sizeBytes: resolved.sizeBytes ?? node.sizeBytes, unsupportedReason: nil,
+                        remoteNodeID: node.id, remoteNodePath: node.path,
+                        remoteContentType: node.contentType))
+                let trackID = outcome.trackID
+                if !outcome.created, source.kind != .jamendoGenre {
+                    existing[url] = trackID
+                    ids.append(trackID)
+                    continue
+                }
                 if source.kind == .jamendoGenre {
                     do {
                         // `node.id`, not the resolved URL, is the durable Jamendo identity.
                         try await catalogUpsert(store, node.id, resolved.url)
                     } catch {
                         // Never report the node as imported without its blend identity.
-                        try? await store.deleteTrack(id: trackID)
+                        if outcome.created { try? await store.deleteTrack(id: trackID) }
                         throw error
                     }
                 }

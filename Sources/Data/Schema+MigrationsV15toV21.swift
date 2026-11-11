@@ -610,5 +610,21 @@ extension Schema {
                 }
             }
         }
+
+        if shouldRegister("v50", upTo: target) {
+            migrator.registerMigration("v50") { db in
+                // Database-enforced "one library track per (sourceId, canonical remote identity)".
+                // Deleting the track removes its identity row (cascade).
+                try db.create(table: "remote_track_identity") { t in
+                    t.column("sourceId", .integer).notNull().references("source", onDelete: .cascade)
+                    t.column("identity", .text).notNull()
+                    t.column("trackId", .integer).notNull().references("track", onDelete: .cascade)
+                    t.primaryKey(["sourceId", "identity"])
+                }
+                try db.create(indexOn: "remote_track_identity", columns: ["trackId"])
+                // Backfill and consolidate existing duplicates atomically with the migration.
+                try RemoteTrackConsolidator.run(db: db)
+            }
+        }
     }
 }
