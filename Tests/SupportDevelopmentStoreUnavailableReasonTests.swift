@@ -1,43 +1,49 @@
 import XCTest
 @testable import TonearmCore
 
-/// `SupportDevelopmentCard`'s purchase button disables itself whenever the product hasn't
-/// loaded, with zero explanation (CLAUDE.md's "no silent/magic background work" rule: "When
-/// work can't proceed, say the specific reason... never collapse a real blocked/waiting state
-/// into a generic in-progress label"). If `loadProduct()` ever fails (no network, App Store
-/// unreachable, product not configured for this account/region), the user sees a permanently
-/// greyed-out button with no message — indistinguishable from "still loading."
-///
-/// A pure static helper (rather than requiring the full injectable-purchasing seam from the
-/// companion issue, which may not have landed yet) keeps this testable independently of merge
-/// order — see that issue for the DI seam this can be rewired through later without maintaining
-/// two.
+/// The Support row must distinguish "no such product" from a StoreKit/network failure, and
+/// must never fall back to the old generic "couldn't reach the App Store" message.
 final class SupportDevelopmentStoreUnavailableReasonTests: XCTestCase {
-    func testNilBeforeAnyLoadAttempt() {
-        XCTAssertNil(SupportDevelopmentStore.unavailableReason(didAttemptLoad: false, isAvailable: false))
+    func testNilWhileLoadingOrReady() {
+        XCTAssertNil(SupportDevelopmentStore.unavailableReason(for: .notLoaded))
+        XCTAssertNil(SupportDevelopmentStore.unavailableReason(for: .ready))
     }
 
-    func testNilOnceProductLoadsSuccessfully() {
-        XCTAssertNil(SupportDevelopmentStore.unavailableReason(didAttemptLoad: true, isAvailable: true))
+    func testUnavailableAndFailedHaveDistinctReasons() throws {
+        let unavailable = try XCTUnwrap(SupportDevelopmentStore.unavailableReason(for: .unavailable))
+        let failed = try XCTUnwrap(SupportDevelopmentStore.unavailableReason(for: .failed(diagnostic: "x")))
+        XCTAssertNotEqual(unavailable, failed)
+        XCTAssertFalse(unavailable.contains("Couldn't reach the App Store"))
+        XCTAssertFalse(failed.contains("Couldn't reach the App Store"))
     }
+}
 
-    func testSetWhenLoadAttemptFailedToFindAProduct() {
-        XCTAssertNotNil(SupportDevelopmentStore.unavailableReason(didAttemptLoad: true, isAvailable: false))
-    }
-
-    /// `SupportDevelopmentCard` is a SwiftUI view with no simulator-free way to render it, so
-    /// this pins the one thing that matters at the source level: the reason actually gets
-    /// surfaced next to the button it explains, not just computed and left unused.
-    func testCardRendersTheUnavailableReasonNextToThePurchaseButton() throws {
+/// Source-level pins (no simulator) for the Voxglass-equivalent Support row.
+final class SupportRowStructureTests: XCTestCase {
+    private func source(_ path: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/Features/Settings/SupportDevelopmentCard.swift"),
-            encoding: .utf8)
-        let buyIdentifier = try XCTUnwrap(source.range(of: "\"settings.support.buy\""))
-        let reasonCheck = try XCTUnwrap(source.range(of: "if let reason = store.unavailableReason {"))
-        let reasonIdentifier = try XCTUnwrap(source.range(of: "\"settings.support.unavailable\""))
-        XCTAssertLessThan(buyIdentifier.lowerBound, reasonCheck.lowerBound,
-            "the unavailable-reason check must sit right after the purchase button")
-        XCTAssertLessThan(reasonCheck.lowerBound, reasonIdentifier.lowerBound)
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    func testRowIsCompactHeartDisclosureRow() throws {
+        let s = try source("Sources/Features/Settings/SupportDevelopmentCard.swift")
+        XCTAssertTrue(s.contains("\"heart.fill\""))
+        XCTAssertTrue(s.contains(".buttonStyle(.plain)"))
+        XCTAssertTrue(s.contains("\"settings.support\""))
+        XCTAssertTrue(s.contains(".disabled(store.purchasing)"))
+        XCTAssertTrue(s.contains("Contribute to Development"))
+        XCTAssertTrue(s.contains("A one-time, optional \\(store.displayPrice) — every feature is already free"))
+        XCTAssertTrue(s.contains("Thanks for supporting Platterhead"))
+        XCTAssertTrue(s.contains("You have the Supporter badge"))
+        XCTAssertFalse(s.contains("glassSurface"))
+        XCTAssertFalse(s.contains("settings.support.buy"))
+        XCTAssertFalse(s.contains("Contribute ·"))
+        XCTAssertFalse(s.contains("borderedProminent"))
+    }
+
+    func testSettingsHasOneSupportGroupAndRow() throws {
+        let s = try source("Sources/Features/Settings/SettingsView.swift")
+        XCTAssertEqual(s.components(separatedBy: "settingsSection(\"Support\"").count - 1, 1)
+        XCTAssertEqual(s.components(separatedBy: "SupportDevelopmentCard()").count - 1, 1)
     }
 }
