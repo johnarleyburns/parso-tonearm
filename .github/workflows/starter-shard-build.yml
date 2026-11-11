@@ -22,6 +22,9 @@ jobs:
     # The adopted int4 model was generated and prediction-validated on this
     # Core ML runtime. Older Xcode 16.4 rejects its affine-dequant layout.
     runs-on: xcode-27
+    # No run history (workflow_dispatch-only); sized to match the comparable
+    # model-fetch + embed workload in starter-shard-pilot.yml's own allowance.
+    timeout-minutes: 150
     env:
       MODEL_DIR: Resources/Models/CLAPAudioEncoder.mlpackage
       EMBEDDING_SPACE_FINGERPRINT: ${{ vars.STARTER_EMBEDDING_SPACE_FINGERPRINT }}

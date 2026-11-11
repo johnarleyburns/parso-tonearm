@@ -18,6 +18,10 @@ permissions:
 jobs:
   assemble:
     runs-on: ubuntu-latest
+    # No run history (workflow_dispatch-only, never yet invoked in the sampled
+    # window); sized generously for its network-download + sqlite-assembly
+    # workload rather than left at GitHub's 360m default.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Validate explicit assembly inputs

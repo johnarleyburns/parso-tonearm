@@ -20,6 +20,10 @@ env:
 jobs:
   test:
     runs-on: macos-latest
+    # Generous vs. observed history (last ~3 days: median 7.5m, p90 8.6m, max
+    # 12.2m) — matches this repo's own pr-validation.yml validate job, which
+    # does comparable swift-test + guardrail work under the same allowance.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,6 +84,10 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request'
     runs-on: macos-latest
+    # Generous vs. observed history (last ~3 days: median 12.4m, p90 14.5m,
+    # max 19.8m) — matches the equivalent archive+export+upload job's
+    # allowance in parso-workout-ios-app (150m vs its own ~19.8m max).
+    timeout-minutes: 150
     steps:
       - name: Check TestFlight Signing Configuration
         env:
