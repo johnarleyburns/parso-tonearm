@@ -70,6 +70,11 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         CatalogPlaybackURLResolverTests.row(kind: .jamendoGenre, nodeID: "99123", url: stale)
     }
 
+    private func moodStarterJamendo() -> TrackRow {
+        CatalogPlaybackURLResolverTests.row(
+            kind: .local, nodeID: nil, url: "jamendo://track/99123")
+    }
+
     /// Installs a queue and loads it without autoplay (keeps the shared library store out of the test).
     private func load(_ rows: [TrackRow]) {
         let player = AudioPlayer.shared
@@ -91,6 +96,21 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         await settle()
         XCTAssertEqual(spy.urls, [fresh.absoluteString])
         XCTAssertFalse(spy.urls.contains(stale))
+    }
+
+    /// A Mood Starter row is intentionally a local source (it is bundled
+    /// metadata), but its remote asset is a Jamendo provider locator. It must
+    /// take the ordinary Jamendo resolver path instead of handing the custom
+    /// `jamendo://` scheme directly to AVFoundation and stalling forever.
+    func testMoodStarterJamendoRowResolvesBeforeBuildingItsPlayerItem() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+
+        load([moodStarterJamendo()])
+        await settle()
+
+        XCTAssertEqual(spy.refreshes, 1)
+        XCTAssertEqual(spy.urls, [fresh.absoluteString])
     }
 
     /// Issue #325: a fully downloaded Jamendo track must play from its local cache without a

@@ -77,7 +77,7 @@ extension AudioPlayer {
             return
         }
 
-        if row.source?.kind == .jamendoGenre, asset.kind == .remote {
+        if asset.kind == .remote, CatalogPlaybackURLResolver.jamendoTrackID(for: row) != nil {
             // A fully downloaded copy needs no network or signed URL at all: play it from the cache
             // under the URL it was cached with instead of re-resolving (a re-signed URL is a
             // different cache key and would needlessly stream a file already on disk).
