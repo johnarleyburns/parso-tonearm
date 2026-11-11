@@ -74,6 +74,29 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         XCTAssertEqual(player.index, 1, "the crossfade hands the queue to the incoming track")
     }
 
+    /// Explicit Next must promote the prepared incoming item (same handoff as the natural
+    /// boundary) instead of cancelling it and cold-rebuilding; it plays, with no failure banner.
+    func testManualNextPromotesPreparedCrossfadeItem() throws {
+        let player = try prepareOutgoing(fadeSeconds: 3)
+        let incoming = row(2, remoteURL: "https://example.invalid/manual-next.mp3")
+        player.queue = [row(1), incoming]
+        player.preloadedNextItem = AVPlayerItem(url: try audioFile(seconds: 6))
+        player.preloadedNextTrackId = 2
+        XCTAssertTrue(player.prepareCrossfadePlayer(for: incoming, at: 1))
+        let prepared = try XCTUnwrap(player.crossfadePlayer)
+        let preparedItem = try XCTUnwrap(prepared.currentItem)
+
+        player.networkSkipMessage = nil // shared singleton: drop any banner left by earlier cases
+        player.next()
+
+        XCTAssertEqual(player.index, 1)
+        XCTAssertTrue(player.player === prepared, "the prepared player becomes the active player")
+        XCTAssertTrue(player.player.currentItem === preparedItem)
+        XCTAssertNil(player.crossfadePlayer)
+        XCTAssertTrue(player.isPlaying, "play intent is preserved")
+        XCTAssertNil(player.networkSkipMessage)
+    }
+
     /// With Smart Transitions gone, this plain crossfade is the only track-to-track transition
     /// left — the shipped default must already be a real, audible blend, not `0` (a silent
     /// hard cut) that a setting nobody has found yet would need to raise first.
