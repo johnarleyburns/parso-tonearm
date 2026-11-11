@@ -8,7 +8,7 @@ struct FindView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var player: AudioPlayer
     @State private var mode: MyMusicSearchMode = .all
-    @State private var browseMode: LibraryBrowseMode = .artists
+    @State private var browseMode: LibraryBrowseMode = FindResultScopePolicy.initialMode
     @State private var bpmPreset: MixBPMPreset?
     @State private var mixKey: String?
     @State private var soundSearchRows: [TrackRow]?
@@ -109,6 +109,8 @@ struct FindView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("find.scope.\(candidate.rawValue.lowercased())")
+                    .accessibilityValue(selected ? "selected" : "not selected")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
             .padding(.horizontal, 16)
