@@ -13,6 +13,7 @@
 		050E3162D304CE8BC4D5AE44 /* WatchNowPlayingMoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F8B2028813D9F599DA4310 /* WatchNowPlayingMoreView.swift */; };
 		0630A202DEA82E067F243939 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */; };
 		06A4098AC331C6CC12BED218 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52A0276083E383EDE2C36699 /* AppLogger.swift */; };
+		071C882CDE947E024BC50C88 /* AddFolderToLibrarySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6446A6A2ED8DF2AFB98BBF5 /* AddFolderToLibrarySheet.swift */; };
 		09BA5404F865447289CD7A3D /* WatchPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E434F82159D7C687895D77 /* WatchPlayer.swift */; };
 		0A99AC2E93E3D1582A89179C /* WatchDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12734EAA48DB8BA67EE6C976 /* WatchDesign.swift */; };
 		0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */; };
@@ -98,7 +99,6 @@
 		6DA8AD1D2B20E57AD89886BB /* IndexStatusModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F19092FD2541A8590FF65C4 /* IndexStatusModel.swift */; };
 		6F92340A366D9E75B106285F /* SettingsView+LibrarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53FE3201FB2A76A7F351F268 /* SettingsView+LibrarySections.swift */; };
 		6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764B46CE0EAFEC605FE2CE5D /* AddFolderSheet.swift */; };
-		70B335C9F25257F926ADD07A /* WatchDownloadDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */; };
 		70FA6AC49B5601AA50FB421C /* ToastCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77881E559F853F3413C07242 /* ToastCenter.swift */; };
 		7155FE7BF0A91F242A4A2F25 /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D80C464F1FF08824183F765F /* PlaylistsView.swift */; };
 		71739C830652D67DF339A260 /* AppState+RemoteServers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE3D9BA840241DCED71A095 /* AppState+RemoteServers.swift */; };
@@ -108,6 +108,7 @@
 		735D16F65DF5E7AAFC9CD91A /* AppState+RemoteBrowse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD82B6D2C3B08E82E7EB2068 /* AppState+RemoteBrowse.swift */; };
 		73BB22E45390F362F4B45F55 /* TonearmWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		73EF48B22BA7870F3A6C08D7 /* TonearmSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */; };
+		76EB19941362206B72791343 /* AppState+CacheRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB38B944E467DAF863318D49 /* AppState+CacheRepair.swift */; };
 		781C7C906ED63132DF7CCDB2 /* WatchNowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C123D981D52AC1C9DE3751 /* WatchNowPlayingView.swift */; };
 		7823BEF7E32E97CC60A6BEB0 /* TonearmWatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = BBD12630BF2D8DC41AAA8B3A /* TonearmWatchCore */; };
 		796967ED51F8C7841F6FC270 /* TonearmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 25DC295C778B26F9C30D320D /* TonearmCore */; };
@@ -116,6 +117,7 @@
 		7BCD9C0D5042BD0C8228401E /* ToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00F6FDF943434896481BB2F /* ToastBanner.swift */; };
 		7EC0CA2A51F83AC350BF5AEE /* TonearmWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		83C6C3AFB6460B1E19995D71 /* WatchDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 645D617838A06D3AE39AD11B /* WatchDiagnosticsView.swift */; };
+		8457551C400AD37DE9411AB9 /* SettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 285D5B101FA8F1AC5002FCAC /* SettingsRow.swift */; };
 		8553DC45ADAE9EC2DCB3101A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B48E8BCEBBB60820A867070 /* LibraryView.swift */; };
 		87A633175B9F0EF1B57DC461 /* SupportDevelopmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C5E6EF701A765A58C5C4E5 /* SupportDevelopmentStore.swift */; };
 		88058CD3EE508E07C042264F /* ParsoAudioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6B209CE98A0F807619C5B480 /* ParsoAudioCore */; };
@@ -184,6 +186,7 @@
 		D48DC71189EEC9D2917B9A0E /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */; };
 		DA431A641AF843C00F285BCE /* TrackDetailCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A36CFE314EF66DE2810ECBA9 /* TrackDetailCard.swift */; };
 		DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */; };
+		DD93FE8ED9D4D4CE14EC6123 /* starter.sqlite in Resources */ = {isa = PBXBuildFile; fileRef = 0859440909886A9E4FBC97C4 /* starter.sqlite */; };
 		DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 390F5E4BCDCBB5C6D4A3A98D /* splash_screen.jpg */; };
 		E2B3017605DD59328B8AE966 /* TonearmSiriIntents.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 86748D3F12BE3CE19A0D9AF8 /* TonearmSiriIntents.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E4139053B81BA286E1E5B870 /* PlatterheadWatchWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1419D98145AE34CA71F3B950 /* PlatterheadWatchWidget.swift */; };
@@ -323,6 +326,7 @@
 		071CC5C8B79CC1A10F456254 /* CacheGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheGlyph.swift; sourceTree = "<group>"; };
 		07BB75BFAD34B2382CE704F9 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		080C57977F143B9824ED300E /* PhoneWatchPlaybackAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneWatchPlaybackAdapter.swift; sourceTree = "<group>"; };
+		0859440909886A9E4FBC97C4 /* starter.sqlite */ = {isa = PBXFileReference; lastKnownFileType = file; path = starter.sqlite; sourceTree = "<group>"; };
 		089C841BE7459AF20665F7B0 /* Tonearm.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tonearm.Debug.entitlements; sourceTree = "<group>"; };
 		0A0EA57A9A9BC3350FCC805C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		0A5E3A5360F20929E181F8F9 /* CarPlayVoiceSearchController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayVoiceSearchController.swift; sourceTree = "<group>"; };
@@ -352,6 +356,7 @@
 		22A094DA5B73EC78F042C394 /* PinnedPlaylistsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedPlaylistsStore.swift; sourceTree = "<group>"; };
 		2691BB73DBF1FEEB2FF9DC14 /* DiscoveryRuntimeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveryRuntimeController.swift; sourceTree = "<group>"; };
 		26E3696AC561718102A55E14 /* WatchProgressViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchProgressViews.swift; sourceTree = "<group>"; };
+		285D5B101FA8F1AC5002FCAC /* SettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRow.swift; sourceTree = "<group>"; };
 		292C3AA06CBE9E58AA7418FF /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		298AE119DE325FD5445FE843 /* ArtworkImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkImagePicker.swift; sourceTree = "<group>"; };
 		2B9AB52221643622272FFDB6 /* Tonearm.storekit */ = {isa = PBXFileReference; path = Tonearm.storekit; sourceTree = "<group>"; };
@@ -384,7 +389,6 @@
 		4497CDA730FA46494E531667 /* AdaptiveGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveGlass.swift; sourceTree = "<group>"; };
 		471A0FB42343862D9FA90310 /* AddTracksToPlaylistSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTracksToPlaylistSheet.swift; sourceTree = "<group>"; };
 		4AA48CEED5AEAFB50D5AB50F /* AddMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddMenuSheet.swift; sourceTree = "<group>"; };
-		4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchDownloadDetailViews.swift; sourceTree = "<group>"; };
 		4EBACB49341C09E9F49B5482 /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
 		4EC0AC467BFB05721F8500E4 /* CarPlaySearchAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlaySearchAvailability.swift; sourceTree = "<group>"; };
 		4EDDCD4974AB22B40A4AB3EE /* ambient-rain.mp4 */ = {isa = PBXFileReference; path = "ambient-rain.mp4"; sourceTree = "<group>"; };
@@ -490,6 +494,7 @@
 		C6582DD00135325CDB814488 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		C692ACE176572BB9A811276D /* OfflineProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineProgress.swift; sourceTree = "<group>"; };
 		C99E00CC70D2FA3276D5ACCC /* Typography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typography.swift; sourceTree = "<group>"; };
+		CB38B944E467DAF863318D49 /* AppState+CacheRepair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CacheRepair.swift"; sourceTree = "<group>"; };
 		CDA5510BE764F39731C1901D /* Tonearm.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tonearm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF21CDA1D35FD0F742088DF3 /* AddServerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddServerSheet.swift; sourceTree = "<group>"; };
@@ -516,6 +521,7 @@
 		F33C20D678B25AEE660F46D4 /* ambient-ocean-watch-aac128.m4a */ = {isa = PBXFileReference; path = "ambient-ocean-watch-aac128.m4a"; sourceTree = "<group>"; };
 		F42E2045814F52BC75F1609F /* UpNextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextView.swift; sourceTree = "<group>"; };
 		F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+CustomArtwork.swift"; sourceTree = "<group>"; };
+		F6446A6A2ED8DF2AFB98BBF5 /* AddFolderToLibrarySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFolderToLibrarySheet.swift; sourceTree = "<group>"; };
 		F74EB823E51BC2AF0A66C437 /* PlayerAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerAccessory.swift; sourceTree = "<group>"; };
 		F81B8284B4318B309731708F /* SettingsRegressionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRegressionUITests.swift; sourceTree = "<group>"; };
 		F82D29BCE382CB03501C797D /* GenrePickerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenrePickerModel.swift; sourceTree = "<group>"; };
@@ -753,6 +759,14 @@
 			path = Features;
 			sourceTree = "<group>";
 		};
+		44AE95CA9E50F7F3FA156D93 /* Starter */ = {
+			isa = PBXGroup;
+			children = (
+				0859440909886A9E4FBC97C4 /* starter.sqlite */,
+			);
+			path = Starter;
+			sourceTree = "<group>";
+		};
 		499B83014C41D2FBCEB59014 /* Chrome */ = {
 			isa = PBXGroup;
 			children = (
@@ -862,6 +876,7 @@
 				ABFAE05FCFD1BB8D4ACF6697 /* ArtworkKeywords */,
 				94D3A2525220B072498FB15D /* Audio */,
 				863C1ED5AB979DD99C846B7E /* CLAP */,
+				44AE95CA9E50F7F3FA156D93 /* Starter */,
 				F90AE6772698F2114601747C /* Video */,
 				B8EB48574C2697BB77C636A0 /* AppIcon.icon */,
 				C6582DD00135325CDB814488 /* AppShortcuts.xcstrings */,
@@ -878,6 +893,7 @@
 		8582F1969F63FDDEABD2EF25 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				F6446A6A2ED8DF2AFB98BBF5 /* AddFolderToLibrarySheet.swift */,
 				C1A2D9AEA288319B031257A7 /* AddRemoteTracksSheet.swift */,
 				F050FDF819A0D40258D11F51 /* JamendoBrowseView.swift */,
 				AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */,
@@ -919,6 +935,7 @@
 				3CBF4B1C5CECD5A23BCFB25A /* AppState.swift */,
 				BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */,
 				AF4C2C74CE7D4768E86F3D57 /* AppState+BuiltInMoodIndex.swift */,
+				CB38B944E467DAF863318D49 /* AppState+CacheRepair.swift */,
 				F43AA652B4D4981556956CB7 /* AppState+CustomArtwork.swift */,
 				80B6D0A4B5EC7E9F6FD662D7 /* AppState+Downloads.swift */,
 				FBF0E2281F937ABC12F3DA08 /* AppState+EditMetadata.swift */,
@@ -1110,6 +1127,7 @@
 			children = (
 				6AB44399EDF479626BC62A6F /* EQView.swift */,
 				B91CC774F85F6347BB700225 /* JamendoCredentialView.swift */,
+				285D5B101FA8F1AC5002FCAC /* SettingsRow.swift */,
 				C114ED8EAE6B45F219A551DA /* SettingsView.swift */,
 				36F4D28964E3400D687E1951 /* SettingsView+AccountSections.swift */,
 				53FE3201FB2A76A7F351F268 /* SettingsView+LibrarySections.swift */,
@@ -1117,7 +1135,6 @@
 				3AB385B4AB921E5BA4F27DB0 /* SiriSettingsCard.swift */,
 				3D1A3156BDFCD3989806B338 /* SupportDevelopmentCard.swift */,
 				E666B8D84233392E2587377A /* ToolsView.swift */,
-				4DA9DA16335431A3B294A331 /* WatchDownloadDetailViews.swift */,
 				174BBA2ECE78CF32CFAC192C /* WatchSettingsView.swift */,
 			);
 			path = Settings;
@@ -1430,12 +1447,12 @@
 			targets = (
 				68F0460D59215C176FF8B8A3 /* Tonearm */,
 				C40A8C12F54ED33C850C40B6 /* TonearmShareExtension */,
+				B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */,
 				4FF752415B2FE715CD6A6EE2 /* TonearmSiriIntents */,
-				96DC51EBD7436848C7437352 /* TonearmUIRegressionTests */,
 				65C5BA178A6D1265B091D80E /* TonearmUITests */,
+				96DC51EBD7436848C7437352 /* TonearmUIRegressionTests */,
 				CD1737525AA7AB55ACD89AF0 /* TonearmWatch */,
 				70D967629DB3773BE7C77FC6 /* TonearmWatchWidgets */,
-				B5F60FC34FB7BCEF9231709E /* TonearmWidgetsExtension */,
 				541B2581DFBC0293A58EEE08 /* WatchUITests */,
 			);
 		};
@@ -1486,6 +1503,7 @@
 				309C4A7BE4BFBADC96076097 /* night.jpg in Resources */,
 				65318BD0EF55380DE2058F79 /* rain.jpg in Resources */,
 				DE2BEC06DBD57AB6777880B0 /* splash_screen.jpg in Resources */,
+				DD93FE8ED9D4D4CE14EC6123 /* starter.sqlite in Resources */,
 				6AA9B6354B01CCBC02AC6DC0 /* vocab.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1527,6 +1545,7 @@
 			files = (
 				4F556962AF663ABF80303696 /* AdaptiveGlass.swift in Sources */,
 				6FF649FB95E0F82150307951 /* AddFolderSheet.swift in Sources */,
+				071C882CDE947E024BC50C88 /* AddFolderToLibrarySheet.swift in Sources */,
 				0BAE4D620A0105E3C4FC19BA /* AddMenuSheet.swift in Sources */,
 				8CAE2413950A993A4E9E9B11 /* AddRemoteTracksSheet.swift in Sources */,
 				EE18D34B4E395874C8840D7B /* AddServerSheet.swift in Sources */,
@@ -1539,6 +1558,7 @@
 				48DEAA104867887CA96C2A42 /* AppPresentations.swift in Sources */,
 				37AD2CDC16246B372951BF1F /* AppState+BuiltInLibrary.swift in Sources */,
 				A196CB4D0462628843CAA4C4 /* AppState+BuiltInMoodIndex.swift in Sources */,
+				76EB19941362206B72791343 /* AppState+CacheRepair.swift in Sources */,
 				C457EAB240BC220601E53F3B /* AppState+CustomArtwork.swift in Sources */,
 				2E252B9A58A5AD77EF083773 /* AppState+Downloads.swift in Sources */,
 				DBFC0C10A9C34B013B4E0817 /* AppState+EditMetadata.swift in Sources */,
@@ -1611,6 +1631,7 @@
 				4A74E01C056E4544258DDB9A /* RemoteNodeRow.swift in Sources */,
 				136E62F614AE25C36FB837B8 /* RootTabChrome.swift in Sources */,
 				9E573BB60815F1EB9B85148D /* RootView.swift in Sources */,
+				8457551C400AD37DE9411AB9 /* SettingsRow.swift in Sources */,
 				FBAC35591DB7B201DA0371A2 /* SettingsView+AccountSections.swift in Sources */,
 				6F92340A366D9E75B106285F /* SettingsView+LibrarySections.swift in Sources */,
 				3EA390BE6CE33A28592B105C /* SettingsView+Sections.swift in Sources */,
@@ -1631,7 +1652,6 @@
 				DA431A641AF843C00F285BCE /* TrackDetailCard.swift in Sources */,
 				E66A50843229DA01FFD6E2D7 /* Typography.swift in Sources */,
 				1A0ED14038DAB24DEC322BEC /* UpNextView.swift in Sources */,
-				70B335C9F25257F926ADD07A /* WatchDownloadDetailViews.swift in Sources */,
 				43F852A09254A155153C1830 /* WatchGlyph.swift in Sources */,
 				94C8DFA6509A832BF22FAC17 /* WatchSettingsView.swift in Sources */,
 				FA21DEDFD4C224853AF43150 /* WidgetArtworkStore+Save.swift in Sources */,
