@@ -268,13 +268,16 @@ extension AudioPlayer {
                 rows.append(row)
             }
         }
+        // Snapshot the analysed BPM/key now so the explanation never changes on a later re-index.
+        let mix = recommendation == .mixMatched
+            ? ((try? await LibraryStore.shared.djLoadTrackInfo(trackIds: ids)) ?? [:]) : [:]
         guard !Task.isCancelled else { return }
         guard !rows.isEmpty else {
             await extendWithFallback(reason: .unavailable, excluding: await currentKeepPlayingExclusions())
             return
         }
         finishKeepPlayingExtension(
-            with: rows, isFallback: isFallback, reason: reason, recommendation: recommendation)
+            with: rows, isFallback: isFallback, reason: reason, recommendation: recommendation, mix: mix)
     }
 
     /// The honest fallback: shuffle-continue from the same source/library
@@ -328,7 +331,8 @@ extension AudioPlayer {
     /// nothing to add is still a real, visible result, not silence.
     func finishKeepPlayingExtension(
         with rows: [TrackRow], isFallback: Bool, reason: KeepPlayingFallbackReason?,
-        recommendation: KeepPlayingRecommendationReason = .soundSimilar
+        recommendation: KeepPlayingRecommendationReason = .soundSimilar,
+        mix: [Int64: DJLoadTrackInfo] = [:]
     ) {
         keepPlayingLastExtensionWasFallback = isFallback
         keepPlayingFallbackReason = isFallback ? reason : nil
@@ -360,7 +364,7 @@ extension AudioPlayer {
         }
 
         queueEntries = QueueEditor.State<PlaybackQueueEntry>.appendingKeepPlaying(
-            rows, reason: recommendation,
+            rows, reason: recommendation, mix: mix,
             in: QueueEditor.State(queue: queueEntries, currentIndex: index)).queue
         if shuffle { unshuffledQueue = queueEntries }
         for row in rows {

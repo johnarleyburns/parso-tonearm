@@ -94,7 +94,8 @@ final class QueueOriginPolicyTests: XCTestCase {
         player.shuffle = false
         player.play(tracks: [row(1), row(2)], startAt: 0)
         player.finishKeepPlayingExtension(with: [row(30)], isFallback: false, reason: nil,
-                                          recommendation: .mixMatched)
+                                          recommendation: .mixMatched,
+                                          mix: [30: DJLoadTrackInfo(bpm: 120, camelotKey: "8A")])
         XCTAssertEqual(player.queueEntries.last?.origin, .keepPlaying(.mixMatched))
         player.play(tracks: [row(3), row(4)], startAt: 0)
         XCTAssertNil(player.keepPlayingExtensionTask)

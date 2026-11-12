@@ -1,14 +1,6 @@
 #if !os(watchOS)
 import Foundation
 
-/// Why Keep Playing chose a track. Closed on purpose: UI labels switch over it exhaustively.
-public enum KeepPlayingRecommendationReason: Equatable, Sendable {
-    case mixMatched
-    case soundSimilar
-    case modelUnavailableShuffle
-    case noMatchShuffle
-}
-
 /// One slot in the play queue: the row, its occurrence identity and why it is there.
 /// Origin is never inferred from `TrackRow.id` — the same track may occur several times.
 public struct PlaybackQueueEntry: Identifiable, Equatable, Sendable {
@@ -28,11 +20,33 @@ public struct PlaybackQueueEntry: Identifiable, Equatable, Sendable {
     public let id: QueueOccurrenceID
     public var row: TrackRow
     public var origin: Origin
+    /// BPM/key snapshot for a mix match, captured when the entry was created.
+    public private(set) var mixBPM: Double?
+    public private(set) var mixCamelotKey: String?
 
-    public init(id: QueueOccurrenceID = QueueOccurrenceID(), row: TrackRow, origin: Origin) {
+    /// A `.mixMatched` origin without a valid BPM/key snapshot is an invariant failure, so it is
+    /// recorded as the broader `.soundSimilar` origin instead.
+    public init(id: QueueOccurrenceID = QueueOccurrenceID(), row: TrackRow, origin: Origin,
+                mixBPM: Double? = nil, mixCamelotKey: String? = nil) {
         self.id = id
         self.row = row
-        self.origin = origin
+        if case .keepPlaying(.mixMatched) = origin {
+            if let p = KeepPlayingProvenance(reason: .mixMatched, bpm: mixBPM, camelotKey: mixCamelotKey) {
+                self.origin = origin
+                self.mixBPM = p.bpm
+                self.mixCamelotKey = p.camelotKey
+            } else {
+                self.origin = .keepPlaying(.soundSimilar)
+            }
+        } else {
+            self.origin = origin
+        }
+    }
+
+    /// Nil for non-Keep-Playing entries; otherwise the persisted-by-occurrence explanation.
+    public var provenance: KeepPlayingProvenance? {
+        guard case .keepPlaying(let reason) = origin else { return nil }
+        return KeepPlayingProvenance(reason: reason, bpm: mixBPM, camelotKey: mixCamelotKey)
     }
 }
 
@@ -56,10 +70,15 @@ extension QueueEditor.State where Element == PlaybackQueueEntry {
 
     /// Keep Playing only ever appends at the tail.
     static func appendingKeepPlaying(
-        _ rows: [TrackRow], reason: KeepPlayingRecommendationReason, in state: Self
+        _ rows: [TrackRow], reason: KeepPlayingRecommendationReason,
+        mix: [Int64: DJLoadTrackInfo] = [:], in state: Self
     ) -> Self {
         var state = state.normalized
-        state.queue.append(contentsOf: rows.map { PlaybackQueueEntry(row: $0, origin: .keepPlaying(reason)) })
+        state.queue.append(contentsOf: rows.map { row in
+            let info = row.track.id.flatMap { mix[$0] }
+            return PlaybackQueueEntry(row: row, origin: .keepPlaying(reason),
+                                      mixBPM: info?.bpm, mixCamelotKey: info?.camelotKey)
+        })
         return state
     }
 

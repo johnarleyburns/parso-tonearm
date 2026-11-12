@@ -5,9 +5,12 @@ import Foundation
 public enum QueueAccessibility {
     public static let minimumTargetSide: Double = 44
 
-    public static func rowLabel(position: Int, title: String, artist: String) -> String {
+    public static func rowLabel(position: Int, title: String, artist: String,
+                                provenance: KeepPlayingProvenance? = nil) -> String {
         let name = artist.isEmpty ? title : "\(title), \(artist)"
-        return "\(position), \(name)"
+        let base = "\(position), \(name)"
+        guard let provenance else { return base }
+        return "\(base), \(provenance.accessibilitySuffix)"
     }
 
     public static func rowValue(isCurrent: Bool, isUpNext: Bool = false, duration: Double? = nil) -> String {

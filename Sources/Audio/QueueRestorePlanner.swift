@@ -5,8 +5,11 @@ public struct RestorePlan: Sendable {
     public var rows: [TrackRow]
     public var startIndex: Int
     public var seekTo: Double
+    /// Parallel to `rows`; nil for entries that were not Keep Playing additions.
+    public var provenance: [KeepPlayingProvenance?]
 
-    public init(rows: [TrackRow], startIndex: Int, seekTo: Double) {
+    public init(rows: [TrackRow], startIndex: Int, seekTo: Double, provenance: [KeepPlayingProvenance?]? = nil) {
+        self.provenance = provenance ?? Array(repeating: nil, count: rows.count)
         self.rows = rows
         self.startIndex = startIndex
         self.seekTo = seekTo
@@ -30,6 +33,7 @@ public enum QueueRestorePlanner {
         resolveBySyncID: @Sendable (String) async -> TrackRow?
     ) async -> RestorePlan? {
         var rows: [TrackRow] = []
+        var provenance: [KeepPlayingProvenance?] = []
         var startIndex = 0
         var currentResolved = false
 
@@ -51,6 +55,7 @@ public enum QueueRestorePlanner {
                 currentResolved = true
             }
             rows.append(row)
+            provenance.append(saved.keepPlayingProvenance?[safe: position] ?? nil)
         }
 
         guard !rows.isEmpty else { return nil }
@@ -68,7 +73,7 @@ public enum QueueRestorePlanner {
             seekTo = 0
         }
 
-        return RestorePlan(rows: rows, startIndex: clampedIndex, seekTo: seekTo)
+        return RestorePlan(rows: rows, startIndex: clampedIndex, seekTo: seekTo, provenance: provenance)
     }
 }
 

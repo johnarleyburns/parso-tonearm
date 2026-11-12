@@ -160,12 +160,6 @@ struct UpNextView: View {
                 .font(Typography.caption)
                 .textCase(.uppercase)
                 .kerning(0.3)
-            if kind == .keepPlaying, player.keepPlayingLastExtensionWasFallback {
-                Text(keepPlayingFallbackDetail)
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-                    .textCase(nil)
-            }
         }
         .foregroundStyle(Palette.accent.opacity(0.85))
         .padding(.top, 6)
@@ -178,6 +172,7 @@ struct UpNextView: View {
     #if !os(iOS)
     private func macRow(offset: Int) -> some View {
         QueueRow(row: player.queue[offset],
+                 provenance: player.queueEntries[safe: offset]?.provenance,
                  position: offset + 1,
                  isCurrent: offset == player.index,
                  isUpNext: offset == player.index + 1,
@@ -216,6 +211,7 @@ struct UpNextView: View {
                     .accessibilityIdentifier("np.queue.remove.\(offset)")
                 }
                 QueueRow(row: row,
+                         provenance: player.queueEntries[safe: offset]?.provenance,
                          position: offset + 1,
                          isCurrent: offset == player.index,
                          isUpNext: offset == player.index + 1,
@@ -295,21 +291,17 @@ struct UpNextView: View {
         .accessibilityAddTraits(player.keepPlayingEnabled ? .isSelected : [])
         .accessibilityIdentifier("np.keepPlaying")
     }
+}
 
-    private var keepPlayingFallbackDetail: String {
-        switch player.keepPlayingFallbackReason {
-        case .waitingForModel:
-            return String(localized: "Shuffled — the sound-search model is still downloading")
-        case .matchingUnavailable:
-            return String(localized: "Broader sound match — no Camelot/BPM match was available")
-        case .unavailable, nil:
-            return String(localized: "Shuffled — no sound-search match available for this track")
-        }
-    }
+private extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
 private struct QueueRow: View {
     let row: TrackRow
+    /// Non-nil only for Keep Playing entries; other rows gain no subtitle or action.
+    var provenance: KeepPlayingProvenance?
+    @State private var showWhy = false
     let position: Int
     let isCurrent: Bool
     var isUpNext = false
@@ -345,6 +337,13 @@ private struct QueueRow: View {
                     .font(Typography.caption)
                     .foregroundStyle(Palette.inkSecondary)
                     .lineLimit(1)
+                if let provenance {
+                    Text(provenance.subtitle)
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary)
+                        .lineLimit(2)
+                        .accessibilityIdentifier("np.queue.provenance")
+                }
             }
             Spacer()
             if let dur = row.track.durationSec, dur > 0 {
@@ -367,11 +366,46 @@ private struct QueueRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(QueueAccessibility.rowLabel(
             position: position, title: row.track.title,
-            artist: row.artist?.name ?? row.album?.artist ?? ""))
+            artist: row.artist?.name ?? row.album?.artist ?? "",
+            provenance: provenance))
         .accessibilityValue(QueueAccessibility.rowValue(isCurrent: isCurrent, isUpNext: isUpNext,
                                                         duration: row.track.durationSec))
         .accessibilityHint(QueueAccessibility.rowHint(isCurrent: isCurrent))
         .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { player.skipToIndex(queueIndex) }
+        .modifier(WhyThisTrackModifier(provenance: provenance, isPresented: $showWhy))
+    }
+}
+
+/// Adds the "Why this track?" context-menu action, VoiceOver action and sheet to Keep Playing rows
+/// only; a nil provenance leaves the row untouched.
+private struct WhyThisTrackModifier: ViewModifier {
+    let provenance: KeepPlayingProvenance?
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        if let provenance {
+            content
+                .contextMenu {
+                    Button { isPresented = true } label: {
+                        Label(KeepPlayingProvenance.whyActionName, systemImage: "info.circle")
+                    }
+                }
+                .accessibilityAction(named: KeepPlayingProvenance.whyActionName) { isPresented = true }
+                .sheet(isPresented: $isPresented) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(KeepPlayingProvenance.whyActionName).font(Typography.callout)
+                        ForEach(provenance.detailLines, id: \.self) { line in
+                            Text(line).font(Typography.caption)
+                        }
+                        Button("Done") { isPresented = false }
+                    }
+                    .padding(20)
+                    .presentationDetents([.height(240)])
+                    .accessibilityIdentifier("np.queue.why")
+                }
+        } else {
+            content
+        }
     }
 }
