@@ -576,28 +576,12 @@ actor ArtworkService {
 
     @MainActor
     static func dominantColor(from image: PlatformImage) -> PlatformColor {
-        guard let ciImage = CIImage(image: image) else { return .systemBlue }
-        let filter = CIFilter(
-            name: "CIAreaAverage",
-            parameters: [
-                kCIInputImageKey: ciImage,
-                kCIInputExtentKey: CIVector(cgRect: ciImage.extent)
-            ]
-        )
-        guard let output = filter?.outputImage else { return .systemBlue }
-        var pixel = [UInt8](repeating: 0, count: 4)
-        CIContext().render(
-            output,
-            toBitmap: &pixel,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: nil
-        )
+        guard let cgImage = image.tonearmCGImage else { return .systemBlue }
+        let c = ArtworkColorSampler.averageColor(of: cgImage)
         return PlatformColor(
-            red: CGFloat(pixel[0]) / 255,
-            green: CGFloat(pixel[1]) / 255,
-            blue: CGFloat(pixel[2]) / 255,
+            red: CGFloat(c.red) / 255,
+            green: CGFloat(c.green) / 255,
+            blue: CGFloat(c.blue) / 255,
             alpha: 1
         )
     }
