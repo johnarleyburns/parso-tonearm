@@ -9,32 +9,28 @@ public struct QueueOccurrenceID: Hashable, Sendable, Codable {
 }
 
 extension AudioPlayer {
-    /// Keeps `queueOccurrences` parallel to `queue` after any edit, matching surviving rows in
-    /// order so reorder/delete/insert keep identities and duplicates stay distinct.
-    func reconcileQueueOccurrences(old: [TrackRow]) {
-        var oldOccurrences = queueOccurrences
-        if oldOccurrences.count != old.count { oldOccurrences = old.map { _ in QueueOccurrenceID() } }
+    /// Compatibility setter behind `queue = rows`: matches surviving rows to existing entries in
+    /// order, so reorder/delete/insert keep identity and origin and duplicates stay distinct.
+    /// Rows with no match become `.context` entries.
+    func setQueueRows(_ rows: [TrackRow]) {
+        let old = queueEntries
         var used = Set<Int>()
         var cursor = 0
-        var result: [QueueOccurrenceID] = []
-        for row in queue {
-            let match = (cursor..<old.count).first { !used.contains($0) && old[$0].track.id == row.track.id }
-                ?? old.indices.first { !used.contains($0) && old[$0].track.id == row.track.id }
+        var result: [PlaybackQueueEntry] = []
+        for row in rows {
+            let match = (cursor..<old.count).first { !used.contains($0) && old[$0].row.track.id == row.track.id }
+                ?? old.indices.first { !used.contains($0) && old[$0].row.track.id == row.track.id }
             if let match {
                 used.insert(match)
                 cursor = match + 1
-                result.append(oldOccurrences[match])
+                var entry = old[match]
+                entry.row = row
+                result.append(entry)
             } else {
-                result.append(QueueOccurrenceID())
+                result.append(PlaybackQueueEntry(row: row, origin: .context))
             }
         }
-        guard result != queueOccurrences || oldOccurrences.count != queueOccurrences.count else { return }
-        queueOccurrences = result
-    }
-
-    /// A replacement queue shares no identities with the old one, even for the same tracks.
-    func replaceQueueOccurrences() {
-        queueOccurrences = queue.map { _ in QueueOccurrenceID() }
+        if result != old { queueEntries = result }
     }
 }
 #endif
