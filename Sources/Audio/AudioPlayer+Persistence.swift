@@ -103,6 +103,7 @@ extension AudioPlayer {
         guard !isAmbient else { return }
         var ids: [Int64] = []
         var syncIDs: [String?] = []
+        var provenance: [KeepPlayingProvenance?] = []
         var currentIndex = 0
         for (position, entry) in queueEntries.enumerated() {
             let row = entry.row
@@ -110,6 +111,7 @@ extension AudioPlayer {
             if position == index { currentIndex = ids.count }
             ids.append(id)
             syncIDs.append(row.track.syncID)
+            provenance.append(entry.provenance)
         }
         guard !ids.isEmpty else {
             PlaybackStateStore.clear()
@@ -121,7 +123,8 @@ extension AudioPlayer {
             currentIndex: currentIndex,
             elapsed: currentTime,
             isPlaying: isPlaying,
-            savedAt: Date()
+            savedAt: Date(),
+            keepPlayingProvenance: provenance.contains { $0 != nil } ? provenance : nil
         ))
     }
 
@@ -133,6 +136,7 @@ extension AudioPlayer {
 
         var ids: [Int64] = []
         var syncIDs: [String?] = []
+        var provenance: [KeepPlayingProvenance?] = []
         var currentIndex = 0
         for (position, entry) in queueEntries.enumerated() {
             let row = entry.row
@@ -140,6 +144,7 @@ extension AudioPlayer {
             if position == index { currentIndex = ids.count }
             ids.append(id)
             syncIDs.append(row.track.syncID)
+            provenance.append(entry.provenance)
         }
 
         if ids.isEmpty {
@@ -153,7 +158,8 @@ extension AudioPlayer {
             currentIndex: currentIndex,
             elapsed: currentTime,
             isPlaying: isPlaying,
-            savedAt: Date()
+            savedAt: Date(),
+            keepPlayingProvenance: provenance.contains { $0 != nil } ? provenance : nil
         )
 
         persistor.save(candidate: candidate, reason: reason)
@@ -238,7 +244,11 @@ extension AudioPlayer {
         isRestoring = true
         pendingRestoreSeek = nil
 
-        queue = plan.rows
+        queueEntries = plan.rows.enumerated().map { offset, row in
+            guard let p = plan.provenance[offset] else { return PlaybackQueueEntry(row: row, origin: .context) }
+            return PlaybackQueueEntry(row: row, origin: .keepPlaying(p.reason),
+                                      mixBPM: p.bpm, mixCamelotKey: p.camelotKey)
+        }
         index = plan.startIndex
         loadCurrent(autoplay: false)
 

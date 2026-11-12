@@ -12,6 +12,9 @@ public struct PlaybackStateSnapshot: Codable, Equatable, Sendable {
     public var elapsed: Double
     public var isPlaying: Bool
     public var savedAt: Date
+    /// Keep Playing provenance per queued occurrence (parallel to `trackIDs`); nil entries are
+    /// non-auto-added. Absent in older payloads.
+    public var keepPlayingProvenance: [KeepPlayingProvenance?]? = nil
 
     /// Sanitizes elapsed to a finite non-negative value.
     public var sanitizedElapsed: Double {
