@@ -8,13 +8,7 @@ struct UpNextView: View {
     @State private var editMode: EditMode = .inactive
     #endif
 
-    /// The first queue offset Keep Playing appended, if any — where the
-    /// "Extended by Keep Playing" marker renders. `nil` when nothing in the
-    /// live queue is auto-added (feature off, nothing extended yet, or the
-    /// auto-added tail was cleared).
-    private var firstAutoAddedOffset: Int? {
-        player.queue.firstIndex { player.keepPlayingAutoAddedTrackIDs.contains($0.id) }
-    }
+    private var projection: QueueSectionProjection { player.queueSectionProjection }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,7 +27,22 @@ struct UpNextView: View {
 
                 keepPlayingToggle
 
-                if !player.keepPlayingAutoAddedTrackIDs.isEmpty {
+                if projection.hasManual {
+                    Button {
+                        player.removeUnplayedListenerTracks()
+                    } label: {
+                        Image(systemName: "text.badge.xmark")
+                            .font(Typography.caption)
+                            .foregroundStyle(Palette.inkSecondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear added tracks")
+                    .accessibilityIdentifier("np.queue.clearManual")
+                }
+
+                if projection.hasKeepPlaying {
                     Button {
                         player.removeUnplayedKeepPlayingTracks()
                     } label: {
@@ -78,43 +87,42 @@ struct UpNextView: View {
                 // Not a List: the parent Now Playing ScrollView is the only scroller, so
                 // playback advancing can never move a nested viewport or strand the controls.
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(queueEntries, id: \.id) { entry in
-                        iosQueueRow(offset: entry.offset, row: entry.row)
+                    if let current = projection.currentOffset {
+                        iosQueueRow(offset: current, row: player.queue[current])
+                            .id(queueRowID(current))
+                    }
+                    ForEach(projection.sections, id: \.kind) { section in
+                        sectionHeader(section.kind)
+                        ForEach(section.offsets, id: \.self) { offset in
+                            iosQueueRow(offset: offset, row: player.queue[offset])
+                                .id(queueRowID(offset))
+                        }
                     }
                 }
                 .accessibilityIdentifier("np.queue.list")
                 #else
                 List {
-                    ForEach(Array(player.queue.enumerated()), id: \.offset) { offset, row in
-                        VStack(alignment: .leading, spacing: 4) {
-                            if offset == firstAutoAddedOffset {
-                                keepPlayingSeparator
+                    if let current = projection.currentOffset {
+                        macRow(offset: current)
+                    }
+                    ForEach(projection.sections, id: \.kind) { section in
+                        SwiftUI.Section {
+                            ForEach(section.offsets, id: \.self) { offset in
+                                macRow(offset: offset)
                             }
-                            QueueRow(row: row,
-                                     position: offset + 1,
-                                     isCurrent: offset == player.index,
-                                     isUpNext: offset == player.index + 1,
-                                     queueIndex: offset)
+                            .onMove { offsets, destination in
+                                // Section-local indices map back to physical queue offsets.
+                                let from = IndexSet(offsets.map { section.offsets[$0] })
+                                let to = destination < section.offsets.count
+                                    ? section.offsets[destination] : (section.offsets.last ?? 0) + 1
+                                player.moveQueueItems(fromOffsets: from, toOffset: to)
+                            }
+                            .onDelete { offsets in
+                                player.removeFromQueue(atOffsets: IndexSet(offsets.map { section.offsets[$0] }))
+                            }
+                        } header: {
+                            sectionHeader(section.kind)
                         }
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparatorTint(Palette.hairline)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    player.removeFromQueue(at: offset)
-                                } label: {
-                                    Label("Remove", systemImage: "trash")
-                                }
-                            }
-                            .accessibilityAction(named: QueueAccessibility.removeActionName) {
-                                player.removeFromQueue(at: offset)
-                            }
-                    }
-                    .onMove { offsets, destination in
-                        player.moveQueueItems(fromOffsets: offsets, toOffset: destination)
-                    }
-                    .onDelete { offsets in
-                        player.removeFromQueue(atOffsets: offsets)
                     }
                 }
                 .listStyle(.plain)
@@ -132,23 +140,69 @@ struct UpNextView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Palette.hairline))
     }
 
-    #if os(iOS)
-    /// Rows keyed by queue-occurrence identity so duplicates stay distinct and
-    /// identity survives advance, insert, remove and reorder.
-    private var queueEntries: [(id: String, offset: Int, row: TrackRow)] {
+    /// Stable occurrence identity so duplicates stay distinct across advance/insert/remove/reorder.
+    private func queueRowID(_ offset: Int) -> String {
         let occurrences = player.queueOccurrences
-        let usable = occurrences.count == player.queue.count
-        return player.queue.enumerated().map { offset, row in
-            (usable ? "o-\(occurrences[offset].rawValue)" : "i-\(offset)", offset, row)
-        }
+        return occurrences.count == player.queue.count ? "o-\(occurrences[offset].rawValue)" : "i-\(offset)"
     }
 
     @ViewBuilder
+    private func sectionHeader(_ kind: QueueSectionProjection.Kind) -> some View {
+        let title: String = {
+            switch kind {
+            case .manual: return String(localized: "Added by you")
+            case .context: return String(localized: "Playing from \(player.queueSource.label)")
+            case .keepPlaying: return String(localized: "Keep Playing")
+            }
+        }()
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(Typography.caption)
+                .textCase(.uppercase)
+                .kerning(0.3)
+            if kind == .keepPlaying, player.keepPlayingLastExtensionWasFallback {
+                Text(keepPlayingFallbackDetail)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.inkTertiary)
+                    .textCase(nil)
+            }
+        }
+        .foregroundStyle(Palette.accent.opacity(0.85))
+        .padding(.top, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier(kind.accessibilityIdentifier)
+        // Copy contract: ADDED BY YOU / PLAYING FROM <source> / KEEP PLAYING (uppercased by textCase).
+    }
+
+    #if !os(iOS)
+    private func macRow(offset: Int) -> some View {
+        QueueRow(row: player.queue[offset],
+                 position: offset + 1,
+                 isCurrent: offset == player.index,
+                 isUpNext: offset == player.index + 1,
+                 queueIndex: offset)
+            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparatorTint(Palette.hairline)
+            .id(queueRowID(offset))
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
+                    player.removeFromQueue(at: offset)
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+            }
+            .accessibilityAction(named: QueueAccessibility.removeActionName) {
+                player.removeFromQueue(at: offset)
+            }
+    }
+    #endif
+
+    #if os(iOS)
+    @ViewBuilder
     private func iosQueueRow(offset: Int, row: TrackRow) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            if offset == firstAutoAddedOffset {
-                keepPlayingSeparator
-            }
             HStack(spacing: 6) {
                 if editMode == .active {
                     Button { player.removeFromQueue(at: offset) } label: {
@@ -240,31 +294,6 @@ struct UpNextView: View {
         .accessibilityHint(QueueAccessibility.keepPlayingHint)
         .accessibilityAddTraits(player.keepPlayingEnabled ? .isSelected : [])
         .accessibilityIdentifier("np.keepPlaying")
-    }
-
-    /// Marks where Keep Playing's auto-added tail begins, distinguishing it
-    /// from tracks the user explicitly queued (CLAUDE.md "no silent/magic
-    /// background work": when it extends the queue, that must be visible).
-    /// When the last extension had to fall back to a shuffle-continue, this
-    /// also says so and why — never a silent substitution.
-    private var keepPlayingSeparator: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Image(systemName: player.keepPlayingLastExtensionWasFallback ? "shuffle" : "waveform")
-                    .font(Typography.caption)
-                Text("Extended by Keep Playing")
-                    .font(Typography.caption)
-                    .textCase(.uppercase)
-                    .kerning(0.3)
-            }
-            if player.keepPlayingLastExtensionWasFallback {
-                Text(keepPlayingFallbackDetail)
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-        }
-        .foregroundStyle(Palette.accent.opacity(0.85))
-        .padding(.top, 2)
     }
 
     private var keepPlayingFallbackDetail: String {
