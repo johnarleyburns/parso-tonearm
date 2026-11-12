@@ -71,6 +71,8 @@ final class AppState: ObservableObject {
     /// True only while the Find query field has keyboard focus. The root shell combines it with
     /// the active tab (`FindSearchChromeState`) so a stale value can never hide other tabs' chrome.
     @Published var findQueryFocused: Bool = false
+    /// True only while the Mood prompt field has real keyboard focus (never inferred from text).
+    @Published var moodPromptFocused: Bool = false
     @Published var searchResults: [TrackRow] = []
     /// Shared musical metadata for My Music and the DJ load browser.  This is
     /// refreshed from the same persisted discovery/DJ-prep records after a

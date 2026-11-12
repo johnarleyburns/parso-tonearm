@@ -546,6 +546,7 @@ private struct MoodEntryPointSection: View {
     @Binding var showIndexStatus: Bool
     let startingPlayback: Bool
     let onPlay: () -> Void
+    @FocusState private var promptFocused: Bool
     @State private var moodDisplayMetadata: [Int64: DJLoadTrackInfo] = [:]
     @State private var moodDisplayEnergies: [Int64: Double] = [:]
 
@@ -587,6 +588,23 @@ private struct MoodEntryPointSection: View {
     }
 
     var body: some View {
+        moodBody
+            .onChange(of: promptFocused) { _, focused in
+                appState.moodPromptFocused = focused
+            }
+            .onChange(of: appState.tab) { _, tab in
+                if tab != .mood { promptFocused = false }
+            }
+            .onChange(of: appState.showNowPlaying) { _, showing in
+                if showing { promptFocused = false }
+            }
+            .onDisappear {
+                promptFocused = false
+                appState.moodPromptFocused = false
+            }
+    }
+
+    private var moodBody: some View {
         VStack(alignment: .leading, spacing: 14) {
             SectionHeader(title: "What's the mood?")
 
@@ -598,6 +616,7 @@ private struct MoodEntryPointSection: View {
                 .padding(.vertical, 11)
                 .frame(height: 44)
                 .glassSurface(cornerRadius: 12)
+                .focused($promptFocused)
                 .accessibilityIdentifier("mood.prompt")
 
             MoodPillPicker(pills: allMoodPills, selection: pillSelectionBinding)
