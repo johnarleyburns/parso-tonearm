@@ -64,6 +64,8 @@ struct ArtworkView: View {
     @State private var fetchedImage: PlatformImage?
     @State private var analysis: TrackAnalysisSummary?
     @State private var keywordImage: PlatformImage?
+    /// Sampled once per resolved image in `.task(id: fetchKey)`; nil for opaque art.
+    @State private var dominantColorGradient: LinearGradient?
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -107,6 +109,18 @@ struct ArtworkView: View {
                         fetchedImage = await ArtworkService.shared.artwork(forTrackRow: row)
                     }
                 }
+                // Sample the dominant color once per resolved image, and only
+                // when the image can show the gradient through transparency.
+                if let img = image ?? fetchedImage,
+                   let cg = img.tonearmCGImage, !ArtworkColorSampler.isOpaque(cg) {
+                    let color = Color(ArtworkService.dominantColor(from: img))
+                    dominantColorGradient = LinearGradient(
+                        colors: [color.opacity(0.3), color.opacity(0.6)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                } else {
+                    dominantColorGradient = nil
+                }
                 // Only worth fetching if we might actually need the fallback
                 // gradient (real art always wins, see resolvedGradient) —
                 // but the fetch above is what tells us that, so always ask;
@@ -132,17 +146,13 @@ struct ArtworkView: View {
         let base: String
         if let identifier, !identifier.isEmpty { base = "id-\(identifier)" }
         else { base = "track-\(trackRow?.track.id ?? -1)" }
-        return "\(base)-v\(invalidation.version)"
+        let imageTag = image.map { "-img\(ObjectIdentifier($0).hashValue)" } ?? ""
+        return "\(base)-v\(invalidation.version)\(imageTag)"
     }
 
     private var resolvedGradient: LinearGradient {
-        if let img = image ?? fetchedImage {
-            let uiColor = ArtworkService.dominantColor(from: img)
-            let color = Color(uiColor)
-            return LinearGradient(
-                colors: [color.opacity(0.3), color.opacity(0.6)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
+        if image != nil || fetchedImage != nil, let dominantColorGradient {
+            return dominantColorGradient
         }
         return defaultGradient
     }
