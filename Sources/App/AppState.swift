@@ -98,6 +98,12 @@ final class AppState: ObservableObject {
     /// pattern used elsewhere in this file.
     @Published var pendingArtistFilter: String?
     @Published var downloadRevision = 0
+    /// Bumped (coalesced) when off-actor phone-download lookups land, so rows re-read the cache.
+    @Published var phoneDownloadResolvedTick = 0
+    var phoneDownloadCache: [Int64: PhoneDownloadState] = [:]
+    var phoneDownloadInFlight: Set<Int64> = []
+    var phoneDownloadCacheRevision = 0
+    var phoneDownloadFlushScheduled = false
     @Published var activePhoneDownloads: Set<Int64> = []
     /// The row (not just id) whose "Change Artwork" picker is open — a remote
     /// row's id can still be transient/negative here, so the picker's
