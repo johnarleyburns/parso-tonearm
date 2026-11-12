@@ -9,31 +9,10 @@ extension SettingsView {
             settingToggle("Keep Playing",
                           "When your queue is about to end, keep music playing with similar-sounding tracks",
                           $appState.keepPlayingEnabled, id: "settings.keepPlaying")
-            Divider().overlay(Palette.hairline)
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tracks added per extension").font(Typography.callout)
-                    Text("Picked by sound similarity to what you just played, when the sound index is ready — otherwise shuffled from the same library/playlist")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                // Same fix as `prefetchControl` — a Stepper's label closure
-                // never renders inline on iOS, so the value needs its own
-                // visible Text.
-                Text("\(appState.keepPlayingBatchSize)").font(Typography.callout)
-                    .monospacedDigit()
-                Stepper("", value: $appState.keepPlayingBatchSize, in: 5...30, step: 5)
-                .labelsHidden()
-                .fixedSize()
-            }
-            .padding(.vertical, 6)
-            .opacity(appState.keepPlayingEnabled ? 1 : 0.4)
-            .disabled(!appState.keepPlayingEnabled)
         }
         .padding(15)
         .glassSurface(cornerRadius: 18)
         .onChange(of: appState.keepPlayingEnabled) { _, _ in appState.applySettingsToPlayer() }
-        .onChange(of: appState.keepPlayingBatchSize) { _, _ in appState.applySettingsToPlayer() }
     }
 
     var clearCard: some View {

@@ -124,7 +124,8 @@ extension AudioPlayer {
             enabled: keepPlayingEnabled, isAmbient: isAmbient, repeatMode: repeatMode,
             queueCount: queue.count, index: index,
             lastAttemptedIndex: keepPlayingLastExtensionAttemptIndex,
-            extensionInFlight: keepPlayingExtensionInFlight)
+            extensionInFlight: keepPlayingExtensionInFlight,
+            unplayedAutoCount: unplayedKeepPlayingCount)
         else { return }
 
         keepPlayingLastExtensionAttemptIndex = index
@@ -133,6 +134,16 @@ extension AudioPlayer {
         keepPlayingExtensionTask = Task { [weak self] in
             await self?.performKeepPlayingExtension()
         }
+    }
+
+    /// Future queue entries whose origin is `.keepPlaying`.
+    var unplayedKeepPlayingCount: Int {
+        queueEntries.enumerated().filter { $0.offset > index && $0.element.origin.isKeepPlaying }.count
+    }
+
+    /// Maximum number of tracks an extension may append right now.
+    var keepPlayingHorizonBudget: Int {
+        KeepPlayingPicker.horizonBudget(unplayedAutoCount: unplayedKeepPlayingCount)
     }
 
     private func currentKeepPlayingExclusions() async -> Set<Int64> {
@@ -151,13 +162,14 @@ extension AudioPlayer {
         // is a process-wide singleton and this task can otherwise keep
         // running well past the session (or test) that started it.
         guard !Task.isCancelled else { return }
+        guard keepPlayingHorizonBudget > 0 else { return }
         let excluded = await currentKeepPlayingExclusions()
 
         // Keep Playing is an endless mix: continue from the last queued track under the mixing
         // rules first; the other continuations below are the fallback when nothing fits.
         if let mixProvider = keepPlayingMixProvider, let anchor = queue.last?.track.id {
             let ids = await mixProvider.mixContinuation(after: anchor, excluding: excluded,
-                                                        limit: keepPlayingBatchSize)
+                                                        limit: keepPlayingHorizonBudget)
             guard !Task.isCancelled else { return }
             if !ids.isEmpty {
                 await appendKeepPlayingSimilarTracks(
@@ -183,12 +195,12 @@ extension AudioPlayer {
                 return
             }
             finishKeepPlayingExtension(
-                with: Array(candidates.prefix(keepPlayingBatchSize)), isFallback: false, reason: nil)
+                with: Array(candidates.prefix(keepPlayingHorizonBudget)), isFallback: false, reason: nil)
             return
         }
 
         if case .continuation(let source) = queueSource {
-            let rows = await source.nextTracks(excluding: excluded, limit: keepPlayingBatchSize)
+            let rows = await source.nextTracks(excluding: excluded, limit: keepPlayingHorizonBudget)
             guard !Task.isCancelled else { return }
             if !rows.isEmpty {
                 finishKeepPlayingExtension(with: rows, isFallback: false, reason: nil)
@@ -214,7 +226,7 @@ extension AudioPlayer {
         // Stage 1: CLAP similarity restricted to the mandatory BPM/Camelot gate.
         let strict = await provider.continuationTrackIDs(
             after: recent, excluding: excluded,
-            scope: .djCompatible(anchorTrackID: anchorID), limit: keepPlayingBatchSize)
+            scope: .djCompatible(anchorTrackID: anchorID), limit: keepPlayingHorizonBudget)
         guard !Task.isCancelled else { return }
         switch strict {
         case .ready(let ids), .readyFromBroaderSimilarity(let ids):
@@ -235,7 +247,7 @@ extension AudioPlayer {
         // Stage 2: broader CLAP similarity with the musical gate removed.
         let broader = await provider.continuationTrackIDs(
             after: recent, excluding: excluded, scope: .broaderSimilarity,
-            limit: keepPlayingBatchSize)
+            limit: keepPlayingHorizonBudget)
         guard !Task.isCancelled else { return }
         switch broader {
         case .ready(let ids), .readyFromBroaderSimilarity(let ids):
@@ -291,7 +303,7 @@ extension AudioPlayer {
             guard let id = row.track.id else { return false }
             return !excluded.contains(id)
         }
-        let picked = Array(candidates.shuffled().prefix(keepPlayingBatchSize))
+        let picked = keepPlayingFallbackOrder(candidates)
         finishKeepPlayingExtension(
             with: picked, isFallback: true, reason: reason,
             recommendation: reason == .waitingForModel ? .modelUnavailableShuffle : .noMatchShuffle)
@@ -334,6 +346,9 @@ extension AudioPlayer {
         recommendation: KeepPlayingRecommendationReason = .soundSimilar,
         mix: [Int64: DJLoadTrackInfo] = [:]
     ) {
+        // Re-apply the horizon budget and diversity rules at append time, so a stale or
+        // overlapping task can never overfill the horizon. Provider order is preserved.
+        let rows = diverseKeepPlayingRows(rows)
         keepPlayingLastExtensionWasFallback = isFallback
         keepPlayingFallbackReason = isFallback ? reason : nil
         // `next()` set this when it hit the end of the queue while this
@@ -384,6 +399,24 @@ extension AudioPlayer {
         }
     }
 
+    private func diverseKeepPlayingRows(_ rows: [TrackRow]) -> [TrackRow] {
+        func candidate(_ row: TrackRow) -> KeepPlayingPicker.Candidate? {
+            guard let id = row.track.id else { return nil }
+            return .init(id: id, artist: row.artist?.name ?? row.album?.artist, album: row.album?.title)
+        }
+        let lookback = queueEntries.indices.contains(index)
+            ? queueEntries[max(0, index - 2)...index].compactMap { candidate($0.row) } : []
+        let excluded = Set(keepPlayingHistory).union(queueEntries.compactMap { $0.row.track.id })
+        let byID = Dictionary(rows.compactMap { r in r.track.id.map { ($0, r) } },
+                              uniquingKeysWith: { first, _ in first })
+        let plan = KeepPlayingPicker.plan(
+            candidates: rows.compactMap(candidate), excluded: excluded, lookback: lookback,
+            budget: keepPlayingHorizonBudget)
+        keepPlayingLastPlanRelaxedAlbum = plan.relaxedAlbum
+        keepPlayingLastPlanRelaxedArtist = plan.relaxedArtist
+        return plan.picks.compactMap { byID[$0.id] }
+    }
+
     /// Removes the not-yet-played auto-added tail from the queue — called
     /// when the user turns Keep Playing off, and exposed directly as the
     /// "Clear auto-added tracks" affordance. Already-played auto-added
@@ -394,6 +427,8 @@ extension AudioPlayer {
         }
         guard !offsets.isEmpty else { return }
         removeFromQueue(atOffsets: IndexSet(offsets))
+        // Freed horizon budget permits one fresh refill at this position.
+        keepPlayingLastExtensionAttemptIndex = nil
         let remaining = Set(queueEntries.compactMap { $0.origin.isKeepPlaying ? $0.row.track.id : nil })
         keepPlayingAutoAddedTrackIDs.formIntersection(remaining)
     }

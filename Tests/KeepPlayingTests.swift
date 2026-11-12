@@ -85,7 +85,7 @@ final class KeepPlayingTests: XCTestCase {
         if !player.queue.isEmpty {
             player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
         }
-        player.keepPlayingBatchSize = 15
+        player.keepPlayingFallbackOrder = { $0 }
         player.repeatMode = .off
         player.shuffle = false
         player.keepPlayingEnabled = true
