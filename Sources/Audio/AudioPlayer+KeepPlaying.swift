@@ -151,7 +151,8 @@ extension AudioPlayer {
                                                         limit: keepPlayingBatchSize)
             guard !Task.isCancelled else { return }
             if !ids.isEmpty {
-                await appendKeepPlayingSimilarTracks(ids, isFallback: false, reason: nil)
+                await appendKeepPlayingSimilarTracks(
+                    ids, isFallback: false, reason: nil, recommendation: .mixMatched)
                 return
             }
         }
@@ -237,7 +238,8 @@ extension AudioPlayer {
     /// deleted between the lookup and now) rather than silently appending
     /// nothing.
     private func appendKeepPlayingSimilarTracks(
-        _ ids: [Int64], isFallback: Bool, reason: KeepPlayingFallbackReason?
+        _ ids: [Int64], isFallback: Bool, reason: KeepPlayingFallbackReason?,
+        recommendation: KeepPlayingRecommendationReason = .soundSimilar
     ) async {
         var rows: [TrackRow] = []
         for id in ids {
@@ -250,7 +252,8 @@ extension AudioPlayer {
             await extendWithFallback(reason: .unavailable, excluding: await currentKeepPlayingExclusions())
             return
         }
-        finishKeepPlayingExtension(with: rows, isFallback: isFallback, reason: reason)
+        finishKeepPlayingExtension(
+            with: rows, isFallback: isFallback, reason: reason, recommendation: recommendation)
     }
 
     /// The honest fallback: shuffle-continue from the same source/library
@@ -265,7 +268,9 @@ extension AudioPlayer {
             return !excluded.contains(id)
         }
         let picked = Array(candidates.shuffled().prefix(keepPlayingBatchSize))
-        finishKeepPlayingExtension(with: picked, isFallback: true, reason: reason)
+        finishKeepPlayingExtension(
+            with: picked, isFallback: true, reason: reason,
+            recommendation: reason == .waitingForModel ? .modelUnavailableShuffle : .noMatchShuffle)
     }
 
     /// The candidate pool for the fallback shuffle-continue: whatever
@@ -301,7 +306,8 @@ extension AudioPlayer {
     /// outcome happens even when `rows` is empty — a fallback that found
     /// nothing to add is still a real, visible result, not silence.
     func finishKeepPlayingExtension(
-        with rows: [TrackRow], isFallback: Bool, reason: KeepPlayingFallbackReason?
+        with rows: [TrackRow], isFallback: Bool, reason: KeepPlayingFallbackReason?,
+        recommendation: KeepPlayingRecommendationReason = .soundSimilar
     ) {
         keepPlayingLastExtensionWasFallback = isFallback
         keepPlayingFallbackReason = isFallback ? reason : nil
@@ -332,8 +338,10 @@ extension AudioPlayer {
             return
         }
 
-        queue.append(contentsOf: rows)
-        if shuffle { unshuffledQueue = queue }
+        queueEntries = QueueEditor.State<PlaybackQueueEntry>.appendingKeepPlaying(
+            rows, reason: recommendation,
+            in: QueueEditor.State(queue: queueEntries, currentIndex: index)).queue
+        if shuffle { unshuffledQueue = queueEntries }
         for row in rows {
             if let id = row.track.id { keepPlayingAutoAddedTrackIDs.insert(id) }
         }
@@ -356,16 +364,13 @@ extension AudioPlayer {
     /// "Clear auto-added tracks" affordance. Already-played auto-added
     /// entries (before `index`) are left in the queue/history untouched.
     public func removeUnplayedKeepPlayingTracks() {
-        guard !keepPlayingAutoAddedTrackIDs.isEmpty else { return }
-        let offsets = queue.enumerated().compactMap { offset, row -> Int? in
-            guard offset > index, let id = row.track.id, keepPlayingAutoAddedTrackIDs.contains(id)
-            else { return nil }
-            return offset
+        let offsets = queueEntries.enumerated().compactMap { offset, entry -> Int? in
+            offset > index && entry.origin.isKeepPlaying ? offset : nil
         }
         guard !offsets.isEmpty else { return }
-        let removedIDs = Set(offsets.compactMap { queue[$0].track.id })
         removeFromQueue(atOffsets: IndexSet(offsets))
-        keepPlayingAutoAddedTrackIDs.subtract(removedIDs)
+        let remaining = Set(queueEntries.compactMap { $0.origin.isKeepPlaying ? $0.row.track.id : nil })
+        keepPlayingAutoAddedTrackIDs.formIntersection(remaining)
     }
 
     /// Test-only seam: runs the extension synchronously (awaiting it directly

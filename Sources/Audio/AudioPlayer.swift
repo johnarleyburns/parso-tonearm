@@ -9,12 +9,16 @@ import Network
 public final class AudioPlayer: ObservableObject {
     public static let shared = AudioPlayer()
 
-    @Published public internal(set) var queue: [TrackRow] = [] {
-        didSet { reconcileQueueOccurrences(old: oldValue) }
+    /// Canonical queue state: one entry per slot with a stable occurrence identity and an origin.
+    @Published public internal(set) var queueEntries: [PlaybackQueueEntry] = []
+    /// Read-only compatibility projection of `queueEntries` (setter is for internal/test use).
+    public internal(set) var queue: [TrackRow] {
+        get { queueEntries.map(\.row) }
+        set { setQueueRows(newValue) }
     }
     /// One stable identity per queue slot, parallel to `queue`. Survives reorder and delete;
     /// the same track queued twice has two identities.
-    public internal(set) var queueOccurrences: [QueueOccurrenceID] = []
+    public var queueOccurrences: [QueueOccurrenceID] { queueEntries.map(\.id) }
     @Published public internal(set) var index: Int = 0
     @Published public internal(set) var isPlaying = false
     @Published public internal(set) var isStalled = false
@@ -202,7 +206,7 @@ public final class AudioPlayer: ObservableObject {
     /// while the first is still resolving.
     var prefetchFreshenTasks: [Int64: Task<Void, Never>] = [:]
     let retryPolicy = RetryPolicy()
-    var unshuffledQueue: [TrackRow] = []
+    var unshuffledQueue: [PlaybackQueueEntry] = []
     /// Near-gapless (T2.5): the next queue item, preloaded (with its cache/EQ
     /// attached) so the boundary swap is seamless rather than a fresh teardown.
     var preloadedNextItem: AVPlayerItem?
@@ -315,8 +319,7 @@ public final class AudioPlayer: ObservableObject {
         dropPreloadedNext()
         unshuffledQueue = []
         queueSource = source
-        queue = tracks
-        replaceQueueOccurrences()
+        queueEntries = tracks.map { PlaybackQueueEntry(row: $0, origin: .context) }
         index = max(0, min(start, tracks.count - 1))
         // A manually-started queue begins a fresh Keep Playing session: no
         // history to avoid repeating, nothing auto-added yet. Cancel any
@@ -357,8 +360,9 @@ public final class AudioPlayer: ObservableObject {
             return
         }
         queueSource = source
-        let kept = Array(queue.prefix(index + 1))
-        let edited = QueueEditor.State(queue: kept + tracks, currentIndex: index)
+        let kept = Array(queueEntries.prefix(index + 1))
+        let appended = tracks.map { PlaybackQueueEntry(row: $0, origin: .context) }
+        let edited = QueueEditor.State(queue: kept + appended, currentIndex: index)
         applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
     }
 
@@ -373,13 +377,13 @@ public final class AudioPlayer: ObservableObject {
         let edited = QueueEditor.move(
             from: source,
             to: destination,
-            in: QueueEditor.State(queue: queue, currentIndex: index))
+            in: QueueEditor.State(queue: queueEntries, currentIndex: index))
         applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
     }
 
     public func removeFromQueue(atOffsets offsets: IndexSet) {
         guard !isAmbient, !offsets.isEmpty else { return }
-        var state = QueueEditor.State(queue: queue, currentIndex: index)
+        var state = QueueEditor.State(queue: queueEntries, currentIndex: index)
         var removedCurrent = false
         for offset in offsets.sorted(by: >) {
             let normalized = state.normalized
@@ -396,18 +400,18 @@ public final class AudioPlayer: ObservableObject {
     public func insertNext(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
-        let edited = QueueEditor.insertNext(
+        let edited = QueueEditor.State<PlaybackQueueEntry>.insertingListenerNext(
             row,
-            in: QueueEditor.State(queue: queue, currentIndex: index))
+            in: QueueEditor.State(queue: queueEntries, currentIndex: index))
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
     public func appendToQueue(_ row: TrackRow) {
         guard !isAmbient else { return }
         let wasEmpty = queue.isEmpty
-        let edited = QueueEditor.append(
+        let edited = QueueEditor.State<PlaybackQueueEntry>.appendingListenerQueued(
             row,
-            in: QueueEditor.State(queue: queue, currentIndex: index))
+            in: QueueEditor.State(queue: queueEntries, currentIndex: index))
         applyQueueEdit(edited, reloadCurrent: wasEmpty, autoplay: false)
     }
 
@@ -589,12 +593,12 @@ public final class AudioPlayer: ObservableObject {
         bridge.publishSnapshot(self)
     }
 
-    func applyQueueEdit(_ edited: QueueEditor.State<TrackRow>,
+    func applyQueueEdit(_ edited: QueueEditor.State<PlaybackQueueEntry>,
                                 reloadCurrent: Bool,
                                 autoplay: Bool) {
-        queue = edited.queue
+        queueEntries = edited.queue
         index = edited.currentIndex
-        if shuffle { unshuffledQueue = queue }
+        if shuffle { unshuffledQueue = queueEntries }
 
         guard !queue.isEmpty else {
             clearQueuePlayback()

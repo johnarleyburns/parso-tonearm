@@ -10,12 +10,12 @@ extension AudioPlayer {
 
     func applyShuffle() {
         guard queue.count > 1 else { return }
-        unshuffledQueue = queue
-        let current = queue[index]
-        var rest = queue
+        unshuffledQueue = queueEntries
+        let current = queueEntries[index]
+        var rest = queueEntries
         rest.remove(at: index)
         rest.shuffle()
-        queue = [current] + rest
+        queueEntries = [current] + rest
         index = 0
         invalidatePreloadedNext()
     }
@@ -23,8 +23,8 @@ extension AudioPlayer {
     func restoreShuffle() {
         guard !unshuffledQueue.isEmpty else { return }
         if let current = currentTrack,
-           let origIdx = unshuffledQueue.firstIndex(where: { $0.id == current.id }) {
-            queue = unshuffledQueue
+           let origIdx = unshuffledQueue.firstIndex(where: { $0.row.id == current.id }) {
+            queueEntries = unshuffledQueue
             index = origIdx
         }
         unshuffledQueue = []

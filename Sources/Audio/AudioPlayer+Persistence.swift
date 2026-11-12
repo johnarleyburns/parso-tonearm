@@ -104,7 +104,8 @@ extension AudioPlayer {
         var ids: [Int64] = []
         var syncIDs: [String?] = []
         var currentIndex = 0
-        for (position, row) in queue.enumerated() {
+        for (position, entry) in queueEntries.enumerated() {
+            let row = entry.row
             guard let id = row.track.id, id > 0 else { continue }
             if position == index { currentIndex = ids.count }
             ids.append(id)
@@ -133,7 +134,8 @@ extension AudioPlayer {
         var ids: [Int64] = []
         var syncIDs: [String?] = []
         var currentIndex = 0
-        for (position, row) in queue.enumerated() {
+        for (position, entry) in queueEntries.enumerated() {
+            let row = entry.row
             guard let id = row.track.id, id > 0 else { continue }
             if position == index { currentIndex = ids.count }
             ids.append(id)
