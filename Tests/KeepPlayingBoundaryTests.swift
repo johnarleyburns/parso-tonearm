@@ -34,7 +34,7 @@ private final class DeferredKeepPlayingProvider: KeepPlayingSimilarityProviding,
     var callCount: Int { lock.lock(); defer { lock.unlock() }; return calls }
 
     func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
     ) async -> KeepPlayingLookup {
         recordCall()
         await gate.wait()
@@ -45,7 +45,7 @@ private final class DeferredKeepPlayingProvider: KeepPlayingSimilarityProviding,
 private struct ImmediateKeepPlayingProvider: KeepPlayingSimilarityProviding {
     let result: KeepPlayingLookup
     func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
     ) async -> KeepPlayingLookup { result }
 }
 

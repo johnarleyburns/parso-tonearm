@@ -39568,53 +39568,6 @@
         }
       }
     },
-    "Select matching tracks" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Passende Titel auswählen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Seleccionar pistas afines"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Choisir des morceaux compatibles"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "合う曲を選ぶ"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Selecionar faixas compatíveis"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "选择匹配的曲目"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select matching tracks"
-          }
-        }
-      },
-      "comment" : "UI text shown in: Settings Account Sections (Sources/Features/Settings/SettingsView+AccountSections.swift)"
-    },
     "Selected" : {
       "comment" : "UI text shown in: Genre Picker (Sources/Features/Ingest/GenrePickerView.swift); Onboarding (Sources/Features/Onboarding/OnboardingView.swift)",
       "localizations" : {
