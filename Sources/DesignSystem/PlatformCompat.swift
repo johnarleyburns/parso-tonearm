@@ -39,9 +39,10 @@ public extension View {
 
     /// Hides the navigation bar only when `condition` holds, so an embedded
     /// child never suppresses its parent's native chrome.
-    @ViewBuilder
+    /// Uses a stable modifier (not an if/else branch) so toggling never changes the view's
+    /// structural identity — otherwise a focused child field is torn down and loses focus.
     func hiddenNavigationBar(when condition: Bool) -> some View {
-        if condition { self.hiddenNavigationBar() } else { self }
+        self.toolbar(condition ? .hidden : .automatic, for: .navigationBar)
     }
 
     /// These screens draw their own header, so the navigation bar is hidden.
