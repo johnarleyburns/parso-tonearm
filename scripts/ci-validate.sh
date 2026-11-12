@@ -59,3 +59,45 @@ endstep
 step "Repository hygiene"
 git diff --check
 endstep
+
+# Everything from here on regenerates Tonearm.xcodeproj via `make project`
+# (XcodeGen), which rewrites project.pbxproj and the OAuth-credentials
+# overlay in the working tree — it must run after "Repository hygiene" so
+# that unrelated, expected churn never trips git diff --check.
+
+step "Select stable Xcode"
+# release-repair.yml does not select Xcode before calling this script,
+# unlike pr-validation.yml; select it here so a real build is possible
+# regardless of caller.
+XCODE=$(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' ! -iname '*beta*' ! -iname '*rc*' -print | sort -V | tail -1)
+test -n "$XCODE"
+sudo xcode-select -s "$XCODE"
+xcodebuild -version
+endstep
+
+step "Regenerate Xcode project"
+# The committed Tonearm.xcodeproj is a convenience snapshot, not the
+# authoritative build input: even the real archive job (ios.yml
+# testflight-build) regenerates it with `make project` before building,
+# because it also writes the gitignored OAuth-credentials source file
+# (Sources/Features/Ingest/GeneratedOAuthCredentials.swift) and the Core ML
+# model-overlay YAML that project.yml's sources list depends on. A bare
+# `xcodebuild build` against the stale checked-in project fails with
+# "Build input files cannot be found" for that generated file and for any
+# source file project.pbxproj still references after it was deleted.
+if ! command -v xcodegen >/dev/null; then
+  brew install xcodegen
+fi
+make project
+endstep
+
+step "iOS + watchOS build (Tonearm.xcodeproj)"
+# A cross-target compile error (e.g. in a Watch-only file) is invisible to
+# `swift test` alone, since the Watch app is not part of the SwiftPM package.
+# Build both app schemes for real. Per CLAUDE.md: never pass a global -sdk
+# override to the combined Tonearm scheme.
+xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
+  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
+endstep
