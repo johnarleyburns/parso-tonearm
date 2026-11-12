@@ -56,6 +56,27 @@ step "Swift package tests"
 swift test
 endstep
 
+step "Select stable Xcode"
+# release-repair.yml does not select Xcode before calling this script,
+# unlike pr-validation.yml; select it here so a real build is possible
+# regardless of caller.
+XCODE=$(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' ! -iname '*beta*' ! -iname '*rc*' -print | sort -V | tail -1)
+test -n "$XCODE"
+sudo xcode-select -s "$XCODE"
+xcodebuild -version
+endstep
+
+step "iOS + watchOS build (Tonearm.xcodeproj)"
+# A cross-target compile error (e.g. in a Watch-only file) is invisible to
+# `swift test` alone, since the Watch app is not part of the SwiftPM package.
+# Build both app schemes for real. Per CLAUDE.md: never pass a global -sdk
+# override to the combined Tonearm scheme.
+xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
+  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
+endstep
+
 step "Repository hygiene"
 git diff --check
 endstep
