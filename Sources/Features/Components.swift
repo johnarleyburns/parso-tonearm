@@ -63,6 +63,9 @@ struct SearchField: View {
         .padding(.horizontal, 14)
         .frame(height: 40)
         .glassSurface(cornerRadius: 20)
+        // The whole pill is tappable and focuses the field, even when the text is empty.
+        .contentShape(Rectangle())
+        .onTapGesture { fieldFocused = true }
     }
 }
 
