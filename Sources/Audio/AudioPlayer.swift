@@ -55,10 +55,11 @@ public final class AudioPlayer: ObservableObject {
             }
         }
     }
-    /// How many tracks a single Keep Playing extension appends. Exposed so
-    /// Settings can let the user tune it (CLAUDE.md "let them drill down for
-    /// more info in settings").
-    public var keepPlayingBatchSize = 15
+    /// Fallback shuffle order; injectable so tests are deterministic.
+    var keepPlayingFallbackOrder: ([TrackRow]) -> [TrackRow] = { $0.shuffled() }
+    /// Internal diagnostics only: the last extension had to relax album/artist diversity.
+    var keepPlayingLastPlanRelaxedAlbum = false
+    var keepPlayingLastPlanRelaxedArtist = false
     /// The core track ids of every track Keep Playing has appended to the
     /// current queue (played or not) — what lets the queue UI mark them as
     /// "Extended by Keep Playing" instead of a track the user chose.
