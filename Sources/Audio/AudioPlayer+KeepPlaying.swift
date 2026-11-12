@@ -40,8 +40,17 @@ public protocol KeepPlayingSimilarityProviding: Sendable {
     ///     knows how many extra candidates to fetch to still hit `limit`.
     ///   - limit: how many track ids to return at most.
     func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, matchingTracksOnly: Bool, limit: Int
+        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope,
+        limit: Int
     ) async -> KeepPlayingLookup
+}
+
+/// Which candidate pool a CLAP continuation lookup may draw from. `.djCompatible` is the
+/// mandatory BPM (±8%) / Camelot gate anchored on the named track; `.broaderSimilarity` removes
+/// the gate and is used only when the strict pool is empty.
+public enum KeepPlayingSimilarityScope: Sendable, Equatable {
+    case djCompatible(anchorTrackID: Int64)
+    case broaderSimilarity
 }
 
 /// Why a Keep Playing extension fell back to a shuffle-continue instead of a
@@ -196,36 +205,48 @@ extension AudioPlayer {
 
         // `keepPlayingHistory` is stored oldest-first; the provider wants
         // most-recently-played first so it can search against `.first`.
-        let lookup = await provider.continuationTrackIDs(
-            after: Array(keepPlayingHistory.reversed()), excluding: excluded,
-            matchingTracksOnly: keepPlayingMatchingTracksOnly, limit: keepPlayingBatchSize)
+        let recent = Array(keepPlayingHistory.reversed())
+        guard let anchorID = recent.first else {
+            await extendWithFallback(reason: .unavailable, excluding: excluded)
+            return
+        }
+
+        // Stage 1: CLAP similarity restricted to the mandatory BPM/Camelot gate.
+        let strict = await provider.continuationTrackIDs(
+            after: recent, excluding: excluded,
+            scope: .djCompatible(anchorTrackID: anchorID), limit: keepPlayingBatchSize)
         guard !Task.isCancelled else { return }
-        switch lookup {
-        case .ready(let ids) where !ids.isEmpty:
-            // Defensive de-dup/no-repeat: the provider contract already says
-            // it must exclude these, but Keep Playing's "never repeats
-            // history or the just-played track" guarantee must hold even if
-            // a provider implementation gets that wrong.
+        switch strict {
+        case .ready(let ids), .readyFromBroaderSimilarity(let ids):
+            // Defensive de-dup/no-repeat even if a provider gets exclusions wrong.
+            let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
+            if !deduped.isEmpty {
+                await appendKeepPlayingSimilarTracks(
+                    deduped, isFallback: false, reason: nil, recommendation: .mixMatched)
+                return
+            }
+        case .waitingForModel:
+            await extendWithFallback(reason: .waitingForModel, excluding: excluded)
+            return
+        case .unavailable:
+            break
+        }
+
+        // Stage 2: broader CLAP similarity with the musical gate removed.
+        let broader = await provider.continuationTrackIDs(
+            after: recent, excluding: excluded, scope: .broaderSimilarity,
+            limit: keepPlayingBatchSize)
+        guard !Task.isCancelled else { return }
+        switch broader {
+        case .ready(let ids), .readyFromBroaderSimilarity(let ids):
             let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
             guard !deduped.isEmpty else {
                 await extendWithFallback(reason: .unavailable, excluding: excluded)
                 return
             }
-            await appendKeepPlayingSimilarTracks(deduped, isFallback: false, reason: nil)
-        case .readyFromBroaderSimilarity(let ids) where !ids.isEmpty:
-            let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
-            guard !deduped.isEmpty else {
-                await extendWithFallback(reason: .matchingUnavailable, excluding: excluded)
-                return
-            }
             await appendKeepPlayingSimilarTracks(
-                deduped, isFallback: true, reason: .matchingUnavailable)
-        case .ready:
-            // The provider had nothing left after its own exclusions — a
-            // real "no matches", not a bug — fall back honestly.
-            await extendWithFallback(reason: .unavailable, excluding: excluded)
-        case .readyFromBroaderSimilarity:
-            await extendWithFallback(reason: .matchingUnavailable, excluding: excluded)
+                deduped, isFallback: true, reason: .matchingUnavailable,
+                recommendation: .soundSimilar)
         case .waitingForModel:
             await extendWithFallback(reason: .waitingForModel, excluding: excluded)
         case .unavailable:
