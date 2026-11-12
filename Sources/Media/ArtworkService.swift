@@ -205,13 +205,7 @@ actor ArtworkService {
     /// thumbnail still looks sharp, never blurry, at its real render size.
     func thumbnail(forTrackRow row: TrackRow, maxDimension: CGFloat) async -> PlatformImage? {
         let trackId = row.track.id ?? -1
-        // Screen scale is MainActor-isolated; hop over rather than making this whole actor
-        // method require a caller-supplied pixel size. The sharpest connected screen wins.
-        let screenScale = await MainActor.run { () -> CGFloat in
-            UIApplication.shared.connectedScenes
-                .compactMap { ($0 as? UIWindowScene)?.screen.scale }
-                .max() ?? UITraitCollection.current.displayScale
-        }
+        let screenScale = await resolvedScreenScale()
         let pixelDimension = maxDimension * screenScale
         let cacheKey = "track-\(trackId)-\(Int(pixelDimension))" as NSString
 
@@ -230,6 +224,36 @@ actor ArtworkService {
         thumbnailMemCache.setObject(thumb, forKey: cacheKey, cost: thumbnailCost(thumb))
         writeThumbnailDiskCache(thumb, key: cacheKey as String)
         return thumb
+    }
+
+    private var memoizedScreenScale: CGFloat?
+    private var observingSceneChanges = false
+
+    /// Screen scale is MainActor-isolated, so it is resolved with a hop once and memoized;
+    /// cache hits never leave this actor. The memo is dropped whenever a scene connects or
+    /// disconnects (the only time the sharpest connected screen can change). The sharpest
+    /// connected screen wins.
+    private func resolvedScreenScale() async -> CGFloat {
+        if let memoizedScreenScale { return memoizedScreenScale }
+        if !observingSceneChanges {
+            observingSceneChanges = true
+            for name in [UIScene.didActivateNotification, UIScene.didDisconnectNotification, UIScene.willConnectNotification] {
+                NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                    Task { await self?.invalidateScreenScale() }
+                }
+            }
+        }
+        let scale = await MainActor.run { () -> CGFloat in
+            UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.screen.scale }
+                .max() ?? UITraitCollection.current.displayScale
+        }
+        memoizedScreenScale = scale
+        return scale
+    }
+
+    private func invalidateScreenScale() {
+        memoizedScreenScale = nil
     }
 
     private func thumbnailCost(_ image: PlatformImage) -> Int {
