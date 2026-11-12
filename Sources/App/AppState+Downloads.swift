@@ -119,23 +119,51 @@ extension AppState {
         guard asset.kind == .remote,
               let remoteStr = asset.remoteURL,
               let remoteURL = URL(string: remoteStr) else { return .notDownloaded }
-        let cacheKey = AudioCache.key(for: remoteURL)
-        let metaURL = AudioCache.metaURL(for: cacheKey)
-        guard let data = try? Data(contentsOf: metaURL),
-              let meta = try? JSONDecoder().decode(SparseCacheStore.Meta.self, from: data) else {
-            return .notDownloaded
+        // Never touch disk on the main actor (this runs per row during scrolling).
+        // Serve the per-track cache, keyed to `downloadRevision`; a miss kicks off a
+        // single off-actor read and reports `.notDownloaded` until it lands.
+        if phoneDownloadCacheRevision != downloadRevision {
+            phoneDownloadCache.removeAll()
+            phoneDownloadInFlight.removeAll()
+            phoneDownloadCacheRevision = downloadRevision
         }
-        if meta.isDurable || meta.complete {
-            let destURL = AudioCache.fileURL(for: cacheKey)
-            if FileManager.default.fileExists(atPath: destURL.path) {
-                return .downloaded
+        if let cached = phoneDownloadCache[row.id] { return cached }
+        if !phoneDownloadInFlight.contains(row.id) {
+            phoneDownloadInFlight.insert(row.id)
+            let rowID = row.id
+            let revision = downloadRevision
+            Task { [weak self] in
+                let state = await Task.detached(priority: .utility) {
+                    Self.readPhoneDownloadState(remoteURL: remoteURL)
+                }.value
+                self?.storePhoneDownloadState(state, rowID: rowID, revision: revision)
             }
         }
-        if meta.cachedBytes > 0 {
-            let fraction = meta.totalBytes.map { $0 > 0 ? Double(meta.cachedBytes) / Double($0) : 0.05 } ?? 0.05
-            return .downloading(fraction)
-        }
         return .notDownloaded
+    }
+
+    private func storePhoneDownloadState(_ state: PhoneDownloadState, rowID: Int64, revision: Int) {
+        guard revision == downloadRevision, phoneDownloadCacheRevision == revision else { return }
+        phoneDownloadInFlight.remove(rowID)
+        phoneDownloadCache[rowID] = state
+        // Coalesce republishing so a screenful of resolutions re-renders rows once.
+        guard !phoneDownloadFlushScheduled else { return }
+        phoneDownloadFlushScheduled = true
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard let self else { return }
+            phoneDownloadFlushScheduled = false
+            phoneDownloadResolvedTick &+= 1
+        }
+    }
+
+    /// Blocking disk read + decode; call only off the main actor.
+    nonisolated private static func readPhoneDownloadState(remoteURL: URL) -> PhoneDownloadState {
+        let cacheKey = AudioCache.key(for: remoteURL)
+        let meta = (try? Data(contentsOf: AudioCache.metaURL(for: cacheKey)))
+            .flatMap { try? JSONDecoder().decode(SparseCacheStore.Meta.self, from: $0) }
+        let blobExists = FileManager.default.fileExists(atPath: AudioCache.fileURL(for: cacheKey).path)
+        return PhoneDownloadStateResolver.resolve(meta: meta, blobExists: blobExists)
     }
 
     func removeDownloadFromPhone(rows: [TrackRow]) async {
