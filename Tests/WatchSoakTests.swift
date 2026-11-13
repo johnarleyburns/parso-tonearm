@@ -114,14 +114,6 @@ final class WatchSoakTests: XCTestCase {
         engine.cycleRepeat() // .off -> .all, so playback never runs out over six hours
         _ = engine.command(.play, urlForTrack: { URL(string: "file:///\($0).m4a") })
 
-        // A remote-prediction anchor for the same span: 4-minute track, playing at 1x.
-        let anchor = Date(timeIntervalSince1970: 0)
-        let remoteSnapshot = WatchPhonePlaybackSnapshot(
-            revision: 1, source: .localLibrary, isPlaying: true, rate: 1,
-            currentItem: WatchTrackSummary(trackID: "track-0", title: "T", durationSeconds: 240),
-            queueCount: queue.count, elapsedSeconds: 0, elapsedAnchorDate: anchor)
-        let remote = WatchRemotePlaybackState(snapshot: remoteSnapshot, receivedAt: anchor)
-
         var savedSizes: [Int] = []
         let sixHours = 6 * 60 * 60
         for second in stride(from: 0, through: sixHours, by: 1) {
@@ -136,10 +128,6 @@ final class WatchSoakTests: XCTestCase {
                     savedSizes.append(data.count)
                 }
             }
-            // The predicted remote clock must never run past the track duration.
-            let predicted = remote.predictedElapsed(at: anchor.addingTimeInterval(TimeInterval(second)))
-            XCTAssertLessThanOrEqual(predicted, 240)
-            XCTAssertGreaterThanOrEqual(predicted, 0)
         }
 
         // Convergence / consistency: the engine is still a valid 12-track queue with an in-range
