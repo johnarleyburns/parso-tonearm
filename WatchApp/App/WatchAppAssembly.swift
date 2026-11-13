@@ -125,45 +125,6 @@ final class WatchAppAssembly {
         // are not polled from the watch and no watch action can start iPhone playback.
     }
 
-    // MARK: - Continue on Apple Watch (§7.5)
-
-    /// Track IDs whose audio is actually present on this watch — the set the §7.5 plan is built
-    /// against.
-    func locallyAvailableTrackIDs() async -> Set<WatchTrackID> {
-        guard let repository, let audioDirectory else { return [] }
-        let rows = (try? await repository.tracks(readyOnly: true)) ?? []
-        let fm = FileManager.default
-        return Set(rows.compactMap { row -> WatchTrackID? in
-            guard let name = row.localFilename,
-                  fm.fileExists(atPath: audioDirectory.appendingPathComponent(name).path)
-            else { return nil }
-            return WatchTrackID(row.id)
-        })
-    }
-
-    /// Resolve a §7.5 plan into local snapshots and hand it to the local player, resumed at the
-    /// last authoritative anchor. Labelled, brief pause, begins locally — never gapless.
-    func startContinueOnWatch(_ plan: WatchContinueOnWatchPlan) async {
-        await playLocalTrackIDs(plan.trackIDs, startAt: plan.startIndex,
-                                seekTo: plan.elapsedAnchor > 0 ? plan.elapsedAnchor : nil)
-    }
-
-    /// Resolve phone track IDs to the watch's own ready snapshots and play them locally, dropping
-    /// any that aren't downloaded here. Used by the §7.1 cross-target "Play on Apple Watch" action
-    /// and by Continue on Apple Watch.
-    func playLocalTrackIDs(_ ids: [WatchTrackID], startAt: Int = 0, seekTo: Double? = nil) async {
-        guard let repository else { return }
-        let rows = (try? await repository.tracks(readyOnly: true)) ?? []
-        let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0) })
-        let anchor = ids.indices.contains(startAt) ? ids[startAt] : ids.first
-        let tracks = ids.compactMap { byID[$0.rawValue] }
-        guard !tracks.isEmpty else { return }
-        let start = anchor.flatMap { a in tracks.firstIndex { $0.id == a.rawValue } } ?? 0
-        let selectedID = tracks[start].id
-        WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: selectedID,
-                                               seekTo: seekTo)
-    }
-
     private init() {
         let bootstrap = WatchStoreBootstrap.open()
         self.audioDirectory = bootstrap.audioDirectory
