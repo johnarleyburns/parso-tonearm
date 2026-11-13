@@ -112,7 +112,7 @@ struct ListenView: View {
                     Text(emptyMessage).font(Typography.callout).foregroundStyle(Palette.inkTertiary)
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        LazyHStack(spacing: 12) {
                             ForEach(rows) { row in
                                 Button {
                                     selectedTrackForDetail = row
