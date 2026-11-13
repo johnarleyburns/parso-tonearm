@@ -5,25 +5,18 @@ import TonearmWatchProtocol
 
 /// Home shows local Now Playing followed by Search, Playlists, Albums, Songs, Artists and Genres.
 /// One layout in both scopes — with the phone away the same doors show what's on the watch. The
-/// connection state is a quiet chip at the end, moving to the top only while it changes scope.
+/// connection/sync state is a quiet, single-line status chip at the end of the list — never a
+/// full-width banner above Now Playing. A future refinement could pulse it to the top on a
+/// confirmed disconnect/reconnect (`WatchConnectionChrome.disconnectPulse`/`reconnectPulse`
+/// already exist for this); not built here, since that needs its own tested, timer-based behavior.
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var player = WatchPlayer.shared
     @ObservedObject private var syncStatus = WatchAppAssembly.shared.syncStatus
+    @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
 
     var body: some View {
         List {
-            Section {
-                Text(syncStatus.phoneReachable ? "iPhone connected" : "iPhone not connected").font(.caption2)
-                if syncStatus.isSyncing {
-                    ProgressView("Checking iPhone sync…")
-                } else if let result = syncStatus.syncResult {
-                    Text(result.displayMessage).font(.caption2)
-                } else {
-                    Text(syncStatus.phoneReachable ? "Sync Now is available." : "Sync Now available when connected to iPhone.").font(.caption2)
-                }
-            }
-            .accessibilityIdentifier("watch.home.syncStatus")
             // Its own view with its own observers so churny playback updates invalidate only the
             // hero, not the whole list (see memory: carousel List + observers).
             WatchHomeHero()
@@ -40,8 +33,14 @@ struct WatchRootView: View {
                      systemImage: item.systemImage, identifier: item.identifier)
             }
 
-            door(.syncStatus, title: "Sync Status", detail: nil,
-                 systemImage: "arrow.triangle.2.circlepath", identifier: "watch.syncStatus")
+            Button {
+                player.navigationPath.append(WatchNav.syncStatus)
+            } label: {
+                statusChip
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+            .accessibilityIdentifier("watch.syncStatus")
 
             Button {
                 player.navigationPath.append(WatchNav.about)
@@ -82,6 +81,21 @@ struct WatchRootView: View {
             HomeDoor(nav: .genres, title: "Genres", detail: nil,
                      systemImage: "guitars", identifier: "watch.genres")
         ]
+    }
+
+    /// The quiet, end-of-list connection/sync indicator Home's own doc comment above already
+    /// promised — driven by real state (`WatchHomeStatusPolicy`), not hardcoded, and tapping it
+    /// opens the same `WatchSyncStatusView` detail screen the old separate door did.
+    private var statusChip: some View {
+        let status = WatchHomeStatusPolicy.status(
+            banner: chrome.banner, isSyncing: syncStatus.isSyncing, syncResult: syncStatus.syncResult)
+        let tone: WatchStatusChip.Tone
+        switch status.tone {
+        case .good: tone = .good
+        case .warning: tone = .warning
+        case .failure: tone = .failure
+        }
+        return WatchStatusChip(title: status.title, tone: tone)
     }
 
     private func door(_ nav: WatchNav, title: LocalizedStringKey, detail: String?,
