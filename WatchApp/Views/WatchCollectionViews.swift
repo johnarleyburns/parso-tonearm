@@ -136,7 +136,6 @@ struct WatchCollectionDetailView: View {
 
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
-    @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
     @State private var choice: PendingPlay?
     @State private var requestedDownloads: Set<String> = []
 
@@ -174,11 +173,9 @@ struct WatchCollectionDetailView: View {
         .sheet(item: $choice) { pending in
             WatchTargetChoiceView(
                 itemTitle: pending.title,
-                phoneDetail: canPlayOnPhone ? String(localized: "Speakers or its headphones") : nil,
-                watchDetail: watchDetailForChoice(pending)) { target in
+                watchDetail: watchDetailForChoice(pending)) {
                     choice = nil
-                    coordinator.setTarget(target)
-                    perform(target: target, startID: pending.startID, shuffled: pending.shuffled)
+                    perform(target: .thisWatch, startID: pending.startID, shuffled: pending.shuffled)
                 }
         }
     }
@@ -220,12 +217,7 @@ struct WatchCollectionDetailView: View {
     private var canPlayOnPhone: Bool { false }
     private var canPlayOnWatch: Bool { !localTracks.isEmpty }
 
-    /// The remembered target when the user has chosen one; otherwise `nil` (ask once, T2).
-    private var rememberedTarget: WatchTarget? {
-        WatchPlaybackTargetStore.hasStoredPreference() ? coordinator.target : nil
-    }
-
-    /// The primary target for this screen: the only possible one, else the remembered one.
+    /// The primary target for this screen: the only possible one, else `nil` (ask once, T2).
     private var primaryTarget: WatchTarget? {
         canPlayOnWatch ? .thisWatch : nil
     }
@@ -237,14 +229,11 @@ struct WatchCollectionDetailView: View {
         if !songs.isEmpty || canPlayOnPhone {
             VStack(spacing: 6) {
                 primaryButton
-                HStack(spacing: 6) {
-                    Button { play(startID: nil, shuffled: true) } label: {
-                        Label("Shuffle", systemImage: "shuffle")
-                    }
-                    .buttonStyle(.watchSecondarySmall)
-                    .accessibilityIdentifier("watch.collection.shuffle")
-                    secondaryTargetButton
+                Button { play(startID: nil, shuffled: true) } label: {
+                    Label("Shuffle", systemImage: "shuffle")
                 }
+                .buttonStyle(.watchSecondarySmall)
+                .accessibilityIdentifier("watch.collection.shuffle")
             }
             .padding(.vertical, 2)
         }
@@ -253,12 +242,6 @@ struct WatchCollectionDetailView: View {
     @ViewBuilder
     private var primaryButton: some View {
         switch primaryTarget {
-        case .iPhone?:
-            Button { perform(target: .iPhone, startID: nil, shuffled: false) } label: {
-                Label("Play on iPhone", systemImage: "play.fill")
-            }
-            .buttonStyle(.watchPrimary)
-            .accessibilityIdentifier("watch.collection.playPhone")
         case .thisWatch?:
             Button { perform(target: .thisWatch, startID: nil, shuffled: false) } label: {
                 if chrome.showsConnectedFeatures {
@@ -276,24 +259,6 @@ struct WatchCollectionDetailView: View {
             .buttonStyle(.watchPrimary)
             .disabled(!canPlayOnPhone && !canPlayOnWatch)
             .accessibilityIdentifier("watch.collection.play")
-        }
-    }
-
-    @ViewBuilder
-    private var secondaryTargetButton: some View {
-        switch primaryTarget {
-        case .iPhone? where canPlayOnWatch:
-            Button { perform(target: .thisWatch, startID: nil, shuffled: false) } label: {
-                Label("On Watch", systemImage: "applewatch")
-            }
-            .buttonStyle(.watchSecondarySmall)
-            .accessibilityIdentifier("watch.collection.playLocal")
-        case .thisWatch? where canPlayOnPhone:
-            Button { perform(target: .iPhone, startID: nil, shuffled: false) } label: {
-                Label("On iPhone", systemImage: "iphone")
-            }
-            .buttonStyle(.watchSecondarySmall)
-            .accessibilityIdentifier("watch.collection.playPhone")
         default:
             EmptyView()
         }
@@ -409,23 +374,15 @@ struct WatchCollectionDetailView: View {
 
 // MARK: - T2 target choice
 
-/// Asked once, the first time an item both targets can play is played with no stored preference.
-/// A row that can't play says why instead of disappearing.
+/// Shown when nothing downloaded here can play the request. Says why instead of disappearing.
 struct WatchTargetChoiceView: View {
     let itemTitle: String
-    let phoneDetail: String?
     let watchDetail: String?
-    let choose: (WatchTarget) -> Void
+    let choose: () -> Void
 
     var body: some View {
         List {
-            Button { choose(.iPhone) } label: {
-                choiceRow(systemImage: "iphone", title: "iPhone",
-                          detail: phoneDetail ?? String(localized: "iPhone isn't reachable"))
-            }
-            .disabled(phoneDetail == nil)
-            .accessibilityIdentifier("watch.choice.iPhone")
-            Button { choose(.thisWatch) } label: {
+            Button { choose() } label: {
                 choiceRow(systemImage: "applewatch", title: "Apple Watch",
                           detail: watchDetail ?? String(localized: "Not downloaded"))
             }

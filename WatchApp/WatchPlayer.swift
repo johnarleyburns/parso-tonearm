@@ -136,7 +136,6 @@ final class WatchPlayer: ObservableObject {
         elapsed = 0
         duration = 0
         outputRate = 0
-        WatchPlaybackCoordinator.shared.setTarget(.thisWatch)
         navigateToNowPlaying()
         scheduleCurrentTrackPlayback()
     }
