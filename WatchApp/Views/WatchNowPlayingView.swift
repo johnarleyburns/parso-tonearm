@@ -211,8 +211,12 @@ struct WatchNowPlayingView: View {
                                     identifier: "watch.now.retryPlayback") { player.retryAudioRoute() }],
                     code: player.lastPlaybackErrorCode)
             } else if !isLuminanceReduced {
-                WatchProgressHairline(elapsed: player.elapsed, duration: player.duration,
-                                      showsTimes: dynamicTypeSize < .accessibility1)
+                WatchProgressHairline(
+                    elapsed: player.elapsed, duration: player.duration,
+                    showsTimes: dynamicTypeSize < .accessibility1,
+                    onSeek: WatchScrubPolicy.isInteractive(
+                        duration: player.duration, isLocal: true, isBusy: isLocalBusy,
+                        isLuminanceReduced: isLuminanceReduced) ? { player.seek(to: $0) } : nil)
                     .padding(.horizontal, 4)
                 transport(isPlaying: player.isPlaying, isBusy: isLocalBusy,
                           previous: player.previous, toggle: player.togglePlayPause, next: player.next)
