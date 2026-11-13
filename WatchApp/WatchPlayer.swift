@@ -73,6 +73,8 @@ final class WatchPlayer: ObservableObject {
         output.onTimeUpdate = { [weak self] time in
             Task { @MainActor in
                 guard let self else { return }
+                // A committed seek is in flight: a pre-seek tick must not snap progress backward.
+                guard self.pendingSeek == nil else { return }
                 self.elapsed = time
                 self.updateNowPlayingTime()
             }
@@ -134,7 +136,6 @@ final class WatchPlayer: ObservableObject {
         elapsed = 0
         duration = 0
         outputRate = 0
-        WatchPlaybackCoordinator.shared.setTarget(.thisWatch)
         navigateToNowPlaying()
         scheduleCurrentTrackPlayback()
     }
@@ -202,9 +203,11 @@ final class WatchPlayer: ObservableObject {
             updateNowPlayingTime()
 
         case .seek(let position):
-            let target = max(0, position)
+            let target = duration > 0 ? WatchScrubPolicy.clamp(position, duration: duration) : max(0, position)
             elapsed = target
             pendingSeek = target
+            engine.command(.seek(to: target))
+            savePosition()
             if playbackPhase == .activating || playbackPhase == .loading || playbackPhase == .ready || playbackPhase == .waitingForRoute {
                 // A seek made while a new item is loading belongs to that item. Restart the
                 // transaction so the seek is applied after readiness instead of touching whatever

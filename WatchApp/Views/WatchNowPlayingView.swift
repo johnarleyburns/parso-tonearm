@@ -161,9 +161,7 @@ struct WatchNowPlayingView: View {
 
     @ViewBuilder
     private var remoteContent: some View {
-        if coordinator.continuePrompt != nil {
-            continueOnWatchCard
-        } else if let failure = remote.startFailure {
+        if let failure = remote.startFailure {
             phoneStartFailureCard(failure)
         } else if remote.isStarting {
             startingOnPhone
@@ -211,8 +209,12 @@ struct WatchNowPlayingView: View {
                                     identifier: "watch.now.retryPlayback") { player.retryAudioRoute() }],
                     code: player.lastPlaybackErrorCode)
             } else if !isLuminanceReduced {
-                WatchProgressHairline(elapsed: player.elapsed, duration: player.duration,
-                                      showsTimes: dynamicTypeSize < .accessibility1)
+                WatchProgressHairline(
+                    elapsed: player.elapsed, duration: player.duration,
+                    showsTimes: dynamicTypeSize < .accessibility1,
+                    onSeek: WatchScrubPolicy.isInteractive(
+                        duration: player.duration, isLocal: true, isBusy: isLocalBusy,
+                        isLuminanceReduced: isLuminanceReduced) ? { player.seek(to: $0) } : nil)
                     .padding(.horizontal, 4)
                 transport(isPlaying: player.isPlaying, isBusy: isLocalBusy,
                           previous: player.previous, toggle: player.togglePlayPause, next: player.next)
@@ -346,20 +348,6 @@ struct WatchNowPlayingView: View {
         return WatchProblemCard(systemImage: "applewatch.slash", title: "Track Isn't on This Watch",
                                 message: String(localized: "Only downloaded audio can play here. Send music from Platterhead on your iPhone."),
                                 actions: action.map { [$0] } ?? [], code: failure.code)
-    }
-
-    private var continueOnWatchCard: some View {
-        let title = remote.state?.currentItem?.title
-        let message = title.map { String(localized: "“\($0)” is on this watch. Continue here?") }
-            ?? String(localized: "This track is on this watch. Continue here?")
-        return WatchProblemCard(
-            systemImage: "applewatch", title: "iPhone Went Away", message: message,
-            actions: [
-                .init(title: "Continue on Watch", identifier: "watch.now.continue") { coordinator.acceptContinue() },
-                .init(title: "Keep Waiting", isPrimary: false, identifier: "watch.now.keepWaiting") {
-                    coordinator.dismissContinue()
-                }
-            ])
     }
 
     private var showsProblemCard: Bool {

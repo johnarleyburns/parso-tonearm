@@ -1,30 +1,66 @@
 import SwiftUI
+import TonearmWatchCore
 
-/// Watch redesign §3 — a read-only 3 pt progress line with tabular times underneath. No scrubbing
-/// on the watch.
+/// Watch redesign §3 — a 3 pt progress line with tabular times underneath. Read-only unless
+/// `onSeek` is supplied (local playback with a known duration), in which case tap/drag scrubs and
+/// VoiceOver exposes an adjustable control.
 struct WatchProgressHairline: View {
     let elapsed: Double
     let duration: Double
     var tint: Color = .primary
     var showsTimes = true
+    /// Commits a clamped seek target in seconds. `nil` keeps the line read-only.
+    var onSeek: ((Double) -> Void)?
+
+    @State private var scrub: Double?
+    @State private var committed: Double?
+
+    private var shownElapsed: Double {
+        WatchScrubPolicy.displayed(scrub: scrub, committed: committed, playerElapsed: elapsed)
+    }
 
     var body: some View {
+        let shown = shownElapsed
         VStack(spacing: 3) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.18))
-                    Capsule().fill(tint).frame(width: max(0, geo.size.width * fraction))
+                    Capsule().fill(tint).frame(width: max(0, geo.size.width * fraction(of: shown)))
+                }
+                .frame(height: 3)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(onSeek == nil ? nil : DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        scrub = WatchScrubPolicy.time(forLocation: value.location.x, width: geo.size.width, duration: duration)
+                    }
+                    .onEnded { value in
+                        let target = WatchScrubPolicy.time(forLocation: value.location.x, width: geo.size.width, duration: duration)
+                        scrub = nil
+                        commit(target)
+                    })
+            }
+            .frame(height: onSeek == nil ? 3 : 28)
+            .accessibilityHidden(onSeek == nil)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Progress"))
+            .accessibilityValue(Text("\(WatchTimeFmt.mmss(shown)) of \(WatchTimeFmt.mmss(duration))"))
+            .accessibilityIdentifier("watch.now.progress")
+            .accessibilityAdjustableAction { direction in
+                guard onSeek != nil else { return }
+                switch direction {
+                case .increment: commit(WatchScrubPolicy.adjustedTime(from: shown, duration: duration, direction: 1))
+                case .decrement: commit(WatchScrubPolicy.adjustedTime(from: shown, duration: duration, direction: -1))
+                @unknown default: break
                 }
             }
-            .frame(height: 3)
-            .accessibilityHidden(true)
             if showsTimes {
                 HStack {
-                    Text(WatchTimeFmt.mmss(elapsed))
+                    Text(WatchTimeFmt.mmss(shown))
                         .accessibilityIdentifier("watch.now.elapsed")
-                        .accessibilityValue(WatchTimeFmt.mmss(elapsed))
+                        .accessibilityValue(WatchTimeFmt.mmss(shown))
                     Spacer()
-                    Text(verbatim: "-\(WatchTimeFmt.mmss(max(0, duration - elapsed)))")
+                    Text(verbatim: "-\(WatchTimeFmt.mmss(max(0, duration - shown)))")
                         .accessibilityIdentifier("watch.now.remaining")
                 }
                 .font(.caption2)
@@ -34,12 +70,21 @@ struct WatchProgressHairline: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Progress"))
-        .accessibilityValue(Text("\(WatchTimeFmt.mmss(elapsed)) of \(WatchTimeFmt.mmss(duration))"))
+        .accessibilityValue(Text("\(WatchTimeFmt.mmss(shown)) of \(WatchTimeFmt.mmss(duration))"))
+        .onChange(of: elapsed) { _, newValue in
+            // Reconcile once the player reports a time at/after the committed target.
+            if let c = committed, abs(newValue - c) < 2 { committed = nil }
+        }
     }
 
-    private var fraction: Double {
+    private func commit(_ target: Double) {
+        committed = target
+        onSeek?(target)
+    }
+
+    private func fraction(of value: Double) -> Double {
         guard duration > 0 else { return 0 }
-        return min(1, max(0, elapsed / duration))
+        return min(1, max(0, value / duration))
     }
 }
 

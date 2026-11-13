@@ -54,3 +54,30 @@ final class FindSearchChromeStateTests: XCTestCase {
         XCTAssertEqual(s.accessoryHeight, 0)
     }
 }
+
+final class MoodPromptChromeStateTests: XCTestCase {
+    private func state(tab mood: Bool = true, focused: Bool, track: Bool = true,
+                       nowPlaying: Bool = false) -> FindSearchChromeState {
+        .init(isFindActive: false, isQueryFocused: false, hasCurrentTrack: track,
+              hasTransferBanner: false, isNowPlayingPresented: nowPlaying,
+              isMoodActive: mood, isMoodPromptFocused: focused)
+    }
+
+    func testFocusedMoodHidesAccessoryAndHeight() {
+        let s = state(focused: true)
+        XCTAssertFalse(s.showsMiniPlayer)
+        XCTAssertEqual(s.accessoryHeight, 0)
+        XCTAssertFalse(s.hidesNavigationChrome)
+    }
+
+    func testUnfocusedMoodIsNormal() {
+        XCTAssertTrue(state(focused: false).showsMiniPlayer)
+        XCTAssertEqual(state(focused: false).accessoryHeight, 56 + 58)
+    }
+
+    func testStaleMoodFocusOffTabOrOverNowPlayingIsNormal() {
+        XCTAssertTrue(state(tab: false, focused: true).showsMiniPlayer)
+        let np = state(focused: true, nowPlaying: true)
+        XCTAssertFalse(np.isEditing)
+    }
+}

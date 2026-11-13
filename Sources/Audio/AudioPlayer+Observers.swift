@@ -21,6 +21,7 @@ extension AudioPlayer {
                 self.updateCrossfade(position: time.seconds)
                 if time.seconds > 0 && time.seconds != previous {
                     self.stallModel.confirmPlayback(generation: self.stallModel.loadGeneration)
+                    self.failedAdvanceAttempts = 0
                 }
                 self.refreshCacheState()
                 self.updateNowPlayingTime()

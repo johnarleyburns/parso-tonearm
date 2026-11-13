@@ -3,11 +3,25 @@ import TonearmCore
 import TonearmDiscovery
 
 enum MyMusicSearchMode: String, CaseIterable, Identifiable {
-    case all = "By Name"
-    case sound = "By Mood"
-    case mix = "By BPM/Key"
+    case all = "Name"
+    case sound = "Mood"
+    case mix = "BPM/Key"
 
     var id: String { rawValue }
+
+    var identifier: String {
+        switch self {
+        case .all: "find.mode.all"
+        case .sound: "find.mode.mood"
+        case .mix: "find.mode.mix"
+        }
+    }
+}
+
+/// Host-testable layout decision for the Find mode selector.
+enum FindModeSelectorLayoutPolicy {
+    /// Accessibility text sizes never attempt a single row; all modes are stacked.
+    static func alwaysStacked(isAccessibilitySize: Bool) -> Bool { isAccessibilitySize }
 }
 
 enum MixBPMPreset: String, CaseIterable, Identifiable {
@@ -59,19 +73,7 @@ struct MyMusicSearchControls: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if mode != .mix { allSearchField }
-            HStack(spacing: 8) {
-                ForEach(MyMusicSearchMode.allCases) { option in
-                    Button { mode = option } label: {
-                        Text(option.rawValue)
-                            .font(Typography.callout)
-                            .foregroundStyle(mode == option ? Palette.accentOnFill : Palette.inkSecondary)
-                            .padding(.horizontal, 16).padding(.vertical, 8)
-                            .background(mode == option ? Palette.accent : Palette.ink.opacity(0.07), in: Capsule())
-                    }.buttonStyle(.plain)
-                        .accessibilityIdentifier("find.mode.\(option == .all ? "all" : option == .sound ? "mood" : "mix")")
-                }
-            }
-            .accessibilityIdentifier("mymusic.search.mode")
+            modeSelector
 
             switch mode {
             case .all:
@@ -125,6 +127,46 @@ struct MyMusicSearchControls: View {
             if mode == .sound, let soundModel, soundModel.searchText != text {
                 soundModel.searchText = text
             }
+        }
+    }
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private func modeButton(_ option: MyMusicSearchMode) -> some View {
+        Button { mode = option } label: {
+            Text(option.rawValue)
+                .font(Typography.callout)
+                .foregroundStyle(mode == option ? Palette.accentOnFill : Palette.inkSecondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .frame(minHeight: 44)
+                .background(mode == option ? Palette.accent : Palette.ink.opacity(0.07), in: Capsule())
+                .contentShape(Capsule())
+        }.buttonStyle(.plain)
+            .accessibilityAddTraits(mode == option ? .isSelected : [])
+            .accessibilityIdentifier(option.identifier)
+    }
+
+    /// Single row when it fits; otherwise stacked, so every mode stays visible and tappable.
+    private var modeSelector: some View {
+        Group {
+            if FindModeSelectorLayoutPolicy.alwaysStacked(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize) {
+                stackedModes
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { ForEach(MyMusicSearchMode.allCases) { modeButton($0) } }
+                    stackedModes
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("mymusic.search.mode")
+    }
+
+    private var stackedModes: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(MyMusicSearchMode.allCases) { modeButton($0) }
         }
     }
 

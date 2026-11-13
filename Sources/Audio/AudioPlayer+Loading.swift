@@ -194,6 +194,7 @@ extension AudioPlayer {
 
     /// Controlled stop for a remote item that cannot be opened; leaves the player idle and says why.
     func failRemotePlayback(_ failure: RemotePlaybackFailure) {
+        let wasAutoplay = catalogPlaybackAutoplay || isPlaying
         ordinaryJamendoLoad = nil
         catalogPlaybackLoadTask = nil
         stallWatchTask?.cancel()
@@ -204,8 +205,28 @@ extension AudioPlayer {
         player.replaceCurrentItem(with: nil)
         isPlaying = false
         currentTime = 0
-        networkSkipMessage = failure.userMessage
-        updateNowPlaying()
+        catalogPlaybackAutoplay = false
+        failedAdvanceAttempts += 1
+        let decision = isAmbient ? QueueFailureRecoveryPolicy.Decision.stop
+            : QueueFailureRecoveryPolicy.decide(
+                index: index, count: queue.count, repeatMode: repeatMode,
+                autoplay: wasAutoplay, failedAttempts: failedAdvanceAttempts)
+        switch decision {
+        case .advance(let target):
+            // Retire this occurrence (generation bump happens in loadCurrent) and move on;
+            // one concise notice per failed advance sequence.
+            if failedAdvanceAttempts == 1 {
+                networkSkipMessage = String(localized: "Skipped an unavailable track", bundle: .module)
+            }
+            index = target
+            updateNowPlaying()
+            loadCurrent(autoplay: true)
+        case .stop:
+            failedAdvanceAttempts = 0
+            stallModel.resetSkipStreak()
+            networkSkipMessage = failure.userMessage
+            updateNowPlaying()
+        }
     }
 
     private static func httpStatus(of item: AVPlayerItem) -> Int? {

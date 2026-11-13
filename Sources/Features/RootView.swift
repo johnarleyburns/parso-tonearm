@@ -30,7 +30,9 @@ struct RootView: View {
             isQueryFocused: appState.findQueryFocused,
             hasCurrentTrack: player.currentTrack != nil,
             hasTransferBanner: showsTransferBanner,
-            isNowPlayingPresented: appState.showNowPlaying)
+            isNowPlayingPresented: appState.showNowPlaying,
+            isMoodActive: appState.tab == .mood,
+            isMoodPromptFocused: appState.moodPromptFocused)
     }
 
     private var accessoryHeight: CGFloat { chrome.accessoryHeight }
@@ -61,6 +63,7 @@ struct RootView: View {
         .modifier(AppPresentations())
         .onChange(of: appState.tab) { _, tab in
             if tab != .find { appState.findQueryFocused = false }
+            if tab != .mood { appState.moodPromptFocused = false }
         }
         .onChange(of: appState.watchManagement.banner == nil) { _, empty in
             if empty { transferBannerDismissed = false }

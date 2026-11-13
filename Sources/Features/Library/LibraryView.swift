@@ -484,38 +484,3 @@ struct SectionHeader: View {
         .padding(.bottom, 10)
     }
 }
-
-struct AlbumCell: View {
-    let source: Source
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SourceArtworkView(source: source, cornerRadius: 14)
-                .aspectRatio(1, contentMode: .fit)
-                .overlay(alignment: .bottomLeading) {
-                    ProvenanceChip(source: source).padding(8)
-                }
-            Text(source.title)
-                .font(Typography.callout)
-                .lineLimit(1)
-                .padding(.top, 7)
-            Text(subtitle)
-                .font(Typography.caption)
-                .foregroundStyle(Palette.inkTertiary)
-                .lineLimit(1)
-                .padding(.top, 1)
-        }
-    }
-
-    private var subtitle: String {
-        switch source.kind {
-        case .local: return String(localized: "On device")
-        case .iaItem: return source.licenseText ?? "archive.org"
-        case .iaList: return String(localized: "List")
-        case .iaCollection: return String(localized: "Collection")
-        case .iaFavorites: return String(localized: "Favorites")
-        case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex, .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
-            return RemoteConnectorCatalog.connector(for: source.kind)?.title ?? "Remote"
-        }
-    }
-}

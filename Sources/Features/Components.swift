@@ -63,6 +63,9 @@ struct SearchField: View {
         .padding(.horizontal, 14)
         .frame(height: 40)
         .glassSurface(cornerRadius: 20)
+        // The whole pill is tappable and focuses the field, even when the text is empty.
+        .contentShape(Rectangle())
+        .onTapGesture { fieldFocused = true }
     }
 }
 
@@ -126,34 +129,6 @@ struct SourceArtworkView: View {
             .task(id: "\(source.id ?? -1)-v\(invalidation.version)") {
                 resolved = await appState.resolvedArtwork(for: source)
             }
-    }
-}
-
-struct ProvenanceChip: View {
-    let source: Source?
-    var body: some View {
-        let (icon, text) = badge
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(Typography.caption)
-            Text(text)
-        }
-        .font(Typography.caption)
-        .kerning(0.5)
-        .foregroundStyle(Palette.accentOnFill)
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Palette.accent, in: Capsule())
-    }
-
-    private var badge: (String, String) {
-        switch source?.kind {
-        case .local, .none:
-            return ("iphone", "ON DEVICE")
-        case .iaItem, .iaList, .iaCollection, .iaFavorites:
-            return ("cloud", "ARCHIVE.ORG")
-        case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex,
-             .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
-            return ("network", "REMOTE")
-        }
     }
 }
 
