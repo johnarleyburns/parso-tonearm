@@ -173,11 +173,18 @@ process_pr() {
     # this maintenance path so a prior repair merging cannot strand the next
     # repair behind main with auto-merge enabled but no branch update.
     release_run=$(grep -o '<!-- release-repair:[0-9]\+ -->' <<<"$body" | head -1 | grep -o '[0-9]\+')
-    [[ -n "$release_run" && "$ref" == "claude/release-repair-${release_run}" ]] || {
+    if [[ -n "$release_run" && "$ref" == "claude/release-repair-${release_run}" ]]; then
+      issue="$n" # Store status/escalation comments on the release-repair PR.
+    elif [[ $(jq -r '.user.login' <<<"$pr") == "$owner" ]]; then
+      # Ad-hoc PR (not an issue-worker or release-repair branch), opened
+      # directly against main by the trusted owner. Same-repo (checked above)
+      # and same author as every other PR this script manages; give it the
+      # same reconcile treatment instead of leaving it permanently unmanaged.
+      issue="$n"
+    else
       echo "PR #$n: not an automation-managed PR, ignored"
       return 0
-    }
-    issue="$n" # Store status/escalation comments on the release-repair PR.
+    fi
   fi
   draft=$(jq -r .draft <<<"$pr")
   ms=$(jq -r '.mergeable_state // "unknown"' <<<"$pr")
