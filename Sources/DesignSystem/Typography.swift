@@ -25,9 +25,3 @@ struct Metrics {
     static let rowHeight: CGFloat = 56
     static let chipHeight: CGFloat = 30
 }
-
-struct ScaledMetrics {
-    @ScaledMetric(relativeTo: .body) var artworkSmall: CGFloat = 44
-    @ScaledMetric(relativeTo: .body) var rowHeight: CGFloat = 56
-    @ScaledMetric(relativeTo: .body) var chipHeight: CGFloat = 30
-}

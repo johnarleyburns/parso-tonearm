@@ -132,34 +132,6 @@ struct SourceArtworkView: View {
     }
 }
 
-struct ProvenanceChip: View {
-    let source: Source?
-    var body: some View {
-        let (icon, text) = badge
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(Typography.caption)
-            Text(text)
-        }
-        .font(Typography.caption)
-        .kerning(0.5)
-        .foregroundStyle(Palette.accentOnFill)
-        .padding(.horizontal, 7).padding(.vertical, 3)
-        .background(Palette.accent, in: Capsule())
-    }
-
-    private var badge: (String, String) {
-        switch source?.kind {
-        case .local, .none:
-            return ("iphone", "ON DEVICE")
-        case .iaItem, .iaList, .iaCollection, .iaFavorites:
-            return ("cloud", "ARCHIVE.ORG")
-        case .subsonic, .webDAV, .smb, .jellyfin, .emby, .plex,
-             .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk, .jamendoGenre:
-            return ("network", "REMOTE")
-        }
-    }
-}
-
 struct TrackRowView: View {
     let row: TrackRow
     var showCacheGlyph = true

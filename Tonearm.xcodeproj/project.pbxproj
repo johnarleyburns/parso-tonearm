@@ -53,7 +53,6 @@
 		37AD2CDC16246B372951BF1F /* AppState+BuiltInLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2C6BF87AD45CFB16CEA0E3 /* AppState+BuiltInLibrary.swift */; };
 		3AB21BA857562089CAB35821 /* Intents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BA955857DA3FB3CB68351691 /* Intents.framework */; };
 		3B69A3EEB3B798C7E772B384 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEB1F70B1E36FCA6BCADAB6B /* Assets.xcassets */; };
-		3B77CDFCAB46E51808EF57DB /* MixExplanationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D7CE4297CA0891A4BC9C07B /* MixExplanationViews.swift */; };
 		3C7C7ECA361A97F09C34844D /* CompiledModelCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8420DB2D81073B94A6A2FB6E /* CompiledModelCache.swift */; };
 		3EA390BE6CE33A28592B105C /* SettingsView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E9FB2D91C051DAB10A3A3B5 /* SettingsView+Sections.swift */; };
 		3ED4633928E444FE7C0631FD /* GeneratedOAuthCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8748DBB32BD2FDAC149F62A4 /* GeneratedOAuthCredentials.swift */; };
@@ -157,7 +156,6 @@
 		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
 		B38E5316DDFA37A958571C45 /* GenrePickerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82D29BCE382CB03501C797D /* GenrePickerModel.swift */; };
 		B3A57BCD29367AE99C694053 /* WatchTogglePlaybackIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD674AF4EAEDC623D887969 /* WatchTogglePlaybackIntent.swift */; };
-		B605D1B4CC1C39922C186D6C /* MixArcChartDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E09ABC6CF9982C32829A34E /* MixArcChartDescriptor.swift */; };
 		B61D0324810EFC11B62EEF4B /* WatchTypeAliases.swift in Sources */ = {isa = PBXBuildFile; fileRef = 985F76E73BF5C7E33381C140 /* WatchTypeAliases.swift */; };
 		B72DE992BD62735CB370A71F /* SourceDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9894FCBA2B17EE64A57067E8 /* SourceDetailView.swift */; };
 		B79D968F55C8755A0D546347 /* TonearmWatchCore in Frameworks */ = {isa = PBXBuildFile; productRef = DF568C3709F5D6FC7AFDB353 /* TonearmWatchCore */; };
@@ -349,7 +347,6 @@
 		17C759D5930632507141910D /* MyMusicSearchControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyMusicSearchControls.swift; sourceTree = "<group>"; };
 		1B17E583B143B6407C405846 /* RootTabChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabChrome.swift; sourceTree = "<group>"; };
 		1CD2E724E87813719D5A0A81 /* SystemPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemPlaybackBridge.swift; sourceTree = "<group>"; };
-		1E09ABC6CF9982C32829A34E /* MixArcChartDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MixArcChartDescriptor.swift; sourceTree = "<group>"; };
 		1EFD37144613B3E4468ED3D2 /* OAuthClientConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthClientConfiguration.swift; sourceTree = "<group>"; };
 		20B80A59E65B60D2FEDF8661 /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
 		22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteConnectorGuideView.swift; sourceTree = "<group>"; };
@@ -428,7 +425,6 @@
 		799F8E8C5C1DBA3A543B600B /* vocab.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = vocab.json; sourceTree = "<group>"; };
 		7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchConnectivityObservers.swift; sourceTree = "<group>"; };
 		7C72A4A2127018D6E48638F2 /* AirPlayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPlayButton.swift; sourceTree = "<group>"; };
-		7D7CE4297CA0891A4BC9C07B /* MixExplanationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MixExplanationViews.swift; sourceTree = "<group>"; };
 		7E1BD28A2C0AA7F0AC32331A /* MoodPillPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodPillPicker.swift; sourceTree = "<group>"; };
 		7F433D3C8A0902790D6E379A /* heart.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = heart.jpg; sourceTree = "<group>"; };
 		807F6AF04290951989A6C983 /* RemoteNodeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteNodeRow.swift; sourceTree = "<group>"; };
@@ -744,7 +740,6 @@
 				39568B5401606194C242E745 /* Ingest */,
 				910E3AEF5745A8A0C0EE75F0 /* Library */,
 				25F8202722CC087F1D99E75B /* Listen */,
-				6D5550DC9B40719C22CB8B5B /* Mix */,
 				58F33C3FDDB02D5E12DC179E /* MyMusic */,
 				DAB8F8AA918232E7C075D87A /* NowPlaying */,
 				897370D36FF70549A59B1818 /* Onboarding */,
@@ -842,15 +837,6 @@
 				FF5CEA0DA2DDAF7A8F27DC1F /* TonearmSmokeUITests.swift */,
 			);
 			path = UITests;
-			sourceTree = "<group>";
-		};
-		6D5550DC9B40719C22CB8B5B /* Mix */ = {
-			isa = PBXGroup;
-			children = (
-				1E09ABC6CF9982C32829A34E /* MixArcChartDescriptor.swift */,
-				7D7CE4297CA0891A4BC9C07B /* MixExplanationViews.swift */,
-			);
-			path = Mix;
 			sourceTree = "<group>";
 		};
 		783C876BA31DC0198FCAA1A1 /* Discovery */ = {
@@ -1606,8 +1592,6 @@
 				2B12111CBDF1D49C39714944 /* ListenView.swift in Sources */,
 				BD14A00BAA2C1005D83AE935 /* LocalMediaPipeline.swift in Sources */,
 				B85A66E82620EA180EAF7A67 /* LoopingVideoView.swift in Sources */,
-				B605D1B4CC1C39922C186D6C /* MixArcChartDescriptor.swift in Sources */,
-				3B77CDFCAB46E51808EF57DB /* MixExplanationViews.swift in Sources */,
 				AAD287FF1055A8EE2BE162D8 /* MoodPillPicker.swift in Sources */,
 				54052145F86597F7589FD823 /* Motion.swift in Sources */,
 				A40A3D441AC976410E7CDEA7 /* MyMusicSearchControls.swift in Sources */,
