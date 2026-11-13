@@ -61,34 +61,6 @@ final class WatchAppAssembly {
         return nil
     }
 
-    @available(*, deprecated, message: "Watch playback is local-only; use WatchPlayer instead.")
-    @discardableResult
-    func playOnPhone(_ command: WatchPlayCommand, title: String? = nil) async -> Bool {
-        // The phone is a sync/download authority only. Keeping this compatibility shim avoids a
-        // source break for older views, but it can never send a play command over WCSession.
-        return false
-    }
-
-    /// S4 "Play on Watch": the downloaded part of what the phone refused, in order.
-    func localAlternative(for command: WatchPlayCommand) -> [WatchTrackSnapshot] {
-        if let collection = command.collection, collection.kind == .playlist {
-            let tracks = model.readyTracks(forPlaylist: collection.id)
-            if !tracks.isEmpty { return tracks }
-        }
-        if let trackID = command.trackID, let track = model.track(id: trackID.rawValue) {
-            return [track]
-        }
-        return []
-    }
-
-    func playLocalAlternative(for command: WatchPlayCommand) async {
-        let tracks = localAlternative(for: command)
-        guard !tracks.isEmpty else { return }
-        WatchRemotePlayer.shared.setStartFailure(nil)
-        let selected = command.trackID.flatMap { id in tracks.first { $0.id == id.rawValue } } ?? tracks[0]
-        WatchPlayer.shared.startLocalPlayback(tracks: tracks, selectedTrackID: selected.id)
-    }
-
     func refreshSyncReachability() async {
         await coordinator?.refreshReachability()
         await syncStatus.refreshInstallationDate()
@@ -117,12 +89,6 @@ final class WatchAppAssembly {
         if result != .sent { deadline.cancel() }
         diagnostics.recordImmediately(.request, "metadataCheckFinished")
         syncStatus.completedSync(result, requestID: requestID)
-    }
-
-
-    func refreshRemotePlayback() async {
-        // Deliberately empty. The phone is a sync/download authority only; playback snapshots
-        // are not polled from the watch and no watch action can start iPhone playback.
     }
 
     private init() {
