@@ -15,7 +15,13 @@ struct FindView: View {
     @State private var soundSearchRevision = 0
     @State private var queryFocused = false
 
-    static let contentMinHeight: CGFloat = 320
+    // Reduced from 320 — a tall header (BPM/Key's two chip rows) plus a 320pt floor could still
+    // exceed a small device's available content height even once the header itself can compress
+    // (see the `.fixedSize` removal below). This floor only needs to keep the empty/placeholder
+    // state from looking cramped; it doesn't need to match LibraryView's own internal minimum
+    // (LibraryView.contentAreaMinHeight), which lives inside LibraryView's own ScrollView and so
+    // can never itself force this screen to overflow.
+    static let contentMinHeight: CGFloat = 160
 
     private var filter: MyMusicFilter {
         guard mode == .mix else { return .init() }
@@ -46,7 +52,6 @@ struct FindView: View {
                                               isQueryFocused: $queryFocused)
                         findScopePicker
                     }
-                    .fixedSize(horizontal: false, vertical: true)
 
                 Group {
                 if hasSearchInput {
