@@ -222,4 +222,71 @@ final class WatchPlayerEngineTests: XCTestCase {
         XCTAssertEqual(snap.elapsed, 15.0)
         XCTAssertFalse(snap.isPlaying)
     }
+
+    // MARK: - Live elapsed tracking (watch position lost on phone interrupt)
+    //
+    // Nothing but an explicit seek or a track change ever used to touch `elapsed` — it was frozen
+    // at whatever the last command left it at, never the real, continuously-advancing playback
+    // clock. `updateElapsed` is how the platform output's periodic time ticks keep the pure
+    // engine's `elapsed` live, so ANY pause (a manual tap, a route loss when the phone's own
+    // playback steals a shared Bluetooth route, an interruption) persists and resumes from the
+    // position actually reached, not a stale value (frequently 0).
+
+    func testUpdateElapsedTracksTheLivePlaybackPosition() {
+        var engine = WatchPlayerEngine(queue: ["t1"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        XCTAssertEqual(engine.elapsed, 0)
+
+        engine.updateElapsed(12.4)
+        XCTAssertEqual(engine.elapsed, 12.4)
+        engine.updateElapsed(47.8)
+        XCTAssertEqual(engine.elapsed, 47.8)
+    }
+
+    func testPauseAfterLiveTimeUpdatesPersistsTheActualPositionNotAStaleOne() {
+        var engine = WatchPlayerEngine(queue: ["t1"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        engine.updateElapsed(47.8)
+
+        let directives = engine.command(.pause)
+
+        XCTAssertEqual(directives, [.pause])
+        XCTAssertEqual(engine.elapsed, 47.8, "pausing must capture the live position, not reset it")
+        XCTAssertEqual(engine.snapshot.elapsed, 47.8,
+                       "the persisted snapshot must carry the live position, too")
+    }
+
+    func testResumingAfterAnAutomaticPauseStaysAtTheSamePosition() {
+        // The exact shape of the reported bug: the watch's own playback of a track pauses itself —
+        // here, because the phone starting a different track steals a shared Bluetooth route, which
+        // `WatchPlayer.handleAudioEvent(.routeLost)` resolves to the same `.pause` engine command a
+        // manual pause issues (`WatchAudioSessionPolicy.actions(for: .routeLost, ...)` includes the
+        // `.pause` action, which drives `handleCommand(.pause)` in production) — not at a command
+        // boundary, mid-track.
+        var engine = WatchPlayerEngine(queue: ["t1"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        engine.updateElapsed(90.0)
+        _ = engine.command(.pause)
+        XCTAssertEqual(engine.elapsed, 90.0)
+
+        // The user goes back to the watch and presses Play — the same `.play` command every resume
+        // uses.
+        let resumeDirectives = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+
+        XCTAssertEqual(resumeDirectives, [.loadItem(urlMap("t1")!), .play])
+        XCTAssertEqual(engine.elapsed, 90.0, "resuming must not restart the track from the beginning")
+    }
+
+    func testUpdateElapsedIsIgnoredWithAnEmptyQueue() {
+        var engine = WatchPlayerEngine()
+        engine.updateElapsed(42.0)
+        XCTAssertEqual(engine.elapsed, 0)
+    }
+
+    func testUpdateElapsedClampsNegativeValues() {
+        var engine = WatchPlayerEngine(queue: ["t1"])
+        _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
+        engine.updateElapsed(-5.0)
+        XCTAssertEqual(engine.elapsed, 0)
+    }
 }
