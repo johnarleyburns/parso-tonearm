@@ -40,3 +40,48 @@ struct WatchTargetChip: View {
         }
     }
 }
+
+/// Connection or scope state in words with a dot (§3 `StatusChip`): "iPhone connected",
+/// "iPhone not nearby", "Update Platterhead on iPhone". `WatchRootView` places this at the end of
+/// Home's list as a tappable row that opens the full sync-status detail screen — so, like
+/// `WatchTargetChip` above, colour alone must never carry the meaning: VoiceOver gets the tone in
+/// words too, not just the title text, since a generic sync message (e.g. a `WatchMetadataSyncResult`
+/// failure description) may not itself say how serious it is.
+struct WatchStatusChip: View {
+    enum Tone { case good, warning, failure }
+
+    let title: String
+    let tone: Tone
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle().fill(color).frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+            Text(title).lineLimit(2).multilineTextAlignment(.center)
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(color)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(Capsule().fill(color.opacity(0.16)))
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(accessibilityTitle))
+    }
+
+    private var accessibilityTitle: String {
+        switch tone {
+        case .good: title
+        case .warning: String(localized: "Warning: \(title)")
+        case .failure: String(localized: "Problem: \(title)")
+        }
+    }
+
+    private var color: Color {
+        switch tone {
+        case .good: WatchPalette.success
+        case .warning: WatchPalette.warning
+        case .failure: WatchPalette.failure
+        }
+    }
+}
