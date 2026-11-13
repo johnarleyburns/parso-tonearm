@@ -1,7 +1,6 @@
 import SwiftUI
 import WatchKit
 import TonearmWatchCore
-import TonearmWatchProtocol
 
 // Watch redesign §5 B1–B3 / T1–T2 — browse and play. Inset-grouped lists with artwork, one line of
 // metadata, and one glyph saying where a song plays. Every play control names its destination.
@@ -94,90 +93,6 @@ struct WatchAlbumsView: View {
     }
 }
 
-/// The iPhone library's playlists or albums (connected scope), with how much is on the watch.
-struct WatchPhoneIndexView: View {
-    let category: WatchBrowseCategory
-
-    @ObservedObject private var model = WatchAppAssembly.shared.model
-    @State private var rows: [WatchResultRow] = []
-    @State private var nextPage: String?
-    @State private var phase: Phase = .loading
-
-    private enum Phase { case loading, loaded, failed }
-
-    var body: some View {
-        List {
-            switch phase {
-            case .loading:
-                HStack { ProgressView(); Text("Loading from iPhone…").font(.caption2) }
-                    .listRowBackground(Color.clear)
-            case .failed:
-                WatchProblemCard(systemImage: "iphone.slash", title: "Couldn't Reach iPhone",
-                                 message: String(localized: "Keep your iPhone nearby, or browse what's on this watch."),
-                                 actions: [.init(title: "Try Again", identifier: "watch.browse.retry") {
-                                     Task { await load(reset: true) }
-                                 }])
-                .listRowBackground(Color.clear)
-            case .loaded where rows.isEmpty:
-                WatchEmptyStateView(icon: category == .albums ? "square.stack" : "music.note.list",
-                                    title: category == .albums ? "No Albums" : "No Playlists",
-                                    message: "Your iPhone library has none yet.")
-            case .loaded:
-                ForEach(rows) { row in
-                    if let ref = row.collectionRef {
-                        NavigationLink(value: ref.kind == .playlist ? WatchNav.playlist(ref.id) : WatchNav.album(ref.id)) {
-                            WatchCollectionRowLabel(title: row.title, detail: detail(for: row, ref: ref),
-                                                    tintKey: row.title, fullyOnWatch: isFullyOnWatch(row, ref: ref))
-                        }
-                        .watchCardRow()
-                    }
-                }
-                if nextPage != nil {
-                    Button { Task { await load(reset: false) } } label: { Text("Show More") }
-                        .buttonStyle(.watchSecondarySmall)
-                        .listRowBackground(Color.clear)
-                }
-            }
-        }
-        .listStyle(.plain)
-        .navigationTitle(category == .albums ? Text("Albums") : Text("Playlists"))
-        .task { if rows.isEmpty { await load(reset: true) } }
-    }
-
-    private func load(reset: Bool) async {
-        if reset { phase = .loading }
-        let page = await WatchAppAssembly.shared.browsePhone(category, pageToken: reset ? nil : nextPage)
-        guard let page else { if reset { phase = .failed }; return }
-        rows = reset ? page.rows : rows + page.rows
-        nextPage = page.nextPageToken
-        phase = .loaded
-    }
-
-    private func onWatchCount(_ ref: WatchCollectionRef) -> Int {
-        ref.kind == .playlist ? (model.playlist(id: ref.id)?.readyTrackIDs.count ?? 0) : 0
-    }
-
-    private func detail(for row: WatchResultRow, ref: WatchCollectionRef) -> String {
-        let total = row.trackCount
-        let local = onWatchCount(ref)
-        switch (total, local) {
-        case let (total?, local) where local >= total && total > 0:
-            return String(localized: "\(total) songs · all on watch")
-        case let (total?, local) where local > 0:
-            return String(localized: "\(total) songs · \(local) on watch")
-        case let (total?, _):
-            return String(localized: "\(total) songs")
-        default:
-            return row.subtitle ?? ""
-        }
-    }
-
-    private func isFullyOnWatch(_ row: WatchResultRow, ref: WatchCollectionRef) -> Bool {
-        guard let total = row.trackCount, total > 0 else { return false }
-        return onWatchCount(ref) >= total
-    }
-}
-
 /// Every song on this watch.
 struct WatchSongsView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
@@ -198,7 +113,6 @@ struct WatchSongsView: View {
 // MARK: - Collection detail (T1 header + B2 rows + B3 menu)
 
 enum WatchCollectionSource: Hashable {
-    case phone(WatchCollectionRef)
     case localPlaylist(String)
     case localAlbum(String)
     case localSongs
@@ -217,26 +131,14 @@ struct WatchAlbumDetailView: View {
     var body: some View { WatchCollectionDetailView(source: .localAlbum(albumID)) }
 }
 
-struct WatchPhoneCollectionView: View {
-    let ref: WatchCollectionRef
-    var body: some View { WatchCollectionDetailView(source: .phone(ref)) }
-}
-
 struct WatchCollectionDetailView: View {
     let source: WatchCollectionSource
 
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
     @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
-    @State private var phoneTracks: [WatchTrackSummary] = []
-    @State private var phoneTitle: String?
-    @State private var phoneTotal = 0
-    @State private var nextPage: String?
-    @State private var phoneState: PhoneLoad = .idle
     @State private var choice: PendingPlay?
     @State private var requestedDownloads: Set<String> = []
-
-    private enum PhoneLoad { case idle, loading, loaded, failed }
 
     /// A song as this screen shows it, whichever side it came from.
     struct Song: Identifiable, Hashable {
@@ -262,34 +164,13 @@ struct WatchCollectionDetailView: View {
         List {
             header
                 .listRowBackground(Color.clear)
-            if phoneState == .loading && songs.isEmpty {
-                HStack { ProgressView(); Text("Loading from iPhone…").font(.caption2) }
-                    .listRowBackground(Color.clear)
-            } else if phoneState == .failed && songs.isEmpty {
-                WatchProblemCard(systemImage: "iphone.slash", title: "Couldn't Reach iPhone",
-                                 message: String(localized: "This list lives on your iPhone. Keep it nearby and try again."),
-                                 actions: [.init(title: "Try Again", identifier: "watch.collection.retry") {
-                                     Task { await loadPhone(reset: true) }
-                                 }])
-                .listRowBackground(Color.clear)
-            }
             ForEach(songs) { song in
                 songRow(song)
-            }
-            if nextPage != nil {
-                Button { Task { await loadPhone(reset: false) } } label: {
-                    Text("Show More (\(songs.count) of \(phoneTotal))")
-                }
-                .buttonStyle(.watchSecondarySmall)
-                .listRowBackground(Color.clear)
             }
         }
         .listStyle(.plain)
         .navigationTitle(Text(title))
-        .task {
-            await model.refresh()
-            if phoneRef(for: source) != nil, case .phone = source, phoneTracks.isEmpty { await loadPhone(reset: true) }
-        }
+        .task { await model.refresh() }
         .sheet(item: $choice) { pending in
             WatchTargetChoiceView(
                 itemTitle: pending.title,
@@ -306,7 +187,6 @@ struct WatchCollectionDetailView: View {
 
     private var title: String {
         switch source {
-        case .phone: phoneTitle ?? String(localized: "Collection")
         case .localPlaylist(let id): model.playlist(id: id)?.title ?? String(localized: "Playlist")
         case .localAlbum(let id): model.album(id: id)?.title ?? String(localized: "Album")
         case .localSongs: String(localized: "Songs")
@@ -316,13 +196,6 @@ struct WatchCollectionDetailView: View {
 
     private var songs: [Song] {
         switch source {
-        case .phone:
-            return phoneTracks.map { item in
-                let local = model.track(id: item.trackID.rawValue)
-                return Song(id: item.trackID.rawValue, title: item.title, artist: item.artist,
-                            duration: item.durationSeconds, albumTitle: item.albumTitle,
-                            artworkFilename: local?.artworkFilename, local: local)
-            }
         case .localPlaylist(let id):
             let ids = model.playlist(id: id)?.trackIDs ?? []
             return ids.compactMap { model.track(id: $0) }.map(Self.song)
@@ -343,16 +216,6 @@ struct WatchCollectionDetailView: View {
     }
 
     private var localTracks: [WatchTrackSnapshot] { songs.compactMap(\.local).filter(\.isReady) }
-
-    /// The phone-side collection this screen can address, if any. A local playlist exists on the
-    /// phone under the same id; a derived local album or "all songs" has no phone twin.
-    private func phoneRef(for source: WatchCollectionSource) -> WatchCollectionRef? {
-        switch source {
-        case .phone(let ref): ref
-        case .localPlaylist(let id): WatchCollectionRef(kind: .playlist, id: id)
-        case .localAlbum, .localSongs, .localArtist, .localGenre: nil
-        }
-    }
 
     private var canPlayOnPhone: Bool { false }
     private var canPlayOnWatch: Bool { !localTracks.isEmpty }
@@ -381,10 +244,6 @@ struct WatchCollectionDetailView: View {
                     .buttonStyle(.watchSecondarySmall)
                     .accessibilityIdentifier("watch.collection.shuffle")
                     secondaryTargetButton
-                }
-                if chrome.showsConnectedFeatures, case .phone = source, phoneTotal > 0 {
-                    Text(onWatchSummary)
-                        .font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
             }
             .padding(.vertical, 2)
@@ -438,13 +297,6 @@ struct WatchCollectionDetailView: View {
         default:
             EmptyView()
         }
-    }
-
-    private var onWatchSummary: String {
-        let local = localTracks.count
-        if local == 0 { return String(localized: "None of these songs are on this watch") }
-        if local >= phoneTotal { return String(localized: "All \(phoneTotal) songs are on this watch") }
-        return String(localized: "\(local) of \(phoneTotal) songs are on this watch")
     }
 
     // MARK: Rows (B2/B3)
@@ -552,22 +404,6 @@ struct WatchCollectionDetailView: View {
         if let id = pending.startID, songs.first(where: { $0.id == id })?.isOnWatch == false { return nil }
         if let output = WatchPlayer.shared.outputName { return String(localized: "\(output) · downloaded") }
         return String(localized: "Downloaded")
-    }
-
-    // MARK: Phone paging
-
-    private func loadPhone(reset: Bool) async {
-        guard case .phone(let ref) = source else { return }
-        if reset { phoneState = .loading }
-        guard let response = await WatchAppAssembly.shared.loadPhoneCollection(ref, pageToken: reset ? nil : nextPage) else {
-            if reset { phoneState = .failed }
-            return
-        }
-        phoneTitle = response.title
-        phoneTotal = response.totalCount
-        phoneTracks = reset ? response.tracks : phoneTracks + response.tracks
-        nextPage = response.nextPageToken
-        phoneState = .loaded
     }
 }
 
