@@ -93,7 +93,8 @@ final class WatchAVPlayerItemTests: XCTestCase {
         let watchApp = try String(contentsOf: root.appendingPathComponent("WatchApp/PlatterheadWatchApp.swift"), encoding: .utf8)
         XCTAssertFalse(watchApp.contains(".task { await WatchAppAssembly.shared.requestSyncStatus() }"))
         let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
-        XCTAssertTrue(home.contains("watch.home.syncStatus"))
+        XCTAssertTrue(home.contains("WatchHomeStatusPolicy.status("),
+                      "sync status must stay visible, driven by real state, not hardcoded")
         let assembly = try String(contentsOf: root.appendingPathComponent("WatchApp/App/WatchAppAssembly.swift"), encoding: .utf8)
         XCTAssertTrue(assembly.contains("let deadline = Task { @MainActor in"))
         XCTAssertTrue(assembly.contains("requestID: requestID"))
@@ -107,6 +108,21 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertTrue(runtime.contains("guard force || content != lastPublishedStatusContent"))
         XCTAssertTrue(runtime.contains("mirrorLive: Bool = false"))
         XCTAssertFalse(assembly.contains("await syncActor?.publishPeriodicStatus()"))
+    }
+    /// Real report: the connection/sync status (then a full-width, multi-line `Section`) sat above
+    /// `WatchHomeHero`, so the first thing Home showed was "iPhone connected"/"Sync Now available…"
+    /// rather than Now Playing — "this seems wrong as a home view". Home's own doc comment already
+    /// said status should be "a quiet chip at the end"; the code just never matched it.
+    func testHomeLeadsWithNowPlayingAndKeepsConnectionStatusAsAnEndOfListChip() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
+        let heroRange = try XCTUnwrap(home.range(of: "WatchHomeHero()"), "Home must still show Now Playing")
+        let chipRange = try XCTUnwrap(home.range(of: "statusChip"),
+                                      "Home must have a status chip, not the old multi-line Section")
+        XCTAssertLessThan(heroRange.lowerBound, chipRange.lowerBound,
+                          "Now Playing must render before the connection/sync status chip")
+        XCTAssertTrue(home.contains("\"watch.syncStatus\""),
+                      "Sync Status must stay reachable by its existing identifier")
     }
     func testAdHocWatchDownloadsPersistBeforeQueueingAndSettingsOpenDirectly() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
