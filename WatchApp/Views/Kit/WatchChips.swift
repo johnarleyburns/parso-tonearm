@@ -40,34 +40,3 @@ struct WatchTargetChip: View {
         }
     }
 }
-
-/// Connection or scope state in words with a dot (§3 `StatusChip`): "iPhone connected",
-/// "iPhone not nearby", "Update Platterhead on iPhone".
-struct WatchStatusChip: View {
-    enum Tone { case good, warning, failure }
-
-    let title: String
-    let tone: Tone
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 6, height: 6)
-                .accessibilityHidden(true)
-            Text(title).lineLimit(2).multilineTextAlignment(.center)
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(color)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(color.opacity(0.16)))
-        .frame(maxWidth: .infinity)
-    }
-
-    private var color: Color {
-        switch tone {
-        case .good: WatchPalette.success
-        case .warning: WatchPalette.warning
-        case .failure: WatchPalette.failure
-        }
-    }
-}
