@@ -14,9 +14,9 @@ final class TonearmSmokeUITests: XCTestCase {
     func testFindModesMatchBrowseChipHeightAndSettingsCanDismiss() throws {
         launch()
         app.buttons["Find"].tap()
-        let all = app.buttons["All"]
-        let mood = app.buttons["Find Mood"]
-        let mix = app.buttons["Find Mix"]
+        let all = app.buttons["Name"]
+        let mood = app.buttons["Mood"]
+        let mix = app.buttons["BPM/Key"]
         XCTAssertTrue(all.waitForExistence(timeout: 10))
         XCTAssertLessThan(all.frame.minX, mood.frame.minX)
         XCTAssertLessThan(mood.frame.minX, mix.frame.minX)
