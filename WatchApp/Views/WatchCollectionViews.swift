@@ -217,6 +217,13 @@ struct WatchCollectionDetailView: View {
     private var canPlayOnPhone: Bool { false }
     private var canPlayOnWatch: Bool { !localTracks.isEmpty }
 
+    /// Whether either target can start playback at all — Play and Shuffle must agree on this, or a
+    /// tap that reaches `play(...)` with nothing playable dead-ends in the T2 sheet (every option
+    /// disabled there too).
+    private var canStartPlayback: Bool {
+        WatchCollectionPlaybackPolicy.canStartPlayback(canPlayOnPhone: canPlayOnPhone, canPlayOnWatch: canPlayOnWatch)
+    }
+
     /// The primary target for this screen: the only possible one, else `nil` (ask once, T2).
     private var primaryTarget: WatchTarget? {
         canPlayOnWatch ? .thisWatch : nil
@@ -233,6 +240,7 @@ struct WatchCollectionDetailView: View {
                     Label("Shuffle", systemImage: "shuffle")
                 }
                 .buttonStyle(.watchSecondarySmall)
+                .disabled(!canStartPlayback)
                 .accessibilityIdentifier("watch.collection.shuffle")
             }
             .padding(.vertical, 2)
@@ -257,7 +265,7 @@ struct WatchCollectionDetailView: View {
                 Label("Play", systemImage: "play.fill")
             }
             .buttonStyle(.watchPrimary)
-            .disabled(!canPlayOnPhone && !canPlayOnWatch)
+            .disabled(!canStartPlayback)
             .accessibilityIdentifier("watch.collection.play")
         default:
             EmptyView()
