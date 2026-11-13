@@ -219,6 +219,18 @@ public struct WatchPlayerEngine: Equatable {
         isPlaying = playing
     }
 
+    /// Keeps `elapsed` mirroring the platform output's real, continuously-advancing playback clock
+    /// (the AVPlayer adapter's periodic time ticks). Nothing else updates `elapsed` while a track
+    /// just keeps playing — only an explicit seek or a track change did before this — so without a
+    /// live tick landing here, ANY pause (manual, or an automatic one from a route loss or an audio
+    /// interruption) would snapshot and persist a stale elapsed value, frequently 0, and a later
+    /// resume would restart the track from that stale position instead of where playback actually
+    /// was. Call this on every tick while a track is current; it is a no-op with an empty queue.
+    public mutating func updateElapsed(_ seconds: Double) {
+        guard !queue.isEmpty else { return }
+        elapsed = max(0, seconds)
+    }
+
     public var snapshot: WatchQueueSnapshot {
         WatchQueueSnapshot(trackKeys: queue, currentIndex: currentIndex,
                             elapsed: elapsed, isPlaying: isPlaying,

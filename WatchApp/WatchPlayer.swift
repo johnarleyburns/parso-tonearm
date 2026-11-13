@@ -76,6 +76,11 @@ final class WatchPlayer: ObservableObject {
                 // A committed seek is in flight: a pre-seek tick must not snap progress backward.
                 guard self.pendingSeek == nil else { return }
                 self.elapsed = time
+                // Keep the pure engine's elapsed mirroring the real playback clock so a pause —
+                // whatever triggers it, including an automatic one from a route loss or an audio
+                // interruption — persists and can resume from the position actually reached,
+                // instead of a value frozen at the last seek/track change (often 0).
+                self.engine.updateElapsed(time)
                 self.updateNowPlayingTime()
             }
         }
@@ -198,6 +203,9 @@ final class WatchPlayer: ObservableObject {
             playbackPhase = .paused
             outputRate = 0
             stopPositionTimer()
+            // Carry the position forward for whatever resumes next (the normal Play button, or the
+            // "Choose Output" retry after a route loss) — not just for the persisted snapshot.
+            pendingSeek = engine.elapsed
             scheduleOutputPause()
             savePosition()
             updateNowPlayingTime()
@@ -277,6 +285,13 @@ final class WatchPlayer: ObservableObject {
                 sessionStatus = "pending"
                 isPlaying = false
                 outputRate = 0
+                // Reloading always builds a fresh player item at position 0 (`AVPlayerOutput.load`),
+                // so the engine's elapsed — 0 after a track change, the live position after a
+                // resume (`.play`/`.togglePlayPause`) now that it is kept in sync — is the one true
+                // source for where this transaction must land. Without this, resuming the same
+                // track (including after an automatic pause from a route loss/interruption, or
+                // after restoring a persisted position on relaunch) silently restarted at 0.
+                pendingSeek = engine.elapsed
                 scheduleCurrentTrackPlayback()
             }
         }
@@ -418,6 +433,10 @@ final class WatchPlayer: ObservableObject {
             isPlaying = false
             engine.setConfirmedPlaying(false)
             outputRate = 0
+            // The failed load never reached the point in `runPlaybackTransaction` that consumes
+            // `pendingSeek`, so a resume target queued for the track that just failed would
+            // otherwise survive and wrongly seek the *next* track to it.
+            pendingSeek = engine.elapsed
             scheduleCurrentTrackPlayback()
         }
     }
