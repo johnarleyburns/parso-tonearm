@@ -9,7 +9,7 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
 
     func testRenamedCopyAndStableIdentifiers() throws {
         let s = try source("Sources/Features/MyMusic/MyMusicSearchControls.swift")
-        for new in ["\"By BPM/Key\"", "\"Track BPM\"", "\"Camelot Key\""] {
+        for new in ["\"BPM/Key\"", "\"Track BPM\"", "\"Camelot Key\""] {
             XCTAssertTrue(s.contains(new), new)
         }
         for old in ["\"Find Mix\"", "\"Mix BPM\"", "\"Mix Key\""] {
@@ -19,6 +19,12 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
             XCTAssertTrue(s.contains(id), id)
         }
         XCTAssertTrue(s.contains("\"find.mode.mix\""))
+        for old in ["\"By Name\"", "\"By Mood\"", "\"By BPM/Key\""] {
+            XCTAssertFalse(s.contains(old), old)
+        }
+        for label in ["\"Name\"", "\"Mood\"", "\"BPM/Key\""] {
+            XCTAssertTrue(s.contains("= " + label), label)
+        }
     }
 
     func testContentTopIsPinnedWithReservedHeight() throws {

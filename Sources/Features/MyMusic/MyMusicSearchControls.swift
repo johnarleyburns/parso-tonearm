@@ -3,9 +3,9 @@ import TonearmCore
 import TonearmDiscovery
 
 enum MyMusicSearchMode: String, CaseIterable, Identifiable {
-    case all = "By Name"
-    case sound = "By Mood"
-    case mix = "By BPM/Key"
+    case all = "Name"
+    case sound = "Mood"
+    case mix = "BPM/Key"
 
     var id: String { rawValue }
 
