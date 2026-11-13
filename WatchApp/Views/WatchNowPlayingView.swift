@@ -2,7 +2,6 @@ import SwiftUI
 import UIKit
 import WatchKit
 import TonearmWatchCore
-import TonearmWatchProtocol
 
 /// AVPlayer.volume is only a multiplier. Let watchOS control the actual output volume and
 /// respect the user's crown orientation; never force the system volume to maximum.
@@ -22,15 +21,13 @@ struct WatchSystemVolumeControl: WKInterfaceObjectRepresentable {
     }
 }
 
-/// Watch redesign §5 N1/N2/S1–S5/T3/A1/A3 — one fixed, non-scrolling Now Playing face for both
-/// engines. Artwork colours tint the background; the target chip names where the audio comes out;
-/// big round transport; the Digital Crown controls native watch output volume; a
+/// Watch redesign §5 N1/N2/S1–S5/T3/A1/A3 — one fixed, non-scrolling Now Playing face for this
+/// watch's local playback. Artwork colours tint the background; the target chip names where the
+/// audio comes out; big round transport; the Digital Crown controls native watch output volume; a
 /// bottom toolbar holds Output · Up Next · More. Failures replace the transport *in place* with a
-/// Problem Card. Which engine is shown follows `WatchNowPlayingResolver` — playback started on the
-/// iPhone appears here without silently switching the explicit target (§7.1).
+/// Problem Card.
 struct WatchNowPlayingView: View {
     @ObservedObject private var player = WatchPlayer.shared
-    @ObservedObject private var remote = WatchRemotePlayer.shared
     @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @Environment(\.dismiss) private var dismiss
@@ -47,7 +44,7 @@ struct WatchNowPlayingView: View {
             background
             VStack(spacing: 4) {
                 chip
-                content
+                localContent
                 WatchSystemVolumeControl(enabled: crownEnabled)
                     .frame(height: 24)
                     .accessibilityIdentifier("watch.now.volume")
@@ -63,12 +60,7 @@ struct WatchNowPlayingView: View {
         .background(alignment: .top) {
             if showsDebugOverlay { debugPlaybackState.opacity(0.05).allowsHitTesting(false) }
         }
-        .onAppear { if shown == .iPhone { remote.startClock() } }
-        .onDisappear { remote.stopClock() }
         .onChange(of: model.tracks) { _, _ in player.refreshLocalArtwork() }
-        .onChange(of: shown) { _, target in
-            if target == .iPhone { remote.startClock() } else { remote.stopClock() }
-        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .sheet(isPresented: $showingOutput) { WatchOutputSheet() }
@@ -101,44 +93,25 @@ struct WatchNowPlayingView: View {
             .accessibilityLabel((hasArtwork ? Text("Artwork") : Text("No artwork")))
     }
 
-    private var hasArtwork: Bool {
-        shown == .iPhone ? remote.state?.snapshot.artworkColorHex != nil : player.artwork != nil
-    }
+    private var hasArtwork: Bool { player.artwork != nil }
 
-    private var tintKey: String {
-        shown == .iPhone ? (remote.state?.snapshot.artworkColorHex ?? "none") : (player.currentTrack?.id ?? "none")
-    }
+    private var tintKey: String { player.currentTrack?.id ?? "none" }
 
     private var tintColors: (Color, Color) {
-        let base: Color
-        if shown == .iPhone {
-            base = Color(watchHex: remote.state?.snapshot.artworkColorHex) ?? WatchPalette.accent
-        } else if let average = player.artworkTint {
-            base = average
-        } else {
-            base = WatchPalette.accent
-        }
+        let base = player.artworkTint ?? WatchPalette.accent
         return (base.opacity(0.95), base.opacity(0.35))
     }
 
     // MARK: - Target chip
 
     private var chip: some View {
-        let isPhone = shown == .iPhone
-        let title: String
-        if isPhone {
-            title = String(localized: "iPhone")
-        } else if let output = player.outputName {
-            title = String(localized: "Apple Watch · \(output)")
-        } else {
-            title = String(localized: "Apple Watch")
-        }
-        let tone: WatchTargetChip.Tone = isPhone && !model.phoneReachable ? .warning : .onArtwork
-        return WatchTargetChip(systemImage: isPhone ? "iphone" : "applewatch", title: title, tone: tone)
+        let title = player.outputName.map { String(localized: "Apple Watch · \($0)") }
+            ?? String(localized: "Apple Watch")
+        return WatchTargetChip(systemImage: "applewatch", title: title, tone: .onArtwork)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(isPhone ? "Playing on iPhone" : chipSpokenLocal))
+            .accessibilityLabel(Text(chipSpokenLocal))
             .accessibilityIdentifier("watch.now.target")
-            .accessibilityValue(isPhone ? "iPhone" : "Apple Watch")
+            .accessibilityValue("Apple Watch")
     }
 
     private var chipSpokenLocal: String {
@@ -148,45 +121,7 @@ struct WatchNowPlayingView: View {
         return String(localized: "Playing on Apple Watch")
     }
 
-    // MARK: - Content per engine and state
-
-    @ViewBuilder
-    private var content: some View {
-        if shown == .iPhone {
-            remoteContent
-        } else {
-            localContent
-        }
-    }
-
-    @ViewBuilder
-    private var remoteContent: some View {
-        if let failure = remote.startFailure {
-            phoneStartFailureCard(failure)
-        } else if remote.isStarting {
-            startingOnPhone
-        } else if let state = remote.state, let item = state.currentItem {
-            let now = Date()
-            let elapsed = state.predictedElapsed(at: now)
-            titles(item.title, subtitle: item.artist.isEmpty ? (state.collectionTitle ?? "") : item.artist)
-            if isLuminanceReduced {
-                alwaysOnElapsed(elapsed)
-            } else {
-                WatchProgressHairline(elapsed: elapsed, duration: item.durationSeconds ?? 0,
-                                      showsTimes: dynamicTypeSize < .accessibility1)
-                    .padding(.horizontal, 4)
-                transport(isPlaying: state.isPlaying, isBusy: false,
-                          previous: remote.previous, toggle: remote.togglePlayPause, next: remote.next)
-                if state.isStale(at: now) {
-                    Label("Updating…", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption2).foregroundStyle(WatchPalette.accent)
-                }
-            }
-        } else {
-            emptyState(systemImage: "iphone", title: "Nothing Playing on iPhone",
-                       message: model.phoneReachable ? nil : String(localized: "Your iPhone isn't reachable."))
-        }
-    }
+    // MARK: - Content
 
     @ViewBuilder
     private var localContent: some View {
@@ -321,38 +256,8 @@ struct WatchNowPlayingView: View {
         .padding(.top, 18)
     }
 
-    // MARK: - T3 / S4 / S5 (iPhone)
-
-    private var startingOnPhone: some View {
-        VStack(spacing: 6) {
-            Image(systemName: "iphone").font(.title2)
-            Text("Starting on iPhone…").font(.headline)
-            if let title = remote.startingTitle {
-                Text(title).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-            }
-            ProgressView().padding(.top, 4)
-        }
-        .padding(.top, 14)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("watch.now.starting")
-    }
-
-    private func phoneStartFailureCard(_ failure: WatchRemotePlayer.StartFailure) -> some View {
-        let downloaded = failure.downloadedAlternativeCount
-        let action = downloaded > 0
-            ? WatchProblemCard.Action(title: "Play on Watch", isPrimary: true,
-                                      identifier: "watch.now.playHereInstead") {
-                Task { await WatchAppAssembly.shared.playLocalAlternative(for: failure.command) }
-            }
-            : nil
-        return WatchProblemCard(systemImage: "applewatch.slash", title: "Track Isn't on This Watch",
-                                message: String(localized: "Only downloaded audio can play here. Send music from Platterhead on your iPhone."),
-                                actions: action.map { [$0] } ?? [], code: failure.code)
-    }
-
     private var showsProblemCard: Bool {
-        if shown == .iPhone { return remote.startFailure != nil }
-        return player.currentTrack != nil && (player.audioRouteProblem != nil || player.playbackErrorMessage != nil)
+        player.currentTrack != nil && (player.audioRouteProblem != nil || player.playbackErrorMessage != nil)
     }
 
     // MARK: - Toolbar
@@ -400,7 +305,6 @@ struct WatchNowPlayingView: View {
 
     private var crownEnabled: Bool {
         guard !isLuminanceReduced else { return false }
-        if shown == .iPhone { return remote.supportsVolume && remote.state?.currentItem != nil }
         return player.currentTrack != nil && player.audioRouteProblem == nil
     }
 

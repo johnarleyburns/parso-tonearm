@@ -3,8 +3,8 @@ import SwiftUI
 import WidgetKit
 import TonearmWatchCore
 
-/// Watch redesign A2 — the Smart Stack card: what's playing (on either device), where, a live
-/// progress line, and play/pause. Tapping the card opens Now Playing.
+/// Watch redesign A2 — the Smart Stack card: what's playing on this watch, a live progress line,
+/// and play/pause. Tapping the card opens Now Playing.
 struct NowPlayingEntry: TimelineEntry {
     let date: Date
     let state: WatchNowPlayingWidgetState?
@@ -37,8 +37,7 @@ struct NowPlayingWidgetView: View {
         if let state = entry.state {
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Label(state.target == .iPhone ? String(localized: "iPhone") : String(localized: "Watch"),
-                          systemImage: state.target == .iPhone ? "iphone" : "applewatch")
+                    Label(String(localized: "Watch"), systemImage: "applewatch")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(accent)
                     Text(state.title).font(.headline).lineLimit(1)
@@ -81,7 +80,7 @@ struct PlatterheadNowPlayingWidget: Widget {
                 .widgetURL(URL(string: "platterhead-watch://now-playing"))
         }
         .configurationDisplayName("Now Playing")
-        .description("What Platterhead is playing, on your watch or iPhone.")
+        .description("What Platterhead is playing on your watch.")
         .supportedFamilies([.accessoryRectangular])
     }
 }

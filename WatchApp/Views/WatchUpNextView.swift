@@ -1,59 +1,14 @@
 import SwiftUI
 import TonearmWatchCore
-import TonearmWatchProtocol
 
-/// Watch redesign §5 N4 — Up Next for whichever engine Now Playing shows. The header says where
-/// the queue plays; tapping a row jumps that engine; a row the shown engine can't play here stays
-/// visible with a note ("iPhone only"), never hidden.
+/// Watch redesign §5 N4 — Up Next for this watch's local queue.
 struct WatchUpNextView: View {
     @ObservedObject private var player = WatchPlayer.shared
-    @ObservedObject private var remote = WatchRemotePlayer.shared
-    @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
-
-    private var shown: WatchTarget {
-        WatchNowPlayingResolver.shown(
-            local: .init(hasItem: player.currentTrack != nil, isPlaying: player.isPlaying),
-            remote: .init(hasItem: remote.state?.currentItem != nil, isPlaying: remote.state?.isPlaying ?? false),
-            target: coordinator.target) ?? coordinator.target
-    }
 
     var body: some View {
-        Group {
-            if shown == .iPhone { remoteQueue } else { localQueue }
-        }
-        .navigationTitle("Up Next")
+        localQueue
+            .navigationTitle("Up Next")
     }
-
-    // MARK: iPhone
-
-    @ViewBuilder
-    private var remoteQueue: some View {
-        if let state = remote.state, !state.queueWindow.isEmpty {
-            List {
-                Section {
-                    ForEach(Array(state.queueWindow.enumerated()), id: \.element.id) { offset, item in
-                        let index = state.queueWindowStartIndex + offset
-                        Button { remote.jump(to: index) } label: {
-                            row(title: item.title,
-                                detail: item.isDownloadedOnWatch ? item.artist
-                                                                 : String(localized: "iPhone only"),
-                                isCurrent: index == state.queueIndex, isPlaying: state.isPlaying,
-                                downloaded: item.isDownloadedOnWatch)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowBackground(rowBackground(current: index == state.queueIndex))
-                    }
-                } header: {
-                    Text(header(collection: state.collectionTitle, target: .iPhone))
-                }
-            }
-        } else {
-            WatchEmptyStateView(icon: "list.bullet", title: "Nothing Queued",
-                                message: "Play something on your iPhone to see it here.")
-        }
-    }
-
-    // MARK: This watch
 
     @ViewBuilder
     private var localQueue: some View {
@@ -67,13 +22,13 @@ struct WatchUpNextView: View {
                         let isCurrent = track.id == player.currentTrack?.id
                         Button { player.jump(to: index) } label: {
                             row(title: track.title, detail: track.artist, isCurrent: isCurrent,
-                                isPlaying: player.isPlaying, downloaded: true)
+                                isPlaying: player.isPlaying)
                         }
                         .buttonStyle(.plain)
                         .listRowBackground(rowBackground(current: isCurrent))
                     }
                 } header: {
-                    Text(header(collection: player.currentTrack?.albumTitle, target: .thisWatch))
+                    Text(header(collection: player.currentTrack?.albumTitle))
                 }
             }
         }
@@ -81,7 +36,7 @@ struct WatchUpNextView: View {
 
     // MARK: Rows
 
-    private func row(title: String, detail: String, isCurrent: Bool, isPlaying: Bool, downloaded: Bool) -> some View {
+    private func row(title: String, detail: String, isCurrent: Bool, isPlaying: Bool) -> some View {
         HStack(spacing: 8) {
             if isCurrent {
                 Image(systemName: isPlaying ? "play.fill" : "pause.fill")
@@ -98,7 +53,6 @@ struct WatchUpNextView: View {
             }
             Spacer(minLength: 2)
         }
-        .opacity(shown == .thisWatch || downloaded || isCurrent ? 1 : 0.85)
         .contentShape(Rectangle())
     }
 
@@ -107,11 +61,10 @@ struct WatchUpNextView: View {
             .fill(current ? WatchPalette.accentSoft : WatchPalette.surface)
     }
 
-    private func header(collection: String?, target: WatchTarget) -> String {
-        let place = target == .iPhone ? String(localized: "on iPhone") : String(localized: "on Watch")
+    private func header(collection: String?) -> String {
         if let collection, !collection.isEmpty {
-            return String(localized: "Playing from \(collection) · \(place)")
+            return String(localized: "Playing from \(collection) · on Watch")
         }
-        return String(localized: "Playing \(place)")
+        return String(localized: "Playing on Watch")
     }
 }

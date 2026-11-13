@@ -1,36 +1,6 @@
 import XCTest
 @testable import TonearmWatchCore
 
-/// Watch redesign §4 / T2 — the hero follows playback on either device without switching targets.
-final class WatchNowPlayingResolverTests: XCTestCase {
-    private typealias E = WatchNowPlayingResolver.Engine
-
-    func testPhoneStartedPlaybackShowsEvenWhenTargetIsTheWatch() {
-        let shown = WatchNowPlayingResolver.shown(
-            local: E(hasItem: true, isPlaying: false), remote: E(hasItem: true, isPlaying: true),
-            target: .thisWatch)
-        XCTAssertEqual(shown, .iPhone, "music started on the iPhone must reach the hero")
-    }
-
-    func testLocalAudioWinsWhenBothPlay() {
-        XCTAssertEqual(WatchNowPlayingResolver.shown(
-            local: E(hasItem: true, isPlaying: true), remote: E(hasItem: true, isPlaying: true),
-            target: .iPhone), .thisWatch)
-    }
-
-    func testPausedEnginesPreferTheExplicitTarget() {
-        let paused = E(hasItem: true, isPlaying: false)
-        XCTAssertEqual(WatchNowPlayingResolver.shown(local: paused, remote: paused, target: .iPhone), .iPhone)
-        XCTAssertEqual(WatchNowPlayingResolver.shown(local: paused, remote: paused, target: .thisWatch), .thisWatch)
-    }
-
-    func testFallsBackToWhicheverEngineHasAnItem() {
-        XCTAssertEqual(WatchNowPlayingResolver.shown(
-            local: .empty, remote: E(hasItem: true, isPlaying: false), target: .thisWatch), .iPhone)
-        XCTAssertNil(WatchNowPlayingResolver.shown(local: .empty, remote: .empty, target: .iPhone))
-    }
-}
-
 /// Watch redesign §6.4 — reachability, search scope and the banner come from one source.
 @MainActor
 final class WatchConnectionProjectionTests: XCTestCase {
