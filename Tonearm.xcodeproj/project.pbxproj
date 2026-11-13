@@ -151,7 +151,6 @@
 		AD9B06C812D8117166D0FB4F /* RemoteArtworkImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD90D09A8CB12D233707F2 /* RemoteArtworkImageView.swift */; };
 		AEE325F52901236277048994 /* ArtworkImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 298AE119DE325FD5445FE843 /* ArtworkImagePicker.swift */; };
 		AEF4981A074AAE935043A8D0 /* WatchPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30488D91649319F8F2EFA5EF /* WatchPlaybackCoordinator.swift */; };
-		AF7E4C4D3F359E4A5E3D3CE1 /* WatchRemotePlaybackObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */; };
 		AFCB0C188CB61B77079A95F9 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 3231E4E8345BCBCAA761581D /* AppShortcuts.xcstrings */; };
 		B05161851F3AEADE6DD18515 /* RemoteConnectorGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22000483380D73EC6205A4B9 /* RemoteConnectorGuideView.swift */; };
 		B38E5316DDFA37A958571C45 /* GenrePickerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82D29BCE382CB03501C797D /* GenrePickerModel.swift */; };
@@ -440,7 +439,6 @@
 		88D50C0706377157F886F943 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		89AA0A45EA728BFDB5858390 /* SourceDetailView+ManagementSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SourceDetailView+ManagementSection.swift"; sourceTree = "<group>"; };
 		8B48E8BCEBBB60820A867070 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
-		8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRemotePlaybackObserver.swift; sourceTree = "<group>"; };
 		8D56A4403A2A520AA35DDF48 /* TonearmWidgetsExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = TonearmWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EA8BAC0D313885842D84AC6 /* rain.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = rain.jpg; sourceTree = "<group>"; };
 		8EB387CAA683C2AD1D8CD38E /* TonearmWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TonearmWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -706,7 +704,6 @@
 				7B211FE6148A113FA2A0BDB7 /* WatchConnectivityObservers.swift */,
 				AAC8912A647F968F6B1973EE /* WatchDefaultsSyncStateStore.swift */,
 				6E3EECAA4F3F90C416B78A37 /* WatchLibraryModel.swift */,
-				8BBEF9271A1D0067EAC63C90 /* WatchRemotePlaybackObserver.swift */,
 				985F76E73BF5C7E33381C140 /* WatchTypeAliases.swift */,
 				129808B1A979209D4E5225DF /* WatchWidgetPublisher.swift */,
 			);
@@ -1696,7 +1693,6 @@
 				5B957C4C47B8D3A2874B370B /* WatchProgressViews.swift in Sources */,
 				5441C555034D686043CFEE90 /* WatchProtocolSessionAdapter.swift in Sources */,
 				9F62783C181DD46988FC97D5 /* WatchRecoveryView.swift in Sources */,
-				AF7E4C4D3F359E4A5E3D3CE1 /* WatchRemotePlaybackObserver.swift in Sources */,
 				B885DBC9AA460336DB0477A1 /* WatchRemotePlayer.swift in Sources */,
 				464C5B08FAAF1036A497892B /* WatchRootView.swift in Sources */,
 				119AD3D18F0B08781AC9D8BF /* WatchSearchView.swift in Sources */,
