@@ -49,18 +49,6 @@ final class WatchAppAssembly {
         Task { await coordinator.rejectPairedLibraryReplacement() }
     }
 
-    // MARK: - Synced catalog compatibility
-
-    func loadPhoneCollection(_ ref: WatchCollectionRef, pageToken: String? = nil) async -> WatchCollectionResponse? {
-        nil
-    }
-
-    /// Watch redesign B1 — one page of the iPhone's playlists or albums; `nil` when the phone
-    /// couldn't be reached (the screen says so and offers Try Again).
-    func browsePhone(_ category: WatchBrowseCategory, pageToken: String? = nil) async -> WatchBrowseResponse? {
-        return nil
-    }
-
     func refreshSyncReachability() async {
         await coordinator?.refreshReachability()
         await syncStatus.refreshInstallationDate()
