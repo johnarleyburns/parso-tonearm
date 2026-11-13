@@ -103,18 +103,31 @@ public struct JamendoLocatorResolver: Sendable {
     /// not trust a cached URL whose validity AVFoundation cannot preflight.
     public func refreshOnly(_ locator: AudioLocator) async throws -> (url: URL, expiry: Date?) {
         guard case .jamendo(let trackID, _, _) = locator else { throw JamendoResolveError.permanent }
-        do { return try await refresh(trackID) }
-        catch is CancellationError { throw CancellationError() }
-        catch { throw JamendoResolveError.refreshFailed }
+        return try await retryingRefresh(trackID)
     }
 
     private func refreshURL(_ trackID: String) async throws -> URL {
-        do {
-            return try await refresh(trackID).url
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw JamendoResolveError.refreshFailed
+        try await retryingRefresh(trackID).url
+    }
+
+    /// `refresh` itself — a single HTTP round trip asking Jamendo for a track's current stream
+    /// URL — gets the same bounded retry/backoff `open`'s own transient-failure path already gives
+    /// the later streaming step. Without this, a momentary timeout/DNS blip/5xx here permanently
+    /// failed the whole play attempt even though the identical blip, one layer down, was already
+    /// absorbed. `refresh`'s errors aren't classified (no HTTP status is available at this layer),
+    /// so every failure but cancellation gets the bounded retry — there is nothing else to try.
+    private func retryingRefresh(_ trackID: String) async throws -> (url: URL, expiry: Date?) {
+        var attempt = 0
+        while true {
+            do {
+                return try await refresh(trackID)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                attempt += 1
+                guard attempt < maxTransientAttempts else { throw JamendoResolveError.refreshFailed }
+                try await sleep(backoff(attempt - 1))
+            }
         }
     }
 }
