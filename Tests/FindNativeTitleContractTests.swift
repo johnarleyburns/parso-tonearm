@@ -29,7 +29,7 @@ final class FindNativeTitleContractTests: XCTestCase {
         XCTAssertFalse(s.contains("Find Mood"))
         XCTAssertFalse(s.contains("Find Mix"))
         XCTAssertFalse(s.contains("Find by BPM/Key"))
-        XCTAssertTrue(s.contains("find.mode.\\(option == .all ? \"all\" : option == .sound ? \"mood\" : \"mix\")"),
+        XCTAssertTrue(s.contains("\"find.mode.mood\"") && s.contains("\"find.mode.mix\"") && s.contains("\"find.mode.all\""),
                       "find.mode.all/mood/mix identifiers must stay unchanged")
     }
 }

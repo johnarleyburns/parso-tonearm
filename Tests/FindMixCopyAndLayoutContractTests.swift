@@ -15,10 +15,10 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
         for old in ["\"Find Mix\"", "\"Mix BPM\"", "\"Mix Key\""] {
             XCTAssertFalse(s.contains(old), old)
         }
-        for id in ["find.mode.", "\"mymusic.mix.bpm\"", "\"mymusic.mix.key\""] {
+        for id in ["find.mode.all", "\"mymusic.mix.bpm\"", "\"mymusic.mix.key\""] {
             XCTAssertTrue(s.contains(id), id)
         }
-        XCTAssertTrue(s.contains("\"mix\""))
+        XCTAssertTrue(s.contains("\"find.mode.mix\""))
     }
 
     func testContentTopIsPinnedWithReservedHeight() throws {
