@@ -22,9 +22,9 @@ final class FindNativeTitleContractTests: XCTestCase {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
                            encoding: .utf8)
-        XCTAssertTrue(s.contains("case all = \"By Name\""))
-        XCTAssertTrue(s.contains("case sound = \"By Mood\""))
-        XCTAssertTrue(s.contains("case mix = \"By BPM/Key\""))
+        XCTAssertTrue(s.contains("case all = \"Name\""))
+        XCTAssertTrue(s.contains("case sound = \"Mood\""))
+        XCTAssertTrue(s.contains("case mix = \"BPM/Key\""))
         XCTAssertFalse(s.contains("case all = \"All\""))
         XCTAssertFalse(s.contains("Find Mood"))
         XCTAssertFalse(s.contains("Find Mix"))
