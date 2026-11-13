@@ -114,4 +114,78 @@ final class AudioLocatorTests: XCTestCase {
         } catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertEqual(opens.value, 1)
     }
+
+    // MARK: - refreshOnly / identity-resolve transient retry
+    //
+    // Real report: a Starter Blend track (`.local` source, `jamendo://track/<id>` locator) failed
+    // to play from Find with an immediate "Jamendo unavailable" toast; a manual retry also failed;
+    // after enough time/attempts had passed (favoriting, force-quitting, relaunching) the exact
+    // same track played fine. `CatalogPlaybackURLResolver.resolve` calls `refreshOnly` directly for
+    // this exact kind of row (see its own test, `testMoodStarterJamendoLocatorRefreshesWithoutCatalogLookup`
+    // in CatalogPlaybackURLResolverTests.swift) — `refreshOnly`, and `open`'s own initial identity
+    // resolve (`refreshURL`), each made exactly one network attempt with none of the bounded
+    // retry/backoff `open`'s own transient-failure path already has for the *streaming* open —
+    // a single momentary timeout/DNS blip/5xx on the "ask Jamendo for a URL" step permanently
+    // failed the whole play attempt instead of being absorbed the same way a transient streaming
+    // failure already is.
+
+    func testRefreshOnlyRetriesATransientFailureBeforeGivingUp() async throws {
+        let attempts = Counter()
+        let sleeps = Counter()
+        let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 },
+                                              sleep: { _ in _ = sleeps.next() }, refresh: { [fresh] _ in
+            let n = attempts.next()
+            if n < 3 { throw URLError(.timedOut) }
+            return (fresh, nil)
+        })
+        let result = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
+        XCTAssertEqual(result.url, fresh)
+        XCTAssertEqual(attempts.value, 3)
+        XCTAssertEqual(sleeps.value, 2)
+    }
+
+    func testRefreshOnlyGivesUpAfterExhaustingTransientAttempts() async {
+        let attempts = Counter()
+        let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
+                                              refresh: { _ in
+            _ = attempts.next()
+            throw URLError(.timedOut)
+        })
+        do {
+            _ = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
+            XCTFail("must give up, not retry forever")
+        } catch {
+            XCTAssertEqual(error as? JamendoResolveError, .refreshFailed)
+        }
+        XCTAssertEqual(attempts.value, 3)
+    }
+
+    func testRefreshOnlyPropagatesCancellationWithoutRetrying() async {
+        let attempts = Counter()
+        let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
+                                              refresh: { _ in
+            _ = attempts.next()
+            throw CancellationError()
+        })
+        do {
+            _ = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
+            XCTFail()
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertEqual(attempts.value, 1)
+    }
+
+    func testOpenRetriesTheInitialIdentityResolveOnTransientFailure() async throws {
+        let attempts = Counter()
+        let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
+                                              refresh: { [fresh] _ in
+            let n = attempts.next()
+            if n < 2 { throw URLError(.timedOut) }
+            return (fresh, nil)
+        })
+        let url = try await resolver.open(.jamendo(trackID: "1", cachedURL: nil, expiry: nil)) { $0 }
+        XCTAssertEqual(url, fresh)
+        XCTAssertEqual(attempts.value, 2)
+    }
 }
