@@ -4,6 +4,10 @@
 
 Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs `swift test` only; a push runs no tests. The UI smoke/simulator suite is run by hand before a release (see below), not on every commit.
 
+## GitHub CLI only
+
+Always use the `gh` CLI directly for every GitHub interaction (issues, PRs, comments, reviews, checks, runs, labels). Do not try any other GitHub integration or tool first on the assumption it might work here — it doesn't, and attempting it before falling back to `gh` wastes turns and time for no benefit.
+
 ## Three rules that get broken by being helpful
 
 - **One task, one small branch, one PR, squash-automerge — direct push to `main` is blocked.** GitHub branch protection on `main` (added 2026-11-09) requires a pull request plus the `validate` status check (`.github/workflows/pr-validation.yml`); a bare `git push origin main` is rejected by GitHub itself (`GH013`, "Changes must be made through a pull request"). This supersedes the project's earlier "work on main, no branches" preference, which assumed direct push was possible. The workflow, per task:
