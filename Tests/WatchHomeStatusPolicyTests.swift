@@ -1,4 +1,5 @@
 import XCTest
+import TonearmWatchProtocol
 @testable import TonearmWatchCore
 
 /// Watch redesign §3's StatusChip was built (`WatchStatusChip`) but never wired into Home — the
