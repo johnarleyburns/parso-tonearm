@@ -184,6 +184,7 @@ extension AudioPlayer {
 
         player = nextPlayer
         player.volume = outputLevel
+        observePromotedItemFailure(player.currentItem)
         if let loader = crossfadeNextLoader {
             loaders.append(loader)
         }
@@ -225,7 +226,11 @@ extension AudioPlayer {
               queue.indices.contains(index),
               crossfadeNextTrackId == queue[index].track.id,
               incoming.currentItem != nil,
-              incoming.currentItem?.status != .failed else { return false }
+              incoming.currentItem?.status != .failed else {
+            // Start the fallback cold load from clean state, like an independent stop-then-play.
+            cancelCrossfade(resetVolume: true)
+            return false
+        }
         cancelCatalogPlaybackLoad()
         if keepPlayingBoundaryState != .idle { resetKeepPlayingBoundary() }
         let row = queue[index]
@@ -235,6 +240,21 @@ extension AudioPlayer {
         isPlaying = true
         updateNowPlaying()
         return true
+    }
+
+    /// Same failure detection `replaceItem` wires for ordinary loads, for crossfade-promoted items.
+    func observePromotedItemFailure(_ item: AVPlayerItem?) {
+        guard let item else { itemStatusCancellable = nil; return }
+        itemStatusCancellable = item.publisher(for: \.status)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak item] status in
+                guard let self, let item, status == .failed, self.player.currentItem === item else { return }
+                if self.ordinaryJamendoLoad != nil {
+                    self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: nil)
+                } else if item is LocalPlayerItem {
+                    self.failLocalPlayback(.unreadableMedia)
+                }
+            }
     }
 
     func cancelCrossfade(resetVolume: Bool) {

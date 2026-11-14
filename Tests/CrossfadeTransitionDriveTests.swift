@@ -97,6 +97,39 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         XCTAssertNil(player.networkSkipMessage)
     }
 
+    /// #417: when the prepared item cannot be promoted, the stale crossfade/loader state must be
+    /// cleared synchronously so the fallback cold load starts clean.
+    func testFailedManualPromotionClearsStaleCrossfadeStateBeforeFallback() throws {
+        let player = try prepareOutgoing(fadeSeconds: 3)
+        player.queue = [row(1), row(2, remoteURL: "https://example.invalid/stale.mp3")]
+        player.index = 1
+        player.crossfadePlayer = AVPlayer() // no item: not promotable
+        player.crossfadeNextIndex = 1
+        player.crossfadeNextTrackId = 2
+
+        XCTAssertFalse(player.promotePreparedCrossfadeForManualAdvance())
+
+        XCTAssertNil(player.crossfadePlayer)
+        XCTAssertNil(player.crossfadeNextLoader)
+        XCTAssertNil(player.crossfadeNextIndex)
+    }
+
+    /// #417: an item advanced through `finishCrossfade` gets the same status/failure observer
+    /// that `replaceItem` installs for ordinary loads.
+    func testFinishCrossfadeInstallsFailureDetection() throws {
+        let player = try prepareOutgoing(fadeSeconds: 3)
+        let incoming = row(2, remoteURL: "https://example.invalid/wired.mp3")
+        player.queue = [row(1), incoming]
+        player.preloadedNextItem = AVPlayerItem(url: try audioFile(seconds: 6))
+        player.preloadedNextTrackId = 2
+        XCTAssertTrue(player.prepareCrossfadePlayer(for: incoming, at: 1))
+        player.itemStatusCancellable = nil
+
+        player.finishCrossfade(to: 1, row: incoming)
+
+        XCTAssertNotNil(player.itemStatusCancellable)
+    }
+
     /// With Smart Transitions gone, this plain crossfade is the only track-to-track transition
     /// left — the shipped default must already be a real, audible blend, not `0` (a silent
     /// hard cut) that a setting nobody has found yet would need to raise first.
