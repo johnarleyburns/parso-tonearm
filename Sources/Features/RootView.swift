@@ -77,7 +77,16 @@ struct RootView: View {
             .sensoryFeedback(.selection, trigger: appState.tab)
     }
 
+    @ViewBuilder
     private var baseTabs: some View {
+        if #available(iOS 26.1, *) {
+            tabs.tabViewBottomAccessory(isEnabled: accessoryHeight > 0) { tabAccessory }
+        } else {
+            tabs
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $appState.tab) {
             NavigationStack {
                 ListenView()
@@ -101,7 +110,6 @@ struct RootView: View {
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)
         }
-        .tabViewBottomAccessory(isEnabled: accessoryHeight > 0) { tabAccessory }
     }
 
     @ViewBuilder
