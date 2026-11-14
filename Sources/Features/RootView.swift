@@ -13,17 +13,8 @@ struct RootView: View {
         appState.watchManagement.banner != nil && !transferBannerDismissed
     }
 
-    /// Real report: taps on the floating mini-player bar were often landing on whatever scroll
-    /// content sat underneath it instead. Root cause: this value is what every tab reserves as
-    /// bottom clearance for the accessory (`RootTabChrome.swift`'s `safeAreaInset`), but it didn't
-    /// match the accessory's REAL footprint below — the accessory is placed with
-    /// `.padding(.bottom, 58)` (see `body`, just below), so its visible bar spans from 58pt up to
-    /// `58 + content height` above the absolute bottom. The old `+ 12` tail here reserved far less
-    /// than that real `58`, leaving a real gap where scrollable content could sit directly behind
-    /// the visible, supposedly-on-top bar — SwiftUI's `zIndex` governs paint order, not whether a
-    /// `UIHostingController`-hosted `TabView`'s own content can still receive a touch that lands
-    /// in that unreserved gap. The tail here must equal that same `58` exactly, not a smaller,
-    /// separately-guessed number.
+    /// The mini player is attached with the system `.tabViewBottomAccessory`, so the system owns
+    /// its placement and the content safe-area clearance relative to the real tab bar.
     private var chrome: FindSearchChromeState {
         FindSearchChromeState(
             isFindActive: appState.tab == .find,
@@ -42,18 +33,6 @@ struct RootView: View {
             backgroundLayer.ignoresSafeArea()
 
             rootTabs
-
-            if accessoryHeight > 0 {
-                tabAccessory
-                    .padding(.horizontal, 12)
-                    // Keep the accessory above the tab bar while remaining
-                    // inside the root ZStack. SwiftUI's tab accessory and
-                    // safe-area inset can both disappear during a playlist
-                    // detail replacement even though playback is active.
-                    .padding(.bottom, 58)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(10)
-            }
 
             AppStatusBanners()
         }
@@ -94,7 +73,6 @@ struct RootView: View {
     @ViewBuilder
     private var rootTabs: some View {
         baseTabs
-            .environment(\.rootTabAccessoryHeight, accessoryHeight)
             .environment(\.rootTabNowPlayingNamespace, nowPlayingTransition)
             .sensoryFeedback(.selection, trigger: appState.tab)
     }
@@ -123,6 +101,7 @@ struct RootView: View {
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)
         }
+        .tabViewBottomAccessory(isEnabled: accessoryHeight > 0) { tabAccessory }
     }
 
     @ViewBuilder

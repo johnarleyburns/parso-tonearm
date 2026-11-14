@@ -43,8 +43,8 @@ final class FindSearchChromeStateTests: XCTestCase {
     }
 
     func testLeavingFocusRestoresOrdinaryHeights() {
-        XCTAssertEqual(state(focused: false, banner: true).accessoryHeight, 56 * 2 + 4 + 58)
-        XCTAssertEqual(state(focused: false).accessoryHeight, 56 + 58)
+        XCTAssertEqual(state(focused: false, banner: true).accessoryHeight, 56 * 2 + 4)
+        XCTAssertEqual(state(focused: false).accessoryHeight, 56)
         XCTAssertEqual(state(focused: false, track: false).accessoryHeight, 0)
     }
 
@@ -72,12 +72,34 @@ final class MoodPromptChromeStateTests: XCTestCase {
 
     func testUnfocusedMoodIsNormal() {
         XCTAssertTrue(state(focused: false).showsMiniPlayer)
-        XCTAssertEqual(state(focused: false).accessoryHeight, 56 + 58)
+        XCTAssertEqual(state(focused: false).accessoryHeight, 56)
     }
 
     func testStaleMoodFocusOffTabOrOverNowPlayingIsNormal() {
         XCTAssertTrue(state(tab: false, focused: true).showsMiniPlayer)
         let np = state(focused: true, nowPlaying: true)
         XCTAssertFalse(np.isEditing)
+    }
+}
+
+final class RootViewAccessoryStructureTests: XCTestCase {
+    private func rootViewSource() throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent("Sources/Features/RootView.swift"), encoding: .utf8)
+    }
+
+    func testMiniPlayerUsesSystemTabViewBottomAccessory() throws {
+        let src = try rootViewSource()
+        XCTAssertTrue(src.contains(".tabViewBottomAccessory"))
+        XCTAssertFalse(src.contains(".zIndex("), "manual ZStack/zIndex accessory composition is forbidden")
+        XCTAssertFalse(src.contains(".padding(.bottom, 58)"))
+        XCTAssertNil(src.range(of: #"\.padding\(\.bottom,\s*\d+\)"#, options: .regularExpression),
+                     "no hardcoded bottom padding for the accessory")
+    }
+
+    func testNoDuplicatedAccessoryPaddingLiteral() {
+        XCTAssertEqual(FindSearchChromeState(isFindActive: false, isQueryFocused: false, hasCurrentTrack: true,
+                                             hasTransferBanner: false, isNowPlayingPresented: false).accessoryHeight,
+                       FindSearchChromeState.trackAccessoryHeight)
     }
 }
