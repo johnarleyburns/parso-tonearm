@@ -5,7 +5,6 @@ import Foundation
 public struct FindSearchChromeState: Equatable, Sendable {
     public static let trackAccessoryHeight: CGFloat = 56
     public static let accessorySpacing: CGFloat = 4
-    public static let accessoryBottomPadding: CGFloat = 58
 
     public var isFindActive: Bool
     public var isQueryFocused: Bool
@@ -44,6 +43,6 @@ public struct FindSearchChromeState: Equatable, Sendable {
         let count = (showsMiniPlayer ? 1 : 0) + (showsTransferBanner ? 1 : 0)
         guard count > 0 else { return 0 }
         return CGFloat(count) * Self.trackAccessoryHeight
-            + CGFloat(count - 1) * Self.accessorySpacing + Self.accessoryBottomPadding
+            + CGFloat(count - 1) * Self.accessorySpacing
     }
 }
