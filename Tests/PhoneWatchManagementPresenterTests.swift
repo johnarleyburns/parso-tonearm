@@ -221,6 +221,17 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         XCTAssertTrue(snap.banner?.hasFailure ?? false)
     }
 
+    // MARK: failure badge (My Music "On My Watch")
+
+    func testFailureBadgeMessageNilWithNoFailures() {
+        XCTAssertNil(P.failureBadgeMessage(failedCount: 0))
+    }
+
+    func testFailureBadgeMessageDescribesTheFailureCount() {
+        XCTAssertEqual(P.failureBadgeMessage(failedCount: 1), "1 downloads failed")
+        XCTAssertEqual(P.failureBadgeMessage(failedCount: 3), "3 downloads failed")
+    }
+
     // MARK: reference-aware removal
 
     func testRemovingRootReleasesOnlyUnsharedInstalledTracks() {
