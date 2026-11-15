@@ -159,6 +159,8 @@ struct MyMusicSearchControls: View {
                     selectedMoodPillIDs = [calm.id]
                     model.addMoreLike(calm.queryTerm)
                 }
+                let trackID = player.currentTrack?.id
+                model.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
                 soundModel = model
             }
         }
@@ -183,6 +185,28 @@ struct MyMusicSearchControls: View {
                 soundModel.searchText = text
             }
         }
+        // Same graceful degrade the standalone Mood tab uses (MoodView.isReadyForMatching):
+        // mix-compatible ordering against the currently-playing track is attempted only once
+        // that track's own BPM/camelot analysis has actually finished, never hard-blocked the
+        // way Find's explicit "More like this" similar-track mode intentionally still is.
+        .onChange(of: player.currentTrack?.id) { _, trackID in
+            soundModel?.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
+        }
+        .onChange(of: appState.musicalInfoRevision) { _, _ in
+            let trackID = player.currentTrack?.id
+            soundModel?.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))
+        }
+    }
+
+    /// Real report (Mood tab): mix-compatible matching auto-enabled against whatever track
+    /// happened to be loaded, with no check it was actually analyzed yet, constantly hitting
+    /// `SearchService`'s intentional hard block (`.matchingReferenceUnavailable`) in practice —
+    /// a reference track's BPM/camelot analysis is a background job racing everything else.
+    /// Checking readiness first means Find's Mood mode just shows plain semantic results
+    /// instead of blocking; mix-compatible ordering kicks in automatically once analysis lands.
+    private func isReadyForMatching(_ trackID: Int64?) -> Bool {
+        guard let trackID, let info = appState.musicalInfo[trackID] else { return false }
+        return info.bpm != nil && info.camelotKey != nil
     }
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
