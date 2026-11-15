@@ -27,6 +27,9 @@ extension AudioPlayer {
             guard let trackId = row.track.id,
                   let asset = row.asset, asset.kind == .remote,
                   asset.transientRemoteSupportsByteRanges else { continue }
+            // A Jamendo row must be resolved through loadCurrent's own ordinary path when the
+            // queue actually reaches it, never warmed from its raw locator (see `needsJamendoResolve`).
+            guard !needsJamendoResolve(row) else { continue }
             guard playbackDecision(for: asset) != .skipWiFiOnly else { continue }
             if prefetchLoaders[trackId] != nil || prefetchFreshenTasks[trackId] != nil { continue }  // already (being) prefetched
             // OAuth/cloud-drive rows persist only a node reference: their stored URL is stale and

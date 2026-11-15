@@ -126,6 +126,9 @@ extension AudioPlayer {
         cancelCrossfade(resetVolume: false)
         guard let asset = row.asset,
               asset.unsupportedReason == nil,
+              // A Jamendo row must go through the ordinary resolve path at the natural boundary
+              // instead of crossfading into its raw, unresolved locator (see `needsJamendoResolve`).
+              !needsJamendoResolve(row),
               playbackDecision(for: asset) != .skipWiFiOnly else {
             return false
         }

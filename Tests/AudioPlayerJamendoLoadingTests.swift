@@ -198,6 +198,28 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertEqual(spy.urls, [stale], "item is built from the cached URL, not a re-signed one")
     }
 
+    /// Architecture-review finding: the near-gapless preload built an `AVPlayerItem` straight
+    /// from a Jamendo row's RAW, unresolved locator instead of skipping it, and `finishOrdinaryLoad`
+    /// then reused that unresolved preload in place of the URL it had just correctly resolved. A
+    /// raw `jamendo://` item can never open — combined with the just-reverted silent auto-advance,
+    /// that cascaded through an entire queue with no error shown.
+    func testPreloadNextItemNeverBuildsFromARawJamendoLocator() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        player.queue = [CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3"),
+                        moodStarterJamendo()]
+        player.index = 0
+        player.preloadedNextItem = nil
+        player.preloadedNextTrackId = nil
+
+        player.preloadNextItem()
+        await settle()
+
+        XCTAssertNil(player.preloadedNextTrackId, "a Jamendo-locator row must never be preloaded from its raw URL")
+        XCTAssertNil(player.preloadedNextItem)
+    }
+
     func testDropboxRowIsReResolvedThroughFreshenerBeforeItemIsBuilt() async throws {
         let spy = Spy()
         try install(spy: spy)
@@ -212,6 +234,24 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         load([CatalogPlaybackURLResolverTests.row(kind: .dropbox, nodeID: "id:abc", url: stale)])
         await settle()
         XCTAssertEqual(spy.urls, [fresh.absoluteString], "OAuth cloud rows must be re-resolved, not played from the stale stored URL")
+    }
+
+    /// Same raw-locator defect as the preload test above, for the prefetch warm path.
+    func testPrefetchNextNeverWarmsARawJamendoLocator() async throws {
+        let player = AudioPlayer.shared
+        defer { player.prefetchDepth = 0 }
+        var current = CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/current.mp3")
+        current.track.id = 301
+        let next = moodStarterJamendo()
+
+        player.queue = [current, next]
+        player.index = 0
+        player.prefetchDepth = 1
+        player.prefetchNext()
+        await settle()
+
+        XCTAssertNil(player.prefetchLoaders[next.track.id ?? -1], "a Jamendo-locator row must never be warmed from its raw URL")
+        XCTAssertNil(player.prefetchedURLs[next.track.id ?? -1])
     }
 
     /// Real report: a cloud-drive track played fine the FIRST time a queue reached it directly,
