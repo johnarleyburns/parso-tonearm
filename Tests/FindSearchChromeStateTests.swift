@@ -4,9 +4,9 @@ import XCTest
 
 final class FindSearchChromeStateTests: XCTestCase {
     private func state(find: Bool = true, focused: Bool, track: Bool = true,
-                       banner: Bool = false, nowPlaying: Bool = false) -> FindSearchChromeState {
+                       nowPlaying: Bool = false) -> FindSearchChromeState {
         .init(isFindActive: find, isQueryFocused: focused, hasCurrentTrack: track,
-              hasTransferBanner: banner, isNowPlayingPresented: nowPlaying)
+              isNowPlayingPresented: nowPlaying)
     }
 
     func testFocusedFindHidesEverything() {
@@ -36,14 +36,7 @@ final class FindSearchChromeStateTests: XCTestCase {
         XCTAssertEqual(s.accessoryHeight, 0)
     }
 
-    func testFocusedWithTransferBannerPaintsNothing() {
-        let s = state(focused: true, banner: true)
-        XCTAssertFalse(s.showsTransferBanner)
-        XCTAssertEqual(s.accessoryHeight, 0)
-    }
-
     func testLeavingFocusRestoresOrdinaryHeights() {
-        XCTAssertEqual(state(focused: false, banner: true).accessoryHeight, 56 * 2 + 4)
         XCTAssertEqual(state(focused: false).accessoryHeight, 56)
         XCTAssertEqual(state(focused: false, track: false).accessoryHeight, 0)
     }
@@ -59,7 +52,7 @@ final class MoodPromptChromeStateTests: XCTestCase {
     private func state(tab mood: Bool = true, focused: Bool, track: Bool = true,
                        nowPlaying: Bool = false) -> FindSearchChromeState {
         .init(isFindActive: false, isQueryFocused: false, hasCurrentTrack: track,
-              hasTransferBanner: false, isNowPlayingPresented: nowPlaying,
+              isNowPlayingPresented: nowPlaying,
               isMoodActive: mood, isMoodPromptFocused: focused)
     }
 
@@ -99,7 +92,17 @@ final class RootViewAccessoryStructureTests: XCTestCase {
 
     func testNoDuplicatedAccessoryPaddingLiteral() {
         XCTAssertEqual(FindSearchChromeState(isFindActive: false, isQueryFocused: false, hasCurrentTrack: true,
-                                             hasTransferBanner: false, isNowPlayingPresented: false).accessoryHeight,
+                                             isNowPlayingPresented: false).accessoryHeight,
                        FindSearchChromeState.trackAccessoryHeight)
+    }
+
+    /// Real report: the system `.tabViewBottomAccessory` renders a single-row-tall accessory —
+    /// when the watch-transfer banner and the mini player both tried to occupy it at once, the
+    /// user saw a composite of the bottom half of one bar and the top half of the other. Watch
+    /// transfer status must never be shown in this surface again; My Music's "On My Watch"
+    /// section owns it instead.
+    func testMiniPlayerAccessoryNeverShowsWatchTransferStatus() throws {
+        let src = try rootViewSource()
+        XCTAssertFalse(src.contains("TransferPill"), "the root tab accessory must never show watch transfer status")
     }
 }
