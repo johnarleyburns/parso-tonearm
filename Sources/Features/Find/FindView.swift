@@ -66,7 +66,8 @@ struct FindView: View {
                             searchRows: mode == .sound ? soundSearchRows : nil,
                             searchRowsRevision: soundSearchRevision,
                             showsSearchField: false,
-                            showsHeader: false)
+                            showsHeader: false,
+                            showsPlayAllButton: true)
                     .accessibilityIdentifier("find.results")
                 } else {
                     Text("Search your music to see results.")
