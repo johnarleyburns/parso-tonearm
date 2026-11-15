@@ -48,33 +48,6 @@ final class FindSearchChromeStateTests: XCTestCase {
     }
 }
 
-final class MoodPromptChromeStateTests: XCTestCase {
-    private func state(tab mood: Bool = true, focused: Bool, track: Bool = true,
-                       nowPlaying: Bool = false) -> FindSearchChromeState {
-        .init(isFindActive: false, isQueryFocused: false, hasCurrentTrack: track,
-              isNowPlayingPresented: nowPlaying,
-              isMoodActive: mood, isMoodPromptFocused: focused)
-    }
-
-    func testFocusedMoodHidesAccessoryAndHeight() {
-        let s = state(focused: true)
-        XCTAssertFalse(s.showsMiniPlayer)
-        XCTAssertEqual(s.accessoryHeight, 0)
-        XCTAssertFalse(s.hidesNavigationChrome)
-    }
-
-    func testUnfocusedMoodIsNormal() {
-        XCTAssertTrue(state(focused: false).showsMiniPlayer)
-        XCTAssertEqual(state(focused: false).accessoryHeight, 56)
-    }
-
-    func testStaleMoodFocusOffTabOrOverNowPlayingIsNormal() {
-        XCTAssertTrue(state(tab: false, focused: true).showsMiniPlayer)
-        let np = state(focused: true, nowPlaying: true)
-        XCTAssertFalse(np.isEditing)
-    }
-}
-
 final class RootViewAccessoryStructureTests: XCTestCase {
     private func rootViewSource() throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -104,5 +77,12 @@ final class RootViewAccessoryStructureTests: XCTestCase {
     func testMiniPlayerAccessoryNeverShowsWatchTransferStatus() throws {
         let src = try rootViewSource()
         XCTAssertFalse(src.contains("TransferPill"), "the root tab accessory must never show watch transfer status")
+    }
+
+    /// The standalone Mood tab was folded into Find's own Mood mode (pills + songs-only).
+    func testStandaloneMoodTabIsRemoved() throws {
+        let src = try rootViewSource()
+        XCTAssertFalse(src.contains("MoodView()"))
+        XCTAssertFalse(src.contains("AppTab.mood"))
     }
 }

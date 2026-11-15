@@ -4,14 +4,18 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Five iPhone root tabs — My Music is browsing-only, while Mood, Find and Libraries own
-/// their dedicated discovery/search/connection flows. Settings is presented from Listen
-/// rather than occupying a browsing tab. `libraries` is appended last (not inserted before
-/// `find`, its visual position) so existing cases' raw values — persisted under `lastTabKey`
-/// — never shift; RootView's TabView body order, not this enum's declaration order,
-/// controls visual placement.
+/// Four iPhone root tabs — My Music is browsing-only, while Find and Libraries own their
+/// dedicated discovery/search/connection flows. Settings is presented from Listen rather
+/// than occupying a browsing tab. Raw values are explicit and never reused/renumbered:
+/// they're persisted under `lastTabKey`, and `AppTab(rawValue:)` failing closed (restoring
+/// nothing, defaulting to `.listen`) only works if a value nobody holds anymore is never
+/// handed to a different case later. `mood` (2) was removed when the standalone Mood tab
+/// was folded into Find — its gap is deliberately left open, not reused, so a pre-update
+/// install's saved "Mood" selection safely falls back to `.listen` instead of landing on
+/// whatever case happened to claim 2 next. RootView's TabView body order, not this enum's
+/// declaration order, controls visual placement.
 enum AppTab: Int, CaseIterable {
-    case listen, myMusic, mood, find, libraries
+    case listen = 0, myMusic = 1, find = 3, libraries = 4
 }
 
 enum PendingImport: Equatable {
@@ -71,8 +75,6 @@ final class AppState: ObservableObject {
     /// True only while the Find query field has keyboard focus. The root shell combines it with
     /// the active tab (`FindSearchChromeState`) so a stale value can never hide other tabs' chrome.
     @Published var findQueryFocused: Bool = false
-    /// True only while the Mood prompt field has real keyboard focus (never inferred from text).
-    @Published var moodPromptFocused: Bool = false
     @Published var searchResults: [TrackRow] = []
     /// Shared musical metadata for My Music and the DJ load browser.  This is
     /// refreshed from the same persisted discovery/DJ-prep records after a

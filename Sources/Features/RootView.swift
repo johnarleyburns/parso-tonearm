@@ -18,9 +18,7 @@ struct RootView: View {
             isFindActive: appState.tab == .find,
             isQueryFocused: appState.findQueryFocused,
             hasCurrentTrack: player.currentTrack != nil,
-            isNowPlayingPresented: appState.showNowPlaying,
-            isMoodActive: appState.tab == .mood,
-            isMoodPromptFocused: appState.moodPromptFocused)
+            isNowPlayingPresented: appState.showNowPlaying)
     }
 
     private var accessoryHeight: CGFloat { chrome.accessoryHeight }
@@ -39,7 +37,6 @@ struct RootView: View {
         .modifier(AppPresentations())
         .onChange(of: appState.tab) { _, tab in
             if tab != .find { appState.findQueryFocused = false }
-            if tab != .mood { appState.moodPromptFocused = false }
         }
     }
 
@@ -91,12 +88,6 @@ struct RootView: View {
             MyMusicView()
                 .tabItem { Label("My Music", systemImage: "music.note.list") }
                 .tag(AppTab.myMusic)
-            NavigationStack {
-                MoodView()
-                    .rootTabChrome(.mood)
-            }
-                .tabItem { Label("Mood", systemImage: "sparkles") }
-                .tag(AppTab.mood)
             SourcesView()
                 .tabItem { Label("Libraries", systemImage: "externaldrive.connected.to.line.below") }
                 .tag(AppTab.libraries)

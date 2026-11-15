@@ -118,8 +118,6 @@ final class TonearmSmokeUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [loaded], timeout: 20), .completed)
         XCTAssertEqual(element("listen.recent").frame.height, recentHeightWhileLoading, accuracy: 1)
         XCTAssertEqual(element("listen.favorites").frame.height, favoriteHeightWhileLoading, accuracy: 1)
-        XCTAssertTrue(app.buttons["Mood"].waitForExistence(timeout: 5),
-                      "Mood should be a first-class root tab")
         XCTAssertTrue(app.buttons["Find"].waitForExistence(timeout: 5),
                       "Find should be a first-class root tab")
         app.buttons["Find"].tap()
