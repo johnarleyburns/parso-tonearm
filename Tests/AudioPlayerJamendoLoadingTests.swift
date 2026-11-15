@@ -175,6 +175,7 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3"),
               jamendo()])
         XCTAssertNotNil(player.player.currentItem, "setup: the first track must actually have an item")
+        let buildsBeforeTap = spy.urls.count
         // Simulate being deep into a long-running first track when the user taps the Jamendo one.
         player.isPlaying = true
         player.currentTime = 1234
@@ -191,7 +192,8 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
 
         gate.release()
         await settle()
-        XCTAssertEqual(spy.urls, [fresh.absoluteString])
+        XCTAssertEqual(spy.urls.count, buildsBeforeTap + 1, "exactly one more item must be built: the resolved Jamendo track")
+        XCTAssertEqual(spy.urls.last, fresh.absoluteString)
     }
 
     /// A Mood Starter row is intentionally a local source (it is bundled
