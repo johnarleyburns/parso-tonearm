@@ -590,9 +590,18 @@ public final class AudioPlayer: ObservableObject {
     public func seek(to seconds: Double) {
         guard !isAmbient else { return }
         pendingRestoreSeek = nil  // user-initiated seek cancels restore confirmation
-        let time = CMTime(seconds: seconds, preferredTimescale: 600)
+        // Clamp to the known duration: an inflated/unknown value here (e.g. a scrub computed
+        // against a since-corrected duration estimate) must not seek past the item's real end,
+        // which would end it and silently trigger next().
+        let clamped: Double
+        if seconds.isFinite {
+            clamped = duration > 0 ? min(max(0, seconds), duration) : max(0, seconds)
+        } else {
+            clamped = 0
+        }
+        let time = CMTime(seconds: clamped, preferredTimescale: 600)
         player.seek(to: time)
-        currentTime = seconds
+        currentTime = clamped
         updateNowPlayingTime()
         persist(reason: .userSeek)
         bridge.publishSnapshot(self)

@@ -1,6 +1,20 @@
 import Foundation
 
 public enum PlaybackDisplayPolicy {
+    /// Chooses the duration to display. Architecture-review finding: the periodic time observer
+    /// let a remote item's OWN duration estimate unconditionally override the library's known
+    /// value every 0.5s — but an `AVPlayerItem`'s live estimate for a streamed file (e.g.
+    /// Jamendo's VBR MP3, served with no exact `Content-Length` up front) can be wildly wrong and
+    /// keeps changing as more of the file loads, which is a plausible mechanism for "nonsensical
+    /// elapsed/remaining times" (the crossfade code already reached the same conclusion for its
+    /// own `fadeStart` math). The library's own stored duration is fixed once known and is
+    /// authoritative; only fall back to the item's estimate when the library has none at all.
+    public static func effectiveDuration(libraryKnown: Double?, itemEstimate: Double?) -> Double? {
+        if let libraryKnown, libraryKnown > 0 { return libraryKnown }
+        if let itemEstimate, itemEstimate.isFinite, itemEstimate > 0 { return itemEstimate }
+        return nil
+    }
+
     public static func providerName(for source: Source?) -> String {
         switch source?.kind {
         case .iaItem, .iaList, .iaCollection, .iaFavorites:

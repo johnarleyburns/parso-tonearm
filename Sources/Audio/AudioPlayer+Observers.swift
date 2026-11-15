@@ -15,8 +15,10 @@ extension AudioPlayer {
             Task { @MainActor in
                 let previous = self.currentTime
                 self.currentTime = time.seconds
-                if let d = self.player.currentItem?.duration.seconds, d.isFinite, d > 0 {
-                    self.duration = d
+                if let chosen = PlaybackDisplayPolicy.effectiveDuration(
+                    libraryKnown: self.currentTrack?.track.durationSec,
+                    itemEstimate: self.player.currentItem?.duration.seconds) {
+                    self.duration = chosen
                 }
                 self.updateCrossfade(position: time.seconds)
                 if time.seconds > 0 && time.seconds != previous {
