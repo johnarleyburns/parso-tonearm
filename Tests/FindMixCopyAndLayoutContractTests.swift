@@ -54,6 +54,21 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
                        "space to the reserved results area below")
     }
 
+    /// "Directly play all my Find results into the queue" — Find opts into LibraryView's
+    /// Play All action (My Music's own use of LibraryView stays opt-out/default, unaffected).
+    func testFindOptsIntoPlayAllAndLibraryViewImplementsItByReplacingTheQueue() throws {
+        let find = try source("Sources/Features/Find/FindView.swift")
+        XCTAssertTrue(find.contains("showsPlayAllButton: true"))
+        let myMusic = try source("Sources/Features/MyMusic/MyMusicView.swift")
+        XCTAssertFalse(myMusic.contains("showsPlayAllButton"),
+                       "My Music's own browsing must not gain this button as a side effect")
+        let lib = try source("Sources/Features/Library/LibraryView.swift")
+        XCTAssertTrue(lib.contains("showsPlayAllButton: Bool = false"),
+                     "default must be off so only an explicit opt-in (Find) shows it")
+        XCTAssertTrue(lib.contains("player.play(tracks: fresh, startAt: 0, source: .library)"),
+                     "must reuse the same replace-queue-and-play pattern as LibraryGroupDetailView's own Play button")
+    }
+
     /// 320 (this screen's old floor, matching `LibraryView.contentAreaMinHeight` only by
     /// coincidence — that one lives inside LibraryView's own ScrollView and can never force this
     /// screen to overflow the way this one, applied directly in the outer non-scrolling VStack,

@@ -22,6 +22,11 @@ struct LibraryView: View {
     private let searchRowsRevision: Int
     private let showsSearchField: Bool
     private let showsHeader: Bool
+    /// Find-only (My Music's own browsing use of this view never opts in): a "Play All" action
+    /// above the results, replacing the queue with every currently-rendered row and starting
+    /// playback — the same "directly play all these results" request this view already answers
+    /// one group at a time via `LibraryGroupDetailView`'s own Play button.
+    private let showsPlayAllButton: Bool
     @State private var renderedSections: [LibraryBrowse.Section] = []
     @State private var renderedPlaybackRows: [TrackRow] = []
     @State private var isRendering = true
@@ -29,7 +34,7 @@ struct LibraryView: View {
     init(ownsNavigationStack: Bool = true, externalMode: Binding<LibraryBrowseMode>? = nil,
          filter: MyMusicFilter = .init(), searchRows: [TrackRow]? = nil,
          searchRowsRevision: Int = 0, showsSearchField: Bool = true,
-         showsHeader: Bool = true) {
+         showsHeader: Bool = true, showsPlayAllButton: Bool = false) {
         self.ownsNavigationStack = ownsNavigationStack
         self.externalMode = externalMode
         self.filter = filter
@@ -37,6 +42,7 @@ struct LibraryView: View {
         self.searchRowsRevision = searchRowsRevision
         self.showsSearchField = showsSearchField
         self.showsHeader = showsHeader
+        self.showsPlayAllButton = showsPlayAllButton
     }
 
     private var mode: LibraryBrowseMode {
@@ -89,6 +95,10 @@ struct LibraryView: View {
                                 }
                                 .pickerStyle(.segmented)
                                 .padding(.bottom, 16)
+                            }
+
+                            if showsPlayAllButton, !renderedPlaybackRows.isEmpty {
+                                playAllButton
                             }
 
                             if renderedPlaybackRows.isEmpty, isRendering || !appState.didLoadLibraryOnce {
@@ -186,6 +196,25 @@ struct LibraryView: View {
             renderedSections = result.1
             isRendering = false
         }
+    }
+
+    private var playAllButton: some View {
+        Button {
+            let rows = renderedPlaybackRows
+            Task {
+                let fresh = await appState.freshenedQueueStart(rows, startAt: 0)
+                player.play(tracks: fresh, startAt: 0, source: .library)
+            }
+        } label: {
+            Label("Play All", systemImage: "play.fill")
+                .font(Typography.callout)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(Palette.accent, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(Palette.accentOnFill)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("library.playAll")
+        .padding(.bottom, 12)
     }
 
     @ViewBuilder
