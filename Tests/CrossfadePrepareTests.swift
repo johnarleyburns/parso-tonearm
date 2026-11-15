@@ -40,4 +40,17 @@ final class CrossfadePrepareTests: XCTestCase {
         for _ in 0..<5 { XCTAssertTrue(player.prepareCrossfadePlayer(for: row, at: 1)) }
         XCTAssertEqual(player.crossfadePlayer?.rate, 0)
     }
+
+    /// Architecture-review finding: crossfade-prepare built its incoming item straight from a
+    /// Jamendo row's raw, unresolved locator, the same defect as the near-gapless preload. A raw
+    /// `jamendo://` item can never open, so the crossfade must never be prepared for one — the
+    /// natural boundary falls back to the ordinary resolve path instead.
+    func testPrepareCrossfadePlayerNeverBuildsFromARawJamendoLocator() {
+        let player = AudioPlayer.shared
+        let row = CatalogPlaybackURLResolverTests.row(kind: .local, nodeID: nil, url: "jamendo://track/55")
+
+        XCTAssertFalse(player.prepareCrossfadePlayer(for: row, at: 1),
+                       "a Jamendo-locator row must never be crossfade-prepared from its raw, unresolved URL")
+        XCTAssertNil(player.crossfadePlayer)
+    }
 }

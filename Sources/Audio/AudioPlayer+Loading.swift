@@ -48,6 +48,19 @@ struct OrdinaryJamendoLoad {
 extension AudioPlayer {
     // MARK: - Loading
 
+    /// A Jamendo-identity row — a `.jamendoGenre` library row, or a `.local` row whose stored
+    /// locator is the durable `jamendo://track/<id>` provider reference (e.g. the bundled Mood
+    /// Starter catalog) — must always go through `CatalogPlaybackURLResolver` before AVFoundation
+    /// ever sees a URL. Shared by `loadCurrent`, `preloadNextItem`, `prepareCrossfadePlayer` and
+    /// `prefetchNext` so none of them can independently drift into building a player item from
+    /// the raw, unresolved locator — which `startOrdinaryJamendoLoad`'s preload-reuse branch in
+    /// `finishOrdinaryLoad` would then play in place of the URL that had just been correctly
+    /// resolved. A raw `jamendo://` (or stale) locator can never open, and (before the auto-advance
+    /// revert) that cascaded silently through the entire queue.
+    func needsJamendoResolve(_ row: TrackRow) -> Bool {
+        row.source?.kind == .jamendoGenre || CatalogPlaybackURLResolver.jamendoTrackID(for: row) != nil
+    }
+
     func loadCurrent(autoplay: Bool) {
         guard let row = currentTrack else {
             loadingLog.error("loadCurrent: no current track at index \(self.index, privacy: .public) of \(self.queue.count, privacy: .public)")
@@ -77,8 +90,7 @@ extension AudioPlayer {
             return
         }
 
-        if asset.kind == .remote,
-           row.source?.kind == .jamendoGenre || CatalogPlaybackURLResolver.jamendoTrackID(for: row) != nil {
+        if asset.kind == .remote, needsJamendoResolve(row) {
             // A fully downloaded copy needs no network or signed URL at all: play it from the cache
             // under the URL it was cached with instead of re-resolving (a re-signed URL is a
             // different cache key and would needlessly stream a file already on disk).
@@ -501,6 +513,10 @@ extension AudioPlayer {
         guard queue.indices.contains(nextIndex) else { return }
         let row = queue[nextIndex]
         guard let asset = row.asset, asset.unsupportedReason == nil else { return }
+        // A Jamendo row must be resolved through loadCurrent's own ordinary path when the queue
+        // actually reaches it, never preloaded straight from its raw locator (see
+        // `needsJamendoResolve`).
+        guard !needsJamendoResolve(row) else { return }
         guard playbackDecision(for: asset) != .skipWiFiOnly else { return }
         guard preloadedNextTrackId != row.track.id else { return }
         // Same gap `loadCurrent`/`prefetchNext` close: an OAuth/cloud-drive row's stored URL is
@@ -508,7 +524,7 @@ extension AudioPlayer {
         // reused a stale, unauthenticated build of the NEXT track, so a queue reaching a
         // cloud-drive track via this path (rather than a direct tap) silently failed.
         guard let freshen = remoteRowFreshener, asset.kind == .remote,
-              row.source?.kind != .jamendoGenre, !(asset.remoteNodeID ?? "").isEmpty else {
+              !(asset.remoteNodeID ?? "").isEmpty else {
             buildAndStorePreloadedItem(row: row, asset: asset)
             return
         }
