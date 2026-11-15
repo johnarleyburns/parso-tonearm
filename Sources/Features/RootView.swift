@@ -7,20 +7,17 @@ struct RootView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var player: AudioPlayer
     @Namespace private var nowPlayingTransition
-    @State private var transferBannerDismissed = false
-
-    private var showsTransferBanner: Bool {
-        appState.watchManagement.banner != nil && !transferBannerDismissed
-    }
 
     /// The mini player is attached with the system `.tabViewBottomAccessory`, so the system owns
-    /// its placement and the content safe-area clearance relative to the real tab bar.
+    /// its placement and the content safe-area clearance relative to the real tab bar. Apple
+    /// Watch transfer status is never shown here (My Music's "On My Watch" section owns it
+    /// instead) — the accessory is sized for exactly one row, and the system API does not expect
+    /// a dynamically-two-row-tall accessory view.
     private var chrome: FindSearchChromeState {
         FindSearchChromeState(
             isFindActive: appState.tab == .find,
             isQueryFocused: appState.findQueryFocused,
             hasCurrentTrack: player.currentTrack != nil,
-            hasTransferBanner: showsTransferBanner,
             isNowPlayingPresented: appState.showNowPlaying,
             isMoodActive: appState.tab == .mood,
             isMoodPromptFocused: appState.moodPromptFocused)
@@ -43,9 +40,6 @@ struct RootView: View {
         .onChange(of: appState.tab) { _, tab in
             if tab != .find { appState.findQueryFocused = false }
             if tab != .mood { appState.moodPromptFocused = false }
-        }
-        .onChange(of: appState.watchManagement.banner == nil) { _, empty in
-            if empty { transferBannerDismissed = false }
         }
     }
 
@@ -114,17 +108,12 @@ struct RootView: View {
 
     @ViewBuilder
     private var tabAccessory: some View {
-        VStack(spacing: 4) {
-            if chrome.showsTransferBanner {
-                TransferPill { transferBannerDismissed = true }
-            }
-            if chrome.showsMiniPlayer {
-                MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
-                    // Recreate the accessory when a playlist tap replaces an
-                    // existing queue item so SwiftUI cannot retain an empty
-                    // accessory subtree during the navigation transition.
-                    .id(player.currentTrack?.id ?? -1)
-            }
+        if chrome.showsMiniPlayer {
+            MiniPlayerAccessory(transitionNamespace: nowPlayingTransition)
+                // Recreate the accessory when a playlist tap replaces an
+                // existing queue item so SwiftUI cannot retain an empty
+                // accessory subtree during the navigation transition.
+                .id(player.currentTrack?.id ?? -1)
         }
     }
 

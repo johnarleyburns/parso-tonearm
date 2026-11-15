@@ -37,9 +37,6 @@ final class WatchAVPlayerItemTests: XCTestCase {
         let shell = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootView.swift"), encoding: .utf8)
         let chrome = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootTabChrome.swift"), encoding: .utf8)
         XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(shell.contains("TransferPill { transferBannerDismissed = true }"))
-        XCTAssertLessThan(try XCTUnwrap(shell.range(of: "TransferPill {")).lowerBound,
-                          try XCTUnwrap(shell.range(of: "MiniPlayerAccessory(")).lowerBound)
         let music = try String(contentsOf: root.appendingPathComponent("Sources/Features/MyMusic/MyMusicView.swift"), encoding: .utf8)
         XCTAssertTrue(music.contains(".buttonStyle(.borderless)"))
         let now = try String(contentsOf: root.appendingPathComponent("Sources/Features/NowPlaying/NowPlayingView.swift"), encoding: .utf8)
@@ -49,7 +46,6 @@ final class WatchAVPlayerItemTests: XCTestCase {
         XCTAssertTrue(resolver.contains("AudioCache.key(for: $0) == source.lastPathComponent"))
         XCTAssertTrue(resolver.contains("sourceMIMEType: origin.flatMap"))
         let accessory = try String(contentsOf: root.appendingPathComponent("Sources/Features/Chrome/PlayerAccessory.swift"), encoding: .utf8)
-        XCTAssertTrue(accessory.contains("watch.transferBanner.dismiss"))
         XCTAssertTrue(accessory.contains(".contentShape(Rectangle())"))
         let settings = try String(contentsOf: root.appendingPathComponent("Sources/Features/Settings/SettingsView.swift"), encoding: .utf8)
         XCTAssertTrue(settings.contains("Button(\"Done\") { dismiss() }.accessibilityIdentifier(\"settings.done\")"))

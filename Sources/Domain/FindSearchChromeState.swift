@@ -4,25 +4,22 @@ import Foundation
 /// Focus only hides chrome (title, mini-player, reserved clearance); it never touches playback.
 public struct FindSearchChromeState: Equatable, Sendable {
     public static let trackAccessoryHeight: CGFloat = 56
-    public static let accessorySpacing: CGFloat = 4
 
     public var isFindActive: Bool
     public var isQueryFocused: Bool
     public var hasCurrentTrack: Bool
-    public var hasTransferBanner: Bool
     public var isNowPlayingPresented: Bool
     public var isMoodActive: Bool
     public var isMoodPromptFocused: Bool
 
     public init(isFindActive: Bool, isQueryFocused: Bool, hasCurrentTrack: Bool,
-                hasTransferBanner: Bool, isNowPlayingPresented: Bool,
+                isNowPlayingPresented: Bool,
                 isMoodActive: Bool = false, isMoodPromptFocused: Bool = false) {
         self.isMoodActive = isMoodActive
         self.isMoodPromptFocused = isMoodPromptFocused
         self.isFindActive = isFindActive
         self.isQueryFocused = isQueryFocused
         self.hasCurrentTrack = hasCurrentTrack
-        self.hasTransferBanner = hasTransferBanner
         self.isNowPlayingPresented = isNowPlayingPresented
     }
 
@@ -37,12 +34,8 @@ public struct FindSearchChromeState: Equatable, Sendable {
     public var hidesNavigationChrome: Bool { isFindEditing }
 
     public var showsMiniPlayer: Bool { hasCurrentTrack && !isEditing && !isNowPlayingPresented }
-    public var showsTransferBanner: Bool { hasTransferBanner && !isEditing && !isNowPlayingPresented }
 
     public var accessoryHeight: CGFloat {
-        let count = (showsMiniPlayer ? 1 : 0) + (showsTransferBanner ? 1 : 0)
-        guard count > 0 else { return 0 }
-        return CGFloat(count) * Self.trackAccessoryHeight
-            + CGFloat(count - 1) * Self.accessorySpacing
+        showsMiniPlayer ? Self.trackAccessoryHeight : 0
     }
 }
