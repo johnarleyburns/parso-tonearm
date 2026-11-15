@@ -163,6 +163,37 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertFalse(spy.urls.contains(stale))
     }
 
+    /// Architecture-review finding: starting an async Jamendo resolve left the PREVIOUS item
+    /// playing, under the NEW track's displayed title, for the entire resolve window — its
+    /// elapsed time/duration kept showing on screen, and its natural end or stall timer could
+    /// fire `next()`/a skip on behalf of the track that was actually still resolving. The outgoing
+    /// item must be torn down synchronously, before the resolve even starts.
+    func testStartingAnAsyncJamendoResolveStopsTheOutgoingItemImmediately() async throws {
+        let spy = Spy(), gate = Gate()
+        try install(gate: gate, spy: spy)
+        let player = AudioPlayer.shared
+        load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3"),
+              jamendo()])
+        XCTAssertNotNil(player.player.currentItem, "setup: the first track must actually have an item")
+        // Simulate being deep into a long-running first track when the user taps the Jamendo one.
+        player.isPlaying = true
+        player.currentTime = 1234
+        player.duration = 1500
+
+        player.index = 1
+        player.loadCurrent(autoplay: true)
+
+        XCTAssertNil(player.player.currentItem,
+                    "the outgoing item must be released before an async Jamendo resolve starts, not kept playing under the new track's title")
+        XCTAssertEqual(player.currentTime, 0)
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.duration, 100, "duration must switch to the new track's own known value, not linger on the old one")
+
+        gate.release()
+        await settle()
+        XCTAssertEqual(spy.urls, [fresh.absoluteString])
+    }
+
     /// A Mood Starter row is intentionally a local source (it is bundled
     /// metadata), but its remote asset is a Jamendo provider locator. It must
     /// take the ordinary Jamendo resolver path instead of handing the custom

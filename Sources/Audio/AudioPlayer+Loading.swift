@@ -61,6 +61,31 @@ extension AudioPlayer {
         row.source?.kind == .jamendoGenre || CatalogPlaybackURLResolver.jamendoTrackID(for: row) != nil
     }
 
+    /// Detaches whatever is currently loaded/playing before starting an async Jamendo resolve or
+    /// cloud-drive freshen. Architecture-review finding: without this, the PREVIOUS item kept
+    /// playing — under the NEW track's displayed title — for the entire resolve window (lengthened
+    /// by the Jamendo retry/backoff fix to as much as ~3 minutes): its end-of-track notification
+    /// could fire `next()` mid-resolve, its stall timer could skip on behalf of the track that's
+    /// actually resolving, and its periodic ticks kept writing its own elapsed time/duration onto
+    /// the new track's title — a plausible mechanism for "nonsensical elapsed times". Also cancels
+    /// any in-flight crossfade, since it was prepared for an edge that no longer applies.
+    private func stopOutgoingItemForAsyncResolve(newDuration: Double) {
+        cancelCrossfade(resetVolume: true)
+        stallWatchTask?.cancel()
+        stallWatchTask = nil
+        if let obs = itemEndObserver {
+            NotificationCenter.default.removeObserver(obs)
+            itemEndObserver = nil
+        }
+        itemStatusCancellable = nil
+        player.pause()
+        (player.currentItem as? LocalPlayerItem)?.releaseLease()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentTime = 0
+        duration = newDuration
+    }
+
     func loadCurrent(autoplay: Bool) {
         guard let row = currentTrack else {
             loadingLog.error("loadCurrent: no current track at index \(self.index, privacy: .public) of \(self.queue.count, privacy: .public)")
@@ -99,6 +124,7 @@ extension AudioPlayer {
                 finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
                 return
             }
+            stopOutgoingItemForAsyncResolve(newDuration: row.track.durationSec ?? 0)
             startOrdinaryJamendoLoad(OrdinaryJamendoLoad(row: row, asset: asset, occurrence: occurrence,
                                                          generation: generation, retried: false),
                                      autoplay: autoplay)
@@ -111,6 +137,7 @@ extension AudioPlayer {
             // OAuth/cloud-drive and other provider-backed rows persist only a node reference: their
             // stored URL is stale and their auth headers are never persisted. Re-resolve through the
             // owning provider before every load, whatever UI path started playback.
+            stopOutgoingItemForAsyncResolve(newDuration: row.track.durationSec ?? 0)
             catalogPlaybackAutoplay = autoplay
             catalogPlaybackLoadTask?.cancel()
             catalogPlaybackLoadTask = Task { @MainActor [weak self] in
