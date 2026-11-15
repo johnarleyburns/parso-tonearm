@@ -5,7 +5,7 @@ import TonearmWatchProtocol
 /// StatusChip — built as `WatchStatusChip`, an App-layer view, but never wired into Home; the
 /// connection/sync banner lived instead as a full-width, multi-line `Section` at the very top of
 /// the list). Kept here, pure, so it is testable without a simulator — the
-/// `WatchScrubPolicy`/`QueueFailureRecoveryPolicy` pattern elsewhere in this codebase.
+/// `WatchScrubPolicy` pattern elsewhere in this codebase.
 public enum WatchHomeStatusPolicy {
     public enum Tone: Equatable, Sendable { case good, warning, failure }
 

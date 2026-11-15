@@ -193,9 +193,17 @@ extension AudioPlayer {
     }
 
     /// Controlled stop for a remote item that cannot be opened; leaves the player idle and says why.
+    /// Always stops and reports truthfully — never silently advances. A prior version
+    /// (#387) auto-advanced past the dead track whenever `catalogPlaybackAutoplay ||
+    /// isPlaying` was true, which is true for nearly any play attempt (including a plain
+    /// manual tap), and only announced the first skip in a sequence. Combined with the
+    /// other defects in this subsystem that made Jamendo resolves fail systematically,
+    /// that silently walked the whole queue with at most one 3-second toast. Auto-skip-
+    /// past-one-dead-track can come back later as its own carefully tested feature; until
+    /// then, every failure is visible and the queue position never moves on its own.
     func failRemotePlayback(_ failure: RemotePlaybackFailure) {
-        let wasAutoplay = catalogPlaybackAutoplay || isPlaying
         ordinaryJamendoLoad = nil
+        catalogPlaybackLoadTask?.cancel()
         catalogPlaybackLoadTask = nil
         stallWatchTask?.cancel()
         stallWatchTask = nil
@@ -206,27 +214,9 @@ extension AudioPlayer {
         isPlaying = false
         currentTime = 0
         catalogPlaybackAutoplay = false
-        failedAdvanceAttempts += 1
-        let decision = isAmbient ? QueueFailureRecoveryPolicy.Decision.stop
-            : QueueFailureRecoveryPolicy.decide(
-                index: index, count: queue.count, repeatMode: repeatMode,
-                autoplay: wasAutoplay, failedAttempts: failedAdvanceAttempts)
-        switch decision {
-        case .advance(let target):
-            // Retire this occurrence (generation bump happens in loadCurrent) and move on;
-            // one concise notice per failed advance sequence.
-            if failedAdvanceAttempts == 1 {
-                networkSkipMessage = String(localized: "Skipped an unavailable track", bundle: .module)
-            }
-            index = target
-            updateNowPlaying()
-            loadCurrent(autoplay: true)
-        case .stop:
-            failedAdvanceAttempts = 0
-            stallModel.resetSkipStreak()
-            networkSkipMessage = failure.userMessage
-            updateNowPlaying()
-        }
+        stallModel.resetSkipStreak()
+        networkSkipMessage = failure.userMessage
+        updateNowPlaying()
     }
 
     private static func httpStatus(of item: AVPlayerItem) -> Int? {
