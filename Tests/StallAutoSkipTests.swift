@@ -115,6 +115,19 @@ final class StallAutoSkipTests: XCTestCase {
             "a remote load must not be evaluated as stalled by the short local-file window")
     }
 
+    /// Real report: skipping forward/back briefly showed the OUTGOING track's elapsed time and
+    /// progress-slider position under the new track's title. `currentTime` is only otherwise
+    /// updated by the periodic time observer, up to 0.5s later — `replaceItem` must reset it
+    /// synchronously the instant the new item attaches, not leave the stale value on screen
+    /// until the next tick corrects it.
+    func testReplaceItemResetsCurrentTimeImmediatelyRatherThanLingeringOnTheOutgoingTracksPosition() throws {
+        let player = AudioPlayer.shared
+        let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
+        player.currentTime = 1234 // simulate being deep into the track this one is replacing
+        player.replaceItem(item, autoplay: false)
+        XCTAssertEqual(player.currentTime, 0)
+    }
+
     // NOTE: a planned fix+test here (reacting immediately to a confirmed remote `.failed`
     // AVPlayerItem status instead of waiting out the full stall timeout) was reverted entirely —
     // both the new test AND the production `.failed`-status branch in `AudioPlayer+Loading.swift`
