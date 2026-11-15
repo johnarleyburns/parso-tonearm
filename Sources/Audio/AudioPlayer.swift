@@ -135,6 +135,10 @@ public final class AudioPlayer: ObservableObject {
     var ordinaryJamendoLoad: OrdinaryJamendoLoad?
     /// Test seam: replaces `buildItem(for:)` inside the ordinary load path.
     var ordinaryBuildItemHook: ((Asset) -> (item: AVPlayerItem, loader: CachingResourceLoader?)?)?
+    /// Consecutive entries skipped for being flatly unplayable (unsupported asset / a nil
+    /// `buildItem` result) without ever confirming real progress. Bounds `skipUnplayableEntry`'s
+    /// `next()` recursion — see its doc comment.
+    var unplayableSkipCount = 0
     @Published public internal(set) var cacheState: CacheGlyphState = .none
     @Published public internal(set) var cachePercent: Int = 0
     @Published public internal(set) var cachedFraction: Double = 0
