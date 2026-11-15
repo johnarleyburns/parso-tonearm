@@ -636,6 +636,13 @@ extension AudioPlayer {
             (outgoing as? LocalPlayerItem)?.releaseLease()
             LocalPlaybackDiagnostics.shared.record(outgoing is LocalPlayerItem ? .accessReleased : .playerReplaced, loadID: 0)
         }
+        // Real report: skipping forward/back briefly showed the OUTGOING track's elapsed time
+        // and progress-slider position under the new track's title — `currentTime` is only ever
+        // updated by the periodic time observer, up to 0.5s later, so without this the stale
+        // value from the item just replaced lingers on screen until the next tick corrects it.
+        // (Callers that restore a specific position, e.g. queue restore, already overwrite this
+        // with the real target immediately afterward — this only ever shows briefly otherwise.)
+        currentTime = 0
         loadedSourceSampleRate = 0
         let generation = stallModel.beginLoad()
         // TEMPORARY diagnostic — see loadCurrent's matching comment. Logs
