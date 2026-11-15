@@ -45,6 +45,17 @@ final class MyMusicSearchControlsContractTests: XCTestCase {
     /// A stale pill selection from a previous sound-model instance must never survive — it would
     /// show as "selected" in the UI while having no effect on the freshly-built model's
     /// refinements.
+    /// Step 2 of making Find's Mood mode behave like the standalone Mood tab: mix-compatible
+    /// ordering against the currently-playing track degrades gracefully instead of hard-blocking
+    /// when that track isn't analyzed yet (MoodView.isReadyForMatching's exact fix, mirrored).
+    func testSoundModeGracefullyDegradesMixMatchingInsteadOfHardBlocking() throws {
+        let s = try source()
+        XCTAssertTrue(s.contains("model.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))"))
+        XCTAssertTrue(s.contains(".onChange(of: player.currentTrack?.id)"))
+        XCTAssertTrue(s.contains(".onChange(of: appState.musicalInfoRevision)"))
+        XCTAssertTrue(s.contains("info.bpm != nil && info.camelotKey != nil"))
+    }
+
     func testLeavingSoundModeClearsThePillSelection() throws {
         let s = try source()
         let guardRange = try XCTUnwrap(s.range(of: "guard mode == .sound else {"))
