@@ -86,6 +86,27 @@ extension AudioPlayer {
         duration = newDuration
     }
 
+    /// Advances past an entry that cannot be played at all (unsupported asset, or a nil
+    /// `buildItem` result) without going through `next()`'s normal `loadCurrent()` recursion
+    /// unboundedly. Architecture-review finding: with EVERY entry in the queue unplayable (or,
+    /// with repeat-all, looping back to one already visited), `next()` → `loadCurrent()` →
+    /// `next()` → ... has no base case and can overflow the call stack. Bounded by the queue
+    /// length: advances at most once per distinct entry before giving up and stopping cleanly
+    /// with a visible reason, the same contract every other failure path in this file holds to.
+    private func skipUnplayableEntry() {
+        unplayableSkipCount += 1
+        guard unplayableSkipCount < max(queue.count, 1) else {
+            unplayableSkipCount = 0
+            loadingLog.error("every queue entry failed to load — stopping instead of skipping forever")
+            player.pause()
+            isPlaying = false
+            networkSkipMessage = String(localized: "Playback stopped — nothing in the queue could play", bundle: .module)
+            updateNowPlaying()
+            return
+        }
+        next()
+    }
+
     func loadCurrent(autoplay: Bool) {
         guard let row = currentTrack else {
             loadingLog.error("loadCurrent: no current track at index \(self.index, privacy: .public) of \(self.queue.count, privacy: .public)")
@@ -111,7 +132,7 @@ extension AudioPlayer {
 
         if let reason = asset.unsupportedReason {
             loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" is unsupported (\(reason, privacy: .public)) — skipping to next")
-            next()
+            skipUnplayableEntry()
             return
         }
 
@@ -312,9 +333,10 @@ extension AudioPlayer {
         }
         guard let built else {
             loadingLog.error("loadCurrent: buildItem(for:) returned nil for track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" (asset kind \(asset.kind.rawValue, privacy: .public), remoteURL=\(asset.remoteURL ?? "nil", privacy: .public)) — skipping to next")
-            next()
+            skipUnplayableEntry()
             return
         }
+        unplayableSkipCount = 0
         if let loader = built.loader { loaders.append(loader) }
         let item = built.item
 
