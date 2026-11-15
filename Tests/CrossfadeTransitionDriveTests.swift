@@ -130,6 +130,66 @@ final class CrossfadeTransitionDriveTests: XCTestCase {
         XCTAssertNotNil(player.itemStatusCancellable)
     }
 
+    /// Architecture-review finding (I6): every item installed as current must get the same
+    /// stall watcher an ordinary load installs via `replaceItem` — a promoted crossfade item was
+    /// the one path that skipped it, so a promoted-but-stuck item (never confirms real progress)
+    /// had no detector at all and would sit silently stalled forever.
+    func testFinishCrossfadeArmsAStallWatchForThePromotedItem() throws {
+        let player = try prepareOutgoing(fadeSeconds: 3)
+        let incoming = row(2, remoteURL: "https://example.invalid/stall-watch.mp3")
+        player.queue = [row(1), incoming]
+        player.preloadedNextItem = AVPlayerItem(url: try audioFile(seconds: 6))
+        player.preloadedNextTrackId = 2
+        XCTAssertTrue(player.prepareCrossfadePlayer(for: incoming, at: 1))
+        player.stallWatchTask = nil
+
+        player.finishCrossfade(to: 1, row: incoming)
+
+        XCTAssertNotNil(player.stallWatchTask,
+                        "a promoted item must get the same stall-timeout coverage an ordinary load installs")
+    }
+
+    /// Architecture-review finding: the outgoing item can reach its natural end before
+    /// `updateCrossfade`'s own gain-based completion ever confirmed the incoming item was ready
+    /// (e.g. a slow-opening stream). Promoting it anyway would strand playback on a paused item
+    /// nothing watches for a stall; the natural boundary must fall back to the ordinary load path
+    /// instead.
+    func testNaturalEndFallsBackToOrdinaryLoadWhenTheCrossfadeCandidateIsntReady() throws {
+        let player = AudioPlayer.shared
+        defer {
+            player.cancelCrossfade(resetVolume: true)
+            player.ordinaryBuildItemHook = nil
+            player.queue = []
+            player.index = 0
+        }
+        let outgoingItem = AVPlayerItem(url: try audioFile(seconds: 1))
+        player.player.replaceCurrentItem(with: outgoingItem)
+        player.observeEnd(of: outgoingItem)
+
+        let nextRow = row(2, remoteURL: "https://example.invalid/ordinary-fallback.mp3")
+        player.queue = [row(1), nextRow]
+        player.index = 0
+        // A crossfade candidate was prepared (the fade-lead window was reached) but never
+        // became ready before the outgoing item ran out.
+        player.crossfadePlayer = AVPlayer(playerItem: AVPlayerItem(url: URL(string: "https://example.invalid/never-ready.mp3")!))
+        player.crossfadeNextIndex = 1
+        player.crossfadeNextTrackId = 2
+
+        var builtURLs: [String] = []
+        player.ordinaryBuildItemHook = { asset in
+            builtURLs.append(asset.remoteURL ?? "nil")
+            return (AVPlayerItem(asset: AVMutableComposition()), nil)
+        }
+
+        NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: outgoingItem)
+
+        XCTAssertTrue(waitUntil { player.index == 1 },
+                     "the natural boundary must still advance the queue even when the crossfade candidate wasn't ready")
+        XCTAssertNil(player.crossfadePlayer, "an unready crossfade candidate must be cancelled, not promoted")
+        XCTAssertEqual(builtURLs, ["https://example.invalid/ordinary-fallback.mp3"],
+                      "must fall back to the ordinary resolve/build path, not promote the unready item")
+    }
+
     /// With Smart Transitions gone, this plain crossfade is the only track-to-track transition
     /// left — the shipped default must already be a real, audible blend, not `0` (a silent
     /// hard cut) that a setting nobody has found yet would need to raise first.

@@ -188,6 +188,11 @@ extension AudioPlayer {
         player = nextPlayer
         player.volume = outputLevel
         observePromotedItemFailure(player.currentItem)
+        // Architecture-review finding (I6): every item installed as current must get the same
+        // observer set an ordinary load's `replaceItem` installs — a promoted crossfade item
+        // was the one path that skipped the stall watcher, so a promoted-but-stuck item (never
+        // confirms real progress) had no detector at all and would sit silently stalled forever.
+        let generation = stallModel.beginLoad()
         if let loader = crossfadeNextLoader {
             loaders.append(loader)
         }
@@ -198,6 +203,13 @@ extension AudioPlayer {
         transitionStartedForCurrentEdge = false
 
         index = nextIndex
+        // Reaching here always means continuing playback: either the fade already started it
+        // (the ordinary `updateCrossfade` completion), or the caller is about to (the manual-
+        // advance promotion), or it was promoted at a natural boundary specifically because it
+        // was already confirmed `.readyToPlay`. Start it unconditionally rather than leaving a
+        // promoted-but-never-started item parked at rate 0 with nothing watching it.
+        if player.rate == 0 { player.play() }
+        isPlaying = true
         let seconds = player.currentTime().seconds
         currentTime = seconds.isFinite ? max(0, seconds) : 0
         if let rowDuration = row.track.durationSec {
@@ -211,6 +223,7 @@ extension AudioPlayer {
         }
         addPeriodicObserver()
         observeTimeControlStatus()
+        watchStallProgress(generation: generation, autoplay: true)
         updateNowPlaying()
         prefetchNext()
         preloadNextItem()
@@ -237,12 +250,8 @@ extension AudioPlayer {
         cancelCatalogPlaybackLoad()
         if keepPlayingBoundaryState != .idle { resetKeepPlayingBoundary() }
         let row = queue[index]
-        finishCrossfade(to: index, row: row)
-        guard player === incoming else { return false }
-        player.play()
-        isPlaying = true
-        updateNowPlaying()
-        return true
+        finishCrossfade(to: index, row: row)  // starts playback and arms stall-watch itself
+        return player === incoming
     }
 
     /// Same failure detection `replaceItem` wires for ordinary loads, for crossfade-promoted items.

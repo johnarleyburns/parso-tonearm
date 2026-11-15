@@ -705,7 +705,7 @@ extension AudioPlayer {
     /// cycling through the rest of the queue (CLAUDE.md: no silent/magic background work). A
     /// manually paused/not-yet-playing load (`autoplay == false`) is never watched — nothing is
     /// "stalled" about a track that isn't expected to be advancing yet.
-    private func watchStallProgress(generation: Int, autoplay: Bool) {
+    func watchStallProgress(generation: Int, autoplay: Bool) {
         stallWatchTask?.cancel()
         stallWatchTask = nil
         guard autoplay else { return }
@@ -747,7 +747,20 @@ extension AudioPlayer {
                 guard let self else { return }
                 if let nextIndex = self.crossfadeNextIndex,
                    self.queue.indices.contains(nextIndex) {
-                    self.finishCrossfade(to: nextIndex, row: self.queue[nextIndex])
+                    // Architecture-review finding: the outgoing item can reach its natural end
+                    // before `updateCrossfade`'s own gain-based completion ever confirmed the
+                    // incoming item was ready (e.g. a short fade window, or a slow-opening
+                    // stream). Promoting an item that never became ready — and never started
+                    // playing — would strand playback silently: nothing watches it for a stall.
+                    // Fall back to the ordinary load path instead, which installs the full
+                    // observer set from a clean start.
+                    if self.crossfadePlayer?.currentItem?.status == .readyToPlay {
+                        self.finishCrossfade(to: nextIndex, row: self.queue[nextIndex])
+                    } else {
+                        self.cancelCrossfade(resetVolume: true)
+                        self.index = nextIndex
+                        self.loadCurrent(autoplay: true)
+                    }
                     return
                 }
                 if self.sleepAtEndOfTrack {
