@@ -50,7 +50,12 @@ struct FindView: View {
                                                   soundSearchRevision &+= 1
                                               },
                                               isQueryFocused: $queryFocused)
-                        findScopePicker
+                        // Mood results are always flat songs (the mood pills above replace this
+                        // picker entirely) — grouping a single mood's picks into albums/artists/
+                        // genres would scatter them across unrelated groups.
+                        if mode != .sound {
+                            findScopePicker
+                        }
                     }
 
                 Group {
@@ -84,6 +89,9 @@ struct FindView: View {
         }
         .onChange(of: appState.tab) { _, tab in
             if tab != .find { queryFocused = false }
+        }
+        .onChange(of: mode) { _, newMode in
+            if newMode == .sound { browseMode = .songs }
         }
         .onChange(of: appState.showNowPlaying) { _, showing in
             if showing { queryFocused = false }

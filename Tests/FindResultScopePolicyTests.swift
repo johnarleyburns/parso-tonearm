@@ -39,4 +39,16 @@ final class FindResultScopePolicyTests: XCTestCase {
         XCTAssertTrue(s.contains("browseMode: LibraryBrowseMode = FindResultScopePolicy.initialMode"))
         XCTAssertTrue(s.contains("accessibilityValue(selected ? \"selected\" : \"not selected\")"))
     }
+
+    /// Mood search results are always flat songs — pills select a mood, not a result shape.
+    /// Grouping a single mood's picks into albums/artists/genres would scatter them across
+    /// unrelated groups, the same problem the standalone Mood tab never had (it never routes
+    /// through `LibraryBrowse` grouping at all).
+    func testMoodModeHidesTheScopePickerAndForcesSongs() throws {
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
+                           encoding: .utf8)
+        XCTAssertTrue(s.contains("if mode != .sound {"))
+        XCTAssertTrue(s.contains("if newMode == .sound { browseMode = .songs }"))
+    }
 }

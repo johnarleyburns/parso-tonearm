@@ -69,6 +69,41 @@ struct MyMusicSearchControls: View {
     var isQueryFocused: Binding<Bool> = .constant(false)
 
     @State private var soundModel: DiscoverySearchViewModel?
+    /// Mirrors the standalone Mood tab's pill selection (`MoodEntryPointSection` in
+    /// ListenView.swift) so Find's own Mood mode behaves identically: pills combine additively
+    /// into `soundModel.positiveRefinements`, never replace it.
+    @State private var selectedMoodPillIDs: Set<MoodPill.ID> = []
+    @State private var eraVibePills: [MoodPill] = []
+    @State private var genres: [String] = []
+
+    /// A to Z, so a mood is easy to find — same ordering as the standalone Mood tab.
+    private var allMoodPills: [MoodPill] {
+        (MoodPillTaxonomy.fixedCategories + eraVibePills)
+            .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+    }
+
+    private var genrePills: [MoodPill] {
+        genres.map { MoodPill(id: $0, label: JamendoGenreTree.humanizedGenre($0), queryTerm: $0) }
+    }
+
+    private func moodPillSelectionBinding(_ model: DiscoverySearchViewModel) -> Binding<Set<MoodPill.ID>> {
+        Binding(
+            get: { selectedMoodPillIDs },
+            set: { newSelection in
+                let pills = allMoodPills
+                for id in newSelection.subtracting(selectedMoodPillIDs) {
+                    if let pill = pills.first(where: { $0.id == id }) { model.addMoreLike(pill.queryTerm) }
+                }
+                for id in selectedMoodPillIDs.subtracting(newSelection) {
+                    if let pill = pills.first(where: { $0.id == id }) { model.removeMoreLike(pill.queryTerm) }
+                }
+                selectedMoodPillIDs = newSelection
+            })
+    }
+
+    private func genreSelectionBinding(_ model: DiscoverySearchViewModel) -> Binding<Set<MoodPill.ID>> {
+        Binding(get: { model.genres }, set: { model.genres = $0 })
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -82,6 +117,12 @@ struct MyMusicSearchControls: View {
                 mixControls
             case .sound:
                 if let soundModel {
+                    MoodPillPicker(pills: allMoodPills, selection: moodPillSelectionBinding(soundModel),
+                                  kind: "find.mood")
+                    if !genrePills.isEmpty {
+                        MoodPillPicker(pills: genrePills, selection: genreSelectionBinding(soundModel),
+                                      kind: "find.genre")
+                    }
                     MyMusicSoundQuery(model: soundModel, onRows: onSoundRows)
                 } else {
                     ProgressView("Preparing sound search…")
@@ -96,6 +137,7 @@ struct MyMusicSearchControls: View {
         .task(id: mode) {
             guard mode == .sound else {
                 soundModel = nil
+                selectedMoodPillIDs = []
                 onSoundRows(nil)
                 return
             }
@@ -104,6 +146,19 @@ struct MyMusicSearchControls: View {
                     appState: appState, player: player)
                 model.inputMode = .findBySound
                 model.searchText = appState.searchText
+                let summary = await SuggestionChips.summary(library: appState.store)
+                eraVibePills = SuggestionChips.seed(from: summary).map { chip in
+                    MoodPill(id: chip, label: chip, queryTerm: chip)
+                }
+                genres = (try? await appState.store.genres()) ?? []
+                // Real report (Mood tab): a greyed-out Play button with no explanation when
+                // nothing was selected yet. Same fix here — default to "calm" so Mood search in
+                // Find is never empty on first entry, exactly like the standalone Mood tab.
+                if selectedMoodPillIDs.isEmpty, model.positiveRefinements.isEmpty,
+                   let calm = MoodPillTaxonomy.energy.first(where: { $0.id == "calm" }) {
+                    selectedMoodPillIDs = [calm.id]
+                    model.addMoreLike(calm.queryTerm)
+                }
                 soundModel = model
             }
         }
