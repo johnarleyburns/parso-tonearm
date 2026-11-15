@@ -244,6 +244,26 @@ private struct OnMyWatchMusicView: View {
     var body: some View {
         List {
             Section {
+                if let message = PhoneWatchManagementPresenter.failureBadgeMessage(failedCount: appState.watchFailedCount) {
+                    Button {
+                        appState.showWatchSettings = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(Palette.danger)
+                            Text(message)
+                                .font(Typography.callout)
+                                .foregroundStyle(Palette.danger)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(Palette.inkTertiary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(message)
+                    .accessibilityHint("Opens Apple Watch settings")
+                    .accessibilityIdentifier("mymusic.watch.failureBadge")
+                }
                 if let date = appState.watchManagement.syncHistory.lastWatchReportAt {
                     Text("Last watch report: \(date.formatted(date: .abbreviated, time: .shortened))")
                         .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
