@@ -131,8 +131,6 @@ public final class AudioPlayer: ObservableObject {
     /// Autoplay intent of the pending Jamendo resolve; an explicit pause demotes it so a late
     /// result loads the item without starting playback.
     var catalogPlaybackAutoplay = false
-    /// Failures seen in the current unavailable-entry recovery sequence (bounds the advance).
-    var failedAdvanceAttempts = 0
     /// The ordinary Jamendo load in flight or on the player; scopes the one-time stale-link retry.
     var ordinaryJamendoLoad: OrdinaryJamendoLoad?
     /// Test seam: replaces `buildItem(for:)` inside the ordinary load path.
@@ -536,7 +534,6 @@ public final class AudioPlayer: ObservableObject {
     }
 
     public func next() {
-        failedAdvanceAttempts = 0
         if isAmbient { nextAmbientTrack(); return }
         guard !queue.isEmpty else { return }
         if repeatMode == .one {

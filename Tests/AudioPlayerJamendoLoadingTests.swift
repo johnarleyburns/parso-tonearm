@@ -395,5 +395,34 @@ final class AudioPlayerJamendoLoadingTests: XCTestCase {
         XCTAssertTrue(spy.urls.isEmpty, "raw URL must never reach buildItem")
         XCTAssertEqual(spy.refreshes, 0)
     }
+
+    /// #387 regressed this: it added a "silently advance past the dead track" branch gated on
+    /// `catalogPlaybackAutoplay || isPlaying`, which is true for an ordinary manual tap (not just
+    /// an unattended autoplay chain), and announced at most the FIRST skip in a sequence. Combined
+    /// with other defects that could make every queued Jamendo row fail the same way, that walked
+    /// silently through the whole queue. A failed remote track must always stop and say why — the
+    /// queue position must never move as a side effect of a failure, under any `isPlaying`/
+    /// `catalogPlaybackAutoplay` combination, and repeating the failure must not change that.
+    func testFailedRemotePlaybackAlwaysStopsAndNeverSilentlyAdvancesTheQueue() async throws {
+        let spy = Spy()
+        try install(spy: spy)
+        let player = AudioPlayer.shared
+        player.networkSkipMessage = nil
+        load([jamendo(), CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3")])
+        // Emulate the exact condition #387 misread as "an unattended autoplay chain":
+        // the engine happens to be in a playing state when the failure lands.
+        player.isPlaying = true
+
+        player.failRemotePlayback(.jamendoLocatorUnavailable)
+        XCTAssertEqual(player.index, 0, "a failed remote track must never silently advance the queue")
+        XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
+        XCTAssertFalse(player.isPlaying)
+
+        // A second failure (e.g. a retry) must not behave any differently.
+        player.isPlaying = true
+        player.failRemotePlayback(.jamendoLocatorUnavailable)
+        XCTAssertEqual(player.index, 0)
+        XCTAssertEqual(player.networkSkipMessage, RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
+    }
 }
 #endif
