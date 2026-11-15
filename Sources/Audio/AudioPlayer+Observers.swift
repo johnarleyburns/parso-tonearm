@@ -26,8 +26,16 @@ extension AudioPlayer {
                 self.updateNowPlayingTime()
 
                 // F3: persist on tick (throttled to ≥1 write/s inside persistTick)
-                // F5: seek confirmation for restore
-                if let target = self.pendingRestoreSeek {
+                // F5: seek confirmation for restore — only while the pending target still
+                // describes the occurrence actually loaded right now (see `pendingRestoreSeek`'s
+                // doc comment: a different track must never inherit a stale restore target).
+                if let pending = self.pendingRestoreSeek {
+                    guard self.queueOccurrences.indices.contains(self.index),
+                          self.queueOccurrences[self.index] == pending.occurrence else {
+                        self.pendingRestoreSeek = nil
+                        return
+                    }
+                    let target = pending.seconds
                     let pos = time.seconds
                     if self.player.currentItem?.status == .readyToPlay,
                        abs(pos - target) > 2 {

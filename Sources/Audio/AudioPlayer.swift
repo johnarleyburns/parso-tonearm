@@ -180,7 +180,14 @@ public final class AudioPlayer: ObservableObject {
     var lastLocalFailure: LocalMediaFailure?
     var restoreTask: Task<Void, Never>?
     var isRestoring = false
-    var pendingRestoreSeek: Double?
+    /// A restore-time seek target, bound to the exact queue occurrence it was recorded for.
+    /// Architecture-review finding: this used to be a bare `Double?` with no occurrence attached,
+    /// so if the restored track hadn't converged on it yet (e.g. its Jamendo resolve was still
+    /// pending) and the user loaded a DIFFERENT track before it did, the stale target kept getting
+    /// reapplied — every tick showed that target as `currentTime` and re-seeked the new item to
+    /// it, which, if the target exceeded the new track's length, could end it immediately. Now it
+    /// is only ever honored while it still describes the occurrence currently loaded.
+    var pendingRestoreSeek: (occurrence: QueueOccurrenceID, seconds: Double)?
     /// Injectable persistence funnel: tests can swap in fakes/spies.
     public var persistor = PlaybackPositionPersistor()
     var loaders: [CachingResourceLoader] = []
