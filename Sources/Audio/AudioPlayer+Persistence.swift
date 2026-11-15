@@ -250,15 +250,16 @@ extension AudioPlayer {
                                       mixBPM: p.bpm, mixCamelotKey: p.camelotKey)
         }
         index = plan.startIndex
+        let restoredOccurrence = queueOccurrences.indices.contains(index) ? queueOccurrences[index] : nil
         loadCurrent(autoplay: false)
 
         // Set currentTime to the seek target immediately so persist during the
         // seek window is accurate. Seek with zero tolerance for precision.
         currentTime = plan.seekTo
-        if plan.seekTo > 0 {
+        if plan.seekTo > 0, let restoredOccurrence {
             let cmTime = CMTime(seconds: plan.seekTo, preferredTimescale: 600)
             await player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
-            pendingRestoreSeek = plan.seekTo
+            pendingRestoreSeek = (restoredOccurrence, plan.seekTo)
         }
 
         isRestoring = false

@@ -97,6 +97,12 @@ extension AudioPlayer {
         }
         // Any new load supersedes a pending catalog resolve (exact queue occurrence + generation).
         let occurrence = queueOccurrences.indices.contains(index) ? queueOccurrences[index] : nil
+        // A restore-seek target recorded for a DIFFERENT occurrence must never survive loading
+        // this one — don't wait up to 0.5s for the next tick to notice (see
+        // `pendingRestoreSeek`'s doc comment).
+        if let pending = pendingRestoreSeek, pending.occurrence != occurrence {
+            pendingRestoreSeek = nil
+        }
         cancelCatalogPlaybackLoad()
         let generation = catalogPlaybackLoadGeneration
         // Loading any item ends the terminal boundary (waiting or exhausted).
