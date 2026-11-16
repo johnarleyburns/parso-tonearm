@@ -44,7 +44,6 @@ struct MyMusicView: View {
         case albums = "Albums"
         case songs = "Songs"
         case genres = "Genres"
-        case jamendo = "Jamendo"
         var id: String { rawValue }
 
         var title: LocalizedStringKey {
@@ -54,7 +53,6 @@ struct MyMusicView: View {
             case .albums: "Albums"
             case .songs: "Songs"
             case .genres: "Genres"
-            case .jamendo: "Jamendo"
             #if os(iOS)
             case .onMyWatch: "On My Watch"
             #endif
@@ -68,7 +66,6 @@ struct MyMusicView: View {
             case .albums: return .albums
             case .songs: return .songs
             case .genres: return .genres
-            case .jamendo: return nil
             #if os(iOS)
             case .onMyWatch: return nil
             #endif
@@ -111,9 +108,6 @@ struct MyMusicView: View {
                     case .playlists:
                         PlaylistsView(ownsNavigationStack: false)
                             .accessibilityIdentifier("mymusic.content.playlists")
-                    case .jamendo:
-                        JamendoBrowseView(allowsImport: true, showsBackButton: false)
-                            .accessibilityIdentifier("mymusic.content.jamendo")
                     case .artists, .albums, .songs, .genres:
                         LibraryView(ownsNavigationStack: false, externalMode: libraryModeBinding,
                                     filter: .init(), searchRows: nil, searchRowsRevision: 0,
