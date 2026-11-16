@@ -326,6 +326,9 @@ public actor DiscoveryReconciler {
     }
 
     private func assetSelection(trackId: Int64) async throws -> AssetSelection {
+        guard try await isJamendoTrackGenuinelyInMyMusic(trackId: trackId) else {
+            return AssetSelection(assetId: nil, eligible: false)
+        }
         let assets = try await writer.read { db in
             try Asset
                 .filter(Column("trackId") == trackId)
@@ -345,6 +348,29 @@ public actor DiscoveryReconciler {
             return AssetSelection(assetId: sparse.id, eligible: true)
         }
         return AssetSelection(assetId: nil, eligible: false)
+    }
+
+    /// A `.jamendoGenre` track becomes index-eligible only once it has genuinely entered "My
+    /// Music" — listened to at least once, downloaded for offline/on-device playback, or added
+    /// to a playlist — not merely imported/browsed. Every other source kind is unaffected
+    /// (always `true`, a no-op) — this gate exists only to separate "the user looked at this in
+    /// Jamendo browse" from "this is actually my music" for that one remote source.
+    private func isJamendoTrackGenuinelyInMyMusic(trackId: Int64) async throws -> Bool {
+        try await writer.read { db in
+            let isJamendo = try Int.fetchOne(db, sql: """
+                SELECT 1 FROM track JOIN source ON source.id = track.sourceId
+                WHERE track.id = ? AND source.kind = 'jamendoGenre'
+                """, arguments: [trackId]) != nil
+            guard isJamendo else { return true }
+            let played = try Int.fetchOne(
+                db, sql: "SELECT 1 FROM play_history WHERE trackId = ?", arguments: [trackId]) != nil
+            let downloaded = try Int.fetchOne(
+                db, sql: "SELECT 1 FROM asset WHERE trackId = ? AND kind IN ('localRef', 'managedCopy')",
+                arguments: [trackId]) != nil
+            let playlisted = try Int.fetchOne(
+                db, sql: "SELECT 1 FROM playlist_item WHERE trackId = ?", arguments: [trackId]) != nil
+            return played || downloaded || playlisted
+        }
     }
 
     /// Best-effort backfill for `.remote` assets that predate

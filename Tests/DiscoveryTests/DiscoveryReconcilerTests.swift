@@ -537,4 +537,114 @@ final class DiscoveryReconcilerTests: XCTestCase {
         XCTAssertEqual(row[0], "https://archive.org/download/some-item/track01.mp3")
         XCTAssertEqual(row[1], "https://archive.org/download/some-item/track01.mp3")
     }
+
+    // MARK: - Jamendo tracks only index once genuinely "in My Music" (real report: only index
+    // what the user has listened to, downloaded, or added to a playlist, not merely browsed)
+
+    @discardableResult
+    private func insertJamendoSource(_ queue: DatabaseQueue) async throws -> Int64 {
+        try await queue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit,
+                                        localIsFolder)
+                    VALUES ('jamendoGenre', 'Electronic', ?, 0, 0, 0)
+                    """, arguments: [Date()])
+            return db.lastInsertedRowID
+        }
+    }
+
+    private func recordPlay(_ queue: DatabaseQueue, trackId: Int64) async throws {
+        try await queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO play_history (trackId, playedAt) VALUES (?, ?)",
+                arguments: [trackId, Date()])
+        }
+    }
+
+    private func addToPlaylist(_ queue: DatabaseQueue, trackId: Int64) async throws {
+        try await queue.write { db in
+            try db.execute(sql: "INSERT INTO playlist (kind, title) VALUES ('manual', 'My Playlist')")
+            let playlistID = db.lastInsertedRowID
+            try db.execute(
+                sql: "INSERT INTO playlist_item (playlistId, position, trackId) VALUES (?, 0, ?)",
+                arguments: [playlistID, trackId])
+        }
+    }
+
+    /// A browsed-but-never-used Jamendo track (just a remote asset from importing it, same as
+    /// any other remote track) must not be enqueued at all, even though an identical non-Jamendo
+    /// remote track with the same asset shape already is (see
+    /// `testBootstrapSkipsATrackWhoseOnlyAssetIsRemote`/`testBootstrapStillEnqueuesATrackWithNoAssetRowsYet`
+    /// for the normal, unaffected behavior that must stay unaffected for non-Jamendo sources).
+    func testJamendoTrackWithNoUsageSignalIsNotEnqueued() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertJamendoSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Browsed Only")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 0, "a merely-browsed Jamendo track must not be enqueued")
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNil(job)
+    }
+
+    func testJamendoTrackBecomesEligibleOnceListenedTo() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertJamendoSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Listened")
+        try await recordPlay(queue, trackId: trackID)
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1)
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
+    }
+
+    func testJamendoTrackBecomesEligibleOnceDownloaded() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertJamendoSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Downloaded")
+        try await insertAsset(queue, trackId: trackID, kind: "managedCopy", relPath: "song.m4a")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1)
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
+    }
+
+    func testJamendoTrackBecomesEligibleOnceAddedToAPlaylist() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertJamendoSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Playlisted")
+        try await addToPlaylist(queue, trackId: trackID)
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1)
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
+    }
+
+    /// A non-Jamendo remote track with the exact same asset-free shape as the skipped Jamendo
+    /// track above is unaffected by this gate — it's eligible with a nil selected asset exactly
+    /// as before (`testBootstrapStillEnqueuesATrackWithNoAssetRowsYet`'s normal behavior).
+    func testNonJamendoRemoteTrackIsUnaffectedByTheJamendoGate() async throws {
+        let queue = try makeQueue()
+        let sourceID = try await insertRemoteSource(queue)
+        let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Not Jamendo")
+        let repo = IndexJobRepository(writer: queue)
+        let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
+
+        let enqueued = try await reconciler.bootstrapAllTracks()
+        XCTAssertEqual(enqueued, 1, "only Jamendo sources are gated by usage signal")
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
+    }
 }
