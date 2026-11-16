@@ -203,6 +203,62 @@ class ShardTests(unittest.TestCase):
         self.assertFalse(os.path.exists(first_path + '.url'))
         self.assertFalse(os.path.exists(second_path + '.url'))
 
+    def test_jamendo_failure_envelope_is_retried_until_real_content_arrives(self):
+        # Confirmed live against the real endpoint: Jamendo answers an internal error with HTTP
+        # 200 and its own small {"headers":{"status":"failed",...}} JSON body, not a 404/500 --
+        # so urlopen never raises and the old code would "succeed" with a 76-byte file. This must
+        # be recognized and retried like any other transient failure, not treated as a dead track.
+        envelope = b'{"headers":{"status":"failed","code":1,"error_message":"Internal Error"}}'
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): self.close()
+        responses = [envelope, envelope, b'x' * 20000]
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.full_url)
+            return Response(responses.pop(0))
+        sleeps = []
+        downloader = B.JamendoTrackDownloader('secret', opener=opener, clock=lambda: 0.0, sleep=sleeps.append)
+        first = dict(entry(7), streamURL='jamendo://track/7')
+        path = os.path.join(self.dir, 'x.mp3')
+        downloader(first, path)
+        self.assertEqual(os.path.getsize(path), 20000)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(sleeps), 2, 'must back off between the two retried attempts')
+
+    def test_jamendo_failure_envelope_exhausted_is_transient_not_too_small(self):
+        envelope = b'{"headers":{"status":"failed","code":1,"error_message":"Internal Error"}}'
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): self.close()
+        def opener(request, timeout):
+            return Response(envelope)
+        downloader = B.JamendoTrackDownloader('secret', opener=opener, clock=lambda: 0.0, sleep=lambda s: None)
+        first = dict(entry(7), streamURL='jamendo://track/7')
+        with self.assertRaises(B.TrackFailure) as ctx:
+            downloader(first, os.path.join(self.dir, 'x.mp3'))
+        self.assertEqual(ctx.exception.stage, 'download')
+        self.assertEqual(ctx.exception.code, 'jamendo_transient_error')
+        self.assertIn('Internal Error', ctx.exception.detail)
+        self.assertTrue(S.is_stale_failure(ctx.exception.stage, ctx.exception.code, ctx.exception.detail))
+
+    def test_non_jamendo_small_file_is_not_retried_still_too_small(self):
+        # A genuinely corrupt/truncated stub (not Jamendo's own JSON error shape) must not be
+        # retried as if it might recover -- that's the already-handled too_small/stale case.
+        class Response(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *a): self.close()
+        calls = []
+        def opener(request, timeout):
+            calls.append(1)
+            return Response(b'not json garbage')
+        downloader = B.JamendoTrackDownloader('secret', opener=opener, clock=lambda: 0.0, sleep=lambda s: None)
+        first = dict(entry(7), streamURL='jamendo://track/7')
+        with self.assertRaises(B.TrackFailure) as ctx:
+            downloader(first, os.path.join(self.dir, 'x.mp3'))
+        self.assertEqual((ctx.exception.stage, ctx.exception.code), ('download', 'too_small'))
+        self.assertEqual(len(calls), 1, 'a genuinely corrupt file must not waste retries')
+
     def test_jamendo_resolver_requires_matching_durable_locator(self):
         downloader = B.JamendoTrackDownloader('client')
         with self.assertRaisesRegex(B.TrackFailure, 'durable Jamendo locator'):
