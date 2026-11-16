@@ -21,19 +21,16 @@ final class MixCompatibilityTests: XCTestCase {
         XCTAssertFalse(rules.bpmCompatible(0, 100))
     }
 
-    /// See `BuiltInMixReadinessTests.requireBundledStarter`'s doc comment: the real bundled
-    /// `Resources/Starter/starter.sqlite` is still format 3 pending a separate v4 adoption PR
-    /// (outside #193's own scope), so `BuiltInMoodIndexProvider.tracks` correctly returns empty
-    /// until then.
-    func testChainObeysTheRulesAndReachesTheLengthFromTheBundledLibrary() throws {
-        let tracks = BuiltInMoodIndexProvider.tracks(expecting: EmbeddingSpace.current.starterContract)
-        guard !tracks.isEmpty else {
-            throw XCTSkip("No compatible (current-format) bundled Mood Starter asset present yet")
-        }
-        let candidates = tracks.enumerated().compactMap { index, track -> MixCandidate? in
-            guard track.hasMusicalAnalysis else { return nil }
-            return MixCandidate(trackID: Int64(index), bpm: track.bpm, camelot: track.key, energy: track.energy,
-                                artist: track.artist, duration: track.durationSec)
+    /// Same BPM and Camelot key for every candidate makes every pair trivially rule-compatible
+    /// by construction (no risk of an incompatible pair breaking the chain regardless of how the
+    /// planner walks the pool) — varying only duration/artist, exactly what's needed to exercise
+    /// "reaches the target length" and "the first track is random per seed" without depending on
+    /// real, bundled library data (the Jamendo starter pack this previously read from no longer
+    /// exists; on-device indexing of the user's own library is the sole source now).
+    func testChainObeysTheRulesAndReachesTheLength() throws {
+        let candidates = (0..<300).map { index in
+            MixCandidate(trackID: Int64(index), bpm: 120, camelot: "8A", energy: nil,
+                        artist: "Artist \(index % 40)", duration: 180 + Double(index % 60))
         }
         let byID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.trackID, $0) })
         var firsts = Set<Int64>()

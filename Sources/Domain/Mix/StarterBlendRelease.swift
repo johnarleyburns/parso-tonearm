@@ -1,28 +1,5 @@
 import Foundation
 
-/// Facts the blender needs about a track, from the release's analysis. Time is source seconds;
-/// beat `k` of the grid is at `beatPhase + k * beatPeriod`.
-public struct StarterTrackFacts: Codable, Sendable, Equatable {
-    public let id: String
-    public let durationSeconds: Double
-    public let bpm: Double
-    public let beatPeriod: Double
-    public let beatPhase: Double
-    public let rmsDB: Double
-
-    public init(id: String, durationSeconds: Double, bpm: Double, beatPeriod: Double, beatPhase: Double,
-                rmsDB: Double) {
-        self.id = id
-        self.durationSeconds = durationSeconds
-        self.bpm = bpm
-        self.beatPeriod = beatPeriod
-        self.beatPhase = beatPhase
-        self.rmsDB = rmsDB
-    }
-
-    public func beatTime(_ beat: Int) -> Double { beatPhase + Double(beat) * beatPeriod }
-}
-
 @available(*, deprecated, renamed: "BlendEdgePlan")
 public typealias StarterEdgePlan = BlendEdgePlan
 
