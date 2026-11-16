@@ -89,6 +89,13 @@ struct NowPlayingView: View {
             }
         }
         .presentationDragIndicator(.hidden)
+        // Real report: Now Playing showed both a "<" back button and the zoom transition's own
+        // swipe-down-to-collapse-into-the-mini-player gesture — two ways to do the same thing.
+        // The swipe gesture is the only one asked for; it's unaffected by hiding the back button
+        // (RootTabChrome's pop-sync already reacts to the navigation path's depth changing, not
+        // specifically to a tap on "<", so a swipe-triggered pop still syncs `showNowPlaying`
+        // exactly as before).
+        .navigationBarBackButtonHidden(true)
         .onAppear { LocalPlaybackDiagnostics.shared.record(.nowPlayingAppear, loadID: 0) }
         .onDisappear { LocalPlaybackDiagnostics.shared.record(.nowPlayingDisappear, loadID: 0) }
         .task(id: player.currentTrack?.id) {
