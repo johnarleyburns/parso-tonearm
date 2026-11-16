@@ -15,6 +15,7 @@ def entry(i):
 class ShardTests(unittest.TestCase):
     fail_download = None
     fail_analyze = None
+    fail_too_small = None
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -44,6 +45,8 @@ class ShardTests(unittest.TestCase):
         self.seen_paths.append(dest)
         if e['providerTrackID'] == self.fail_download:
             raise B.TrackFailure('download', 'download_failed', 'HTTPError')
+        if e['providerTrackID'] == self.fail_too_small:
+            raise B.TrackFailure('download', 'too_small', 'downloaded file is implausibly small')
 
     def default_analyze(self, e, path):
         if e['providerTrackID'] == self.fail_analyze:
@@ -129,6 +132,19 @@ class ShardTests(unittest.TestCase):
         db.close()
         with self.assertRaisesRegex(S.ShardError, 'status'):
             S.validate_shard(out, FP)
+
+    def test_too_small_download_is_a_stale_failure_not_fatal(self):
+        # A real Jamendo track can advertise audiodownload_allowed=true but actually serve an
+        # implausibly small (withdrawn/corrupted) file. Like a withdrawn 404 at resolve time, this
+        # is an expected historical-catalog exclusion, not a pipeline bug -- it must not mark the
+        # shard incomplete.
+        self.assertTrue(S.is_stale_failure('download', 'too_small', 'downloaded file is implausibly small'))
+        self.fail_too_small = '1'
+        out, meta, _ = self.build()
+        self.assertEqual((meta['status'], meta['success_count'], meta['failure_count'],
+                          meta['stale_count'], meta['fatal_failure_count']),
+                         ('complete', '2', '1', '1', '0'))
+        S.validate_shard(out, FP)
 
     def test_127d_and_oversized_profile(self):
         p = B.process_track(entry(1), FP, self.download, self.analyze, self.dir)
