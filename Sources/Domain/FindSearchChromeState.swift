@@ -9,14 +9,9 @@ public struct FindSearchChromeState: Equatable, Sendable {
     public var isQueryFocused: Bool
     public var hasCurrentTrack: Bool
     public var isNowPlayingPresented: Bool
-    public var isMoodActive: Bool
-    public var isMoodPromptFocused: Bool
 
     public init(isFindActive: Bool, isQueryFocused: Bool, hasCurrentTrack: Bool,
-                isNowPlayingPresented: Bool,
-                isMoodActive: Bool = false, isMoodPromptFocused: Bool = false) {
-        self.isMoodActive = isMoodActive
-        self.isMoodPromptFocused = isMoodPromptFocused
+                isNowPlayingPresented: Bool) {
         self.isFindActive = isFindActive
         self.isQueryFocused = isQueryFocused
         self.hasCurrentTrack = hasCurrentTrack
@@ -26,10 +21,7 @@ public struct FindSearchChromeState: Equatable, Sendable {
     /// A stale focus signal never applies off the Find tab or over Now Playing.
     public var isFindEditing: Bool { isFindActive && isQueryFocused && !isNowPlayingPresented }
 
-    /// Actual Mood prompt focus (even with an empty draft), only on the Mood tab.
-    public var isMoodEditing: Bool { isMoodActive && isMoodPromptFocused && !isNowPlayingPresented }
-
-    public var isEditing: Bool { isFindEditing || isMoodEditing }
+    public var isEditing: Bool { isFindEditing }
 
     public var hidesNavigationChrome: Bool { isFindEditing }
 
