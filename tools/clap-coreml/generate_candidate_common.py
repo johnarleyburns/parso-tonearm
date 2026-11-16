@@ -4,15 +4,14 @@
 This is deliberately a release-tooling script, not production application code.
 It never edits a model lock or uploads a release.  The workflow supplies a
 checksum-verified checkpoint and publishes only the archive and evidence it
-creates.  Both encoders use the exact frozen 512 -> 128 PCA projection embedded
-in the starter database, so their output spaces remain comparable.
+creates.  Both encoders use the exact frozen 512 -> 128 PCA projection checked
+in at fixtures/frozen_projection_v1.bin, so their output spaces remain comparable.
 """
 import argparse
 import hashlib
 import json
 import platform
 import shutil
-import sqlite3
 import sys
 import tempfile
 import types
@@ -38,22 +37,19 @@ def sha256(path):
     return h.hexdigest()
 
 
-def frozen_projection(starter_dir):
-    """Read Swift EmbeddingProjection.encoded: LE Float32 mean then row matrix."""
-    dbs = list(Path(starter_dir).glob("*.sqlite")) + list(Path(starter_dir).glob("*.db"))
-    if len(dbs) != 1:
-        raise RuntimeError(f"expected exactly one starter SQLite database in {starter_dir}, found {dbs}")
-    con = sqlite3.connect(f"file:{dbs[0]}?mode=ro", uri=True)
-    try:
-        row = con.execute("SELECT source_dims, dims, data FROM starter_projection").fetchone()
-    finally:
-        con.close()
-    if row is None:
-        raise RuntimeError("starter database has no frozen starter_projection")
-    source_dims, dims, blob = row
+FROZEN_PROJECTION_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "frozen_projection_v1.bin"
+
+
+def frozen_projection(fixture_path=FROZEN_PROJECTION_FIXTURE):
+    """Read the frozen 512-to-128 PCA projection: LE Float32 mean then row-major components.
+    Extracted once from the (now-removed) Jamendo starter pack's starter_projection table
+    (commit 665b57f) and checked in at tools/clap-coreml/fixtures/, so candidate regeneration
+    never depends on the starter database existing."""
+    source_dims, dims = 512, 128
+    blob = Path(fixture_path).read_bytes()
     values = np.frombuffer(blob, dtype="<f4")
-    if (source_dims, dims) != (512, 128) or values.size != source_dims * (dims + 1):
-        raise RuntimeError(f"unexpected projection shape {(source_dims, dims)}, {values.size} floats")
+    if values.size != source_dims * (dims + 1):
+        raise RuntimeError(f"unexpected projection shape, {values.size} floats")
     return (torch.from_numpy(values[:source_dims].copy()),
             torch.from_numpy(values[source_dims:].reshape(dims, source_dims).copy()),
             hashlib.sha256(blob).hexdigest())
@@ -346,7 +342,6 @@ def main(component):
     parser.add_argument("--checkpoint", required=True, type=Path)
     parser.add_argument("--checkpoint-revision", required=True)
     parser.add_argument("--checkpoint-sha256", required=True)
-    parser.add_argument("--starter-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--audio-manifest", type=Path, help="published #180 audio manifest.json; its projection_sha256 must match")
     parser.add_argument("--precision", choices=("int4", "int8"), required=True)
@@ -354,7 +349,7 @@ def main(component):
     if sha256(args.checkpoint) != args.checkpoint_sha256:
         raise RuntimeError("refusing an unverified checkpoint")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    mean, components, projection_sha = frozen_projection(args.starter_dir)
+    mean, components, projection_sha = frozen_projection()
     clap, model = load_model(args.checkpoint)
     encoder, example = make_encoder(component, model, mean, components)
     encoder.eval()
