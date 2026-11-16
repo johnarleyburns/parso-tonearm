@@ -5,29 +5,6 @@ import ParsoAudioStreaming
 import Combine
 import Network
 
-/// The seam a mood-driven queue (docs/plans/mood-based-listening-plan.md
-/// §3.6/§5 step 6) uses to reach back into whatever is actually running the
-/// query, without `QueueSource` (TonearmCore) depending on
-/// `DiscoverySearchViewModel` (TonearmDiscovery) — TonearmDiscovery already
-/// depends ON TonearmCore, so the reverse import isn't available; a
-/// protocol living here, conformed to from the other side, is the fix.
-/// `DiscoverySearchViewModel` conforms to this in `Sources/Discovery/
-/// DiscoverySearchViewModel.swift`.
-@MainActor
-public protocol MoodQuerySource: AnyObject {
-    /// Adds a track (or term) as a positive signal to the live query —
-    /// "Include in current mood" (§3.6) calls this. Must be the additive
-    /// `addMoreLike(_:)` mechanism, never an exclusive-alternate-mode call
-    /// like `moreLikeThis(trackID:)` (§3.6's audit note).
-    func addPositiveTerm(_ term: String)
-    /// Re-runs the current query for queue extension (§3.3/§7) — a fresh
-    /// batch of tracks from the SAME mood query, not a generic similarity
-    /// fallback.
-    func refreshedTracks() async -> [TrackRow]
-    /// Updates the live DJ-matching anchor as a mood queue advances.
-    func setMatchingAnchor(_ trackID: Int64?)
-}
-
 /// A queue source that can supply the next batch on demand. Remote browse
 /// screens use this for ad-hoc queues whose selected track is not persisted in
 /// the library yet (Jamendo is the first one).
@@ -41,11 +18,6 @@ public enum QueueSource {
     case playlist(Playlist)
     case library
     case ambient
-    /// A queue seeded from the Listen tab's mood entry point (docs/plans/
-    /// mood-based-listening-plan.md). Carries a reference back to whatever
-    /// is running the query so "Include in current mood" and queue
-    /// extension can both reach it from anywhere in the app.
-    case mood(any MoodQuerySource)
     case continuation(any QueueContinuationSource)
     case none
 
@@ -55,7 +27,6 @@ public enum QueueSource {
         case .playlist(let p): return String(localized: "From Playlist: \(p.title)", bundle: .module)
         case .library: return String(localized: "From Music", bundle: .module)
         case .ambient: return String(localized: "Ambient", bundle: .module)
-        case .mood: return "A Mood"
         case .continuation: return "Jamendo"
         case .none: return ""
         }
@@ -69,7 +40,6 @@ extension QueueSource: Equatable {
         case (.playlist(let a), .playlist(let b)): return a == b
         case (.library, .library): return true
         case (.ambient, .ambient): return true
-        case (.mood(let a), .mood(let b)): return a === b
         case (.continuation(let a), .continuation(let b)): return a === b
         case (.none, .none): return true
         default: return false

@@ -17,15 +17,6 @@ struct TrackDetailCard: View {
     @EnvironmentObject var player: AudioPlayer
     @Environment(\.dismiss) private var dismiss
 
-    /// "Include in current mood" only shows when a mood queue is actually
-    /// active (`AudioPlayer.shared.queueSource == .mood`) — checked here,
-    /// not assumed by the caller, so this card behaves correctly from
-    /// every site it's presented from (§3.6's audit note).
-    private var moodSource: MoodQuerySource? {
-        if case .mood(let source) = player.queueSource { return source }
-        return nil
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule()
@@ -81,19 +72,6 @@ struct TrackDetailCard: View {
                 }
                 .accessibilityIdentifier("trackDetail.addToQueue")
 
-                if let moodSource {
-                    actionButton("Include in current mood", icon: "sparkles", style: .mood) {
-                        // Additive only — see MoodQuerySource's doc comment
-                        // (Sources/Audio/AudioPlayer+QueueSource.swift) and
-                        // §3.6's audit note: never moreLikeThis(trackID:),
-                        // which would replace the active query instead of
-                        // adding to it.
-                        moodSource.addPositiveTerm(row.track.title)
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("trackDetail.includeInMood")
-                }
-
                 Button("Dismiss") { dismiss() }
                     .font(Typography.callout)
                     .foregroundStyle(Palette.inkTertiary)
@@ -122,15 +100,13 @@ struct TrackDetailCard: View {
         return parts.joined(separator: " · ")
     }
 
-    private enum ActionStyle { case primary, secondary, mood }
+    private enum ActionStyle { case primary, secondary }
 
     private func backgroundStyle(for style: ActionStyle) -> AnyShapeStyle {
         switch style {
         case .primary:
             return AnyShapeStyle(LinearGradient(colors: [Palette.accent, Palette.accent],
                                                 startPoint: .top, endPoint: .bottom))
-        case .mood:
-            return AnyShapeStyle(Palette.accent.opacity(0.12))
         case .secondary:
             return AnyShapeStyle(Palette.ink.opacity(0.07))
         }
@@ -145,12 +121,8 @@ struct TrackDetailCard: View {
             .font(Typography.callout)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .foregroundStyle(style == .primary ? Palette.ink : (style == .mood ? Palette.accent : Palette.ink))
+            .foregroundStyle(Palette.ink)
             .background(backgroundStyle(for: style), in: RoundedRectangle(cornerRadius: 13))
-            .overlay(
-                RoundedRectangle(cornerRadius: 13)
-                    .stroke(style == .mood ? Palette.accent.opacity(0.3) : Color.clear, lineWidth: 1)
-            )
         }
         .buttonStyle(.plain)
     }

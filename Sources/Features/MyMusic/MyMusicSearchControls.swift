@@ -69,9 +69,8 @@ struct MyMusicSearchControls: View {
     var isQueryFocused: Binding<Bool> = .constant(false)
 
     @State private var soundModel: DiscoverySearchViewModel?
-    /// Mirrors the standalone Mood tab's pill selection (`MoodEntryPointSection` in
-    /// ListenView.swift) so Find's own Mood mode behaves identically: pills combine additively
-    /// into `soundModel.positiveRefinements`, never replace it.
+    /// Mood mode's pill selection: pills combine additively into `soundModel.
+    /// positiveRefinements`, never replace it.
     @State private var selectedMoodPillIDs: Set<MoodPill.ID> = []
     @State private var eraVibePills: [MoodPill] = []
     @State private var genres: [String] = []
@@ -185,8 +184,7 @@ struct MyMusicSearchControls: View {
                 soundModel.searchText = text
             }
         }
-        // Same graceful degrade the standalone Mood tab uses (MoodView.isReadyForMatching):
-        // mix-compatible ordering against the currently-playing track is attempted only once
+        // Mix-compatible ordering against the currently-playing track is attempted only once
         // that track's own BPM/camelot analysis has actually finished, never hard-blocked the
         // way Find's explicit "More like this" similar-track mode intentionally still is.
         .onChange(of: player.currentTrack?.id) { _, trackID in
