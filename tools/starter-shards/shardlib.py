@@ -43,12 +43,15 @@ class ShardError(Exception):
 
 def is_stale_failure(stage, error_code, detail):
     """A withdrawn Jamendo ID is an expected historical-catalog exclusion -- whether the API
-    resolver reports it outright (404 / stale source) or the file it hands back turns out to be
-    an implausibly small, unusable placeholder despite audiodownload_allowed=true."""
+    resolver reports it outright (404 / stale source), the file it hands back turns out to be
+    an implausibly small, unusable placeholder despite audiodownload_allowed=true, or every
+    download attempt kept hitting Jamendo's own intermittent internal-error response (confirmed
+    live: an ordinary HTTP 200 carrying Jamendo's small JSON failure envelope, already retried
+    by JamendoTrackDownloader before giving up)."""
     if stage == 'resolve' and ((error_code == 'jamendo_http_error' and detail == 'HTTP 404')
                                or error_code == 'jamendo_stale_source'):
         return True
-    return stage == 'download' and error_code == 'too_small'
+    return stage == 'download' and error_code in ('too_small', 'jamendo_transient_error')
 
 
 def canonical(obj):
