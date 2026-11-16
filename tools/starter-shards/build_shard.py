@@ -18,6 +18,10 @@ JAMENDO_FILE_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/file/'
 JAMENDO_TRACKS_ENDPOINT = 'https://api.jamendo.com/v3.0/tracks/'
 JAMENDO_MIN_REQUEST_INTERVAL_SECONDS = 5.0
 JAMENDO_TRANSIENT_ATTEMPTS = 3
+# Confirmed live against the real endpoint: Jamendo's own JSON error envelope (returned with a
+# misleading HTTP 200, not a 404/500 as its docs claim) is well under 1KB; any real audio file
+# is vastly larger, so this threshold can never mistake genuine content for the error shape.
+JAMENDO_ERROR_ENVELOPE_MAX_BYTES = 4096
 
 
 class TrackFailure(Exception):
@@ -33,6 +37,23 @@ def safe_subprocess_detail(error):
     raw = re.sub(r'/(?:[^\s/]+/){2,}[^\s]*', '[redacted-path]', raw)
     raw = re.sub(r'\s+', ' ', raw).strip()
     return raw[:240] or type(error).__name__
+
+
+def jamendo_failure_envelope(path):
+    """If `path` holds Jamendo's own small `{"headers":{"status":"failed",...}}` JSON error
+    body, return (code, message); otherwise None. A genuinely corrupt/truncated audio stub is
+    not JSON and returns None, so it still falls through to the too_small/stale path below."""
+    try:
+        if os.path.getsize(path) >= JAMENDO_ERROR_ENVELOPE_MAX_BYTES:
+            return None
+        with open(path, 'rb') as f:
+            payload = json.load(f)
+    except (OSError, ValueError):
+        return None
+    headers = payload.get('headers') if isinstance(payload, dict) else None
+    if not isinstance(headers, dict) or headers.get('status') != 'failed':
+        return None
+    return headers.get('code'), headers.get('error_message')
 
 
 class JamendoTrackDownloader:
@@ -66,7 +87,15 @@ class JamendoTrackDownloader:
             try:
                 with self.opener(request, timeout=120) as r, open(dest, 'wb') as out:
                     shutil.copyfileobj(r, out)
-                break
+                envelope = jamendo_failure_envelope(dest)
+                if envelope is None:
+                    break
+                if attempt + 1 == JAMENDO_TRANSIENT_ATTEMPTS:
+                    code, message = envelope
+                    raise TrackFailure('download', 'jamendo_transient_error',
+                                       f'Jamendo error {code}: {message}' if message else f'Jamendo error {code}')
+            except TrackFailure:
+                raise
             except urllib.error.HTTPError as e:
                 if e.code == 404:
                     raise TrackFailure('resolve', 'jamendo_http_error', 'HTTP 404')
