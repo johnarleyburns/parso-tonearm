@@ -99,10 +99,6 @@ targets:
           - "Share/**"
           - "Snapshot/**"
           - "Sync/**"
-          # Dev-only offline CLI tool (BuiltInEmbedder), compiled only via
-          # `swift run` from Package.swift's executableTarget — never part of
-          # the app target (its own top-level @main conflicts with the app's).
-          - "Tools/**"
           # Package-only Objective-C target (TonearmObjCSupport), linked through TonearmCore.
           - "ObjCSupport/**"
           - "WatchPlayback/**"
