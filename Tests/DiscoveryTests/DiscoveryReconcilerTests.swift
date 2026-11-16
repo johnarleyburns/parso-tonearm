@@ -600,7 +600,8 @@ final class DiscoveryReconcilerTests: XCTestCase {
 
         let enqueued = try await reconciler.bootstrapAllTracks()
         XCTAssertEqual(enqueued, 1)
-        XCTAssertNotNil(try await repo.job(trackId: trackID, pipelineVersion: 1))
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
     }
 
     func testJamendoTrackBecomesEligibleOnceDownloaded() async throws {
@@ -613,7 +614,8 @@ final class DiscoveryReconcilerTests: XCTestCase {
 
         let enqueued = try await reconciler.bootstrapAllTracks()
         XCTAssertEqual(enqueued, 1)
-        XCTAssertNotNil(try await repo.job(trackId: trackID, pipelineVersion: 1))
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
     }
 
     func testJamendoTrackBecomesEligibleOnceAddedToAPlaylist() async throws {
@@ -626,7 +628,8 @@ final class DiscoveryReconcilerTests: XCTestCase {
 
         let enqueued = try await reconciler.bootstrapAllTracks()
         XCTAssertEqual(enqueued, 1)
-        XCTAssertNotNil(try await repo.job(trackId: trackID, pipelineVersion: 1))
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
     }
 
     /// A non-Jamendo remote track with the exact same asset-free shape as the skipped Jamendo
@@ -641,6 +644,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
 
         let enqueued = try await reconciler.bootstrapAllTracks()
         XCTAssertEqual(enqueued, 1, "only Jamendo sources are gated by usage signal")
-        XCTAssertNotNil(try await repo.job(trackId: trackID, pipelineVersion: 1))
+        let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
+        XCTAssertNotNil(job)
     }
 }
