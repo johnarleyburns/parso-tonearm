@@ -126,6 +126,26 @@ class MetricsTests(PilotBase):
         leaky['environment']['xcode'] = SECRET
         self.assertIn('metrics contain a stream URL or query string', M.evaluate(leaky, FP)[1])
 
+    def test_stale_download_failures_do_not_violate_the_pilot_gate(self):
+        # Same class of expected historical-catalog exclusion as a withdrawn 404 at resolve time
+        # (shardlib.is_stale_failure) -- a known-dead Jamendo file must not fail the pilot's
+        # zero-tolerance safety gate, which would otherwise falsely block retrying the same batch.
+        stale = M.build_document([M.make_row('1', 1, 'failure', total_seconds=5,
+                                             stage='download', error_code='too_small')], ENV, 1)
+        report, violations = M.evaluate(stale, FP)
+        self.assertEqual(violations, [])
+        self.assertEqual(report['status'], 'pass')
+        self.assertEqual(report['staleFailureCount'], 1)
+        self.assertEqual(report['fatalFailureCount'], 0)
+        # A genuinely fatal failure in the same batch must still violate.
+        mixed = M.build_document([M.make_row('1', 1, 'failure', total_seconds=5,
+                                             stage='download', error_code='too_small'),
+                                  M.make_row('2', 1, 'failure', total_seconds=5,
+                                             stage='analyze', error_code='failed')], ENV, 1)
+        report, violations = M.evaluate(mixed, FP)
+        self.assertIn('1 track attempt(s) failed', violations)
+        self.assertEqual((report['staleFailureCount'], report['fatalFailureCount']), (1, 1))
+
     def test_report_cli(self):
         self.mode = {'2': 'dl'}
         mo = self.run_build()

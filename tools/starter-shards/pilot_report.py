@@ -42,7 +42,10 @@ def main(argv=None):
                  f"- Status: **{report['status']}**",
                  f"- Recommended maximum tracks per runner: **{report['recommendedMaxTracksPerRunner']}**",
                  f"- p50 / p90 total seconds: {report['p50TotalSeconds']} / {report['p90TotalSeconds']}",
-                 f"- Failure rate: {report['failureRate']}", f"- Peak temp disk bytes: {report['peakTempDiskBytes']}",
+                 f"- Failure rate: {report['failureRate']}",
+                 f"- Stale (expected, non-fatal) failures: {report['staleFailureCount']}",
+                 f"- Fatal failures: {report['fatalFailureCount']}",
+                 f"- Peak temp disk bytes: {report['peakTempDiskBytes']}",
                  '', report['note']] + [f'- VIOLATION: {v}' for v in violations]
         open(a.markdown, 'w').write('\n'.join(lines) + '\n')
     if M.contains_url(text):

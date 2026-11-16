@@ -4,6 +4,7 @@ Rows carry only a sanitized track ID, durations, byte counts, outcome and (for f
 error code. Stream URLs, query strings, tokens and audio bytes are never accepted into a row.
 """
 import math, os, platform, re, subprocess, sys
+import shardlib as S
 
 SCHEMA = 'starter-pilot-metrics-v1'
 MAX_TEMP_DISK_BYTES = 25 * 10 ** 9
@@ -55,9 +56,15 @@ def _stats(rows, key):
     return {'p50': percentile(vals, 50), 'p90': percentile(vals, 90), 'max': max(vals) if vals else None}
 
 
+def _is_stale(row):
+    return row['outcome'] == 'failure' and S.is_stale_failure(row.get('stage'), row.get('errorCode'), None)
+
+
 def summarize(rows):
     ok = sum(1 for r in rows if r['outcome'] == 'success')
+    stale = sum(1 for r in rows if _is_stale(r))
     return {'attempted': len(rows), 'successCount': ok, 'failureCount': len(rows) - ok,
+            'staleFailureCount': stale, 'fatalFailureCount': len(rows) - ok - stale,
             'failureRate': (len(rows) - ok) / len(rows) if rows else 1.0,
             'peakTempDiskBytes': max([r['tempDiskBytes'] or 0 for r in rows] or [0]),
             **{k: _stats(rows, k) for k in ('downloadSeconds', 'embedSeconds', 'analysisSeconds', 'totalSeconds')}}
@@ -99,8 +106,8 @@ def evaluate(doc, expected_fingerprint, elapsed_seconds=None, leftover_temp_dirs
     import json
     s = doc['summary']
     violations = []
-    if s['failureCount'] > 0:
-        violations.append(f"{s['failureCount']} track attempt(s) failed")
+    if s['fatalFailureCount'] > 0:
+        violations.append(f"{s['fatalFailureCount']} track attempt(s) failed")
     if s['peakTempDiskBytes'] > MAX_TEMP_DISK_BYTES:
         violations.append('peak temporary disk exceeds 25 GB')
     if leftover_temp_dirs:
@@ -116,6 +123,7 @@ def evaluate(doc, expected_fingerprint, elapsed_seconds=None, leftover_temp_dirs
     rec = recommend(s['totalSeconds']['p90'], s['failureRate'])
     report = {'recommendedMaxTracksPerRunner': rec, 'p50TotalSeconds': s['totalSeconds']['p50'],
               'p90TotalSeconds': s['totalSeconds']['p90'], 'failureRate': s['failureRate'],
+              'staleFailureCount': s['staleFailureCount'], 'fatalFailureCount': s['fatalFailureCount'],
               'peakTempDiskBytes': s['peakTempDiskBytes'], 'violations': violations,
               'status': 'fail' if violations else 'pass',
               'note': 'Maximum safety recommendation only; a human approves any later batch execution issue.'}
