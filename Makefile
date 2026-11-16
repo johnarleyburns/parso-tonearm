@@ -1,4 +1,4 @@
-.PHONY: tonearm-production-regression ci-guards models starter project test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: tonearm-production-regression ci-guards models project test-local test-swift test-ui test-integration test-ui-regression
 
 # Hermetic production-flow + visual regression harness (issue #80). Mandatory evidence for issue
 # work; a generic `swift test` pass does not substitute for it. See CLAUDE.md.
@@ -17,11 +17,6 @@ ci-guards:
 # replaces it).
 models:
 	scripts/fetch-models.sh
-
-# Fetch the Mood Starter databases pinned in Config/starter.lock into Resources/Starter/
-# (StarterLibrary). Build them with `swift run -c release BuiltInAnalyzer build-starter …`.
-starter:
-	scripts/fetch-starter.sh
 
 # Regenerate Tonearm.xcodeproj. USE THIS RATHER THAN BARE `xcodegen generate`:
 # it first writes Config/models-bundled.yml / models-odr.yml from which converted model packages are

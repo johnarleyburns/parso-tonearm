@@ -44,10 +44,6 @@ fi
 bash scripts/check-ci-guards.sh
 endstep
 
-step "Mood starter data"
-make starter
-endstep
-
 step "Production regression harness"
 bash scripts/run-production-regression.sh
 endstep
