@@ -30,11 +30,12 @@ final class MyMusicSearchControlsContractTests: XCTestCase {
     }
 
     /// Find's Mood mode must work like the standalone Mood tab: pill selection, not free text
-    /// alone, and never empty on first entry.
+    /// alone, and never empty on first entry. Mood and genre pills render as one merged,
+    /// alphabetically-sorted, ucfirst-capitalized row (not two separate pickers).
     func testSoundModeShowsMoodAndGenrePills() throws {
         let s = try source()
-        XCTAssertTrue(s.contains("MoodPillPicker(pills: allMoodPills"))
-        XCTAssertTrue(s.contains("MoodPillPicker(pills: genrePills"))
+        XCTAssertTrue(s.contains("MoodPillPicker(pills: combinedMoodPills"))
+        XCTAssertTrue(s.contains("(allMoodPills + genrePills)"))
     }
 
     func testSoundModeDefaultsToCalmWhenNothingSelectedYet() throws {
