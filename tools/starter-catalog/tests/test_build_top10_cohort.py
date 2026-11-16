@@ -1,4 +1,6 @@
-import json, os, random, re, subprocess, sys, tempfile, unittest
+import io, json, os, random, re, subprocess, sys, tempfile, unittest
+from unittest import mock
+import urllib.error, urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.dirname(HERE)
 sys.path.insert(0, TOOL)
@@ -125,6 +127,112 @@ class CohortTests(unittest.TestCase):
         self.assertEqual(actual, expected)
         self.assertEqual(len(actual['nodes']), 155)
         self.assertTrue(all(len(node['sourceFilter']['tags']) == 1 for node in actual['nodes']))
+
+
+def _fake_rows(n, start=0):
+    return [{'id': str(start + i)} for i in range(n)]
+
+
+class _FakeURLOpen:
+    """Stands in for urllib.request.urlopen: `responses` is a list where each item is either a
+    dict (JSON body to return) or an Exception instance to raise. Records every requested URL's
+    offset/limit so pagination can be asserted on."""
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+
+    def __call__(self, url, timeout=60):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        self.calls.append({'offset': int(query.get('offset', ['0'])[0]),
+                           'limit': int(query['limit'][0])})
+        if not self._responses:
+            raise AssertionError('fetch_live made more HTTP requests than the test expected')
+        item = self._responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return io.BytesIO(json.dumps(item).encode())
+
+
+NODE = {'id': 'genre:test', 'kind': 'genre', 'sourceFilter': {'tags': ['test']}}
+
+
+class FetchLivePaginationTests(unittest.TestCase):
+    """fetch_live's job: assemble up to `limit` candidates despite Jamendo's hard 200-per-request
+    page ceiling, pacing/retrying each individual page request — never silently capped at 200."""
+
+    def test_single_page_when_limit_fits_within_the_jamendo_ceiling(self):
+        fake = _FakeURLOpen([{'results': _fake_rows(150)}])
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            rows = B.fetch_live(NODE, 'cid', limit=150)
+        self.assertEqual(len(rows), 150)
+        self.assertEqual(fake.calls, [{'offset': 0, 'limit': 150}])
+
+    def test_paginates_beyond_the_200_per_request_ceiling(self):
+        fake = _FakeURLOpen([
+            {'results': _fake_rows(200, start=0)},
+            {'results': _fake_rows(200, start=200)},
+            {'results': _fake_rows(50, start=400)},
+        ])
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            rows = B.fetch_live(NODE, 'cid', limit=450)
+        self.assertEqual(len(rows), 450)
+        self.assertEqual([r['id'] for r in rows], [str(i) for i in range(450)])
+        self.assertEqual(fake.calls, [{'offset': 0, 'limit': 200}, {'offset': 200, 'limit': 200},
+                                      {'offset': 400, 'limit': 50}])
+
+    def test_stops_as_soon_as_a_page_comes_back_short_of_what_was_requested(self):
+        fake = _FakeURLOpen([{'results': _fake_rows(150)}])  # short of the 200 requested
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            rows = B.fetch_live(NODE, 'cid', limit=1000)
+        self.assertEqual(len(rows), 150, 'a short page means Jamendo has nothing further for this node')
+        self.assertEqual(len(fake.calls), 1, 'must not keep paginating once a page is short')
+
+    def test_retries_a_transient_network_error_on_any_page_not_just_the_first(self):
+        fake = _FakeURLOpen([
+            {'results': _fake_rows(200, start=0)},
+            urllib.error.URLError('temporary blip'),
+            {'results': _fake_rows(50, start=200)},
+        ])
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            with mock.patch.object(B.time, 'sleep'):
+                rows = B.fetch_live(NODE, 'cid', limit=250)
+        self.assertEqual(len(rows), 250)
+        self.assertEqual(len(fake.calls), 3, 'the failed second page must be retried, not abandoned')
+
+    def test_retries_an_empty_first_page_flake(self):
+        fake = _FakeURLOpen([{'results': []}, {'results': _fake_rows(10)}])
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            with mock.patch.object(B.time, 'sleep'):
+                rows = B.fetch_live(NODE, 'cid', limit=10)
+        self.assertEqual(len(rows), 10)
+        self.assertEqual(len(fake.calls), 2)
+
+    def test_trusts_a_genuinely_empty_later_page_without_retrying(self):
+        # Offset > 0 coming back empty is the normal, expected "no more results" signal, not a
+        # flake worth retrying the way an empty FIRST page is.
+        fake = _FakeURLOpen([{'results': _fake_rows(200)}, {'results': []}])
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            rows = B.fetch_live(NODE, 'cid', limit=1000)
+        self.assertEqual(len(rows), 200)
+        self.assertEqual(len(fake.calls), 2)
+
+    def test_gives_up_after_exhausting_retries_on_a_persistently_failing_page(self):
+        fake = _FakeURLOpen([urllib.error.URLError('down')] * 5)
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            with mock.patch.object(B.time, 'sleep'):
+                with self.assertRaises(B.CohortError):
+                    B.fetch_live(NODE, 'cid', limit=200)
+
+    def test_still_paces_every_individual_page_request(self):
+        last_request_at = [0.0]
+        fake = _FakeURLOpen([{'results': _fake_rows(200)}, {'results': _fake_rows(10, start=200)}])
+        sleeps = []
+        with mock.patch.object(B.urllib.request, 'urlopen', fake):
+            with mock.patch.object(B.time, 'sleep', side_effect=sleeps.append):
+                with mock.patch.object(B.time, 'monotonic', return_value=0.0):
+                    B.fetch_live(NODE, 'cid', limit=210, last_request_at=last_request_at)
+        # Second page's request must wait for the pacing interval, same as every live request does.
+        self.assertTrue(any(s > 0 for s in sleeps), 'the second page must still respect the pacing interval')
 
 
 if __name__ == '__main__':

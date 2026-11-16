@@ -19,6 +19,17 @@ BATCH_SIZE, EXECUTION_BATCHES = 100, 4
 # Live catalog freezing is a one-off curation task, so deliberately pace API
 # calls instead of bursting the full taxonomy at Jamendo.
 MIN_REQUEST_INTERVAL_SECONDS = 5.0
+# Jamendo's hard per-request page ceiling (confirmed independently by the live Swift client,
+# JamendoGenreProvider.swift's own maxPageLimit) — a single request can never return more than
+# this many rows regardless of what `limit` is requested, so a candidate pool larger than this
+# needs multiple paginated requests, concatenated, before ranking/filtering ever runs.
+JAMENDO_PAGE_LIMIT = 200
+# `refresh`'s own retry budget (AudioLocator.swift) for the same class of problem: a momentary
+# timeout/DNS blip/5xx/empty-page flake on one HTTP round trip must not fail the whole harvest
+# for that node. Short, fixed backoff — this is a one-off curation task, not a user-facing
+# streaming path, so there's no need for the exponential backoff used there.
+MAX_PAGE_ATTEMPTS = 3
+PAGE_RETRY_BACKOFF_SECONDS = 0.4
 REASONS = ('not_downloadable', 'missing_metadata', 'invalid_duration', 'filter_mismatch')
 
 
@@ -121,26 +132,59 @@ def select_for_node(node, rows, top):
     return good[:top], len(good), excluded
 
 
+def fetch_page(node, client_id, offset, page_limit, last_request_at=None):
+    """One paginated HTTP round trip (<= JAMENDO_PAGE_LIMIT rows), paced and retried. A network/
+    parse failure, or an empty result at offset 0 (the documented live Jamendo empty-first-page
+    flake), gets up to MAX_PAGE_ATTEMPTS tries with a short fixed backoff before giving up. An
+    empty result at a later offset is trusted immediately — that's the normal "no more results
+    for this node" signal, not a flake."""
+    last_error = None
+    for attempt in range(MAX_PAGE_ATTEMPTS):
+        if last_request_at is not None:
+            wait = MIN_REQUEST_INTERVAL_SECONDS - (time.monotonic() - last_request_at[0])
+            if wait > 0:
+                time.sleep(wait)
+        params = {'client_id': client_id, 'format': 'json', 'limit': page_limit, 'offset': offset,
+                  'audiodownload_allowed': 'true', 'order': 'popularity_total_desc',
+                  'tags': '+'.join(node['sourceFilter']['tags']), 'include': 'musicinfo+licenses+stats'}
+        url = API_ENDPOINT + '?' + urllib.parse.urlencode(params, safe='+')
+        try:
+            with urllib.request.urlopen(url, timeout=60) as r:
+                body = json.load(r)
+            results = body.get('results') if isinstance(body, dict) else None
+        except (urllib.error.URLError, ValueError, OSError) as e:
+            results = None
+            last_error = type(e).__name__
+        finally:
+            if last_request_at is not None:
+                last_request_at[0] = time.monotonic()
+        if isinstance(results, list):
+            if results or offset > 0 or attempt + 1 >= MAX_PAGE_ATTEMPTS:
+                return results
+            last_error = 'empty results at offset 0'
+        elif last_error is None:
+            last_error = 'no results list'
+        if attempt + 1 < MAX_PAGE_ATTEMPTS:
+            time.sleep(PAGE_RETRY_BACKOFF_SECONDS)
+    raise CohortError(f'Jamendo request for {node["id"]} offset={offset} failed after '
+                      f'{MAX_PAGE_ATTEMPTS} attempts: {last_error}')
+
+
 def fetch_live(node, client_id, limit, last_request_at=None):
-    if last_request_at is not None:
-        wait = MIN_REQUEST_INTERVAL_SECONDS - (time.monotonic() - last_request_at[0])
-        if wait > 0:
-            time.sleep(wait)
-    params = {'client_id': client_id, 'format': 'json', 'limit': limit, 'audiodownload_allowed': 'true',
-              'order': 'popularity_total_desc', 'tags': '+'.join(node['sourceFilter']['tags']),
-              'include': 'musicinfo+licenses+stats'}
-    url = API_ENDPOINT + '?' + urllib.parse.urlencode(params, safe='+')
-    try:
-        with urllib.request.urlopen(url, timeout=60) as r:
-            body = json.load(r)
-    except (urllib.error.URLError, ValueError, OSError) as e:
-        raise CohortError(f'Jamendo request failed for {node["id"]}: {type(e).__name__}')
-    results = body.get('results') if isinstance(body, dict) else None
-    if not isinstance(results, list):
-        raise CohortError(f'Jamendo response for {node["id"]} had no results list')
-    if last_request_at is not None:
-        last_request_at[0] = time.monotonic()
-    return results
+    """Assembles up to `limit` ranked candidates for `node`, paginating across as many
+    JAMENDO_PAGE_LIMIT-sized requests as needed — a single Jamendo request can never return more
+    than that ceiling regardless of what `limit` asks for. Stops as soon as a page comes back
+    shorter than requested (Jamendo has nothing further for this node)."""
+    collected = []
+    offset = 0
+    while len(collected) < limit:
+        page_limit = min(JAMENDO_PAGE_LIMIT, limit - len(collected))
+        page = fetch_page(node, client_id, offset, page_limit, last_request_at)
+        collected.extend(page)
+        if len(page) < page_limit:
+            break
+        offset += page_limit
+    return collected[:limit]
 
 
 def load_taxonomy(path):
