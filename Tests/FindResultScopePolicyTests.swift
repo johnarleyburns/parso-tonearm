@@ -40,15 +40,39 @@ final class FindResultScopePolicyTests: XCTestCase {
         XCTAssertTrue(s.contains("accessibilityValue(selected ? \"selected\" : \"not selected\")"))
     }
 
-    /// Mood search results are always flat songs — pills select a mood, not a result shape.
-    /// Grouping a single mood's picks into albums/artists/genres would scatter them across
-    /// unrelated groups, the same problem the standalone Mood tab never had (it never routes
-    /// through `LibraryBrowse` grouping at all).
-    func testMoodModeHidesTheScopePickerAndForcesSongs() throws {
+    /// Mood and BPM/Key search results are always flat songs — their own controls select a
+    /// mood/BPM/key, not a result shape. Grouping either into albums/artists/genres would
+    /// scatter them across unrelated groups, the same problem the standalone Mood tab never had
+    /// (it never routes through `LibraryBrowse` grouping at all).
+    func testMoodAndMixModeHideTheScopePickerAndForceSongs() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
-        XCTAssertTrue(s.contains("if mode != .sound {"))
-        XCTAssertTrue(s.contains("if newMode == .sound { browseMode = .songs }"))
+        XCTAssertTrue(s.contains("if mode == .all {"))
+        XCTAssertTrue(s.contains("if newMode == .sound || newMode == .mix { browseMode = .songs }"))
+    }
+
+    /// Genres isn't a useful Find result type; My Music's own Genres browsing is untouched.
+    func testFindExcludesGenresFromItsResultTypeOptions() throws {
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
+                           encoding: .utf8)
+        XCTAssertTrue(s.contains("LibraryBrowseMode.allCases.filter { $0 != .genres }"))
+        XCTAssertTrue(s.contains("ForEach(findScopeOptions)"),
+                     "findScopePicker must iterate the filtered options, not allCases directly")
+    }
+
+    /// The old inline Name/Mood/BPM-Key row is gone, replaced by a glass menu in the nav bar.
+    func testModeSelectionMovedToAToolbarGlassMenu() throws {
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let find = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
+                              encoding: .utf8)
+        XCTAssertTrue(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { modeMenu } }"))
+        XCTAssertTrue(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
+        let controls = try String(
+            contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
+            encoding: .utf8)
+        XCTAssertFalse(controls.contains("modeSelector"),
+                       "the inline mode row must be fully removed, not just unused")
     }
 }

@@ -54,6 +54,18 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
                        "space to the reserved results area below")
     }
 
+    /// Mood mode used to render two separate pill rows (taxonomy/era-vibe pills, then genre
+    /// pills); they're now one merged, alphabetically-sorted, consistently-capitalized row.
+    func testMoodPillsAreOneMergedUcfirstSortedRow() throws {
+        let s = try source("Sources/Features/MyMusic/MyMusicSearchControls.swift")
+        XCTAssertTrue(s.contains("combinedMoodPills"))
+        XCTAssertTrue(s.contains("combinedPillSelectionBinding"))
+        XCTAssertFalse(s.contains("if !genrePills.isEmpty"),
+                       "genre pills must no longer render as a separate, conditional row")
+        XCTAssertEqual(s.components(separatedBy: "MoodPillPicker(pills:").count - 1, 1,
+                       "exactly one MoodPillPicker call left in Mood mode")
+    }
+
     /// "Directly play all my Find results into the queue" — Find opts into LibraryView's
     /// Play All action (My Music's own use of LibraryView stays opt-out/default, unaffected).
     func testFindOptsIntoPlayAllAndLibraryViewImplementsItByReplacingTheQueue() throws {

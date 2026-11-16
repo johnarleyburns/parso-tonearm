@@ -18,12 +18,6 @@ enum MyMusicSearchMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Host-testable layout decision for the Find mode selector.
-enum FindModeSelectorLayoutPolicy {
-    /// Accessibility text sizes never attempt a single row; all modes are stacked.
-    static func alwaysStacked(isAccessibilitySize: Bool) -> Bool { isAccessibilitySize }
-}
-
 enum MixBPMPreset: String, CaseIterable, Identifiable {
     case ambient = "Ambient"
     case hipHop = "Hip-hop"
@@ -85,29 +79,44 @@ struct MyMusicSearchControls: View {
         genres.map { MoodPill(id: $0, label: JamendoGenreTree.humanizedGenre($0), queryTerm: $0) }
     }
 
-    private func moodPillSelectionBinding(_ model: DiscoverySearchViewModel) -> Binding<Set<MoodPill.ID>> {
-        Binding(
-            get: { selectedMoodPillIDs },
-            set: { newSelection in
-                let pills = allMoodPills
-                for id in newSelection.subtracting(selectedMoodPillIDs) {
-                    if let pill = pills.first(where: { $0.id == id }) { model.addMoreLike(pill.queryTerm) }
-                }
-                for id in selectedMoodPillIDs.subtracting(newSelection) {
-                    if let pill = pills.first(where: { $0.id == id }) { model.removeMoreLike(pill.queryTerm) }
-                }
-                selectedMoodPillIDs = newSelection
-            })
+    /// "calm" / "Calm" / "CALM" all become "Calm" — the merged row combines two differently-cased
+    /// label sources (taxonomy/era-vibe pills and humanized genre tags), so every label is
+    /// normalized the same way rather than showing whatever casing each source happened to use.
+    private func ucfirst(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return first.uppercased() + s.dropFirst().lowercased()
     }
 
-    private func genreSelectionBinding(_ model: DiscoverySearchViewModel) -> Binding<Set<MoodPill.ID>> {
-        Binding(get: { model.genres }, set: { model.genres = $0 })
+    /// Mood and genre pills in one alphabetical, consistently-capitalized row. Each pill keeps
+    /// its original `id`/`queryTerm` so selection can still be routed to the right underlying
+    /// mechanism (`combinedPillSelectionBinding`) — only the display label and ordering merge.
+    private var combinedMoodPills: [MoodPill] {
+        (allMoodPills + genrePills)
+            .map { MoodPill(id: $0.id, label: ucfirst($0.label), queryTerm: $0.queryTerm) }
+            .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+    }
+
+    private func combinedPillSelectionBinding(_ model: DiscoverySearchViewModel) -> Binding<Set<MoodPill.ID>> {
+        let moodIDs = Set(allMoodPills.map(\.id))
+        return Binding(
+            get: { selectedMoodPillIDs.union(model.genres) },
+            set: { newSelection in
+                let newMood = newSelection.intersection(moodIDs)
+                let pills = allMoodPills
+                for id in newMood.subtracting(selectedMoodPillIDs) {
+                    if let pill = pills.first(where: { $0.id == id }) { model.addMoreLike(pill.queryTerm) }
+                }
+                for id in selectedMoodPillIDs.subtracting(newMood) {
+                    if let pill = pills.first(where: { $0.id == id }) { model.removeMoreLike(pill.queryTerm) }
+                }
+                selectedMoodPillIDs = newMood
+                model.genres = newSelection.subtracting(moodIDs)
+            })
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if mode != .mix { allSearchField }
-            modeSelector
 
             switch mode {
             case .all:
@@ -116,12 +125,8 @@ struct MyMusicSearchControls: View {
                 mixControls
             case .sound:
                 if let soundModel {
-                    MoodPillPicker(pills: allMoodPills, selection: moodPillSelectionBinding(soundModel),
+                    MoodPillPicker(pills: combinedMoodPills, selection: combinedPillSelectionBinding(soundModel),
                                   kind: "find.mood")
-                    if !genrePills.isEmpty {
-                        MoodPillPicker(pills: genrePills, selection: genreSelectionBinding(soundModel),
-                                      kind: "find.genre")
-                    }
                     MyMusicSoundQuery(model: soundModel, onRows: onSoundRows)
                 } else {
                     ProgressView("Preparing sound search…")
@@ -205,46 +210,6 @@ struct MyMusicSearchControls: View {
     private func isReadyForMatching(_ trackID: Int64?) -> Bool {
         guard let trackID, let info = appState.musicalInfo[trackID] else { return false }
         return info.bpm != nil && info.camelotKey != nil
-    }
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private func modeButton(_ option: MyMusicSearchMode) -> some View {
-        Button { mode = option } label: {
-            Text(option.rawValue)
-                .font(Typography.callout)
-                .foregroundStyle(mode == option ? Palette.accentOnFill : Palette.inkSecondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(.horizontal, 16).padding(.vertical, 8)
-                .frame(minHeight: 44)
-                .background(mode == option ? Palette.accent : Palette.ink.opacity(0.07), in: Capsule())
-                .contentShape(Capsule())
-        }.buttonStyle(.plain)
-            .accessibilityAddTraits(mode == option ? .isSelected : [])
-            .accessibilityIdentifier(option.identifier)
-    }
-
-    /// Single row when it fits; otherwise stacked, so every mode stays visible and tappable.
-    private var modeSelector: some View {
-        Group {
-            if FindModeSelectorLayoutPolicy.alwaysStacked(isAccessibilitySize: dynamicTypeSize.isAccessibilitySize) {
-                stackedModes
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { ForEach(MyMusicSearchMode.allCases) { modeButton($0) } }
-                    stackedModes
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("mymusic.search.mode")
-    }
-
-    private var stackedModes: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(MyMusicSearchMode.allCases) { modeButton($0) }
-        }
     }
 
     @ViewBuilder
