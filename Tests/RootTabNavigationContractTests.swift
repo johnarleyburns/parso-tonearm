@@ -24,12 +24,11 @@ final class RootTabNavigationContractTests: XCTestCase {
         XCTAssertFalse(beforeTabView.contains("NavigationStack {"))
     }
 
-    func testListenAndMoodAreHostedByLocalStacks() throws {
+    func testListenIsHostedByALocalStack() throws {
         let root = try source("Sources/Features/RootView.swift")
-        XCTAssertEqual(count("NavigationStack {", in: root), 2)
+        XCTAssertEqual(count("NavigationStack {", in: root), 1)
         let squashed = root.components(separatedBy: .whitespacesAndNewlines).joined()
         XCTAssertTrue(squashed.contains("NavigationStack{ListenView().rootTabChrome(.listen)}"))
-        XCTAssertTrue(squashed.contains("NavigationStack{MoodView().rootTabChrome(.mood)}"))
         XCTAssertFalse(root.contains("NavigationStack {\n                MyMusicView"))
     }
 
@@ -47,7 +46,7 @@ final class RootTabNavigationContractTests: XCTestCase {
         let listen = try source("Sources/Features/Listen/ListenView.swift")
         let myMusic = try source("Sources/Features/MyMusic/MyMusicView.swift")
         let find = try source("Sources/Features/Find/FindView.swift")
-        for (text, title) in [(listen, "Listen"), (listen, "Mood"), (myMusic, "My Music"), (find, "Find")] {
+        for (text, title) in [(listen, "Listen"), (myMusic, "My Music"), (find, "Find")] {
             let squashed = text.components(separatedBy: .whitespacesAndNewlines).joined()
             let key = ".navigationTitle(\"\(title)\").largeNavigationTitle()".replacingOccurrences(of: " ", with: "")
             XCTAssertTrue(squashed.contains(key), "\(title) needs navigationTitle + large display mode")
@@ -90,14 +89,14 @@ final class RootTabNavigationContractTests: XCTestCase {
         XCTAssertTrue(chrome.contains("appState.showNowPlaying && appState.tab == tab"))
         XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom"))
         let root = try source("Sources/Features/RootView.swift")
-        XCTAssertEqual(count(".rootTabChrome(", in: root), 2)
+        XCTAssertEqual(count(".rootTabChrome(", in: root), 1)
         XCTAssertTrue(root.contains("rootTabNowPlayingNamespace, nowPlayingTransition"))
     }
 
     func testRootContentUsesSixteenPointGutter() throws {
         let listen = try source("Sources/Features/Listen/ListenView.swift")
         XCTAssertEqual(count(".padding(.horizontal, 18)", in: listen), 0)
-        XCTAssertGreaterThanOrEqual(count(".padding(.horizontal, 16)", in: listen), 2)
+        XCTAssertGreaterThanOrEqual(count(".padding(.horizontal, 16)", in: listen), 1)
         XCTAssertFalse(try source("Sources/Features/MyMusic/MyMusicView.swift").contains(".padding(.horizontal, 18)"))
         XCTAssertFalse(try source("Sources/Features/Find/FindView.swift").contains(".padding(.horizontal, 18)"))
     }

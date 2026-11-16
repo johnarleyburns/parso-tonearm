@@ -178,27 +178,6 @@ extension AudioPlayer {
             }
         }
 
-        // A mood-seeded queue (docs/plans/mood-based-listening-plan.md §3.3/
-        // §7) extends by re-running the SAME mood query, not the generic
-        // last-played-track similarity `keepPlayingProvider` below — that
-        // provider has no idea a mood query (prompt + pills) is even active.
-        if case .mood(let source) = queueSource {
-            source.setMatchingAnchor(keepPlayingHistory.last)
-            let rows = await source.refreshedTracks()
-            guard !Task.isCancelled else { return }
-            let candidates = rows.filter { row in
-                guard let id = row.track.id else { return false }
-                return !excluded.contains(id)
-            }
-            guard !candidates.isEmpty else {
-                await extendWithFallback(reason: .unavailable, excluding: excluded)
-                return
-            }
-            finishKeepPlayingExtension(
-                with: Array(candidates.prefix(keepPlayingHorizonBudget)), isFallback: false, reason: nil)
-            return
-        }
-
         if case .continuation(let source) = queueSource {
             let rows = await source.nextTracks(excluding: excluded, limit: keepPlayingHorizonBudget)
             guard !Task.isCancelled else { return }
@@ -326,11 +305,7 @@ extension AudioPlayer {
             // every played and queued track.
             _ = playlist
             return (try? await LibraryStore.shared.allTrackRows()) ?? []
-        case .library, .none, .mood, .continuation:
-            // A mood queue's own extension is handled entirely above
-            // (re-running the mood query) — this generic fallback pool is
-            // only reached if that already failed, so the honest fallback
-            // is the same "shuffle from everything" as .library/.none.
+        case .library, .none, .continuation:
             return (try? await LibraryStore.shared.allTrackRows()) ?? []
         case .ambient:
             return []
