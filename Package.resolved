@@ -1,5 +1,5 @@
 {
-  "originHash" : "6a38168790ed860c9c61a00704b407330ebc35d52a9eef237b6100cf38f7932c",
+  "originHash" : "4713dbcd64bf1d5057736961452c2e3d47de5c1c985f1306b101a8940bb757c7",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/johnarleyburns/parso-audio-engine.git",
       "state" : {
-        "revision" : "8a65c531e386b3e9a2abd018fb9e8c71c56fd2ca",
-        "version" : "1.6.0"
+        "revision" : "4ba172c8319a4533306c715d96046dd7eb130925",
+        "version" : "1.6.1"
       }
     }
   ],
