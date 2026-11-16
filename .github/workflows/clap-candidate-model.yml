@@ -74,8 +74,6 @@ jobs:
           if git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Tag $RELEASE_TAG already exists; refusing to reuse it." >&2; exit 1
           fi
-      - name: Fetch pinned starter database (frozen 512-to-128 projection)
-        run: make starter
       - name: Prepare isolated working directory
         run: |
           set -euo pipefail
@@ -114,7 +112,6 @@ jobs:
             --checkpoint-revision "$CLAP_REVISION" \
             --checkpoint-sha256 "$CLAP_SHA256" \
             --precision "$PRECISION" \
-            --starter-dir Resources/Starter \
             --output-dir "$WORK/out"
       - name: Validate package manifest and checksums
         env:
