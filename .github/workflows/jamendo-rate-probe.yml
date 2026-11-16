@@ -1,0 +1,37 @@
+name: Jamendo rate probe (diagnostic, throwaway)
+
+# One-off investigation, not a supported pipeline: probes the real Jamendo file-download
+# endpoint at several inter-request delays to find the real-world rate limit that caused the
+# Phase 0 timing pilot's too_small failures. Never publishes, releases, or writes to the repo.
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: jamendo-rate-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        env:
+          JAMENDO_CLIENT_ID: ${{ secrets.TONEARM_JAMENDO_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          [ -n "$JAMENDO_CLIENT_ID" ] || { echo "Jamendo runner credential is not configured"; exit 1; }
+          python3 -I tools/starter-shards/diagnostics/jamendo_rate_probe.py \
+            --track-ids-file tools/starter-shards/diagnostics/rate-probe-ids.json \
+            --out "$RUNNER_TEMP/probe.json"
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: jamendo-rate-probe
+          path: ${{ runner.temp }}/probe.json
+          retention-days: 3
