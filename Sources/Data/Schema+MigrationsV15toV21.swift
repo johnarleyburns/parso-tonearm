@@ -626,5 +626,16 @@ extension Schema {
                 try RemoteTrackConsolidator.run(db: db)
             }
         }
+
+        if shouldRegister("v51", upTo: target) {
+            migrator.registerMigration("v51") { db in
+                // The bundled Jamendo starter pack (StarterLibrary/mergeStarterLibrary, and
+                // everything that wrote to it) is removed entirely -- on-device indexing of the
+                // user's own library is the sole source going forward. starter_identity (v47)
+                // was this mechanism's own match key (provider+providerTrackID), with no other
+                // reader or writer anywhere in the codebase.
+                try db.execute(sql: "DROP TABLE starter_identity")
+            }
+        }
     }
 }

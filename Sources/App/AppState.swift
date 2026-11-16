@@ -118,11 +118,6 @@ final class AppState: ObservableObject {
     /// short of re-tagging the file outside the app).
     @Published var metadataEditTrackRow: TrackRow?
     @Published var offlineProgress: OfflineProgress?
-    /// Adding the bundled Mood Starter tracks to the library (first launch, or a larger starter
-    /// in an update), shown with Pause/Resume in Settings → Library & Storage.
-    @Published var starterMerge: StarterMergeProgress?
-    /// Pause requested from Settings; checked between chunks.
-    var starterMergePaused = false
     @Published var offlineSourceID: Int64?
     @Published var backgroundTitle: String?
     @Published var backgroundDone = false
@@ -198,7 +193,6 @@ final class AppState: ObservableObject {
         // they're queued for indexing on the very first pass rather than
         // waiting for a later one.
         await seedBuiltInLibraryContentIfNeeded()
-        await seedBuiltInMoodIndexIfNeeded()
         await ArtworkService.shared.migrateCacheIfNeeded()
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()
