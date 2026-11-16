@@ -50,10 +50,11 @@ struct FindView: View {
                                                   soundSearchRevision &+= 1
                                               },
                                               isQueryFocused: $queryFocused)
-                        // Mood results are always flat songs (the mood pills above replace this
-                        // picker entirely) — grouping a single mood's picks into albums/artists/
-                        // genres would scatter them across unrelated groups.
-                        if mode != .sound {
+                        // Mood and BPM/Key results are always flat songs (their own controls
+                        // above replace this picker entirely) — grouping a single mood's picks,
+                        // or a BPM/Key filter, into albums/artists would scatter them across
+                        // unrelated groups. Only Name search has a meaningful type to pick.
+                        if mode == .all {
                             findScopePicker
                         }
                     }
@@ -84,6 +85,7 @@ struct FindView: View {
             .largeNavigationTitle()
             .hiddenNavigationBar(when: queryFocused && mode != .mix)
             .rootTabChrome(.find)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { modeMenu } }
         }
         .onChange(of: queryFocused) { _, focused in
             appState.findQueryFocused = focused
@@ -92,7 +94,7 @@ struct FindView: View {
             if tab != .find { queryFocused = false }
         }
         .onChange(of: mode) { _, newMode in
-            if newMode == .sound { browseMode = .songs }
+            if newMode == .sound || newMode == .mix { browseMode = .songs }
         }
         .onChange(of: appState.showNowPlaying) { _, showing in
             if showing { queryFocused = false }
@@ -107,10 +109,43 @@ struct FindView: View {
         }
     }
 
+    /// Replaces the old inline Name/Mood/BPM-Key row — a compact glass menu in the nav bar
+    /// instead of a row competing with the search field/pills/BPM-Key chips for vertical space.
+    private var modeMenu: some View {
+        Menu {
+            ForEach(MyMusicSearchMode.allCases) { option in
+                Button {
+                    mode = option
+                } label: {
+                    if mode == option {
+                        Label(option.rawValue, systemImage: "checkmark")
+                    } else {
+                        Text(option.rawValue)
+                    }
+                }
+                .accessibilityIdentifier(option.identifier)
+            }
+        } label: {
+            Text(mode.rawValue)
+                .font(Typography.callout)
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+        }
+        .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
+        .accessibilityIdentifier("find.mode.menu")
+    }
+
+    /// Genres excluded — not useful as a Find result type (My Music's own Genres browsing,
+    /// `LibraryBrowseMode.genres`, is unaffected; this filters only this picker's options).
+    private var findScopeOptions: [LibraryBrowseMode] {
+        LibraryBrowseMode.allCases.filter { $0 != .genres }
+    }
+
     private var findScopePicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(LibraryBrowseMode.allCases) { candidate in
+                ForEach(findScopeOptions) { candidate in
                     let selected = candidate == browseMode
                     Button { browseMode = candidate } label: {
                         Text(candidate.title)
