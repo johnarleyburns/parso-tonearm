@@ -15,7 +15,7 @@ log_file="${RUNNER_TEMP:-/tmp}/testflight-transport.log"
 attempts=3
 
 is_transient_transport_failure() {
-  grep -Eiq 'Defaults\.properties|transporter.*(timed out|connection|network)|NSURLErrorDomain.*-(1001|1005|1009)|network connection was lost|could not resolve host|SSL.*(timeout|connection)' "$log_file"
+  grep -Eiq 'Defaults\.properties|transporter.*(timed out|connection|network)|NSURLErrorDomain.*-(1001|1005|1009)|network connection was lost|could not resolve host|SSL.*(timeout|connection)|ITunesConnectFoundationErrorDomain.*Code=-1001|lookupGenericSettingsForSubmission|request timed out' "$log_file"
 }
 
 for attempt in $(seq 1 "$attempts"); do

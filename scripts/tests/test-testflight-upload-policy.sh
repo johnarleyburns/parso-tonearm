@@ -33,4 +33,18 @@ set -e
 [[ "$status" -eq 7 ]]
 [[ $(grep -c 'TestFlight upload attempt' "$tmp/output") -eq 1 ]]
 
+apple_timeout_counter="$tmp/apple-timeout-counter"
+PATH="$tmp/bin:$PATH" RUNNER_TEMP="$tmp" bash "$script" -- bash -c '
+  count=$(cat "$RUNNER_TEMP/apple-timeout-counter" 2>/dev/null || echo 0)
+  count=$((count + 1)); echo "$count" > "$RUNNER_TEMP/apple-timeout-counter"
+  if [[ "$count" -eq 1 ]]; then
+    echo "Unable to authenticate with App Store Connect (Error Domain=ITunesConnectFoundationErrorDomain Code=-1001 \"The web service (lookupGenericSettingsForSubmission) returned an error."
+    echo "The request timed out."
+    echo "(null)\" UserInfo={...}))"
+    exit 70
+  fi
+' >"$tmp/apple-timeout-output" 2>&1
+[[ $(cat "$apple_timeout_counter") -eq 2 ]]
+[[ $(grep -c 'TestFlight upload attempt' "$tmp/apple-timeout-output") -eq 2 ]]
+
 echo "TestFlight upload retry policy: passed"
