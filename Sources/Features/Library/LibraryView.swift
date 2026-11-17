@@ -116,13 +116,21 @@ struct LibraryView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
                             } else if renderedPlaybackRows.isEmpty {
+                                // Real report: Find's Mood/BPM-Key modes showed "Your music is
+                                // empty" (with the add-a-library CTA) for a search that simply
+                                // matched nothing — `appState.searchText` is often empty there
+                                // too, since the query came from mood pills or a BPM/Key filter,
+                                // not the text field. `LibraryEmptyStatePolicy` distinguishes a
+                                // genuinely empty library from a search/filter with no matches.
+                                let isUnfilteredBrowsing = LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+                                    searchText: appState.searchText, searchRows: searchRows, filter: filter)
                                 VStack(spacing: 14) {
                                     EmptyStateView(icon: "music.note",
-                                                   title: appState.searchText.isEmpty ? "Your music is empty" : "No matches",
-                                                   message: appState.searchText.isEmpty
+                                                   title: isUnfilteredBrowsing ? "Your music is empty" : "No matches",
+                                                   message: isUnfilteredBrowsing
                                                         ? "Add an archive.org library, remote library, or local folder to fill Music."
                                                         : "Nothing in Music matches that.")
-                                    if appState.searchText.isEmpty {
+                                    if isUnfilteredBrowsing {
                                         AddRemoteLibraryButton(compact: true)
                                             .padding(.horizontal, 2)
                                     }

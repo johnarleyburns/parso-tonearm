@@ -98,5 +98,35 @@ final class FindMixCopyAndLayoutContractTests: XCTestCase {
         let value = try XCTUnwrap(Double(find[valueRange]))
         XCTAssertLessThan(value, 320, "the old floor left no room for a tall header on a small device")
     }
+
+    /// Real report: the collapsed toolbar menu showed its text label ("Name"/"Mood"/"BPM/Key")
+    /// at all times; the owner wanted only an icon in the collapsed state, with text appearing
+    /// only once the menu is actually open.
+    func testModeMenuCollapsedShowsOnlyAnIconNotText() throws {
+        let find = try source("Sources/Features/Find/FindView.swift")
+        XCTAssertFalse(find.contains("Text(mode.rawValue)"),
+                       "the collapsed toolbar button must not show the mode's text label")
+        XCTAssertTrue(find.contains("Image(systemName: mode.icon)"),
+                      "the collapsed toolbar button must show only an icon")
+        let controls = try source("Sources/Features/MyMusic/MyMusicSearchControls.swift")
+        XCTAssertTrue(controls.contains("var icon: String"))
+        // Still shown as text once the menu is open, per-option.
+        XCTAssertTrue(find.contains("Text(option.rawValue)"))
+        XCTAssertTrue(find.contains("Label(option.rawValue, systemImage: \"checkmark\")"))
+    }
+
+    /// Real report: the mode menu flashed often. Root cause: it was a computed property
+    /// inlined into `FindView.body`, so it got rebuilt whenever *any* unrelated `@Published`
+    /// property changed on the `appState` object `FindView` observes via `@EnvironmentObject`
+    /// (e.g. the 5-second watch transfer tick, regardless of which tab is visible) — a
+    /// standalone `View` fed only the `mode` binding it needs isolates it from that churn.
+    func testModeMenuIsAStandaloneViewNotInlinedIntoFindViewsBody() throws {
+        let find = try source("Sources/Features/Find/FindView.swift")
+        XCTAssertTrue(find.contains("struct FindModeMenu: View"),
+                      "must be its own View, not a computed property on FindView")
+        XCTAssertTrue(find.contains("FindModeMenu(mode: $mode)"))
+        XCTAssertFalse(find.contains("private var modeMenu: some View"),
+                       "the old inlined-into-FindView.body version must be gone")
+    }
 }
 #endif
