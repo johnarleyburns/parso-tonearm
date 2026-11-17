@@ -22,6 +22,8 @@ struct AddServerSheet: View {
     /// behavior for the global "+" menu flow, which has no single navigation stack to push onto.
     var onConnected: ((Source) -> Void)? = nil
 
+    let reconnectingSource: Source?
+
     @State private var selectedConnectorID: String
     @State private var urlText = ""
     @State private var username = ""
@@ -33,7 +35,11 @@ struct AddServerSheet: View {
     @State private var showGuide = false
     @State private var showGenrePicker = false
 
-    init(fixedConnector: RemoteConnector? = nil, onConnected: ((Source) -> Void)? = nil) {
+    init(fixedConnector: RemoteConnector? = nil, reconnectingSource: Source? = nil, onConnected: ((Source) -> Void)? = nil) {
+        self.reconnectingSource = reconnectingSource
+        _urlText = State(initialValue: reconnectingSource?.originalURL ?? "")
+        let storesUsername = reconnectingSource?.kind == .subsonic || reconnectingSource?.kind == .webDAV
+        _username = State(initialValue: storesUsername ? reconnectingSource?.iaIdentifier ?? "" : "")
         self.fixedConnector = fixedConnector
         self.onConnected = onConnected
         _selectedConnectorID = State(initialValue: fixedConnector?.id
@@ -45,7 +51,7 @@ struct AddServerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Capsule().fill(Palette.ink.opacity(0.35)).frame(width: 36, height: 5).padding(.top, 14)
-            Text(fixedConnector == nil ? "Add Remote Library" : "Connect \(connector.title)")
+            Text(reconnectingSource != nil ? "Reconnect \(connector.title)" : fixedConnector == nil ? "Add Remote Library" : "Connect \(connector.title)")
                 .font(Typography.headline).padding(.top, 12)
             Text(connector.subtitle)
                 .font(Typography.callout).foregroundStyle(Palette.inkSecondary)
@@ -97,6 +103,7 @@ struct AddServerSheet: View {
         .foregroundStyle(Palette.ink)
         .presentationDetents([.height(560)])
         .presentationBackground(.ultraThinMaterial)
+        .interactiveDismissDisabled(isConnecting)
         .onChange(of: selectedConnectorID) { _, newValue in
             error = nil
             // Picking the genre connector is choosing the genre picker — open it
@@ -236,6 +243,7 @@ struct AddServerSheet: View {
                           prompt: isIAConnector ? "https://archive.org/details/…" : connectorKind == .plex ? "https://plex.example.com:32400" : "https://music.example.com",
                           text: $urlText,
                           keyboardType: .url)
+                    .disabled(reconnectingSource != nil)
             }
             if needsUsernamePassword {
                 textField(label: "USERNAME", identifier: "USERNAME",
@@ -418,6 +426,17 @@ struct AddServerSheet: View {
         defer { isConnecting = false }
         let existingIDs = Set(appState.sources.compactMap(\.id))
         do {
+            if let source = reconnectingSource {
+                var oauthToken: OAuthToken?
+                if let provider = CloudDriveAPI.Provider(sourceKind: source.kind) {
+                    oauthToken = try await oauthCoordinator.signIn(config: OAuthClientConfiguration.config(for: provider))
+                }
+                try await appState.reconnectRemoteSource(source, username: username, password: password,
+                                                        token: token, oauthToken: oauthToken)
+                onConnected?(source)
+                dismiss()
+                return
+            }
             if isIAConnector {
                 try await appState.addIASource(url: urlText, username: isIAPrivateList ? username : nil, password: isIAPrivateList ? password : nil)
             } else {
@@ -475,6 +494,18 @@ struct AddServerSheet: View {
         let bookmark = BookmarkVault.makeBookmark(for: url)
         if accessed { url.stopAccessingSecurityScopedResource() }
         do {
+            if let source = reconnectingSource {
+                guard let original = source.originalURL.flatMap(URL.init(string:)),
+                      original.standardizedFileURL.path == url.standardizedFileURL.path else {
+                    throw NSError(domain: "LibraryReconnect", code: 2, userInfo: [
+                        NSLocalizedDescriptionKey: String(localized: "Choose the same folder to renew access to this library.")
+                    ])
+                }
+                try await appState.reconnectRemoteSource(source, folderBookmark: bookmark)
+                onConnected?(source)
+                dismiss()
+                return
+            }
             try await appState.addSMBFolder(url, bookmark: bookmark)
             notifyConnected(newSinceIDs: existingIDs)
             dismiss()

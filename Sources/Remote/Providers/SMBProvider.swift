@@ -18,6 +18,11 @@ public struct SMBProvider: @unchecked Sendable, RemoteLibraryProvider {
     public var rootBookmark: Data
     public var fileManager: FileManager = .default
 
+    public init(rootBookmark: Data, fileManager: FileManager = .default) {
+        self.rootBookmark = rootBookmark
+        self.fileManager = fileManager
+    }
+
     public var sourceKind: SourceKind { .smb }
 
     public func browse(path rawPath: String) async throws -> [RemoteNode] {

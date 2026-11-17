@@ -5,6 +5,74 @@ import TonearmCore
 import UIKit
 
 extension AppState {
+    /// Validate replacement credentials before overwriting the existing Keychain item.
+    /// The source ID, indexed tracks, playlists, artwork and browse location stay intact.
+    func reconnectRemoteSource(_ source: Source, username: String = "", password: String = "",
+                               token: String = "", oauthToken: OAuthToken? = nil,
+                               folderBookmark: Data? = nil) async throws {
+        let credential: Data
+        let provider: any RemoteLibraryProvider
+        let user = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        func requireSameAccount(_ replacement: String?) throws {
+            if let original = source.iaIdentifier, !original.isEmpty, replacement != original {
+                throw NSError(domain: "LibraryReconnect", code: 1, userInfo: [
+                    NSLocalizedDescriptionKey: String(localized: "Sign in to the same account to reconnect this library. Add a separate library to use another account.")
+                ])
+            }
+        }
+        switch source.kind {
+        case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
+            guard let cloud = CloudDriveAPI.Provider(sourceKind: source.kind),
+                  let oauthToken, oauthToken.provider == cloud else { throw OAuthError.refreshRequired }
+            try requireSameAccount(oauthToken.accountLabel)
+            credential = try JSONEncoder().encode(oauthToken)
+            provider = CloudDriveProvider(provider: cloud, accessProvider: OAuthCloudDriveAccessProvider(token: oauthToken))
+        case .smb:
+            guard let folderBookmark else { throw IngestError.failedToCreateBookmark }
+            credential = folderBookmark
+            provider = SMBProvider(rootBookmark: folderBookmark)
+        case .subsonic, .webDAV, .jellyfin, .emby, .plex:
+            guard let rawURL = source.originalURL, let baseURL = URL(string: rawURL) else { throw URLError(.badURL) }
+            switch source.kind {
+            case .subsonic:
+                try requireSameAccount(user)
+                credential = Data(password.utf8)
+                provider = SubsonicProvider(baseURL: baseURL, username: user, password: password)
+            case .webDAV:
+                try requireSameAccount(user)
+                credential = try JSONEncoder().encode(WebDAVCredential(username: user, password: password))
+                provider = WebDAVProvider(baseURL: baseURL, username: user, password: password)
+            case .jellyfin:
+                let request = try JellyfinAPI.request(baseURL: baseURL, endpoint: .authenticate(username: user, password: password))
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    throw URLError(.userAuthenticationRequired)
+                }
+                let auth = try JellyfinAPI.decodeAuthentication(data)
+                try requireSameAccount(auth.userID)
+                credential = Data(auth.accessToken.utf8)
+                provider = JellyfinProvider(baseURL: baseURL, userID: auth.userID, accessToken: auth.accessToken)
+            case .emby:
+                let request = try EmbyAPI.request(baseURL: baseURL, endpoint: .authenticate(username: user, password: password))
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    throw URLError(.userAuthenticationRequired)
+                }
+                let auth = try EmbyAPI.decodeAuthentication(data)
+                try requireSameAccount(auth.userID)
+                credential = Data(auth.accessToken.utf8)
+                provider = EmbyProvider(baseURL: baseURL, userID: auth.userID, accessToken: auth.accessToken)
+            default:
+                let value = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                credential = Data(value.utf8)
+                provider = PlexProvider(baseURL: baseURL, token: value)
+            }
+        default: throw URLError(.unsupportedURL)
+        }
+        try await RemoteLibraryProviderFactory.reconnect(source: source, credential: credential, provider: provider)
+        await reload()
+    }
+
     func requestAddRemoteLibrary() {
         showAddRemoteLibrary = true
     }
