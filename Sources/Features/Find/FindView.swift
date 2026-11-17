@@ -85,7 +85,7 @@ struct FindView: View {
             .largeNavigationTitle()
             .hiddenNavigationBar(when: queryFocused && mode != .mix)
             .rootTabChrome(.find)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { modeMenu } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }
         }
         .onChange(of: queryFocused) { _, focused in
             appState.findQueryFocused = focused
@@ -107,33 +107,6 @@ struct FindView: View {
             guard appState.didLoadLibraryOnce else { return }
             await appState.reload()
         }
-    }
-
-    /// Replaces the old inline Name/Mood/BPM-Key row — a compact glass menu in the nav bar
-    /// instead of a row competing with the search field/pills/BPM-Key chips for vertical space.
-    private var modeMenu: some View {
-        Menu {
-            ForEach(MyMusicSearchMode.allCases) { option in
-                Button {
-                    mode = option
-                } label: {
-                    if mode == option {
-                        Label(option.rawValue, systemImage: "checkmark")
-                    } else {
-                        Text(option.rawValue)
-                    }
-                }
-                .accessibilityIdentifier(option.identifier)
-            }
-        } label: {
-            Text(mode.rawValue)
-                .font(Typography.callout)
-                .foregroundStyle(Palette.ink)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-        }
-        .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
-        .accessibilityIdentifier("find.mode.menu")
     }
 
     /// Genres excluded — not useful as a Find result type (My Music's own Genres browsing,
@@ -167,5 +140,45 @@ struct FindView: View {
         .padding(.top, 4)
         .padding(.bottom, 8)
         .accessibilityIdentifier("find.scope")
+    }
+}
+
+/// Real report: the toolbar menu flashed often while sitting on Find. Root cause: this was a
+/// computed property on `FindView` itself, so it got rebuilt — including its `.adaptiveGlass`
+/// `GlassEffectContainer` — every time `FindView.body` re-evaluated, which happens whenever
+/// *any* `@Published` property changes on the `appState` object `FindView` observes via
+/// `@EnvironmentObject`, not just the ones Find actually reads. `AppState.startWatchTransferTick()`
+/// alone mutates several of those every 5 seconds, for the app's entire lifetime, regardless of
+/// which tab is visible. A standalone `View` fed only the one binding it needs isolates it from
+/// that unrelated churn — replaces the old inline Name/Mood/BPM-Key row with a compact glass menu
+/// in the nav bar instead of a row competing with the search field/pills/BPM-Key chips for space.
+private struct FindModeMenu: View {
+    @Binding var mode: MyMusicSearchMode
+
+    var body: some View {
+        Menu {
+            ForEach(MyMusicSearchMode.allCases) { option in
+                Button {
+                    mode = option
+                } label: {
+                    if mode == option {
+                        Label(option.rawValue, systemImage: "checkmark")
+                    } else {
+                        Text(option.rawValue)
+                    }
+                }
+                .accessibilityIdentifier(option.identifier)
+            }
+        } label: {
+            Image(systemName: mode.icon)
+                .font(Typography.callout)
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+        }
+        .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
+        .accessibilityIdentifier("find.mode.menu")
+        .accessibilityLabel("Search mode")
+        .accessibilityValue(mode.rawValue)
     }
 }

@@ -67,7 +67,7 @@ final class FindResultScopePolicyTests: XCTestCase {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let find = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                               encoding: .utf8)
-        XCTAssertTrue(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { modeMenu } }"))
+        XCTAssertTrue(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }"))
         XCTAssertTrue(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
         let controls = try String(
             contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
