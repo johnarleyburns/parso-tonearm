@@ -9,6 +9,15 @@ import TonearmCore
 /// `body`/`navRow`, so it stays `internal` (not `private`) — `makeOfflineRow`/`managementRow`
 /// are used only within this file and stay `private`.
 extension SourceDetailView {
+    var reconnectConnector: RemoteConnector? {
+        switch source.kind {
+        case .subsonic, .webDAV, .jellyfin, .emby, .plex, .smb,
+             .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
+            return RemoteConnectorCatalog.connector(for: source.kind)
+        default: return nil
+        }
+    }
+
     var librarySettingsSheet: some View {
         NavigationStack {
             ScrollView {
@@ -67,12 +76,12 @@ extension SourceDetailView {
                     .buttonStyle(.plain)
                     Divider().overlay(Palette.hairline)
 
-                    Button {
-                        showCredentialEdit = true
-                    } label: {
-                        managementRow(label: "Update Credentials", value: "Change password or token", chevron: true)
+                    if reconnectConnector != nil {
+                        Button { showCredentialEdit = true } label: {
+                            managementRow(label: "Reconnect Library", value: "Sign in or renew folder access", chevron: true)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .glassSurface(cornerRadius: 14)
                 .padding(16)
@@ -98,10 +107,12 @@ extension SourceDetailView {
                 }
             }
         }
-        .alert("Update Credentials", isPresented: $showCredentialEdit) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("To update credentials, remove and re-add this library.")
+        .sheet(isPresented: $showCredentialEdit) {
+            if let connector = reconnectConnector {
+                AddServerSheet(fixedConnector: connector, reconnectingSource: source) { _ in
+                    Task { await load(); await loadStats() }
+                }
+            }
         }
     }
 

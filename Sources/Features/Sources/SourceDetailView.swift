@@ -23,6 +23,7 @@ struct SourceDetailView: View {
     @State var showRename = false
     @State var renameText = ""
     @State var showCredentialEdit = false
+    @State var showReconnect = false
     @State var stats: RemoteLibraryStats?
     @State var isLoadingStats = false
     @State var statsError: String?
@@ -61,6 +62,13 @@ struct SourceDetailView: View {
         // Real report: Library Settings used to render inline at the bottom of the folder/
         // track list — confusing clutter on a long remote listing. Now a separate sheet,
         // reached from navRow's "…" menu (SourceDetailView+ManagementSection.swift).
+        .sheet(isPresented: $showReconnect) {
+            if let connector = reconnectConnector {
+                AddServerSheet(fixedConnector: connector, reconnectingSource: source) { _ in
+                    Task { await load(); await loadStats() }
+                }
+            }
+        }
         .sheet(isPresented: $showLibrarySettings) {
             librarySettingsSheet
         }
@@ -112,6 +120,13 @@ struct SourceDetailView: View {
                     .foregroundStyle(Palette.danger)
                     .multilineTextAlignment(.center)
                     .padding(.top, 20)
+                Button("Try Again") { Task { await load() } }
+                    .padding(.top, 12)
+                if reconnectConnector != nil {
+                    Button("Reconnect Library") { showReconnect = true }
+                        .accessibilityIdentifier("source.reconnect")
+                        .padding(.top, 12)
+                }
             } else if remoteNodes.isEmpty {
                 Text("No music found")
                     .font(Typography.callout)
@@ -163,6 +178,11 @@ struct SourceDetailView: View {
                 .accessibilityIdentifier("source.addToPlaylist")
             }
             Menu {
+                if reconnectConnector != nil {
+                    Button("Reconnect Library", systemImage: "arrow.triangle.2.circlepath") {
+                        showReconnect = true
+                    }
+                }
                 if isRemoteLibrary {
                     Button {
                         showLibrarySettings = true

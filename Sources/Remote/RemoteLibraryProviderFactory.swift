@@ -1,6 +1,18 @@
 import Foundation
 
 public enum RemoteLibraryProviderFactory {
+    /// Reauthenticate in place. Failed validation leaves the existing credential intact.
+    public static func reconnect(source: Source, credential: Data,
+                                 provider: any RemoteLibraryProvider,
+                                 credentialStore: CredentialStore = CredentialStore()) async throws {
+        guard provider.sourceKind == source.kind,
+              let sourceID = source.id,
+              let account = credentialAccounts(for: sourceID, kind: source.kind).first,
+              !credential.isEmpty else { throw URLError(.userAuthenticationRequired) }
+        try await provider.refresh()
+        try credentialStore.save(credential, account: account)
+    }
+
     public static func supports(_ kind: SourceKind) -> Bool {
         RemoteLibraryAccessPolicy.isRemoteLibrary(kind)
     }
