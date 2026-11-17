@@ -1,9 +1,9 @@
 name: iOS Build & TestFlight
+# PRs run the required validate job in pr-validation.yml once. This workflow
+# tests merged main (or a manual dispatch) before signing and uploading.
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -329,15 +329,8 @@ jobs:
             exit 1
           fi
 
-      - name: Export IPA
-        if: env.HAS_TESTFLIGHT_SECRETS == 'true'
-        run: |
-          set -eo pipefail
-          xcodebuild -exportArchive \
-            -archivePath ./build/Tonearm.xcarchive \
-            -exportPath ./output \
-            -exportOptionsPlist ExportOptions.plist
-
+      # Upload mode exports from the archive itself. A prior local IPA export
+      # duplicates packaging/signing work and has no downstream consumer.
       - name: Upload to TestFlight
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         env:
