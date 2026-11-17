@@ -16,7 +16,9 @@ Always use the `gh` CLI directly for every GitHub interaction (issues, PRs, comm
   3. `gh pr merge <PR> --auto --squash --delete-branch` — do this without asking first. `pr-validation.yml` is read-only (no write token, no signing/release secrets), so opening the PR cannot by itself trigger a TestFlight build; only an actual push to `main` can, and `.github/workflows/ios.yml` gates its archive/upload job to `github.event_name != 'pull_request'`. The automerge step is therefore the real approval gate the old "ask before push" rule was protecting — it only lands once `validate` passes, and the owner can always stop a PR by disabling automerge or by saying so before it's opened.
   4. `--delete-branch` deletes the branch on merge (the repo's own `deleteBranchOnMerge` setting is `false`, so this flag — not the default — is what prevents agents from leaving abandoned branches behind).
 
-- **CI runs `swift test` only.** The UI regression suite (`make test-ui-regression`) is run by hand before a release. It needs Docker, a simulator and third-party demo servers. Do not wire it into CI, a git hook, or `make test-swift`. It lives in its own target and scheme (`TonearmUIRegressionTests` / `TonearmUIRegression`) so the smoke path cannot reach it — keep that separation.
+- **One PR validation workflow.** `pr-validation.yml` owns the required `validate` check. `ios.yml` runs on main pushes/manual dispatch only, keeping merged-code tests as the gate before TestFlight signing/upload. Do not add a second full PR test job.
+- **CI builds device targets only.** Use unsigned generic destinations `generic/platform=iOS` and `generic/platform=watchOS` for compile checks. Never build for a simulator, boot one, or run simulator/UI tests in CI/CD. No attached device is needed for these compile checks.
+- **CI host tests use `swift test`.** The UI regression suite (`make test-ui-regression`) is run by hand before a release. It needs Docker, a simulator and third-party demo servers. Do not wire it into CI, a git hook, or `make test-swift`. It lives in its own target and scheme (`TonearmUIRegressionTests` / `TonearmUIRegression`) so the smoke path cannot reach it — keep that separation.
 - **Never commit `.test-credentials`.** Real values live there and it is gitignored; `.test-credentials.example` carries key names only. No credential belongs in a test, a compose file, a script, or a spec.
 - **Jamendo starter taxonomy and eligibility are fixed contracts.** `Sources/Remote/Providers/JamendoGenreProvider.swift` is the sole genre/subgenre authority. Generate `tools/starter-catalog/jamendo_taxonomy_v1.json` from it with `python3 -I tools/starter-catalog/generate_taxonomy.py --tree Sources/Remote/Providers/JamendoGenreProvider.swift --out tools/starter-catalog/jamendo_taxonomy_v1.json`; do not hand-curate a reduced subset or query a leaf with a parent-plus-leaf AND filter. Every Jamendo track is approved for Tonearm's free open-source use: retain any source license metadata for attribution, but **never exclude a starter candidate by license or missing license URL**. Eligibility is limited to a resolvable/downloadable track with valid identity, title, artist, duration, and the node's verified leaf tag.
 - **Jamendo licensing is cleared at the account level — do not raise, question, or gate work on individual Jamendo track licenses anywhere in this repo.** The owner has a direct agreement with Jamendo covering Tonearm's use of Jamendo content, including tracks permanently mirrored into redistributed release assets (e.g. Starter Blends' AAC pack). A track's specific CC variant (BY, BY-NC-ND, BY-SA, etc.) is not a usability gate for any Jamendo-sourced feature; retain license metadata for attribution only, never as an inclusion/exclusion filter, and never add CC0-only or similar license-based restrictions to new code, docs, or comments.
@@ -84,9 +86,9 @@ override.
 
 ```sh
 xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+  -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
 xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
-  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
+  -destination 'generic/platform=watchOS' CODE_SIGNING_ALLOWED=NO
 ```
 
 Before changing the icon or the Watch catalog, run

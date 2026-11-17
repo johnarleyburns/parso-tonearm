@@ -30,6 +30,10 @@ bash scripts/tests/test-clap-candidate-workflow.sh
 bash scripts/tests/test-testflight-delivery-body.sh
 bash scripts/tests/test-testflight-reconciler-discovery.sh
 bash scripts/tests/test-production-regression-wiring.sh
+bash scripts/tests/test-ci-build-efficiency.sh
+bash scripts/tests/test-ci-workflow-consolidation.sh
+bash scripts/tests/test-ci-single-export.sh
+bash scripts/tests/test-testflight-upload-policy.sh
 if [[ -f scripts/tests/test-pr-maintenance.sh && -f .github/scripts/pr-maintenance.sh ]]; then
   bash scripts/tests/test-pr-maintenance.sh
 fi
@@ -49,7 +53,8 @@ bash scripts/run-production-regression.sh
 endstep
 
 step "Swift package tests"
-swift test
+# The mandatory production harness just passed above; do not execute it twice.
+swift test --skip TonearmProductionRegressionTests
 endstep
 
 step "Repository hygiene"
@@ -92,8 +97,5 @@ step "iOS + watchOS build (Tonearm.xcodeproj)"
 # `swift test` alone, since the Watch app is not part of the SwiftPM package.
 # Build both app schemes for real. Per CLAUDE.md: never pass a global -sdk
 # override to the combined Tonearm scheme.
-xcodebuild build -project Tonearm.xcodeproj -scheme Tonearm \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
-xcodebuild build -project Tonearm.xcodeproj -scheme TonearmWatch \
-  -destination 'generic/platform=watchOS Simulator' CODE_SIGNING_ALLOWED=NO
+bash scripts/build-apps-for-validation.sh
 endstep
