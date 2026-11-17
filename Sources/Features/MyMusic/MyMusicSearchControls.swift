@@ -17,8 +17,8 @@ enum MyMusicSearchMode: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The collapsed toolbar menu (`FindView.modeMenu`) shows only this icon, not the label —
-    /// "Name"/"Mood"/"BPM/Key" text appears only inside the open menu's options.
+    /// The collapsed toolbar menu (`FindModeMenu` in `FindView.swift`) shows only this icon,
+    /// not the label — "Name"/"Mood"/"BPM/Key" text appears only inside the open menu's options.
     var icon: String {
         switch self {
         case .all: "textformat"
