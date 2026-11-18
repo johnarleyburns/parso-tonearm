@@ -646,7 +646,7 @@ extension Schema {
                 // watch/folderBookmark column types exactly. Additive only: existing folder
                 // playlists (and FolderWatchService's existing Playlist-based watch loop) are
                 // untouched, so pre-update watched folders keep working unchanged.
-                try db.alter(table: "sources") { t in
+                try db.alter(table: "source") { t in
                     t.add(column: "watch", .boolean).notNull().defaults(to: false)
                     t.add(column: "folderBookmark", .blob)
                 }

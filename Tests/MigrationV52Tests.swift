@@ -12,7 +12,7 @@ final class MigrationV52Tests: XCTestCase {
         try Schema.migrator(upTo: "v51").migrate(queue)
 
         try queue.read { db in
-            let columns = try db.columns(in: "sources").map(\.name)
+            let columns = try db.columns(in: "source").map(\.name)
             XCTAssertFalse(columns.contains("watch"))
             XCTAssertFalse(columns.contains("folderBookmark"))
         }
@@ -21,7 +21,7 @@ final class MigrationV52Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
 
         try queue.read { db in
-            let columns = try db.columns(in: "sources").map(\.name)
+            let columns = try db.columns(in: "source").map(\.name)
             XCTAssertTrue(columns.contains("watch"))
             XCTAssertTrue(columns.contains("folderBookmark"))
         }
@@ -32,7 +32,7 @@ final class MigrationV52Tests: XCTestCase {
         try Schema.migrator(upTo: "v51").migrate(queue)
         try queue.write { db in
             try db.execute(sql: """
-                INSERT INTO sources (kind, title, addedAt, followUpdates, memberCapHit, localIsFolder)
+                INSERT INTO source (kind, title, addedAt, followUpdates, memberCapHit, localIsFolder)
                 VALUES ('local', 'Existing Folder', ?, 0, 0, 1)
                 """, arguments: [Date()])
         }
@@ -40,7 +40,7 @@ final class MigrationV52Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
 
         let watch: Int? = try queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT watch FROM sources WHERE title = 'Existing Folder'")
+            try Int.fetchOne(db, sql: "SELECT watch FROM source WHERE title = 'Existing Folder'")
         }
         XCTAssertEqual(watch, 0, "pre-existing rows must default to not watched, not NULL/crash")
     }
