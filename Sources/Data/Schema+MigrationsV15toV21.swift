@@ -647,7 +647,11 @@ extension Schema {
                 // playlists (and FolderWatchService's existing Playlist-based watch loop) are
                 // untouched, so pre-update watched folders keep working unchanged.
                 try db.alter(table: "source") { t in
-                    t.add(column: "watch", .boolean).notNull().defaults(to: false)
+                    // Nullable, no default: `Source.watch` is `Bool?` (see its doc comment) so
+                    // every Codable-based row decode from a pre-v52 schema snapshot survives —
+                    // a NOT NULL column would reject that same `nil` on every fresh INSERT that
+                    // doesn't explicitly set `watch`, which is most of them.
+                    t.add(column: "watch", .boolean)
                     t.add(column: "folderBookmark", .blob)
                 }
             }

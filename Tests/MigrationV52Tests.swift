@@ -27,7 +27,7 @@ final class MigrationV52Tests: XCTestCase {
         }
     }
 
-    func testExistingSourceRowsDefaultToNotWatched() throws {
+    func testExistingSourceRowsAreNotWatchedAfterMigration() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v51").migrate(queue)
         try queue.write { db in
@@ -39,10 +39,14 @@ final class MigrationV52Tests: XCTestCase {
 
         try Schema.migrator().migrate(queue)
 
-        let watch: Int? = try queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT watch FROM source WHERE title = 'Existing Folder'")
+        // The new column is nullable with no SQL-level default (see the migration's own
+        // comment) — `ALTER TABLE ADD COLUMN` leaves it NULL for pre-existing rows, which reads
+        // back as `nil`/"not watched" at the Swift level, not a crash.
+        let row = try queue.read { db in
+            try Row.fetchOne(db, sql: "SELECT watch FROM source WHERE title = 'Existing Folder'")
         }
-        XCTAssertEqual(watch, 0, "pre-existing rows must default to not watched, not NULL/crash")
+        let watch: Int? = row?["watch"]
+        XCTAssertNil(watch, "pre-existing rows must read back as not watched (nil), not a crash or a stray true")
     }
 
     func testMigratingTwiceIsIdempotent() throws {
