@@ -86,7 +86,12 @@ extension SharedProductionSingletonTests {
         /// this file's fake resolver — wrongly reports true. Proves `init`/`deinit`'s
         /// purge actually removes that contamination rather than merely assuming a clean
         /// starting directory.
-        @Test func testPurgeFixtureCacheEntriesRemovesAPriorCompleteCacheEntry() async throws {
+        /// Guards against hanging CI for up to the workflow's full timeout if this test's
+        /// real `AudioCache.shared` interaction ever blocks indefinitely (e.g. on stale
+        /// on-disk cache-actor state left behind on a self-hosted runner that doesn't get
+        /// a clean filesystem between jobs) — fails fast with a clear time-out instead.
+        @Test(.timeLimit(.minutes(1)))
+        func testPurgeFixtureCacheEntriesRemovesAPriorCompleteCacheEntry() async throws {
             let url = URL(string: "https://stale.example")!
             let key = AudioCache.key(for: url)
             let blobURL = AudioCache.fileURL(for: key)
