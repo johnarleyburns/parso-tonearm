@@ -51,7 +51,7 @@ import Testing
                     gainDB: type.usesGain ? 6 : 0,
                     q: q,
                     sampleRate: 48_000)
-                #expect(coefficients.vector.allSatisfy(\.isFinite), "\(type.rawValue) q \(q)")
+                #expect(coefficients.vector.allSatisfy { $0.isFinite }, "\(type.rawValue) q \(q)")
                 #expect(coefficients.isStable, "\(type.rawValue) q \(q)")
             }
         }

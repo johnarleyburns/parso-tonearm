@@ -74,7 +74,7 @@ import Testing
                 ModelDiagnosticsDetail.Artifact(
                     name: "Text encoder", isResolved: true, resolvedName: "CLAPTextEncoder.mlmodelc"),
             ])
-        #expect(detail.artifacts.allSatisfy(\.isResolved))
+        #expect(detail.artifacts.allSatisfy { $0.isResolved })
         #expect(detail.artifacts.first?.resolvedName == "CLAPAudioEncoder.mlmodelc")
     }
 }
