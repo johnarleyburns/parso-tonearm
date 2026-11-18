@@ -29,7 +29,7 @@ import Testing
         // Migrate to head (v21).
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             // Existing v5 track-level table/data is untouched.
             #expect(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?",
                                                arguments: [trackId]) == "existing-artwork")

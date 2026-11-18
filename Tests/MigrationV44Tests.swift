@@ -41,7 +41,7 @@ import Testing
         // Migrate to head (v44).
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             let columns = Set(try db.columns(in: "dj_track_prep").map(\.name))
             #expect(columns == ["trackId", "bpm", "camelotKey", "analysisUpdatedAt", "syncID", "bpmOverride"])
 

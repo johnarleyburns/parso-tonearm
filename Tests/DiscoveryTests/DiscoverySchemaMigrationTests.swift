@@ -90,7 +90,7 @@ import Testing
     @Test func testV18CreatesAllDiscoveryTables() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
-        try queue.read { db in
+        try queue.read { db throws in
             for table in [
                 "discovery_asset_state", "discovery_track_analysis", "discovery_embedding",
                 "discovery_index_job", "discovery_window_checkpoint", "discovery_change",
@@ -115,7 +115,7 @@ import Testing
         // below for their matching positive assertion.
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
-        try queue.read { db in
+        try queue.read { db throws in
             for table in [
                 "discovery_asset_state",
                 "discovery_index_job", "discovery_window_checkpoint", "discovery_change",
@@ -132,7 +132,7 @@ import Testing
     @Test func testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
-        try queue.read { db in
+        try queue.read { db throws in
             for table in ["discovery_embedding", "discovery_track_analysis"] {
                 #expect(
                     try db.columns(in: table).contains { $0.name == "syncID" },
@@ -146,7 +146,7 @@ import Testing
         try Schema.migrator().migrate(queue)
         try seedV17Catalog(queue)
 
-        try queue.write { db in
+        try queue.write { db throws in
             let trackID = try Int64.fetchOne(db, sql: "SELECT id FROM track LIMIT 1")!
             let assetID = try Int64.fetchOne(
                 db, sql: "SELECT id FROM asset WHERE trackId = ?", arguments: [trackID])!

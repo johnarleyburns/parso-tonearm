@@ -7,7 +7,8 @@ import Testing
 
     @Test func testDropboxListAndTemporaryLinkRequests() throws {
         let list = try CloudDriveAPI.request(provider: .dropbox, endpoint: .list(containerID: "id:folder"), accessToken: "token")
-        let listBody = try #require(JSONSerialization.jsonObject(with: try #require(list.httpBody)) as? [String: Any])
+        let listBodyData = try #require(list.httpBody)
+        let listBody = try #require(JSONSerialization.jsonObject(with: listBodyData) as? [String: Any])
 
         #expect(list.url?.absoluteString == "https://api.dropboxapi.com/2/files/list_folder")
         #expect(list.httpMethod == "POST")
@@ -21,7 +22,8 @@ import Testing
 
     @Test func testGoogleDriveRequestsUseReadonlyDriveEndpoints() throws {
         let list = try CloudDriveAPI.request(provider: .googleDrive, endpoint: .list(containerID: "folder 1"), accessToken: "token")
-        let listComponents = try #require(URLComponents(url: try #require(list.url), resolvingAgainstBaseURL: false))
+        let listURL = try #require(list.url)
+        let listComponents = try #require(URLComponents(url: listURL, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (listComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
         #expect(listComponents.host == "www.googleapis.com")
@@ -31,7 +33,8 @@ import Testing
         #expect(list.value(forHTTPHeaderField: "Authorization") == "Bearer token")
 
         let media = try CloudDriveAPI.request(provider: .googleDrive, endpoint: .resolveFile(id: "file 1", path: nil), accessToken: "token")
-        let mediaComponents = try #require(URLComponents(url: try #require(media.url), resolvingAgainstBaseURL: false))
+        let mediaURL = try #require(media.url)
+        let mediaComponents = try #require(URLComponents(url: mediaURL, resolvingAgainstBaseURL: false))
         let mediaQuery = Dictionary(uniqueKeysWithValues: (mediaComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(mediaComponents.percentEncodedPath == "/drive/v3/files/file%201")
         #expect(mediaQuery["alt"] == "media")
@@ -151,7 +154,8 @@ import Testing
 
     @Test func testBoxRequestsUseFixedRootIdAndContentEndpoint() throws {
         let root = try CloudDriveAPI.request(provider: .box, endpoint: .list(containerID: nil), accessToken: "token")
-        let rootComponents = try #require(URLComponents(url: try #require(root.url), resolvingAgainstBaseURL: false))
+        let rootURL = try #require(root.url)
+        let rootComponents = try #require(URLComponents(url: rootURL, resolvingAgainstBaseURL: false))
         let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(rootComponents.path == "/2.0/folders/0/items")
         #expect(rootQuery["limit"] == "1000")
@@ -248,19 +252,22 @@ import Testing
 
     @Test func testYandexDiskRequestsUseResourcesEndpointAndDiskRootPath() throws {
         let root = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: nil), accessToken: "token")
-        let rootComponents = try #require(URLComponents(url: try #require(root.url), resolvingAgainstBaseURL: false))
+        let rootURL = try #require(root.url)
+        let rootComponents = try #require(URLComponents(url: rootURL, resolvingAgainstBaseURL: false))
         let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(rootComponents.path == "/v1/disk/resources")
         #expect(rootQuery["path"] == "disk:/")
         #expect(root.value(forHTTPHeaderField: "Authorization") == "Bearer token")
 
         let child = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: "disk:/Music"), accessToken: "token")
-        let childComponents = try #require(URLComponents(url: try #require(child.url), resolvingAgainstBaseURL: false))
+        let childURL = try #require(child.url)
+        let childComponents = try #require(URLComponents(url: childURL, resolvingAgainstBaseURL: false))
         let childQuery = Dictionary(uniqueKeysWithValues: (childComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(childQuery["path"] == "disk:/Music")
 
         let download = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .resolveFile(id: "disk:/Music/song.mp3", path: nil), accessToken: "token")
-        let downloadComponents = try #require(URLComponents(url: try #require(download.url), resolvingAgainstBaseURL: false))
+        let downloadURL = try #require(download.url)
+        let downloadComponents = try #require(URLComponents(url: downloadURL, resolvingAgainstBaseURL: false))
         let downloadQuery = Dictionary(uniqueKeysWithValues: (downloadComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         #expect(downloadComponents.path == "/v1/disk/resources/download")
         #expect(downloadQuery["path"] == "disk:/Music/song.mp3")

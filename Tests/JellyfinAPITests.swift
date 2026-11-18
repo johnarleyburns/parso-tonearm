@@ -34,7 +34,8 @@ import Testing
             endpoint: .albums(userID: "user-1", artistID: "artist 1"),
             token: "token-1"
         )
-        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
+        let requestURL = try #require(request.url)
+        let components = try #require(URLComponents(url: requestURL, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
         #expect(components.path == "/Users/user-1/Items")
@@ -57,7 +58,8 @@ import Testing
             token: "token-1"
         )
 
-        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
+        let requestURL = try #require(request.url)
+        let components = try #require(URLComponents(url: requestURL, resolvingAgainstBaseURL: false))
 
         #expect(components.percentEncodedPath == "/Audio/song%201/stream")
         #expect(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.query == nil)

@@ -9,7 +9,7 @@ import Testing
     @Test func testFreshSchemaHasArtistAndMetadataColumns() async throws {
         let store = try LibraryStore(inMemory: true)
 
-        try await store.dbQueue.read { db in
+        try await store.dbQueue.read { db throws in
             #expect(try db.tableExists("artist"))
             #expect(try db.columns(in: "album").contains { $0.name == "artistId" })
             #expect(try db.columns(in: "album").contains { $0.name == "albumArtist" })

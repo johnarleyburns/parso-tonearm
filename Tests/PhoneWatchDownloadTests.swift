@@ -525,8 +525,10 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
         // dropped once the v15 download-root stack is in place. Nothing reads them any more.
         let queue = try freshQueue()
         try queue.read { db in
-            #expect(!(try db.tableExists("watchTransfer")))
-            #expect(!(try db.tableExists("watchManifest")))
+            let hasWatchTransfer = try db.tableExists("watchTransfer")
+            let hasWatchManifest = try db.tableExists("watchManifest")
+            #expect(!hasWatchTransfer)
+            #expect(!hasWatchManifest)
         }
     }
 

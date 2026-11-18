@@ -15,7 +15,7 @@ import Testing
                 """, arguments: [Date(), UUID().uuidString])
         }
         try Schema.migrator().migrate(queue)
-        try queue.read { db in
+        try queue.read { db throws in
             #expect(try db.columns(in: "source").first { $0.name == "folderPath" } != nil)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source") == 1)
         }

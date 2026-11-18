@@ -17,7 +17,7 @@ import Testing
 
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             #expect(try db.columns(in: "playlist").contains { $0.name == "isInCrate" })
             let row = try Row.fetchOne(db, sql: "SELECT isInCrate FROM playlist WHERE title = 'Existing'")
             #expect(row?["isInCrate"] as Bool? == false)

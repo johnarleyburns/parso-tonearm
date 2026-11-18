@@ -23,7 +23,7 @@ import Testing
         // Migrate to head (v45).
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             let columns = Set(try db.columns(in: "source").map(\.name))
             #expect(columns.contains("lastBrowsedPath"))
 

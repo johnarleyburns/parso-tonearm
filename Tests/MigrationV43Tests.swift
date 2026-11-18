@@ -12,14 +12,14 @@ import Testing
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v42").migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             #expect(try db.tableExists("discovery_transition_profile"))
         }
 
         // Migrate to head (v43).
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             #expect(!(try db.tableExists("discovery_transition_profile")))
         }
     }

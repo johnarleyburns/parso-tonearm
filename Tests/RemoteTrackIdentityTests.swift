@@ -117,7 +117,7 @@ import GRDB
         #expect(results.value.count == 2)
         // A "recreated process": a fresh connection still enforces the durable constraint.
         let q3 = try DatabaseQueue(path: path, configuration: config)
-        try q3.read { db in
+        try q3.read { db throws in
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity") == 1)
         }
@@ -137,7 +137,7 @@ import GRDB
         }
         let outcome = try q.write { try RemoteTrackUpsert.upsert(db: $0, sourceID: 1, track: track("T"), asset: asset("k", "https://u")) }
         #expect(outcome.trackID == 1)
-        try q.read { db in
+        try q.read { db throws in
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM asset WHERE trackId <> 1") == 0)
         }
@@ -185,7 +185,7 @@ import GRDB
     @Test func testMigrationConsolidatesEightDuplicatesPreservingUserState() throws {
         let q = try seedDuplicates()
         try Schema.migrator().migrate(q)
-        try q.read { db in
+        try q.read { db throws in
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 1 AND id <= 8") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 2") == 1, "other source untouched")
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE id IN (10, 11)") == 2, "unidentified legacy rows kept")
@@ -223,7 +223,7 @@ import GRDB
             _ = try q.write { try RemoteTrackConsolidator.run(db: $0, failBeforeDelete: true) }
             Issue.record("expected RemoteTrackConsolidator.run(failBeforeDelete: true) to throw")
         } catch {}
-        try q.read { db in
+        try q.read { db throws in
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == before)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity") == 0)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite") == 2)

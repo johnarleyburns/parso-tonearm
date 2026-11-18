@@ -31,7 +31,7 @@ import Testing
 
         try Schema.migrator().migrate(db)
 
-        try db.read { db in
+        try db.read { db throws in
             let sourceID: Int64? = try Row.fetchOne(db, sql: "SELECT sourceId FROM playlist WHERE id = 1")?["sourceId"]
             #expect(sourceID == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 1") == 1)

@@ -26,7 +26,8 @@ import Testing
             endpoint: .artists(sectionKey: "3"),
             token: "token"
         )
-        let artistComponents = try #require(URLComponents(url: try #require(artistRequest.url), resolvingAgainstBaseURL: false))
+        let artistRequestURL = try #require(artistRequest.url)
+        let artistComponents = try #require(URLComponents(url: artistRequestURL, resolvingAgainstBaseURL: false))
         let artistQuery = Dictionary(uniqueKeysWithValues: (artistComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
         #expect(artistComponents.path == "/library/sections/3/all")

@@ -163,7 +163,8 @@ import Testing
         }
 
         let analysis = try await queue.read { db in try DiscoveryTrackAnalysis.fetchOne(db, key: trackId) }
-        let bpm = try #require(try #require(analysis).bpm, "LeanAnalysis should find a real bpm")
+        let foundAnalysis = try #require(analysis)
+        let bpm = try #require(foundAnalysis.bpm, "LeanAnalysis should find a real bpm")
         #expect(abs(bpm - 128) <= 2)
 
         // The table itself no longer exists (v43) — confirms nothing in the lean path tries to

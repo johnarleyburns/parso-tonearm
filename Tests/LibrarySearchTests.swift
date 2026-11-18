@@ -42,7 +42,7 @@ import Testing
 
         try Schema.migrator().migrate(dbQueue)
 
-        try dbQueue.read { db in
+        try dbQueue.read { db throws in
             #expect(try matchedTrackIDs(db, expression: "\"Sinn\"*") == [1])
             #expect(try matchedTrackIDs(db, expression: "\"Nina\"*") == [1])
             #expect(try matchedTrackIDs(db, expression: "\"Pastel\"*") == [1])
