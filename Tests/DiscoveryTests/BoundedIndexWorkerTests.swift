@@ -231,9 +231,7 @@ import Testing
         guard case .jobCompleted = outcome else {
             let j = try await jobs.job(trackId: trackId, pipelineVersion: 1)
             Issue.record(
-                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") "
-                    + "msg=\(j?.errorMessage ?? "nil") emb=\(j?.embeddingStageState.rawValue ?? "?") "
-                    + "mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
+                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") msg=\(j?.errorMessage ?? "nil") emb=\(j?.embeddingStageState.rawValue ?? "?") mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
             return
         }
 
