@@ -1,6 +1,7 @@
 #if !os(watchOS)
 import AVFoundation
 import Foundation
+import ParsoAudioStreaming
 import Testing
 @testable import TonearmCore
 
@@ -86,12 +87,16 @@ extension SharedProductionSingletonTests {
         /// this file's fake resolver — wrongly reports true. Proves `init`/`deinit`'s
         /// purge actually removes that contamination rather than merely assuming a clean
         /// starting directory.
-        /// Guards against hanging CI for up to the workflow's full timeout if this test's
-        /// real `AudioCache.shared` interaction ever blocks indefinitely (e.g. on stale
-        /// on-disk cache-actor state left behind on a self-hosted runner that doesn't get
-        /// a clean filesystem between jobs) — fails fast with a clear time-out instead.
-        @Test(.timeLimit(.minutes(1)))
-        func testPurgeFixtureCacheEntriesRemovesAPriorCompleteCacheEntry() async throws {
+        ///
+        /// Writes the stale "complete" entry's meta.json directly (same shape
+        /// `AudioCache.shared.registerComplete` would persist), rather than calling
+        /// through the real shared actor: `completeCacheExists` only ever reads these
+        /// files synchronously and never touches the actor, so this reproduces the
+        /// exact contamination issue #351 hit without the real actor's first-touch-
+        /// per-process directory scan and eviction pass against whatever has actually
+        /// accumulated in the real, shared, non-ephemeral
+        /// `~/Library/Caches/Tonearm/StreamCacheV2` on a self-hosted runner.
+        @Test func testPurgeFixtureCacheEntriesRemovesAPriorCompleteCacheEntry() throws {
             let url = URL(string: "https://stale.example")!
             let key = AudioCache.key(for: url)
             let blobURL = AudioCache.fileURL(for: key)
@@ -99,7 +104,10 @@ extension SharedProductionSingletonTests {
                                                      withIntermediateDirectories: true)
             let bytes = Data([0, 1, 2, 3])
             try bytes.write(to: blobURL)
-            await AudioCache.shared.registerComplete(key: key, bytes: Int64(bytes.count), kind: "audio")
+            let meta = SparseCacheStore.Meta(
+                totalBytes: Int64(bytes.count), cachedBytes: Int64(bytes.count), complete: true,
+                lastAccessedAt: Date(), createdAt: Date(), rangeMap: ByteRangeMap(), kind: "audio")
+            try JSONEncoder().encode(meta).write(to: AudioCache.metaURL(for: key))
             #expect(AudioCache.completeCacheExists(for: url),
                          "fixture setup must actually simulate a prior complete cache entry")
 
