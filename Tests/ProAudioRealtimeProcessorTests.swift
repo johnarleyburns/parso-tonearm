@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import Foundation
 import Testing
 import AVFoundation
 import ParsoAudioPlayback
