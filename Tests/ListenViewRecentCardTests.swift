@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real report: Jump Back In / Favorites card titles truncated to one line. Both sections render

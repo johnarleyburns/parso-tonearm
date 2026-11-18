@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import GRDB
 @testable import TonearmCore

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `AppState` lives under `Sources/App/`, which `Package.swift` excludes from the `TonearmCore`
@@ -27,7 +28,6 @@ import Testing
         let nodeCallEnd = try #require(functionBody[nodeConstruction.lowerBound...].range(of: ")\n"))
         let nodeCall = functionBody[nodeConstruction.lowerBound..<nodeCallEnd.upperBound]
         #expect(nodeCall.contains("contentType: asset.remoteContentType"),
-            "the synthetic RemoteNode performPersistRemoteTrack hands to RemotePlaylistIngest.persist " +
-            "must carry the in-memory row's content-type hint through, or it's lost the moment the row is saved")
+            "the synthetic RemoteNode performPersistRemoteTrack hands to RemotePlaylistIngest.persist must carry the in-memory row's content-type hint through, or it's lost the moment the row is saved")
     }
 }

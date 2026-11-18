@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real reports: (1) My Music > Playlists showed a redundant "Your Playlists" caption row and a

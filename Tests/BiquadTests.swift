@@ -65,7 +65,7 @@ import Testing
                 gainDB: 0,
                 q: 1,
                 sampleRate: 48_000)
-            #expect(coefficients == .identity, type.rawValue)
+            #expect(coefficients == .identity, "\(type.rawValue)")
             #expect(abs(coefficients.magnitude(at: 1_000, sampleRate: 48_000) - 1) <= 1e-12)
         }
     }

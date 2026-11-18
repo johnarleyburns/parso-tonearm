@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import AVFoundation
 @testable import TonearmCore

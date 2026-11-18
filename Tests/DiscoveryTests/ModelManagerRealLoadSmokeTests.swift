@@ -1,5 +1,6 @@
 #if !os(watchOS) && canImport(CoreML)
 import ParsoAudioNeural
+import Foundation
 import Testing
 
 @testable import TonearmDiscovery

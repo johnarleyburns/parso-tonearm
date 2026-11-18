@@ -63,14 +63,14 @@ import Testing
             let text = try source(path)
             // Find may hide its bar only conditionally (while the search field is focused).
             if path.hasSuffix("Find/FindView.swift") {
-                #expect(!text.contains(".hiddenNavigationBar()"), path)
-                #expect(text.contains(".hiddenNavigationBar(when: queryFocused"), path)
+                #expect(!text.contains(".hiddenNavigationBar()"), "\(path)")
+                #expect(text.contains(".hiddenNavigationBar(when: queryFocused"), "\(path)")
             } else {
-                #expect(!text.contains("hiddenNavigationBar"), path)
+                #expect(!text.contains("hiddenNavigationBar"), "\(path)")
             }
-            #expect(!text.contains(".navigationBarHidden"), path)
-            #expect(!text.contains(".toolbar(.hidden, for: .navigationBar)"), path)
-            #expect(!text.contains("ScreenHeader"), path)
+            #expect(!text.contains(".navigationBarHidden"), "\(path)")
+            #expect(!text.contains(".toolbar(.hidden, for: .navigationBar)"), "\(path)")
+            #expect(!text.contains("ScreenHeader"), "\(path)")
         }
     }
 

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Jump Back In / Favorites share `cardRow`; it must realize cards lazily (bounded rendering)

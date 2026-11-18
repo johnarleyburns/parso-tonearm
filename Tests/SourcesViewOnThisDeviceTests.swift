@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real reports: Libraries > On This Device should not show "Mood Starter" (a removed feature's

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import TonearmCore
 
@@ -56,18 +57,18 @@ private func envelope(_ ids: [String]) -> String {
         JamendoStubProtocol.body = envelope(["1884163"])
         _ = try await makeAPI().tracks(ids: ["1884163", "1876521", "1892244"])
         let query = try rawQuery()
-        #expect(query.contains("id=1884163%2B1876521%2B1892244"), query)
-        #expect(!query.contains("id=1884163+1876521+1892244"), query)
-        #expect(!query.contains("%20"), query)
+        #expect(query.contains("id=1884163%2B1876521%2B1892244"), "\(query)")
+        #expect(!query.contains("id=1884163+1876521+1892244"), "\(query)")
+        #expect(!query.contains("%20"), "\(query)")
     }
 
     @Test func testSingleIDHasNoSeparator() async throws {
         JamendoStubProtocol.body = envelope(["1892244"])
         _ = try await makeAPI().tracks(ids: ["1892244"])
         let query = try rawQuery()
-        #expect(query.contains("id=1892244&"), query)
-        #expect(!query.contains("%2B"), query)
-        #expect(!query.contains("+"), query)
+        #expect(query.contains("id=1892244&"), "\(query)")
+        #expect(!query.contains("%2B"), "\(query)")
+        #expect(!query.contains("+"), "\(query)")
     }
 
     @Test func testEmptyIDsMakeNoRequest() async throws {

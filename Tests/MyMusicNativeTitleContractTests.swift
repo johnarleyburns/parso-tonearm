@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import Foundation
 import Testing
 
 /// My Music uses the native large navigation title; an embedded PlaylistsView must not hide the parent bar.

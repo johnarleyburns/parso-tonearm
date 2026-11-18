@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `AppState`/`SettingsView` live under `Sources/App/`/`Sources/Features/`, both excluded from

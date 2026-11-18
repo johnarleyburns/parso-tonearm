@@ -2,6 +2,7 @@
 import AVFoundation
 import GRDB
 import ParsoAudioNeural
+import Foundation
 import Testing
 
 @testable import TonearmCore
@@ -212,8 +213,7 @@ import Testing
         #expect(coverage.complete == 0)
         #expect(
             coverage.queuedOrRunning == trackCount,
-            "jobs blocked before being claimed stay .queued — this is what made the old "
-                + "status UI show a generic, unexplained 'Indexing' forever")
+            "jobs blocked before being claimed stay .queued — this is what made the old status UI show a generic, unexplained 'Indexing' forever")
         let reasonAfterBlock = await assembly.lastBlockReason
         #expect(reasonAfterBlock == .thermalSerious)
 

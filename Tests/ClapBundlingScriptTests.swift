@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Issue #201: CLAP is bundled (no ODR tags) and a release archive fails closed

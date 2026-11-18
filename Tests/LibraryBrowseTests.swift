@@ -10,7 +10,7 @@ import Testing
 
     @Test func testEmptyLibraryProducesNoSections() {
         for mode in LibraryBrowseMode.allCases {
-            #expect(LibraryBrowse.sections(for: mode, rows: []) == [], mode.rawValue)
+            #expect(LibraryBrowse.sections(for: mode, rows: []) == [], "\(mode.rawValue)")
         }
     }
 

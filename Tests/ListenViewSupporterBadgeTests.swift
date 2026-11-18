@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real report: the supporter badge rendered as the first element of the Listen tab's scrolling

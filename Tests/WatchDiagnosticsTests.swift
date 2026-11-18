@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import TonearmWatchProtocol
 @testable import TonearmWatchCore

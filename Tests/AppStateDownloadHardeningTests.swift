@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `AppState` lives under `Sources/App/`, excluded from the `TonearmCore` SwiftPM target in

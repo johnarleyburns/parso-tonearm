@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real report: Now Playing showed both a "<" back button and the zoom transition's own

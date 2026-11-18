@@ -1,3 +1,4 @@
+import Dispatch
 import Testing
 @testable import TonearmCore
 @testable import TonearmDiscovery

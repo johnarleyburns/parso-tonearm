@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `../parso-voxglass` places its Supporter purchase row second-to-last in Settings, right
@@ -60,8 +61,8 @@ import Testing
                   "settingsSection(\"Playback\"", "settingsSection(\"Library\"",
                   "settingsSection(\"Apple Watch\"", "settingsSection(\"Account & About\"",
                   "settingsSection(\"Advanced\""] {
-            let r = try #require(after.range(of: m), m)
-            #expect(last < r.lowerBound, m)
+            let r = try #require(after.range(of: m), "\(m)")
+            #expect(last < r.lowerBound, "\(m)")
             last = r.lowerBound
         }
         #expect(!after.contains("Section {"), "no bare un-headered Section wrappers")
@@ -81,7 +82,7 @@ import Testing
     @Test func testNoVoxglassTokenLeakage() throws {
         let s = try source()
         for t in ["Palette.surfaceLine", "Palette.ink2", "Palette.ink3", "Palette.brass", "VoxglassTheme"] {
-            #expect(!s.contains(t), t)
+            #expect(!s.contains(t), "\(t)")
         }
     }
 }

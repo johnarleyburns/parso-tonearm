@@ -1,5 +1,6 @@
 #if !os(watchOS)
 import AVFoundation
+import Foundation
 import Testing
 @testable import TonearmCore
 
@@ -100,8 +101,7 @@ extension SharedProductionSingletonTests {
             Self.purgeFixtureCacheEntries()
 
             #expect(!AudioCache.completeCacheExists(for: url),
-                          "a stale complete cache entry must not survive init/deinit, or it silently " +
-                          "bypasses the malformed-locator rejection path the same way it did for issue #351")
+                          "a stale complete cache entry must not survive init/deinit, or it silently bypasses the malformed-locator rejection path the same way it did for issue #351")
         }
 
         isolated deinit {

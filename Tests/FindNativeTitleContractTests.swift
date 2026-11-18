@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import Foundation
 import Testing
 
 /// Find uses the native large navigation title and keeps its result identifiers.

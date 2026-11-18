@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import CoreGraphics
 @testable import TonearmCore

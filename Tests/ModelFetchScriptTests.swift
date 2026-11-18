@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Issue #206: `scripts/fetch-models.sh` unpacks pinned archives safely.

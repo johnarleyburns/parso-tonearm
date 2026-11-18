@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `ArtworkService` lives under `Sources/Media/`, excluded from the `TonearmCore` SwiftPM target

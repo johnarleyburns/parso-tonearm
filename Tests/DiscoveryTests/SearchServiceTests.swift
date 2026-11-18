@@ -231,8 +231,7 @@ import Testing
         #expect(response.state == .ready)
         #expect(
             Set(response.results.map(\.track.track.title)) == ["energy-close", "energy-unknown"],
-            "energy-far is BPM/key compatible but too far in energy; a track with no stored "
-                + "energy must never be excluded on that basis")
+            "energy-far is BPM/key compatible but too far in energy; a track with no stored energy must never be excluded on that basis")
     }
 
     // MARK: - Filtered match below the old global top-N

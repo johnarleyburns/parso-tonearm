@@ -1,4 +1,5 @@
 import SwiftData
+import Foundation
 import Testing
 @testable import TonearmWatchCore
 

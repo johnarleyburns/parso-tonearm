@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// `AppState`/`DiscoveryRuntimeController`/`SourceDetailView+Remote` all live under

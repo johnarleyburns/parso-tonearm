@@ -1,4 +1,5 @@
 #if !os(watchOS) && canImport(CoreML)
+import Foundation
 import Testing
 
 @testable import TonearmDiscovery

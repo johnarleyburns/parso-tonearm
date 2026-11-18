@@ -1,6 +1,7 @@
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
+import Foundation
 import Testing
 @testable import TonearmCore
 

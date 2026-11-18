@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import Foundation
 import Testing
 
 /// Find Mood reuses the single top search field instead of owning a second one.

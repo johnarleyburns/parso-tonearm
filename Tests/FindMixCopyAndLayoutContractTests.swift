@@ -1,4 +1,5 @@
 #if !os(watchOS)
+import Foundation
 import Testing
 
 @Suite struct FindMixCopyAndLayoutContractTests {
@@ -49,9 +50,7 @@ import Testing
     @Test func testHeaderCanCompressInsteadOfForcingOverlapOntoResults() throws {
         let find = try source("Sources/Features/Find/FindView.swift")
         #expect(!find.contains(".fixedSize(horizontal: false, vertical: true)"),
-                       "the header must be able to compress when space is tight, or a tall mode " +
-                       "forces the whole screen past the available height instead of yielding " +
-                       "space to the reserved results area below")
+                       "the header must be able to compress when space is tight, or a tall mode forces the whole screen past the available height instead of yielding space to the reserved results area below")
     }
 
     /// Mood mode used to render two separate pill rows (taxonomy/era-vibe pills, then genre

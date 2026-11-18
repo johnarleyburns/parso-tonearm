@@ -1,5 +1,6 @@
 #if !os(watchOS)
 import AVFoundation
+import Foundation
 import Testing
 @testable import StarterGeneratorSupport
 

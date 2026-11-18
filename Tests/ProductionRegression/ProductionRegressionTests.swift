@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import TonearmCore
@@ -11,7 +12,7 @@ import Testing
                                 sourceLocation: SourceLocation = #_sourceLocation) {
         switch BaselineComparator.compare(screen: screen, state: state, rendered: rendered, config: config) {
         case .match, .recorded: break
-        case .mismatch(let message, _, _), .missing(let message): Issue.record(message, sourceLocation: sourceLocation)
+        case .mismatch(let message, _, _), .missing(let message): Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
         }
     }
 

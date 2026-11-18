@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import TonearmCore
@@ -137,7 +138,7 @@ import Testing
                 rows: rows,
                 store: fixture.store,
                 label: label)
-            #expect(ids == expected, label)
+            #expect(ids == expected, "\(label)")
         }
     }
 
@@ -168,7 +169,7 @@ import Testing
                                                  label: String = "") async throws -> [Int64] {
         let evaluated = playlist.evaluate(rows: rows).map(\.id)
         let compiled = try await store.smartPlaylistRows(playlist).map(\.id)
-        #expect(evaluated == compiled, label)
+        #expect(evaluated == compiled, "\(label)")
         return evaluated
     }
 

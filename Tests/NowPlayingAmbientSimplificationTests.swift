@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 /// Real report: Ambient's Now Playing should be highly simplified — only play/pause, AirPlay,
