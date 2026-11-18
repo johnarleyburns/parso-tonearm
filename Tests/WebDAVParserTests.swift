@@ -1,10 +1,10 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class WebDAVParserTests: XCTestCase {
+@Suite struct WebDAVParserTests {
 
-    func testNextcloudPropfindEscapedNamesAndAudioFiltering() throws {
+    @Test func testNextcloudPropfindEscapedNamesAndAudioFiltering() throws {
         let listing = try WebDAVParser.parse(data("""
         <?xml version="1.0"?>
         <d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
@@ -38,15 +38,15 @@ final class WebDAVParserTests: XCTestCase {
         </d:multistatus>
         """), basePath: "/remote.php/dav/files/alice/Music/")
 
-        XCTAssertEqual(listing.path, "/remote.php/dav/files/alice/Music/")
-        XCTAssertEqual(listing.entries.map(\.name), ["A & B.flac", "cover.jpg"])
-        XCTAssertEqual(listing.entries.first?.relativePath, "A & B.flac")
-        XCTAssertEqual(listing.entries.first?.contentLength, 12_345)
-        XCTAssertEqual(listing.entries.first?.lastModified, "Tue, 02 Jan 2024 10:00:00 GMT")
-        XCTAssertEqual(listing.playableEntries.map(\.name), ["A & B.flac"])
+        #expect(listing.path == "/remote.php/dav/files/alice/Music/")
+        #expect(listing.entries.map(\.name) == ["A & B.flac", "cover.jpg"])
+        #expect(listing.entries.first?.relativePath == "A & B.flac")
+        #expect(listing.entries.first?.contentLength == 12_345)
+        #expect(listing.entries.first?.lastModified == "Tue, 02 Jan 2024 10:00:00 GMT")
+        #expect(listing.playableEntries.map(\.name) == ["A & B.flac"])
     }
 
-    func testApacheDefaultNamespaceCollection() throws {
+    @Test func testApacheDefaultNamespaceCollection() throws {
         let listing = try WebDAVParser.parse(data("""
         <multistatus xmlns="DAV:">
           <response>
@@ -66,7 +66,7 @@ final class WebDAVParserTests: XCTestCase {
         </multistatus>
         """), basePath: "/dav/music/")
 
-        XCTAssertEqual(listing.entries, [
+        #expect(listing.entries == [
             WebDAVEntry(href: "/dav/music/Album/",
                         relativePath: "Album",
                         name: "Album",
@@ -75,10 +75,10 @@ final class WebDAVParserTests: XCTestCase {
                         contentType: nil,
                         lastModified: nil)
         ])
-        XCTAssertEqual(listing.playableEntries.map(\.name), ["Album"])
+        #expect(listing.playableEntries.map(\.name) == ["Album"])
     }
 
-    func testRcloneFullHrefFallsBackToFilename() throws {
+    @Test func testRcloneFullHrefFallsBackToFilename() throws {
         let listing = try WebDAVParser.parse(data("""
         <d:multistatus xmlns:d="DAV:">
           <d:response>
@@ -94,13 +94,13 @@ final class WebDAVParserTests: XCTestCase {
         </d:multistatus>
         """), basePath: "/music/")
 
-        XCTAssertEqual(listing.entries.first?.href, "/music/Live/Track 01.mp3")
-        XCTAssertEqual(listing.entries.first?.relativePath, "Live/Track 01.mp3")
-        XCTAssertEqual(listing.entries.first?.name, "Track 01.mp3")
-        XCTAssertEqual(listing.playableEntries.map(\.relativePath), ["Live/Track 01.mp3"])
+        #expect(listing.entries.first?.href == "/music/Live/Track 01.mp3")
+        #expect(listing.entries.first?.relativePath == "Live/Track 01.mp3")
+        #expect(listing.entries.first?.name == "Track 01.mp3")
+        #expect(listing.playableEntries.map(\.relativePath) == ["Live/Track 01.mp3"])
     }
 
-    func testDeepNestedPathsRemainRelativeToBase() throws {
+    @Test func testDeepNestedPathsRemainRelativeToBase() throws {
         let listing = try WebDAVParser.parse(data("""
         <D:multistatus xmlns:D="DAV:">
           <D:response>
@@ -113,14 +113,14 @@ final class WebDAVParserTests: XCTestCase {
         </D:multistatus>
         """), basePath: "/dav/")
 
-        XCTAssertEqual(
-            listing.entries.first?.relativePath,
+        #expect(
+            listing.entries.first?.relativePath ==
             "Music/Artist/Album/Disc 1/01 Prelude.m4a"
         )
-        XCTAssertEqual(listing.entries.first?.name, "01 Prelude.m4a")
+        #expect(listing.entries.first?.name == "01 Prelude.m4a")
     }
 
-    func testEmptyCollectionSkipsSelfResponse() throws {
+    @Test func testEmptyCollectionSkipsSelfResponse() throws {
         let listing = try WebDAVParser.parse(data("""
         <d:multistatus xmlns:d="DAV:">
           <d:response>
@@ -133,10 +133,10 @@ final class WebDAVParserTests: XCTestCase {
         </d:multistatus>
         """), basePath: "/dav/empty/")
 
-        XCTAssertEqual(listing.entries, [])
+        #expect(listing.entries == [])
     }
 
-    func testUnsuccessfulResponsesAreIgnored() throws {
+    @Test func testUnsuccessfulResponsesAreIgnored() throws {
         let listing = try WebDAVParser.parse(data("""
         <d:multistatus xmlns:d="DAV:">
           <d:response>
@@ -149,7 +149,7 @@ final class WebDAVParserTests: XCTestCase {
         </d:multistatus>
         """), basePath: "/dav/music/")
 
-        XCTAssertEqual(listing.entries, [])
+        #expect(listing.entries == [])
     }
 
     private func data(_ string: String) -> Data {

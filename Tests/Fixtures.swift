@@ -1,4 +1,3 @@
-import XCTest
 @testable import TonearmCore
 
 /// Locates Opus test fixtures copied into the test bundle under `Fixtures/`.

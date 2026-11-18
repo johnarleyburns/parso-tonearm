@@ -1,10 +1,10 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class MetadataNormalizerTests: XCTestCase {
+@Suite struct MetadataNormalizerTests {
 
-    func testCommonKeysWinOverVendorConflicts() {
+    @Test func testCommonKeysWinOverVendorConflicts() {
         let metadata = MetadataNormalizer.normalize(
             items: [
                 item(key: "TIT2", keySpace: "org.id3", stringValue: "ID3 Title"),
@@ -14,11 +14,11 @@ final class MetadataNormalizerTests: XCTestCase {
             ],
             fallbackFilename: "Fallback.flac")
 
-        XCTAssertEqual(metadata.title, "Common Title")
-        XCTAssertEqual(metadata.artist, "Common Artist")
+        #expect(metadata.title == "Common Title")
+        #expect(metadata.artist == "Common Artist")
     }
 
-    func testID3KeysNormalizeAllCoreFields() {
+    @Test func testID3KeysNormalizeAllCoreFields() {
         let metadata = MetadataNormalizer.normalize(
             items: [
                 item(key: "TIT2", keySpace: "org.id3", stringValue: "Song"),
@@ -33,18 +33,18 @@ final class MetadataNormalizerTests: XCTestCase {
             ],
             fallbackFilename: "fallback.mp3")
 
-        XCTAssertEqual(metadata.title, "Song")
-        XCTAssertEqual(metadata.artist, "Track Artist")
-        XCTAssertEqual(metadata.albumArtist, "Album Artist")
-        XCTAssertEqual(metadata.albumTitle, "Album")
-        XCTAssertEqual(metadata.genre, "Jazz")
-        XCTAssertEqual(metadata.composer, "Composer")
-        XCTAssertEqual(metadata.trackNo, 1)
-        XCTAssertEqual(metadata.discNo, 2)
-        XCTAssertEqual(metadata.year, 1977)
+        #expect(metadata.title == "Song")
+        #expect(metadata.artist == "Track Artist")
+        #expect(metadata.albumArtist == "Album Artist")
+        #expect(metadata.albumTitle == "Album")
+        #expect(metadata.genre == "Jazz")
+        #expect(metadata.composer == "Composer")
+        #expect(metadata.trackNo == 1)
+        #expect(metadata.discNo == 2)
+        #expect(metadata.year == 1977)
     }
 
-    func testITunesKeysAndPackedNumbersNormalize() {
+    @Test func testITunesKeysAndPackedNumbersNormalize() {
         let metadata = MetadataNormalizer.normalize(
             items: [
                 item(key: "©nam", keySpace: "com.apple.itunes", stringValue: "iTunes Song"),
@@ -59,28 +59,28 @@ final class MetadataNormalizerTests: XCTestCase {
             ],
             fallbackFilename: "fallback.m4a")
 
-        XCTAssertEqual(metadata.title, "iTunes Song")
-        XCTAssertEqual(metadata.artist, "iTunes Artist")
-        XCTAssertEqual(metadata.albumArtist, "iTunes Album Artist")
-        XCTAssertEqual(metadata.albumTitle, "iTunes Album")
-        XCTAssertEqual(metadata.genre, "Rock")
-        XCTAssertEqual(metadata.composer, "Writer")
-        XCTAssertEqual(metadata.trackNo, 7)
-        XCTAssertEqual(metadata.discNo, 2)
-        XCTAssertEqual(metadata.year, 1984)
+        #expect(metadata.title == "iTunes Song")
+        #expect(metadata.artist == "iTunes Artist")
+        #expect(metadata.albumArtist == "iTunes Album Artist")
+        #expect(metadata.albumTitle == "iTunes Album")
+        #expect(metadata.genre == "Rock")
+        #expect(metadata.composer == "Writer")
+        #expect(metadata.trackNo == 7)
+        #expect(metadata.discNo == 2)
+        #expect(metadata.year == 1984)
     }
 
-    func testMissingMetadataFallsBackToFilename() {
+    @Test func testMissingMetadataFallsBackToFilename() {
         let metadata = MetadataNormalizer.normalize(
             items: [],
             fallbackFilename: "01 - Stephan Bodzin - Singularity.flac")
 
-        XCTAssertEqual(metadata.trackNo, 1)
-        XCTAssertEqual(metadata.artist, "Stephan Bodzin")
-        XCTAssertEqual(metadata.title, "Singularity")
+        #expect(metadata.trackNo == 1)
+        #expect(metadata.artist == "Stephan Bodzin")
+        #expect(metadata.title == "Singularity")
     }
 
-    func testGarbageBytesDoNotCreateNumbers() {
+    @Test func testGarbageBytesDoNotCreateNumbers() {
         let metadata = MetadataNormalizer.normalize(
             items: [
                 item(key: "trkn", keySpace: "com.apple.itunes", dataValue: Data([0xff])),
@@ -88,12 +88,12 @@ final class MetadataNormalizerTests: XCTestCase {
             ],
             fallbackFilename: "No Number.wav")
 
-        XCTAssertNil(metadata.trackNo)
-        XCTAssertNil(metadata.discNo)
-        XCTAssertEqual(metadata.title, "No Number")
+        #expect(metadata.trackNo == nil)
+        #expect(metadata.discNo == nil)
+        #expect(metadata.title == "No Number")
     }
 
-    func testFieldBagNormalizesIAStyleMetadata() {
+    @Test func testFieldBagNormalizesIAStyleMetadata() {
         var fields = MetadataNormalizer.FieldBag()
         fields.title = ["  IA Song  "]
         fields.artist = ["Track Artist"]
@@ -108,16 +108,16 @@ final class MetadataNormalizerTests: XCTestCase {
 
         let metadata = MetadataNormalizer.normalize(fields: fields, fallbackFilename: "fallback.mp3")
 
-        XCTAssertEqual(metadata.title, "IA Song")
-        XCTAssertEqual(metadata.artist, "Track Artist")
-        XCTAssertEqual(metadata.albumTitle, "IA Album")
-        XCTAssertEqual(metadata.albumArtist, "Various Artists")
-        XCTAssertEqual(metadata.genre, "Folk")
-        XCTAssertEqual(metadata.composer, "The Composer")
-        XCTAssertEqual(metadata.trackNo, 3)
-        XCTAssertEqual(metadata.discNo, 1)
-        XCTAssertEqual(metadata.year, 2020)
-        XCTAssertEqual(metadata.bitDepthOrBitrate, "320 kbps")
+        #expect(metadata.title == "IA Song")
+        #expect(metadata.artist == "Track Artist")
+        #expect(metadata.albumTitle == "IA Album")
+        #expect(metadata.albumArtist == "Various Artists")
+        #expect(metadata.genre == "Folk")
+        #expect(metadata.composer == "The Composer")
+        #expect(metadata.trackNo == 3)
+        #expect(metadata.discNo == 1)
+        #expect(metadata.year == 2020)
+        #expect(metadata.bitDepthOrBitrate == "320 kbps")
     }
 
     private func item(

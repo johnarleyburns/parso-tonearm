@@ -1,5 +1,5 @@
 #if !os(watchOS)
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// In-memory catalog standing in for the library's `blend_catalog_track` table.
@@ -30,7 +30,7 @@ private final class Calls: @unchecked Sendable {
     var lookupCount: Int { lock.withLock { lookups } }
 }
 
-final class CatalogPlaybackURLResolverTests: XCTestCase {
+@Suite struct CatalogPlaybackURLResolverTests {
     private let stale = URL(string: "https://example.test/stale.mp3")!
     private let fresh = URL(string: "https://example.test/fresh.mp3")!
 
@@ -54,7 +54,7 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
             persist: { key, url, _ in store.setCached(key, url) })
     }
 
-    func testOrdinaryJamendoRowRefreshesFromProviderIdentityAndPersistsCache() async throws {
+    @Test func testOrdinaryJamendoRowRefreshesFromProviderIdentityAndPersistsCache() async throws {
         let store = FakeCatalog()
         let key = BlendCatalogTrack.jamendoKey(trackID: "99123")
         store.add(jamendoID: "99123", cached: stale)
@@ -63,93 +63,93 @@ final class CatalogPlaybackURLResolverTests: XCTestCase {
 
         let resolved = try await resolver(store, calls).resolve(row: row)
 
-        XCTAssertEqual(resolved?.url, fresh)
-        XCTAssertEqual(calls.refreshIDs, ["99123"])
-        XCTAssertEqual(store.row(key)?.cachedURL, fresh.absoluteString)
+        #expect(resolved?.url == fresh)
+        #expect(calls.refreshIDs == ["99123"])
+        #expect(store.row(key)?.cachedURL == fresh.absoluteString)
     }
 
-    func testOrdinaryNonJamendoRowBypassesCatalogResolver() async throws {
+    @Test func testOrdinaryNonJamendoRowBypassesCatalogResolver() async throws {
         let store = FakeCatalog()
         let calls = Calls()
         let row = Self.row(kind: .iaItem, nodeID: "99123", url: stale.absoluteString)
         let resolved = try await resolver(store, calls).resolve(row: row)
-        XCTAssertNil(resolved)
-        XCTAssertEqual(calls.lookupCount, 0)
-        XCTAssertTrue(calls.refreshIDs.isEmpty)
+        #expect(resolved == nil)
+        #expect(calls.lookupCount == 0)
+        #expect(calls.refreshIDs.isEmpty)
     }
 
     /// Mood Starter is stored as a local source, but its remote asset is a
     /// durable `jamendo://track/<id>` locator. It must be resolved before an
     /// AVPlayer item is built; AVFoundation cannot play that custom scheme.
-    func testMoodStarterJamendoLocatorRefreshesWithoutCatalogLookup() async throws {
+    @Test func testMoodStarterJamendoLocatorRefreshesWithoutCatalogLookup() async throws {
         let calls = Calls()
         let row = Self.row(
             kind: .local, nodeID: nil, url: "jamendo://track/99123", sourceID: 1)
 
         let result = try await resolver(FakeCatalog(), calls).resolve(row: row)
 
-        XCTAssertEqual(result?.url, fresh)
-        XCTAssertEqual(calls.refreshIDs, ["99123"])
-        XCTAssertEqual(calls.lookupCount, 0,
+        #expect(result?.url == fresh)
+        #expect(calls.refreshIDs == ["99123"])
+        #expect(calls.lookupCount == 0,
                        "Mood Starter has no Jamendo genre-library catalog row")
     }
 
-    func testMissingCatalogIdentityFailsTruthfullyRatherThanUsingRawAssetURL() async throws {
+    @Test func testMissingCatalogIdentityFailsTruthfullyRatherThanUsingRawAssetURL() async throws {
         let store = FakeCatalog()
         let calls = Calls()
         let row = Self.row(kind: .jamendoGenre, nodeID: "555", url: stale.absoluteString)
         do {
             _ = try await resolver(store, calls).resolve(row: row)
-            XCTFail("must not fall back to Asset.remoteURL")
+            Issue.record("must not fall back to Asset.remoteURL")
         } catch {
-            XCTAssertEqual(error as? JamendoResolveError, .permanent)
+            #expect(error as? JamendoResolveError == .permanent)
         }
-        XCTAssertTrue(calls.refreshIDs.isEmpty)
+        #expect(calls.refreshIDs.isEmpty)
     }
 
-    func testTransientJamendoBrowseRowRefreshesByNodeIDWithoutCatalogLookupOrPersistence() async throws {
+    @Test func testTransientJamendoBrowseRowRefreshesByNodeIDWithoutCatalogLookupOrPersistence() async throws {
         let store = FakeCatalog()
         let calls = Calls()
         let row = Self.row(kind: .jamendoGenre, nodeID: "99123", url: stale.absoluteString, sourceID: nil)
         let result = try await resolver(store, calls).resolve(row: row)
-        XCTAssertEqual(result?.url, fresh)
-        XCTAssertEqual(calls.refreshIDs, ["99123"])
-        XCTAssertEqual(calls.lookupCount, 0)
-        XCTAssertNil(store.row(BlendCatalogTrack.jamendoKey(trackID: "99123")))
+        #expect(result?.url == fresh)
+        #expect(calls.refreshIDs == ["99123"])
+        #expect(calls.lookupCount == 0)
+        #expect(store.row(BlendCatalogTrack.jamendoKey(trackID: "99123")) == nil)
     }
 
-    func testPersistedJamendoRowWithoutCatalogIdentityFailsInsteadOfUsingTransientBrowsePath() async throws {
+    @Test func testPersistedJamendoRowWithoutCatalogIdentityFailsInsteadOfUsingTransientBrowsePath() async throws {
         let calls = Calls()
         let row = Self.row(kind: .jamendoGenre, nodeID: "99123", url: stale.absoluteString, sourceID: 1)
         do {
             _ = try await resolver(FakeCatalog(), calls).resolve(row: row)
-            XCTFail("persisted row must not use the transient path")
+            Issue.record("persisted row must not use the transient path")
         } catch {
-            XCTAssertEqual(error as? JamendoResolveError, .permanent)
+            #expect(error as? JamendoResolveError == .permanent)
         }
-        XCTAssertTrue(calls.refreshIDs.isEmpty)
+        #expect(calls.refreshIDs.isEmpty)
     }
 
-    func testWhitespaceAndNonNumericJamendoNodeIDsAreRejected() async throws {
+    @Test func testWhitespaceAndNonNumericJamendoNodeIDsAreRejected() async throws {
         for bad in [nil, "", "   ", "abc", "12x", "1 2"] as [String?] {
             let calls = Calls()
             let row = Self.row(kind: .jamendoGenre, nodeID: bad, url: stale.absoluteString)
             do {
                 _ = try await resolver(FakeCatalog(), calls).resolve(row: row)
-                XCTFail("\(String(describing: bad)) must be rejected")
+                Issue.record("\(String(describing: bad)) must be rejected")
             } catch {
-                XCTAssertEqual(error as? JamendoResolveError, .permanent)
+                #expect(error as? JamendoResolveError == .permanent)
             }
-            XCTAssertTrue(calls.refreshIDs.isEmpty)
+            #expect(calls.refreshIDs.isEmpty)
         }
     }
 
-    func testNonJamendoRemoteWithoutNodeIDRetainsExistingPlaybackPath() async throws {
+    @Test func testNonJamendoRemoteWithoutNodeIDRetainsExistingPlaybackPath() async throws {
         let calls = Calls()
         let row = Self.row(kind: .iaItem, nodeID: nil, url: stale.absoluteString)
         let resolved = try await resolver(FakeCatalog(), calls).resolve(row: row)
-        XCTAssertNil(resolved)
-        XCTAssertEqual(calls.lookupCount, 0)
+        #expect(resolved == nil)
+        #expect(calls.lookupCount == 0)
     }
 }
 #endif

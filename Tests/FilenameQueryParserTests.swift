@@ -1,75 +1,75 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class FilenameQueryParserTests: XCTestCase {
+@Suite struct FilenameQueryParserTests {
     private let parser = FilenameQueryParser()
 
-    func testArtistTitleWithMixQualifierAndExtension() {
+    @Test func testArtistTitleWithMixQualifierAndExtension() {
         let q = parser.parse("Stephan Bodzin - Boavista (Original Mix).mp3")
-        XCTAssertEqual(q.artist, "Stephan Bodzin")
-        XCTAssertEqual(q.title, "Boavista")
+        #expect(q.artist == "Stephan Bodzin")
+        #expect(q.title == "Boavista")
     }
 
-    func testLeadingTrackNumberAndUnderscores() {
+    @Test func testLeadingTrackNumberAndUnderscores() {
         let q = parser.parse("01_Nicola Cruz_Colibria.flac")
         // Underscores split into a single term; no " - " so it's treated as artist term.
-        XCTAssertEqual(q.artist, "Nicola Cruz Colibria")
-        XCTAssertNil(q.title)
+        #expect(q.artist == "Nicola Cruz Colibria")
+        #expect(q.title == nil)
     }
 
-    func testDashSeparatedWithTrackNumber() {
+    @Test func testDashSeparatedWithTrackNumber() {
         let q = parser.parse("07 - Nicola Cruz - Boiler Room (Live)")
-        XCTAssertEqual(q.artist, "Nicola Cruz")
+        #expect(q.artist == "Nicola Cruz")
         // "Boiler Room" is a venue/recording brand, stripped as noise for artwork lookup.
-        XCTAssertNil(q.title)
+        #expect(q.title == nil)
     }
 
-    func testBracketedLabelRemoved() {
+    @Test func testBracketedLabelRemoved() {
         let q = parser.parse("[Diynamic] Solomun - Friends")
-        XCTAssertEqual(q.artist, "Solomun")
-        XCTAssertEqual(q.title, "Friends")
+        #expect(q.artist == "Solomun")
+        #expect(q.title == "Friends")
     }
 
-    func testBareArtistName() {
+    @Test func testBareArtistName() {
         let q = parser.parse("Solomun.flac")
-        XCTAssertEqual(q.artist, "Solomun")
-        XCTAssertNil(q.title)
-        XCTAssertEqual(q.cleanedTerm, "Solomun")
+        #expect(q.artist == "Solomun")
+        #expect(q.title == nil)
+        #expect(q.cleanedTerm == "Solomun")
     }
 
-    func testDescriptiveMixNameHasNoArtistTitleSplit() {
+    @Test func testDescriptiveMixNameHasNoArtistTitleSplit() {
         let q = parser.parse("Trap hip-hop boxing music mix")
         // "mix" is a noise token and is stripped; "music" is kept. No " - " split,
         // so the whole thing becomes the artist term (which the confidence gate
         // later rejects for lack of a real artist match).
-        XCTAssertNil(q.title)
-        XCTAssertEqual(q.cleanedTerm, "Trap hip-hop boxing music")
+        #expect(q.title == nil)
+        #expect(q.cleanedTerm == "Trap hip-hop boxing music")
     }
 
-    func testYearStripped() {
+    @Test func testYearStripped() {
         let q = parser.parse("Hozho - Adderall (2024)")
-        XCTAssertEqual(q.artist, "Hozho")
-        XCTAssertEqual(q.title, "Adderall")
+        #expect(q.artist == "Hozho")
+        #expect(q.title == "Adderall")
     }
 
-    func testDoesNotEatNumericName() {
+    @Test func testDoesNotEatNumericName() {
         let q = parser.parse("3005")
-        XCTAssertEqual(q.cleanedTerm, "3005")
+        #expect(q.cleanedTerm == "3005")
     }
 
-    func testBoilerRoomDJSetStripped() {
+    @Test func testBoilerRoomDJSetStripped() {
         let q = parser.parse("Solomun Boiler Room DJ Set (320 kbps)")
-        XCTAssertEqual(q.artist, "Solomun")
-        XCTAssertNil(q.title)
-        XCTAssertEqual(q.cleanedTerm, "Solomun")
+        #expect(q.artist == "Solomun")
+        #expect(q.title == nil)
+        #expect(q.cleanedTerm == "Solomun")
     }
 
-    func testArtistWithVenueAndCity() {
+    @Test func testArtistWithVenueAndCity() {
         let q = parser.parse("Stephan Bodzin Boiler Room Berlin Live")
         // Parser strips known noise (boiler, room, live); city name "Berlin"
         // survives — the confidence gate handles the remaining extra tokens.
-        XCTAssertEqual(q.artist, "Stephan Bodzin Berlin")
-        XCTAssertNil(q.title)
-        XCTAssertEqual(q.cleanedTerm, "Stephan Bodzin Berlin")
+        #expect(q.artist == "Stephan Bodzin Berlin")
+        #expect(q.title == nil)
+        #expect(q.cleanedTerm == "Stephan Bodzin Berlin")
     }
 }

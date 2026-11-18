@@ -1,34 +1,34 @@
-import XCTest
+import Testing
 import ParsoAudioAnalysis
 import TonearmCore
 @testable import TonearmDiscovery
 
-final class MyMusicFilterTests: XCTestCase {
-    func testBPMAndKeyFilterUsesKnownMetadataOnly() {
+@Suite struct MyMusicFilterTests {
+    @Test func testBPMAndKeyFilterUsesKnownMetadataOnly() {
         let filter = MyMusicFilter(bpmMin: 120, bpmMax: 130, key: "8A")
-        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 126, camelotKey: "8a")))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 126, camelotKey: nil)))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 131, camelotKey: "8A")))
+        #expect(filter.matches(DJLoadTrackInfo(bpm: 126, camelotKey: "8a")))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: 126, camelotKey: nil)))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: 131, camelotKey: "8A")))
     }
 
-    func testDJMixMatchUsesCompatibleKeyAndEightPercentBPMWindow() {
+    @Test func testDJMixMatchUsesCompatibleKeyAndEightPercentBPMWindow() {
         let filter = MyMusicFilter(mixBPM: 125, mixKey: "8A")
-        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: "8B")))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 145, camelotKey: "8B")))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: "2A")))
+        #expect(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: "8B")))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: 145, camelotKey: "8B")))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: "2A")))
     }
 
-    func testMixPresetRangeIsAppliedAsAnExplicitGenreRange() {
+    @Test func testMixPresetRangeIsAppliedAsAnExplicitGenreRange() {
         let filter = MyMusicFilter(mixBPMRange: 120...130)
-        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 120, camelotKey: nil)))
-        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: nil)))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: 131, camelotKey: nil)))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: nil)))
+        #expect(filter.matches(DJLoadTrackInfo(bpm: 120, camelotKey: nil)))
+        #expect(filter.matches(DJLoadTrackInfo(bpm: 130, camelotKey: nil)))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: 131, camelotKey: nil)))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: nil)))
     }
 
-    func testMixKeyCanBeSelectedWithoutABPMPreset() {
+    @Test func testMixKeyCanBeSelectedWithoutABPMPreset() {
         let filter = MyMusicFilter(mixKey: "8A")
-        XCTAssertTrue(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "8B")))
-        XCTAssertFalse(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "2A")))
+        #expect(filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "8B")))
+        #expect(!filter.matches(DJLoadTrackInfo(bpm: nil, camelotKey: "2A")))
     }
 }

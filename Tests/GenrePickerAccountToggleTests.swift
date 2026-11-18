@@ -1,7 +1,7 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class GenrePickerAccountToggleTests: XCTestCase {
+@Suite struct GenrePickerAccountToggleTests {
     private func source() throws -> String {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -11,12 +11,12 @@ final class GenrePickerAccountToggleTests: XCTestCase {
 
     /// The production catalogue-account checkbox must be a native Toggle with
     /// the stable identifier and no tappable-image gesture.
-    func testAccountCheckboxIsSemanticToggleNotTapGesture() throws {
+    @Test func testAccountCheckboxIsSemanticToggleNotTapGesture() throws {
         let src = try source()
-        XCTAssertFalse(src.contains(".onTapGesture"))
-        XCTAssertTrue(src.contains("Toggle(isOn: $model.showsAccountOption)"))
-        XCTAssertTrue(src.contains("accessibilityIdentifier(\"genre.account.optional\")"))
-        XCTAssertFalse(src.contains(".frame(width: 22, height: 22)"))
-        XCTAssertTrue(src.contains("minHeight: 44"))
+        #expect(!src.contains(".onTapGesture"))
+        #expect(src.contains("Toggle(isOn: $model.showsAccountOption)"))
+        #expect(src.contains("accessibilityIdentifier(\"genre.account.optional\")"))
+        #expect(!src.contains(".frame(width: 22, height: 22)"))
+        #expect(src.contains("minHeight: 44"))
     }
 }

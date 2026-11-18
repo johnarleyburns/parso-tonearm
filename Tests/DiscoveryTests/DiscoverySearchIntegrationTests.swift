@@ -3,7 +3,7 @@ import AVFoundation
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -23,7 +23,7 @@ import XCTest
 ///
 /// Structured with reusable helpers so C02 can extend it with the DJ playlist /
 /// deck load paths once the DJ database is unified onto this writer.
-final class DiscoverySearchIntegrationTests: XCTestCase {
+@Suite final class DiscoverySearchIntegrationTests {
 
     // MARK: - Reusable rig (C02 will extend this)
 
@@ -40,12 +40,12 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
 
     private var scratch: URL!
 
-    override func setUpWithError() throws {
+    init() throws {
         scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("clap-int-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
-    override func tearDownWithError() throws {
+    deinit {
         try? FileManager.default.removeItem(at: scratch)
     }
 
@@ -120,7 +120,7 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
 
     // MARK: - The exercise
 
-    func testImportToIndexToSearchToPlayToSavedQueryRerunSharesOneWriterAndOneIDSpace() async throws {
+    @Test func testImportToIndexToSearchToPlayToSavedQueryRerunSharesOneWriterAndOneIDSpace() async throws {
         let store = try LibraryStore(inMemory: true)
         let imported = try await importTrack(
             into: store, title: "Warm Analog Pads", sortKey: "0001", seconds: 14)
@@ -130,56 +130,56 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
         let outboxRows = try await writer.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
         }
-        XCTAssertGreaterThanOrEqual(outboxRows, 1, "real inserts must have written outbox rows")
+        #expect(outboxRows >= 1, "real inserts must have written outbox rows")
 
         // --- reconcile + schedule + real bounded worker ---
         let assembly = await makeAssembly(writer)
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let completed = try await assembly.drainQueue()
-        XCTAssertEqual(completed, 1, "the one imported track indexed to completion")
+        #expect(completed == 1, "the one imported track indexed to completion")
 
         let (embeddingTrackID, embeddingDims) = try await writer.read { db -> (Int64?, Int?) in
             let row = try Row.fetchOne(
                 db, sql: "SELECT trackId, dimensions FROM discovery_embedding")
             return (row?["trackId"], row?["dimensions"])
         }
-        XCTAssertEqual(
-            embeddingTrackID, imported.trackID,
+        #expect(
+            embeddingTrackID == imported.trackID,
             "the embedding references the SAME core track id — one ID space")
-        XCTAssertEqual(embeddingDims, spec().dimensions)
+        #expect(embeddingDims == spec().dimensions)
 
         let coverage = try await assembly.jobs.coverage(pipelineVersion: DiscoveryPipelineVersion.pipeline)
-        XCTAssertEqual(coverage.complete, 1)
+        #expect(coverage.complete == 1)
 
         // --- search returns the indexed track ---
         let query = DiscoverySearchQuery(text: "warm analog pads")
         let response = await assembly.search.search(query)
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(response.results.map(\.trackID), [imported.trackID])
+        #expect(response.state == .ready)
+        #expect(response.results.map(\.trackID) == [imported.trackID])
 
         // --- "play": the search result carries the SAME core id a library row has ---
         let libraryRows = try await store.tracks(forSource: imported.sourceID)
         let libraryRow = libraryRows.first { $0.id == imported.trackID }
-        XCTAssertNotNil(libraryRow, "the same track is reachable as an ordinary library row")
-        XCTAssertEqual(response.results.first?.track.id, libraryRow?.id)
-        XCTAssertEqual(response.results.first?.track.track.sourceId, imported.sourceID)
+        #expect(libraryRow != nil, "the same track is reachable as an ordinary library row")
+        #expect(response.results.first?.track.id == libraryRow?.id)
+        #expect(response.results.first?.track.track.sourceId == imported.sourceID)
 
         // --- save the query (Codable) and re-run: identical result ---
         let encoded = try JSONEncoder().encode(query)
         let restored = try JSONDecoder().decode(DiscoverySearchQuery.self, from: encoded)
-        XCTAssertEqual(restored, query)
+        #expect(restored == query)
         let rerun = await assembly.search.search(restored)
-        XCTAssertEqual(rerun.state, .ready)
-        XCTAssertEqual(
-            rerun.results.map(\.trackID), response.results.map(\.trackID),
+        #expect(rerun.state == .ready)
+        #expect(
+            rerun.results.map(\.trackID) == response.results.map(\.trackID),
             "the saved query re-runs to the same result")
 
         // --- the shared saved-search / auto-playlist primitive agrees ---
         let candidates = await assembly.search.candidateTrackIDs(restored)
-        XCTAssertEqual(candidates, [imported.trackID])
+        #expect(candidates == [imported.trackID])
     }
 
-    func testViewModelFindBySoundPathSurfacesImportedTrackAndPlayCarriesCoreID() async throws {
+    @Test func testViewModelFindBySoundPathSurfacesImportedTrackAndPlayCarriesCoreID() async throws {
         let store = try LibraryStore(inMemory: true)
         let imported = try await importTrack(
             into: store, title: "Bright Danceable Synths", sortKey: "0001", seconds: 12)
@@ -210,22 +210,22 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
         }
 
         let ids = await MainActor.run { vm.results.map(\.trackID) }
-        XCTAssertEqual(ids, [imported.trackID])
+        #expect(ids == [imported.trackID])
 
         await MainActor.run {
             if let first = vm.results.first { vm.play(first) }
         }
-        XCTAssertEqual(played.value, [imported.trackID], "play routes the core track id back")
+        #expect(played.value == [imported.trackID], "play routes the core track id back")
 
         // Save + re-run through the VM's Codable brief.
         let brief = await MainActor.run { vm.currentQuery() }
         let restored = try JSONDecoder().decode(
             DiscoverySearchQuery.self, from: try JSONEncoder().encode(brief))
         let rerun = await service.search(restored)
-        XCTAssertEqual(rerun.results.map(\.trackID), [imported.trackID])
+        #expect(rerun.results.map(\.trackID) == [imported.trackID])
     }
 
-    func testSavedFilterOnlyQueryRerunsWithoutAModel() async throws {
+    @Test func testSavedFilterOnlyQueryRerunsWithoutAModel() async throws {
         let store = try LibraryStore(inMemory: true)
         let imported = try await importTrack(
             into: store, title: "Slow Atmospheric", sortKey: "0001", seconds: 12)
@@ -240,7 +240,7 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
             try Double.fetchOne(db, sql: "SELECT bpm FROM discovery_track_analysis WHERE trackId = ?",
                 arguments: [imported.trackID])
         }
-        try XCTSkipIf(bpm == nil, "musical-analysis stage produced no BPM for the sine fixture")
+        if bpm == nil { try Test.cancel("musical-analysis stage produced no BPM for the sine fixture") }
 
         var query = DiscoverySearchQuery()
         query.bpmMin = max(1, bpm! - 20)
@@ -253,9 +253,9 @@ final class DiscoverySearchIntegrationTests: XCTestCase {
         let bareService = SearchService(
             writer: writer, index: VectorIndex(writer: writer), models: bareModels)
         let response = await bareService.search(restored)
-        XCTAssertEqual(response.mode, .filterOnly)
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertTrue(response.results.map(\.trackID).contains(imported.trackID))
+        #expect(response.mode == .filterOnly)
+        #expect(response.state == .ready)
+        #expect(response.results.map(\.trackID).contains(imported.trackID))
     }
 }
 #endif

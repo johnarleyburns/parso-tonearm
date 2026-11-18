@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// Fake seam — StoreKit's own `Product`/`Transaction` have no public
@@ -38,96 +38,94 @@ final class FakeSupportDevelopmentPurchasing: SupportDevelopmentPurchasing, @unc
 /// DI convention (`AppState.downloadSession`, `PhoneWatchProtocolCoordinator`'s injectable
 /// `UserDefaults` suite).
 @MainActor
-final class SupportDevelopmentStoreTests: XCTestCase {
+@Suite final class SupportDevelopmentStoreTests {
     private var defaultsSuite: UserDefaults!
     private var suiteName: String!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         suiteName = "SupportDevelopmentStoreTests.\(UUID().uuidString)"
         defaultsSuite = UserDefaults(suiteName: suiteName)
     }
 
-    override func tearDown() {
+    isolated deinit {
         defaultsSuite.removePersistentDomain(forName: suiteName)
-        super.tearDown()
     }
 
     private func makeStore(purchasing: FakeSupportDevelopmentPurchasing = .init()) -> SupportDevelopmentStore {
         SupportDevelopmentStore(defaults: defaultsSuite, purchasing: purchasing)
     }
 
-    func testPurchaseSuccessSetsIsSupporterAndPersists() async {
+    @Test func testPurchaseSuccessSetsIsSupporterAndPersists() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedPurchaseResult = true
         let store = makeStore(purchasing: fake)
 
         let ok = await store.purchase()
 
-        XCTAssertTrue(ok)
-        XCTAssertTrue(store.isSupporter)
-        XCTAssertTrue(defaultsSuite.bool(forKey: "supporter.isSupporter"))
+        #expect(ok)
+        #expect(store.isSupporter)
+        #expect(defaultsSuite.bool(forKey: "supporter.isSupporter"))
     }
 
-    func testPurchaseFailureDoesNotSetIsSupporter() async {
+    @Test func testPurchaseFailureDoesNotSetIsSupporter() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedPurchaseResult = false
         let store = makeStore(purchasing: fake)
 
         let ok = await store.purchase()
 
-        XCTAssertFalse(ok)
-        XCTAssertFalse(store.isSupporter)
+        #expect(!ok)
+        #expect(!store.isSupporter)
     }
 
     /// Business rule (`SupportDevelopmentStore`'s own doc comment): "a refund does not 'revoke'
     /// it, because it never unlocked anything to revoke." A later failed/cancelled purchase
     /// attempt must never un-set it once true.
-    func testIsSupporterNeverClearsOnceSet() async {
+    @Test func testIsSupporterNeverClearsOnceSet() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedPurchaseResult = true
         let store = makeStore(purchasing: fake)
         _ = await store.purchase()
-        XCTAssertTrue(store.isSupporter)
+        #expect(store.isSupporter)
 
         fake.stubbedPurchaseResult = false
         _ = await store.purchase()
-        XCTAssertTrue(store.isSupporter)
+        #expect(store.isSupporter)
     }
 
-    func testDisplayPriceIsPlaceholderBeforeLoad() {
+    @Test func testDisplayPriceIsPlaceholderBeforeLoad() {
         let store = makeStore()
-        XCTAssertEqual(store.displayPrice, "—")
-        XCTAssertFalse(store.isPurchaseAvailable)
+        #expect(store.displayPrice == "—")
+        #expect(!store.isPurchaseAvailable)
     }
 
-    func testDisplayPriceReflectsLoadedProduct() async {
+    @Test func testDisplayPriceReflectsLoadedProduct() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedDisplayPrice = "$4.99"
         let store = makeStore(purchasing: fake)
 
         await store.loadProduct()
 
-        XCTAssertEqual(store.displayPrice, "$4.99")
-        XCTAssertTrue(store.isPurchaseAvailable)
-        XCTAssertTrue(store.didAttemptProductLoad)
+        #expect(store.displayPrice == "$4.99")
+        #expect(store.isPurchaseAvailable)
+        #expect(store.didAttemptProductLoad)
     }
 
-    func testPurchasingFlagIsSetDuringAndClearedAfterPurchase() async {
+    @Test func testPurchasingFlagIsSetDuringAndClearedAfterPurchase() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedPurchaseResult = true
         let store = makeStore(purchasing: fake)
 
-        XCTAssertFalse(store.purchasing)
+        #expect(!store.purchasing)
         _ = await store.purchase()
-        XCTAssertFalse(store.purchasing, "purchasing must be reset even after a completed purchase")
+        #expect(!store.purchasing, "purchasing must be reset even after a completed purchase")
     }
 
     /// A stored property's default argument is evaluated once per call site, not shared — this
     /// guards against a future refactor accidentally sharing one `LiveSupportDevelopmentPurchasing`
     /// instance (irrelevant here since it's stateless, but pins that each store built with the
     /// fake actually talks to its OWN fake, not a shared one).
-    func testEachStoreUsesItsOwnInjectedPurchasing() async {
+    @Test func testEachStoreUsesItsOwnInjectedPurchasing() async {
         let fakeA = FakeSupportDevelopmentPurchasing()
         fakeA.stubbedPurchaseResult = true
         let fakeB = FakeSupportDevelopmentPurchasing()
@@ -138,37 +136,37 @@ final class SupportDevelopmentStoreTests: XCTestCase {
         _ = await storeA.purchase()
         _ = await storeB.purchase()
 
-        XCTAssertEqual(fakeA.purchaseCallCount, 1)
-        XCTAssertEqual(fakeB.purchaseCallCount, 1)
-        XCTAssertTrue(storeA.isSupporter)
-        XCTAssertFalse(storeB.isSupporter)
+        #expect(fakeA.purchaseCallCount == 1)
+        #expect(fakeB.purchaseCallCount == 1)
+        #expect(storeA.isSupporter)
+        #expect(!storeB.isSupporter)
     }
 
-    func testWrongProductLookupIsUnavailable() async {
+    @Test func testWrongProductLookupIsUnavailable() async {
         let fake = FakeSupportDevelopmentPurchasing()
         fake.stubbedLookup = .found(productID: "other.product", displayPrice: "$1.00")
         let store = makeStore(purchasing: fake)
         await store.loadProduct()
-        XCTAssertEqual(store.loadState, .unavailable)
-        XCTAssertFalse(store.isPurchaseAvailable)
+        #expect(store.loadState == .unavailable)
+        #expect(!store.isPurchaseAvailable)
     }
 
-    func testProductNotFoundAndTransportFailureAreDistinct() async {
+    @Test func testProductNotFoundAndTransportFailureAreDistinct() async {
         let fake = FakeSupportDevelopmentPurchasing()
         let store = makeStore(purchasing: fake)
         fake.stubbedLookup = .productNotFound
         await store.loadProduct()
-        XCTAssertEqual(store.loadState, .unavailable)
+        #expect(store.loadState == .unavailable)
         let notFoundReason = store.unavailableReason
         fake.stubbedLookup = .failed(diagnostic: "offline (NSURLErrorDomain -1009)")
         await store.loadProduct()
-        XCTAssertEqual(store.loadState, .failed(diagnostic: "offline (NSURLErrorDomain -1009)"))
-        XCTAssertEqual(store.lastDiagnostic, "offline (NSURLErrorDomain -1009)")
-        XCTAssertNotNil(store.unavailableReason)
-        XCTAssertNotEqual(store.unavailableReason, notFoundReason)
+        #expect(store.loadState == .failed(diagnostic: "offline (NSURLErrorDomain -1009)"))
+        #expect(store.lastDiagnostic == "offline (NSURLErrorDomain -1009)")
+        #expect(store.unavailableReason != nil)
+        #expect(store.unavailableReason != notFoundReason)
     }
 
-    func testNonSuccessOutcomesLeaveSupporterFalse() async {
+    @Test func testNonSuccessOutcomesLeaveSupporterFalse() async {
         let outcomes: [SupportPurchaseOutcome] = [
             .cancelled, .pending, .unverified, .productNotFound, .failed(diagnostic: "x"),
             .success(productID: "other.product")]
@@ -177,10 +175,10 @@ final class SupportDevelopmentStoreTests: XCTestCase {
             fake.stubbedOutcome = outcome
             let store = makeStore(purchasing: fake)
             let ok = await store.purchase()
-            XCTAssertFalse(ok, "\(outcome)")
-            XCTAssertFalse(store.isSupporter, "\(outcome)")
-            XCTAssertFalse(store.purchasing)
-            XCTAssertEqual(store.lastPurchaseOutcome, outcome)
+            #expect(!ok, "\(outcome)")
+            #expect(!store.isSupporter, "\(outcome)")
+            #expect(!store.purchasing)
+            #expect(store.lastPurchaseOutcome == outcome)
         }
     }
 }

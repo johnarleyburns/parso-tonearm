@@ -1,30 +1,30 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
-final class LibraryEmptyStatePolicyTests: XCTestCase {
-    func testTrulyEmptyLibraryIsUnfilteredBrowsing() {
-        XCTAssertTrue(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+@Suite struct LibraryEmptyStatePolicyTests {
+    @Test func testTrulyEmptyLibraryIsUnfilteredBrowsing() {
+        #expect(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "", searchRows: nil, filter: MyMusicFilter()))
-        XCTAssertTrue(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+        #expect(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "   ", searchRows: nil, filter: MyMusicFilter()))
     }
 
-    func testActiveTextSearchIsNotUnfilteredBrowsing() {
-        XCTAssertFalse(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+    @Test func testActiveTextSearchIsNotUnfilteredBrowsing() {
+        #expect(!LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "lofi", searchRows: nil, filter: MyMusicFilter()))
     }
 
-    func testMoodSearchWithNoMatchesIsNotUnfilteredBrowsing() {
+    @Test func testMoodSearchWithNoMatchesIsNotUnfilteredBrowsing() {
         // Find's Mood mode: searchText is often empty (the query came from mood pills), but
         // `searchRows` is a non-nil (possibly empty) array once a search actually ran.
-        XCTAssertFalse(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+        #expect(!LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "", searchRows: [], filter: MyMusicFilter()))
     }
 
-    func testBPMKeyFilterWithNoMatchesIsNotUnfilteredBrowsing() {
+    @Test func testBPMKeyFilterWithNoMatchesIsNotUnfilteredBrowsing() {
         let filter = MyMusicFilter(mixKey: "8A")
-        XCTAssertFalse(LibraryEmptyStatePolicy.isUnfilteredBrowsing(
+        #expect(!LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "", searchRows: nil, filter: filter))
     }
 }

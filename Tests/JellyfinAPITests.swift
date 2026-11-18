@@ -1,10 +1,10 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class JellyfinAPITests: XCTestCase {
+@Suite struct JellyfinAPITests {
 
-    func testAuthenticateRequestAddsDeviceHeaderAndJSONBody() throws {
+    @Test func testAuthenticateRequestAddsDeviceHeaderAndJSONBody() throws {
         let baseURL = try JellyfinAPI.normalizeBaseURL("media.example.com/jellyfin/")
         let client = JellyfinAPI.Client(name: "TonearmTests", device: "iPhone", deviceID: "device-1", version: "0.1")
         let request = try JellyfinAPI.request(
@@ -12,58 +12,58 @@ final class JellyfinAPITests: XCTestCase {
             endpoint: .authenticate(username: "alice", password: "secret"),
             client: client
         )
-        let body = try XCTUnwrap(request.httpBody)
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        let body = try #require(request.httpBody)
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
 
-        XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.url?.path, "/jellyfin/Users/AuthenticateByName")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-        XCTAssertEqual(
-            request.value(forHTTPHeaderField: "Authorization"),
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/jellyfin/Users/AuthenticateByName")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(
+            request.value(forHTTPHeaderField: "Authorization") ==
             #"MediaBrowser Client="TonearmTests", Device="iPhone", DeviceId="device-1", Version="0.1""#
         )
-        XCTAssertNil(request.value(forHTTPHeaderField: "X-Emby-Authorization"))
-        XCTAssertEqual(object["Username"], "alice")
-        XCTAssertEqual(object["Pw"], "secret")
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Authorization") == nil)
+        #expect(object["Username"] == "alice")
+        #expect(object["Pw"] == "secret")
     }
 
-    func testAuthenticatedBrowseRequestBuildsExpectedQuery() throws {
+    @Test func testAuthenticatedBrowseRequestBuildsExpectedQuery() throws {
         let request = try JellyfinAPI.request(
             baseURL: try JellyfinAPI.normalizeBaseURL("https://media.example.com"),
             endpoint: .albums(userID: "user-1", artistID: "artist 1"),
             token: "token-1"
         )
-        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.path, "/Users/user-1/Items")
-        XCTAssertEqual(query["Recursive"], "true")
-        XCTAssertEqual(query["IncludeItemTypes"], "MusicAlbum")
-        XCTAssertEqual(query["AlbumArtistIds"], "artist 1")
-        XCTAssertEqual(query["SortBy"], "ProductionYear,SortName")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "token-1")
-        XCTAssertEqual(
-            request.value(forHTTPHeaderField: "Authorization"),
+        #expect(components.path == "/Users/user-1/Items")
+        #expect(query["Recursive"] == "true")
+        #expect(query["IncludeItemTypes"] == "MusicAlbum")
+        #expect(query["AlbumArtistIds"] == "artist 1")
+        #expect(query["SortBy"] == "ProductionYear,SortName")
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == "token-1")
+        #expect(
+            request.value(forHTTPHeaderField: "Authorization") ==
             #"MediaBrowser Client="Tonearm", Device="iPhone", DeviceId="tonearm-ios", Version="1.0", Token="token-1""#
         )
-        XCTAssertNil(request.value(forHTTPHeaderField: "X-Emby-Authorization"))
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Authorization") == nil)
     }
 
-    func testStreamRequestUsesAudioEndpointWithoutQueryToken() throws {
+    @Test func testStreamRequestUsesAudioEndpointWithoutQueryToken() throws {
         let request = try JellyfinAPI.request(
             baseURL: try JellyfinAPI.normalizeBaseURL("http://localhost:8096"),
             endpoint: .stream(itemID: "song 1"),
             token: "token-1"
         )
 
-        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
 
-        XCTAssertEqual(components.percentEncodedPath, "/Audio/song%201/stream")
-        XCTAssertNil(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.query)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "token-1")
+        #expect(components.percentEncodedPath == "/Audio/song%201/stream")
+        #expect(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.query == nil)
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == "token-1")
     }
 
-    func testAuthenticationResponseDecodesTokenAndUser() throws {
+    @Test func testAuthenticationResponseDecodesTokenAndUser() throws {
         let auth = try JellyfinAPI.decodeAuthentication(data("""
         {
           "User": { "Id": "user-1", "Name": "alice" },
@@ -72,7 +72,7 @@ final class JellyfinAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(auth, JellyfinAuthentication(
+        #expect(auth == JellyfinAuthentication(
             accessToken: "access-token",
             userID: "user-1",
             username: "alice",
@@ -80,7 +80,7 @@ final class JellyfinAPITests: XCTestCase {
         ))
     }
 
-    func testItemPageDecodesArtistsAlbumsAndTracks() throws {
+    @Test func testItemPageDecodesArtistsAlbumsAndTracks() throws {
         let page = try JellyfinAPI.decodeItems(data("""
         {
           "Items": [
@@ -101,69 +101,78 @@ final class JellyfinAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(page.totalRecordCount, 3)
-        XCTAssertEqual(page.items[0].type, .artist)
-        XCTAssertEqual(page.items[1].productionYear, 1997)
-        XCTAssertEqual(page.items[2].durationSec, 282)
-        XCTAssertEqual(page.items[2].sizeBytes, 98_765)
-        XCTAssertEqual(page.items[2].container, "flac")
-        XCTAssertEqual(page.items[2].albumID, "album-1")
-        XCTAssertEqual(page.items[2].albumArtist, "Biosphere")
-        XCTAssertEqual(page.items[2].codec, "flac")
-        XCTAssertEqual(page.items[2].sampleRate, 44_100)
-        XCTAssertEqual(page.items[2].bitRate, 879_000)
-        XCTAssertEqual(page.items[2].albumPrimaryImageTag, "album-tag")
+        #expect(page.totalRecordCount == 3)
+        #expect(page.items[0].type == .artist)
+        #expect(page.items[1].productionYear == 1997)
+        #expect(page.items[2].durationSec == 282)
+        #expect(page.items[2].sizeBytes == 98_765)
+        #expect(page.items[2].container == "flac")
+        #expect(page.items[2].albumID == "album-1")
+        #expect(page.items[2].albumArtist == "Biosphere")
+        #expect(page.items[2].codec == "flac")
+        #expect(page.items[2].sampleRate == 44_100)
+        #expect(page.items[2].bitRate == 879_000)
+        #expect(page.items[2].albumPrimaryImageTag == "album-tag")
     }
 
-    func testImageURLUsesPrimaryImageEndpoint() throws {
+    @Test func testImageURLUsesPrimaryImageEndpoint() throws {
         let url = try JellyfinAPI.imageURL(
             baseURL: try JellyfinAPI.normalizeBaseURL("https://media.example.com/jellyfin"),
             itemID: "album-1",
             tag: "tag-1"
         )
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.path, "/jellyfin/Items/album-1/Images/Primary")
-        XCTAssertEqual(query["tag"], "tag-1")
+        #expect(components.path == "/jellyfin/Items/album-1/Images/Primary")
+        #expect(query["tag"] == "tag-1")
     }
 
-    func testEmptyLibraryDecodesToEmptyPage() throws {
+    @Test func testEmptyLibraryDecodesToEmptyPage() throws {
         let page = try JellyfinAPI.decodeItems(data("""
         { "Items": [], "TotalRecordCount": 0, "StartIndex": 0 }
         """))
 
-        XCTAssertEqual(page, JellyfinItemPage(items: [], totalRecordCount: 0, startIndex: 0))
+        #expect(page == JellyfinItemPage(items: [], totalRecordCount: 0, startIndex: 0))
     }
 
-    func testUnknownItemTypesArePreserved() throws {
+    @Test func testUnknownItemTypesArePreserved() throws {
         let page = try JellyfinAPI.decodeItems(data("""
         { "Items": [{ "Id": "box-1", "Name": "Box", "Type": "BoxSet" }] }
         """))
 
-        XCTAssertEqual(page.items.first?.type, .unknown("BoxSet"))
+        #expect(page.items.first?.type == .unknown("BoxSet"))
     }
 
-    func testMalformedResponsesThrow() {
-        XCTAssertThrowsError(try JellyfinAPI.decodeAuthentication(data("{}"))) { error in
-            XCTAssertEqual(error as? JellyfinAPI.Error, .missingField("AccessToken"))
+    @Test func testMalformedResponsesThrow() {
+        do {
+            _ = try JellyfinAPI.decodeAuthentication(data("{}"))
+            Issue.record("expected decodeAuthentication(data(\"{}\")) to throw")
+        } catch {
+            #expect(error as? JellyfinAPI.Error == .missingField("AccessToken"))
         }
-        XCTAssertThrowsError(try JellyfinAPI.decodeItems(data("{}"))) { error in
-            XCTAssertEqual(error as? JellyfinAPI.Error, .missingField("Items"))
+        do {
+            _ = try JellyfinAPI.decodeItems(data("{}"))
+            Issue.record("expected decodeItems(data(\"{}\")) to throw")
+        } catch {
+            #expect(error as? JellyfinAPI.Error == .missingField("Items"))
         }
-        XCTAssertThrowsError(try JellyfinAPI.decodeItems(data("not-json"))) { error in
-            XCTAssertEqual(error as? JellyfinAPI.Error, .malformedResponse)
+        do {
+            _ = try JellyfinAPI.decodeItems(data("not-json"))
+            Issue.record("expected decodeItems(data(\"not-json\")) to throw")
+        } catch {
+            #expect(error as? JellyfinAPI.Error == .malformedResponse)
         }
     }
 
-    func testServerFormPolicy() throws {
+    @Test func testServerFormPolicy() throws {
         let url = try JellyfinServerPolicy.normalizeBaseURL("localhost:8096")
 
-        XCTAssertEqual(url.absoluteString, "https://localhost:8096")
-        XCTAssertTrue(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "alice", password: "secret"))
-        XCTAssertTrue(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "demo", password: ""))
-        XCTAssertFalse(JellyfinServerPolicy.canSubmit(url: "ftp://localhost", username: "alice", password: "secret"))
-        XCTAssertFalse(JellyfinServerPolicy.canSubmit(url: "http://localhost", username: "", password: "secret"))
+        #expect(url.absoluteString == "https://localhost:8096")
+        #expect(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "alice", password: "secret"))
+        #expect(JellyfinServerPolicy.canSubmit(url: "http://localhost:8096", username: "demo", password: ""))
+        #expect(!JellyfinServerPolicy.canSubmit(url: "ftp://localhost", username: "alice", password: "secret"))
+        #expect(!JellyfinServerPolicy.canSubmit(url: "http://localhost", username: "", password: "secret"))
     }
 
     private func data(_ string: String) -> Data {

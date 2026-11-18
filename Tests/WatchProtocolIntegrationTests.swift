@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 @testable import TonearmWatchCore
 @testable import TonearmWatchProtocol
@@ -6,29 +6,29 @@ import XCTest
 /// Phase 3's definition of done: both coordinators are driven through one fake duplex transport, so
 /// every case below is the real phone code talking to the real watch code — no simulator, no
 /// WatchConnectivity, no wall-clock waits beyond a grace period the test itself picks.
-final class WatchProtocolIntegrationTests: XCTestCase {
-    func testPushOnlyWatchNeverQueuesSyncOrOtherRequests() async {
+@Suite struct WatchProtocolIntegrationTests {
+    @Test func testPushOnlyWatchNeverQueuesSyncOrOtherRequests() async {
         let harness = await makeHarness(boundLibraryID: libraryID, phoneStatus: .init(revision: 1), phonePushOnly: true)
         await harness.link.setReachable(false)
         await harness.watch.activate(reachable: false)
         let result = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(result, .failed(.phoneUnavailable))
+        #expect(result == .failed(.phoneUnavailable))
         await harness.watch.requestReconciliation()
         await harness.watch.requestDownload(trackID: "forbidden", wantsDownload: true)
         await harness.watch.controlDownloads(.init(action: .retryFailed))
         let offlineDeliveries = await harness.link.deliveries
-        XCTAssertTrue(offlineDeliveries.isEmpty)
+        #expect(offlineDeliveries.isEmpty)
         await harness.link.setReachable(true)
         await harness.watch.activate(reachable: true)
         await harness.watch.reachabilityChanged(true)
         let beforeSync = await harness.link.deliveries
-        XCTAssertTrue(beforeSync.isEmpty, "Activation and reconnection must not send hello or metadata requests")
+        #expect(beforeSync.isEmpty, "Activation and reconnection must not send hello or metadata requests")
         let liveResult = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(liveResult, .sent)
+        #expect(liveResult == .sent)
         let deliveries = await harness.link.deliveries
-        XCTAssertFalse(deliveries.contains { $0.channel == .userInfo || $0.channel == .file })
+        #expect(!deliveries.contains { $0.channel == .userInfo || $0.channel == .file })
     }
-    func testPhoneOnlyDownloadsRejectWatchOriginatedRequestsOnLiveAndDurableChannels() async throws {
+    @Test func testPhoneOnlyDownloadsRejectWatchOriginatedRequestsOnLiveAndDurableChannels() async throws {
         let harness = await makeHarness(allowsWatchDownloadCommands: false)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
@@ -36,80 +36,80 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.watch.controlDownloads(.init(action: .retryFailed))
         let requests = await harness.handler.receivedDownloadRequests
         let controls = await harness.handler.receivedDownloadControls
-        XCTAssertTrue(requests.isEmpty)
-        XCTAssertTrue(controls.isEmpty)
+        #expect(requests.isEmpty)
+        #expect(controls.isEmpty)
         let response = await harness.watch.search("music")
-        XCTAssertEqual(response, .failed(.init(code: .contentNotFound)))
+        #expect(response == .failed(.init(code: .contentNotFound)))
     }
-    func testMetadataRoundTripExchangesBothTruthsWithoutAudioOrDownloadCommands() async throws {
+    @Test func testMetadataRoundTripExchangesBothTruthsWithoutAudioOrDownloadCommands() async throws {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
         await harness.phone.publishContext(downloads: .init(revision: 1, catalogTrackCount: 400,
             readyTrackIDs: ["local-aac"]))
         let watchResult = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(watchResult, .confirmed)
+        #expect(watchResult == .confirmed)
         let phoneResult = await harness.phone.synchronizeMetadata()
-        XCTAssertEqual(phoneResult, .confirmed)
+        #expect(phoneResult == .confirmed)
         let manifests = await harness.handler.receivedManifests
-        XCTAssertEqual(manifests.last?.readyTrackIDs, ["local-aac"])
+        #expect(manifests.last?.readyTrackIDs == ["local-aac"])
         let requests = await harness.handler.receivedDownloadRequests
         let controls = await harness.handler.receivedDownloadControls
-        XCTAssertTrue(requests.isEmpty)
-        XCTAssertTrue(controls.isEmpty)
+        #expect(requests.isEmpty)
+        #expect(controls.isEmpty)
         let statuses = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(statuses.last?.catalogTrackCount, 400)
+        #expect(statuses.last?.catalogTrackCount == 400)
         let deliveries = await harness.link.deliveries
-        XCTAssertFalse(deliveries.contains { $0.channel == .file })
+        #expect(!deliveries.contains { $0.channel == .file })
     }
 
-    func testMetadataReplyTimeoutIsNotShownAsSynced() async {
+    @Test func testMetadataReplyTimeoutIsNotShownAsSynced() async {
         let harness = await makeHarness(boundLibraryID: libraryID, immediateDeadline: .milliseconds(25))
         await harness.link.setHoldingUserInfo(true)
         await harness.link.setSwallowImmediateReplies(true)
         let result = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(result, .failed(.requestTimedOut))
+        #expect(result == .failed(.requestTimedOut))
         let statuses = await harness.watchObserver.downloadStatuses
-        XCTAssertTrue(statuses.isEmpty)
+        #expect(statuses.isEmpty)
     }
 
-    func testUnreadableWatchStoreCannotConfirmMetadataSync() async {
+    @Test func testUnreadableWatchStoreCannotConfirmMetadataSync() async {
         let harness = await makeHarness(boundLibraryID: libraryID, localManifest: nil,
             phoneStatus: .init(revision: 1))
         await harness.link.setHoldingUserInfo(true)
         let result = await harness.phone.synchronizeMetadata()
-        XCTAssertEqual(result, .failed(.installationFailed))
+        #expect(result == .failed(.installationFailed))
         let watchResult = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(watchResult, .failed(.installationFailed))
+        #expect(watchResult == .failed(.installationFailed))
         let reports = await harness.phoneObserver.manifests
-        XCTAssertTrue(reports.isEmpty)
+        #expect(reports.isEmpty)
     }
 
-    func testWatchMetadataCheckCanReadColdPhoneWithoutPriorContextPublication() async {
+    @Test func testWatchMetadataCheckCanReadColdPhoneWithoutPriorContextPublication() async {
         let harness = await makeHarness(boundLibraryID: libraryID,
             phoneStatus: .init(revision: 1, catalogTrackCount: 379, readyTrackIDs: []))
         await harness.link.setHoldingUserInfo(true)
         let result = await harness.watch.synchronizeMetadata()
-        XCTAssertEqual(result, .confirmed)
+        #expect(result == .confirmed)
         let phoneResult = await harness.phone.synchronizeMetadata()
-        XCTAssertEqual(phoneResult, .confirmed)
+        #expect(phoneResult == .confirmed)
         let statuses = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(statuses.last?.catalogTrackCount, 379)
+        #expect(statuses.last?.catalogTrackCount == 379)
         let publications = await harness.link.deliveries
-        XCTAssertFalse(publications.contains { $0.channel == .applicationContext || $0.channel == .file })
+        #expect(!publications.contains { $0.channel == .applicationContext || $0.channel == .file })
     }
 
-    func testMetadataSyncQueuesWhileUnreachableWithoutClaimingConfirmation() async {
+    @Test func testMetadataSyncQueuesWhileUnreachableWithoutClaimingConfirmation() async {
         let harness = await makeHarness(boundLibraryID: libraryID)
         await harness.link.setReachable(false)
         await harness.watch.activate(reachable: false)
         await harness.phone.activate(reachable: false)
         let watch = await harness.watch.synchronizeMetadata()
         let phone = await harness.phone.synchronizeMetadata()
-        XCTAssertEqual(watch, .queued)
-        XCTAssertEqual(phone, .queued)
+        #expect(watch == .queued)
+        #expect(phone == .queued)
     }
 
-    func testPeriodicCatalogReportsWorkOfflineInBothDirectionsWithoutAudioSends() async throws {
+    @Test func testPeriodicCatalogReportsWorkOfflineInBothDirectionsWithoutAudioSends() async throws {
         let harness = await makeHarness(boundLibraryID: libraryID)
         await harness.link.setReachable(false)
         await harness.watch.activate(reachable: false)
@@ -119,21 +119,21 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.watch.publishManifestContext(watchReport)
         await harness.link.replayApplicationContext(from: .watch)
         let reports = await harness.handler.receivedManifests
-        XCTAssertEqual(reports.last, watchReport)
+        #expect(reports.last == watchReport)
         await harness.phone.publishContext(downloads: .init(revision: 1, readyCount: 1,
             activities: [.init(trackID: "submitted", stage: .waitingForDelivery)],
             catalogTrackCount: 400, readyTrackIDs: ["installed"]))
         await harness.link.replayApplicationContext(from: .phone)
         let statuses = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(statuses.last?.catalogTrackCount, 400)
-        XCTAssertEqual(statuses.last?.readyTrackIDs, ["installed"])
-        XCTAssertEqual(statuses.last?.activities.first?.trackID, "submitted")
+        #expect(statuses.last?.catalogTrackCount == 400)
+        #expect(statuses.last?.readyTrackIDs == ["installed"])
+        #expect(statuses.last?.activities.first?.trackID == "submitted")
         let watchState = await harness.watch.connectionState
         let phoneState = await harness.phone.connectionState
-        XCTAssertTrue(watchState.isConfirmedDisconnected)
-        XCTAssertTrue(phoneState.isConfirmedDisconnected)
+        #expect(watchState.isConfirmedDisconnected)
+        #expect(phoneState.isConfirmedDisconnected)
     }
-    func testCachedPreChunkProtocolPacketsDoNotPoisonAnUpdatedSession() async throws {
+    @Test func testCachedPreChunkProtocolPacketsDoNotPoisonAnUpdatedSession() async throws {
         let harness = await makeConnectedHarness()
         let stale = try WatchProtocolEnvelope.encode(kind: .downloadStatusSnapshot,
             payload: WatchDownloadStatusSnapshot(revision: 999, activeCount: 1),
@@ -141,13 +141,16 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.watch.receiveApplicationContext(stale)
         await harness.watch.receiveUserInfo(stale)
         let state = await harness.watch.connectionState
-        guard case .connected = state else { return XCTFail("Cached v1 data poisoned the v2 session") }
+        guard case .connected = state else {
+            Issue.record("Cached v1 data poisoned the v2 session")
+            return
+        }
         await harness.phone.publishContext(downloads: .init(revision: 1, readyCount: 3))
         let received = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(received.last?.readyCount, 3)
-        XCTAssertFalse(received.contains { $0.revision == 999 })
+        #expect(received.last?.readyCount == 3)
+        #expect(!received.contains { $0.revision == 999 })
     }
-    func testLiveDownloadProgressDoesNotWaitForCoalescedApplicationContext() async {
+    @Test func testLiveDownloadProgressDoesNotWaitForCoalescedApplicationContext() async {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingApplicationContext(true)
         await harness.phone.publishContext(downloads: .init(revision: 1, activeCount: 1,
@@ -155,13 +158,13 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.phone.publishContext(downloads: .init(revision: 1, activeCount: 1,
             activities: [.init(trackID: "fred", stage: .transferring, fractionComplete: 0.09)]))
         let live = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(live.map { $0.activities.first?.fractionComplete }, [0.08, 0.09])
+        #expect(live.map { $0.activities.first?.fractionComplete } == [0.08, 0.09])
         await harness.link.replayApplicationContext(from: .phone)
         let afterReplay = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(afterReplay.count, 2, "Delayed context must not duplicate or replace newer live progress")
+        #expect(afterReplay.count == 2, "Delayed context must not duplicate or replace newer live progress")
     }
 
-    func testBackgroundPacketsDoNotClaimLiveReachabilityOnEitherDevice() async throws {
+    @Test func testBackgroundPacketsDoNotClaimLiveReachabilityOnEitherDevice() async throws {
         let harness = await makeHarness(boundLibraryID: libraryID)
         await harness.phone.activate(reachable: false)
         await harness.watch.activate(reachable: false)
@@ -180,38 +183,38 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.phone.receiveUserInfo(manifest)
         let watch = await harness.watch.connectionState
         let phone = await harness.phone.connectionState
-        XCTAssertTrue(watch.isConfirmedDisconnected)
-        XCTAssertTrue(phone.isConfirmedDisconnected)
+        #expect(watch.isConfirmedDisconnected)
+        #expect(phone.isConfirmedDisconnected)
         let received = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(received.last?.queuedCount, 3, "Background state still applies while unreachable")
+        #expect(received.last?.queuedCount == 3, "Background state still applies while unreachable")
     }
 
-    func testSuccessiveDownloadStatusUpdatesReceiveFreshRevisions() async {
+    @Test func testSuccessiveDownloadStatusUpdatesReceiveFreshRevisions() async {
         let harness = await makeConnectedHarness()
         await harness.phone.publishContext(downloads: .init(revision: 10, queuedCount: 3))
         await harness.phone.publishContext(downloads: .init(revision: 10, activeCount: 1,
             activities: [.init(trackID: "home", stage: .transferring, fractionComplete: 0.5)]))
         await harness.phone.publishContext(downloads: .init(revision: 10, readyCount: 3))
         let received = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(received.count, 3, "Progress changes at one root revision must not be discarded")
-        XCTAssertEqual(received.last?.readyCount, 3)
-        XCTAssertEqual(Set(received.map(\.revision)).count, 3)
+        #expect(received.count == 3, "Progress changes at one root revision must not be discarded")
+        #expect(received.last?.readyCount == 3)
+        #expect(Set(received.map(\.revision)).count == 3)
         let repeated = await harness.phone.publishContext(downloads: .init(revision: 10, readyCount: 3))
-        XCTAssertFalse(repeated, "An identical status does not need another publication")
+        #expect(!repeated, "An identical status does not need another publication")
     }
 
-    func testManifestLiveCopyArrivesBeforeQueuedCopyAndIsAppliedOnce() async {
+    @Test func testManifestLiveCopyArrivesBeforeQueuedCopyAndIsAppliedOnce() async {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
         await harness.watch.sendManifest(.init(manifestID: "installed", readyTrackIDs: ["home"], installedBytes: 42))
         let immediate = await harness.phoneObserver.manifests
-        XCTAssertEqual(immediate.count, 1)
+        #expect(immediate.count == 1)
         await harness.link.flushHeldUserInfo()
         let afterQueued = await harness.phoneObserver.manifests
-        XCTAssertEqual(afterQueued.count, 1, "Live and durable copies share message identity")
+        #expect(afterQueued.count == 1, "Live and durable copies share message identity")
     }
 
-    func testWatchSyncAndDownloadControlsUseLiveCopyWithoutWaitingForBackgroundDelivery() async {
+    @Test func testWatchSyncAndDownloadControlsUseLiveCopyWithoutWaitingForBackgroundDelivery() async {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
         await harness.watch.requestReconciliation()
@@ -220,16 +223,16 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         let liveReconciliations = await harness.handler.receivedReconciliations
         let liveDownloads = await harness.handler.receivedDownloadRequests
         let liveControls = await harness.handler.receivedDownloadControls
-        XCTAssertEqual(liveReconciliations.count, 1)
-        XCTAssertEqual(liveDownloads.count, 1)
-        XCTAssertEqual(liveControls.count, 1)
+        #expect(liveReconciliations.count == 1)
+        #expect(liveDownloads.count == 1)
+        #expect(liveControls.count == 1)
         await harness.link.flushHeldUserInfo()
         let queuedReconciliations = await harness.handler.receivedReconciliations
         let queuedDownloads = await harness.handler.receivedDownloadRequests
         let queuedControls = await harness.handler.receivedDownloadControls
-        XCTAssertEqual(queuedReconciliations.count, 1)
-        XCTAssertEqual(queuedDownloads.count, 1)
-        XCTAssertEqual(queuedControls.count, 1)
+        #expect(queuedReconciliations.count == 1)
+        #expect(queuedDownloads.count == 1)
+        #expect(queuedControls.count == 1)
     }
 
     private let libraryID = WatchPairedLibraryID("library-A")
@@ -298,30 +301,30 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
     // MARK: - Negotiation
 
-    func testActivationNegotiatesAcrossTheLinkAndBothSidesReportConnected() async {
+    @Test func testActivationNegotiatesAcrossTheLinkAndBothSidesReportConnected() async {
         let harness = await makeHarness()
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
 
         let session = await harness.watch.negotiatedSession
-        XCTAssertNotNil(session)
-        XCTAssertEqual(session?.pairedLibraryID, libraryID)
+        #expect(session != nil)
+        #expect(session?.pairedLibraryID == libraryID)
         let watchState = await harness.watch.connectionState
-        XCTAssertEqual(watchState, .connected(lastReplyAt: watchState.lastReplyAt ?? Date.distantPast))
+        #expect(watchState == .connected(lastReplyAt: watchState.lastReplyAt ?? Date.distantPast))
         let showsConnected = await harness.watch.showsConnectedFeatures
-        XCTAssertTrue(showsConnected)
+        #expect(showsConnected)
 
         // A watch with no prior binding adopts the phone's identity silently — there is nothing to
         // lose, so there is nothing to ask about.
         let bound = await harness.watch.pairedLibraryID
-        XCTAssertEqual(bound, libraryID)
+        #expect(bound == libraryID)
         let saved = await harness.watchState.loadPairedLibraryID()
-        XCTAssertEqual(saved, libraryID)
+        #expect(saved == libraryID)
         let hellos = await harness.phoneObserver.hellos
-        XCTAssertEqual(hellos.count, 1)
+        #expect(hellos.count == 1)
     }
 
-    func testNegotiationIntersectsCapabilitiesToWhatBothSidesOffer() async {
+    @Test func testNegotiationIntersectsCapabilitiesToWhatBothSidesOffer() async {
         let harness = await makeHarness(
             watchCapabilities: [.connectedSearch, .connectedBrowse, .collectionDetail],
             phoneCapabilities: [.connectedSearch, .phonePlaybackControl])
@@ -329,41 +332,41 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.watch.activate(reachable: true)
 
         let session = await harness.watch.negotiatedSession
-        XCTAssertEqual(session?.capabilities, Set([WatchCapability.connectedSearch]))
+        #expect(session?.capabilities == Set([WatchCapability.connectedSearch]))
         // The watch must not offer connected browse in its UI when the phone cannot serve it.
-        XCTAssertEqual(session?.supports(.connectedBrowse), false)
+        #expect(session?.supports(.connectedBrowse) == false)
     }
 
-    func testAPhoneOnANewerProtocolLeavesTheWatchInATerminalUpgradeState() async {
+    @Test func testAPhoneOnANewerProtocolLeavesTheWatchInATerminalUpgradeState() async {
         let harness = await makeHarness()
         await harness.handler.setHelloProtocolVersion(WatchProtocolEnvelope.currentProtocolVersion + 1)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
 
         let state = await harness.watch.connectionState
-        XCTAssertEqual(state, .incompatibleProtocol)
+        #expect(state == .incompatibleProtocol)
         let faults = await harness.watchObserver.negotiationFaults
-        XCTAssertEqual(faults.map(\.code), [.protocolUpgradeRequired])
+        #expect(faults.map(\.code) == [.protocolUpgradeRequired])
         // A-07: an unusable peer must not take the downloads with it.
         let removals = await harness.watchObserver.removals
-        XCTAssertTrue(removals.isEmpty)
+        #expect(removals.isEmpty)
     }
 
-    func testAWatchOnAnOlderProtocolGetsAnErrorReplyRatherThanSilence() async {
+    @Test func testAWatchOnAnOlderProtocolGetsAnErrorReplyRatherThanSilence() async {
         // The phone cannot decode a v99 envelope, but answering nothing would leave that watch
         // spinning for its whole deadline instead of showing Upgrade Required.
         let harness = await makeHarness()
         let future = try? WatchProtocolEnvelope.encode(kind: .hello, payload: WatchHello(),
                                                        pairedLibraryID: libraryID, protocolVersion: 99)
-        let reply = await harness.phone.receiveImmediate(try! XCTUnwrap(future))
-        let envelope = try? WatchProtocolEnvelope.decode(try XCTUnwrap(reply)).get()
-        XCTAssertEqual(envelope?.kind, .error)
-        XCTAssertEqual(try? envelope?.decodePayload(WatchProtocolFault.self).code, .protocolUpgradeRequired)
+        let reply = await harness.phone.receiveImmediate(try! #require(future))
+        let envelope = try? WatchProtocolEnvelope.decode(try #require(reply)).get()
+        #expect(envelope?.kind == .error)
+        #expect(try? envelope?.decodePayload(WatchProtocolFault.self).code == .protocolUpgradeRequired)
     }
 
     // MARK: - Immediate requests
 
-    func testSearchRoundTripsAndReturnsThePhonesRows() async {
+    @Test func testSearchRoundTripsAndReturnsThePhonesRows() async {
         let harness = await makeConnectedHarness()
         await harness.handler.setRows([
             WatchResultRow(kind: .track, id: "t1", title: "Blue Monday", subtitle: "New Order"),
@@ -371,14 +374,17 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         ])
 
         let outcome = await harness.watch.search("blue")
-        guard case .results(let response) = outcome else { return XCTFail("expected results, got \(outcome)") }
-        XCTAssertEqual(response.query, "blue")
-        XCTAssertEqual(response.rows.map(\.id), ["t1", "al1"])
+        guard case .results(let response) = outcome else {
+            Issue.record("expected results, got \(outcome)")
+            return
+        }
+        #expect(response.query == "blue")
+        #expect(response.rows.map(\.id) == ["t1", "al1"])
         let kinds = await harness.link.deliveredKinds(from: .watch)
-        XCTAssertTrue(kinds.contains(.searchRequest))
+        #expect(kinds.contains(.searchRequest))
     }
 
-    func testALateReplyFromASupersededSearchIsDiscarded() async {
+    @Test func testALateReplyFromASupersededSearchIsDiscarded() async {
         // C-04. The first query is held open on the phone while the user keeps typing.
         let harness = await makeConnectedHarness()
         await harness.handler.setRows([WatchResultRow(kind: .track, id: "stale", title: "Stale")])
@@ -389,57 +395,66 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
         await harness.handler.setRows([WatchResultRow(kind: .track, id: "fresh", title: "Fresh")])
         let second = await harness.watch.search("blue")
-        guard case .results(let fresh) = second else { return XCTFail("expected results, got \(second)") }
-        XCTAssertEqual(fresh.rows.map(\.id), ["fresh"])
+        guard case .results(let fresh) = second else {
+            Issue.record("expected results, got \(second)")
+            return
+        }
+        #expect(fresh.rows.map(\.id) == ["fresh"])
 
         await harness.handler.releaseHeldRequest()
         let late = await first
-        XCTAssertEqual(late, .superseded, "the answer to a query the user has already replaced must not repaint the list")
+        #expect(late == .superseded, "the answer to a query the user has already replaced must not repaint the list")
     }
 
-    func testAnUnansweredRequestFailsOnItsDeadlineAndOpensTheGracePeriod() async {
+    @Test func testAnUnansweredRequestFailsOnItsDeadlineAndOpensTheGracePeriod() async {
         let harness = await makeConnectedHarness()
         await harness.link.setSwallowImmediateReplies(true)
 
         let outcome = await harness.watch.search("anything")
-        guard case .failed(let fault) = outcome else { return XCTFail("expected a failure, got \(outcome)") }
-        XCTAssertEqual(fault.code, .requestTimedOut)
+        guard case .failed(let fault) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(fault.code == .requestTimedOut)
 
         // §6.3: the command failed loudly, but the global mode waits out the grace period first.
         let state = await harness.watch.connectionState
-        if case .suspectedDisconnected = state {} else { XCTFail("expected suspicion, got \(state)") }
+        if case .suspectedDisconnected = state {} else { Issue.record("expected suspicion, got \(state)") }
         let confirmed = await harness.watchObserver.confirmedDisconnections
-        XCTAssertEqual(confirmed, 0)
+        #expect(confirmed == 0)
     }
 
-    func testADomainFailureOnThePhoneArrivesAsATypedCodeNotAString() async {
+    @Test func testADomainFailureOnThePhoneArrivesAsATypedCodeNotAString() async {
         let harness = await makeConnectedHarness()
         await harness.handler.setSearchFault(WatchProtocolFault(code: .authenticationRequired))
 
         let outcome = await harness.watch.search("anything")
-        guard case .failed(let fault) = outcome else { return XCTFail("expected a failure, got \(outcome)") }
-        XCTAssertEqual(fault.code, .authenticationRequired)
-        XCTAssertEqual(fault.code.retryPolicy, .externalActionRequired)
+        guard case .failed(let fault) = outcome else {
+            Issue.record("expected a failure, got \(outcome)")
+            return
+        }
+        #expect(fault.code == .authenticationRequired)
+        #expect(fault.code.retryPolicy == .externalActionRequired)
     }
 
-    func testAPlayCommandReachesThePhoneAndItsSnapshotUpdatesTheWatch() async {
+    @Test func testAPlayCommandReachesThePhoneAndItsSnapshotUpdatesTheWatch() async {
         let harness = await makeConnectedHarness()
         let snapshot = playbackSnapshot(revision: 4, isPlaying: true)
         await harness.handler.setCommandReply(.accepted(snapshot))
 
         let reply = await harness.watch.send(.playCollection(.playlist("p1"), startIndex: 2))
-        XCTAssertTrue(reply.accepted)
+        #expect(reply.accepted)
         let commands = await harness.handler.commands
-        XCTAssertEqual(commands.first?.action, .playCollection)
-        XCTAssertEqual(commands.first?.startIndex, 2)
+        #expect(commands.first?.action == .playCollection)
+        #expect(commands.first?.startIndex == 2)
         // The reply doubles as a snapshot, so the watch's now-playing updates without a second trip.
         let playbacks = await harness.watchObserver.playbacks
-        XCTAssertEqual(playbacks.last?.revision, 4)
+        #expect(playbacks.last?.revision == 4)
     }
 
     // MARK: - Application context (C-01)
 
-    func testTheWatchAppliesTheContextTheSessionAlreadyHeldAtActivation() async {
+    @Test func testTheWatchAppliesTheContextTheSessionAlreadyHeldAtActivation() async {
         // C-01: a watch launched while the phone is asleep must draw the last known state rather
         // than an empty screen waiting for a message that will not come.
         let harness = await makeHarness(boundLibraryID: libraryID)
@@ -451,14 +466,14 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.watch.activate(reachable: false, receivedContext: held)
 
         let playbacks = await harness.watchObserver.playbacks
-        XCTAssertEqual(playbacks.last?.revision, 9)
-        XCTAssertEqual(playbacks.last?.isPlaying, true)
+        #expect(playbacks.last?.revision == 9)
+        #expect(playbacks.last?.isPlaying == true)
         // Honest about the link even while showing the cached state.
         let showsConnected = await harness.watch.showsConnectedFeatures
-        XCTAssertFalse(showsConnected)
+        #expect(!showsConnected)
     }
 
-    func testPublishingContextSendsTheWholeSnapshotSoNeitherHalfErasesTheOther() async {
+    @Test func testPublishingContextSendsTheWholeSnapshotSoNeitherHalfErasesTheOther() async {
         let harness = await makeConnectedHarness()
         await harness.phone.publishContext(playback: playbackSnapshot(revision: 2, isPlaying: true))
         await harness.phone.publishContext(downloads: WatchDownloadStatusSnapshot(
@@ -468,20 +483,20 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         // that dropped the playback half would blank the watch's Now Playing.
         let playbacks = await harness.watchObserver.playbacks
         let downloads = await harness.watchObserver.downloadStatuses
-        XCTAssertEqual(playbacks.last?.revision, 2)
-        XCTAssertEqual(downloads.last?.queuedCount, 4)
+        #expect(playbacks.last?.revision == 2)
+        #expect(downloads.last?.queuedCount == 4)
     }
 
-    func testRepublishingAnIdenticalContextIsSuppressed() async {
+    @Test func testRepublishingAnIdenticalContextIsSuppressed() async {
         let harness = await makeConnectedHarness()
         let snapshot = playbackSnapshot(revision: 2, isPlaying: true)
         let first = await harness.phone.publishContext(playback: snapshot)
         let second = await harness.phone.publishContext(playback: snapshot)
-        XCTAssertTrue(first)
-        XCTAssertFalse(second, "an unchanged context is a wasted wake-up on both devices")
+        #expect(first)
+        #expect(!second, "an unchanged context is a wasted wake-up on both devices")
     }
 
-    func testAReplayedContextAtActivationIsAppliedWithoutRegressingNewerState() async {
+    @Test func testAReplayedContextAtActivationIsAppliedWithoutRegressingNewerState() async {
         // A session hands back its stored context on every activation, including one the watch has
         // already applied.
         let harness = await makeConnectedHarness()
@@ -490,70 +505,70 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         await harness.link.replayApplicationContext(from: .phone)
 
         let playbacks = await harness.watchObserver.playbacks
-        XCTAssertEqual(playbacks.last?.revision, 5)
-        XCTAssertEqual(Set(playbacks.map(\.revision)), [5], "a replay must not move state backward")
+        #expect(playbacks.last?.revision == 5)
+        #expect(Set(playbacks.map(\.revision)) == [5], "a replay must not move state backward")
     }
 
     // MARK: - Durable events (C-05, C-06, C-07)
 
-    func testConnectedRemovalDoesNotWaitForBackgroundQueueAndReplayIsSafe() async {
+    @Test func testConnectedRemovalDoesNotWaitForBackgroundQueueAndReplayIsSafe() async {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
         await harness.phone.sendRemoveAssets(["t1"], reason: .userRemoved)
         let immediate = await harness.watchObserver.removals
-        XCTAssertEqual(immediate.count, 1)
-        XCTAssertEqual(immediate.first?.trackIDs, ["t1"])
+        #expect(immediate.count == 1)
+        #expect(immediate.first?.trackIDs == ["t1"])
         await harness.link.flushHeldUserInfo()
         let replayed = await harness.watchObserver.removals
-        XCTAssertEqual(replayed.count, 1, "Durable replay must not repeat an immediately applied removal")
+        #expect(replayed.count == 1, "Durable replay must not repeat an immediately applied removal")
     }
 
-    func testADuplicatedUserInfoDeliveryIsAppliedOnce() async {
+    @Test func testADuplicatedUserInfoDeliveryIsAppliedOnce() async {
         let harness = await makeConnectedHarness()
         await harness.link.setDuplicateDeliveries(true)
         await harness.phone.sendRemoveAssets(["t1", "t2"], reason: .rootRemoved)
 
         let removals = await harness.watchObserver.removals
-        XCTAssertEqual(removals.count, 1, "a redelivered delete must not run twice")
-        XCTAssertEqual(removals.first?.trackIDs, ["t1", "t2"])
+        #expect(removals.count == 1, "a redelivered delete must not run twice")
+        #expect(removals.first?.trackIDs == ["t1", "t2"])
     }
 
-    func testOutOfOrderDurableEventsConvergeOnTheNewestRevision() async {
+    @Test func testOutOfOrderDurableEventsConvergeOnTheNewestRevision() async {
         let harness = await makeConnectedHarness()
         await harness.link.setHoldingUserInfo(true)
         await harness.phone.sendDownloadRoots([root(id: "r1", trackIDs: ["t1"])])
         await harness.phone.sendDownloadRoots([root(id: "r1", trackIDs: ["t1", "t2"])])
         await harness.phone.sendDownloadRoots([root(id: "r1", trackIDs: ["t1", "t2", "t3"])])
         let held = await harness.link.heldUserInfoCount()
-        XCTAssertEqual(held, 3)
+        #expect(held == 3)
 
         // Delivered newest-first, which `transferUserInfo` makes no promise against.
         await harness.link.flushHeldUserInfo(reversed: true)
 
         let roots = await harness.watchObserver.downloadRoots
-        XCTAssertEqual(roots.count, 1, "the two older revisions are stale on arrival")
-        XCTAssertEqual(roots.first?.desiredTrackIDs, ["t1", "t2", "t3"])
+        #expect(roots.count == 1, "the two older revisions are stale on arrival")
+        #expect(roots.first?.desiredTrackIDs == ["t1", "t2", "t3"])
     }
 
-    func testAStaleRevisionIsAcknowledgedWithoutBeingApplied() async {
+    @Test func testAStaleRevisionIsAcknowledgedWithoutBeingApplied() async {
         let harness = await makeConnectedHarness()
         await harness.phone.sendDownloadRoots([root(id: "r1", trackIDs: ["t1", "t2"])])
         let applied = await harness.watchObserver.downloadRoots
-        XCTAssertEqual(applied.count, 1)
+        #expect(applied.count == 1)
 
         // Same content, older revision — a retransmission from a phone that lost its place.
         let stale = try? WatchProtocolEnvelope.fromPhone(
             kind: .setDownloadRoots,
             payload: WatchSetDownloadRoots(revision: 0, roots: [root(id: "r1", trackIDs: [])]),
             libraryID: libraryID, revision: 0)
-        await harness.watch.receiveUserInfo(try! XCTUnwrap(stale))
+        await harness.watch.receiveUserInfo(try! #require(stale))
 
         let after = await harness.watchObserver.downloadRoots
-        XCTAssertEqual(after.count, 1, "an older revision must not empty the download roots")
-        XCTAssertEqual(after.first?.desiredTrackIDs, ["t1", "t2"])
+        #expect(after.count == 1, "an older revision must not empty the download roots")
+        #expect(after.first?.desiredTrackIDs == ["t1", "t2"])
     }
 
-    func testTheWatchSendsItsManifestAndReconciliationRequestsToThePhone() async {
+    @Test func testTheWatchSendsItsManifestAndReconciliationRequestsToThePhone() async {
         let harness = await makeConnectedHarness()
         let manifest = WatchManifestPayload(manifestID: "m1", readyTrackIDs: ["t1", "t2"],
                                             installedBytes: 2_048, capacityBytes: 8_192, freeBytes: 6_144)
@@ -562,12 +577,12 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
         let manifests = await harness.handler.receivedManifests
         let reconciliations = await harness.handler.receivedReconciliations
-        XCTAssertEqual(manifests.map(\.manifestID), ["m1"])
-        XCTAssertEqual(reconciliations.first?.scope, .manifest)
-        XCTAssertEqual(reconciliations.first?.trigger, .storeRecovered)
+        #expect(manifests.map(\.manifestID) == ["m1"])
+        #expect(reconciliations.first?.scope == .manifest)
+        #expect(reconciliations.first?.trigger == .storeRecovered)
     }
 
-    func testFileIngressRoutesArtworkByDiscriminatorAndLegacyFilesToAudio() async {
+    @Test func testFileIngressRoutesArtworkByDiscriminatorAndLegacyFilesToAudio() async {
         let harness = await makeConnectedHarness()
         let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent("legacy-audio-\(UUID().uuidString).m4a")
         let artworkURL = FileManager.default.temporaryDirectory.appendingPathComponent("art-\(UUID().uuidString).jpg")
@@ -576,70 +591,70 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
         let audioFiles = await harness.watchObserver.audioFiles
         let artworkFiles = await harness.watchObserver.artworkFiles
-        XCTAssertEqual(audioFiles, [audioURL.lastPathComponent])
-        XCTAssertEqual(artworkFiles, [artworkURL.lastPathComponent])
+        #expect(audioFiles == [audioURL.lastPathComponent])
+        #expect(artworkFiles == [artworkURL.lastPathComponent])
     }
 
-    func testTheWatchCanAskThePhoneToDownloadAndDropASingleTrack() async {
+    @Test func testTheWatchCanAskThePhoneToDownloadAndDropASingleTrack() async {
         let harness = await makeConnectedHarness()
         await harness.watch.requestDownload(trackID: "t9", wantsDownload: true)
         await harness.watch.requestDownload(trackID: "t9", wantsDownload: false)
 
         let requests = await harness.handler.receivedDownloadRequests
-        XCTAssertEqual(requests.map(\.trackID), ["t9", "t9"])
-        XCTAssertEqual(requests.map(\.wantsDownload), [true, false])
+        #expect(requests.map(\.trackID) == ["t9", "t9"])
+        #expect(requests.map(\.wantsDownload) == [true, false])
     }
 
-    func testARedeliveredWatchDownloadRequestIsAppliedOnce() async {
+    @Test func testARedeliveredWatchDownloadRequestIsAppliedOnce() async {
         let harness = await makeConnectedHarness()
         await harness.link.setDuplicateDeliveries(true)
         await harness.watch.requestDownload(trackID: "t9", wantsDownload: true)
 
         let requests = await harness.handler.receivedDownloadRequests
-        XCTAssertEqual(requests.count, 1, "a redelivered download request must not download twice")
+        #expect(requests.count == 1, "a redelivered download request must not download twice")
     }
 
-    func testThePhoneAppliesAWatchManifestOnlyOnceWhenItIsRedelivered() async {
+    @Test func testThePhoneAppliesAWatchManifestOnlyOnceWhenItIsRedelivered() async {
         let harness = await makeConnectedHarness()
         await harness.link.setDuplicateDeliveries(true)
         await harness.watch.sendManifest(WatchManifestPayload(manifestID: "m1", readyTrackIDs: ["t1"], installedBytes: 1_024))
 
         let manifests = await harness.handler.receivedManifests
-        XCTAssertEqual(manifests.count, 1, "the phone needs the same idempotency the watch has")
+        #expect(manifests.count == 1, "the phone needs the same idempotency the watch has")
     }
 
     // MARK: - Reconnect (C-08, C-09, C-10)
 
-    func testAConfirmedOutageAnnouncesOnceAndReconnectRestoresConnectedFeatures() async {
+    @Test func testAConfirmedOutageAnnouncesOnceAndReconnectRestoresConnectedFeatures() async {
         let harness = await makeConnectedHarness()
         await harness.link.setReachable(false)
         await harness.watch.reachabilityChanged(false)
 
         // Still connected as far as the screen is concerned, until the grace period expires.
         let duringGrace = await harness.watch.showsConnectedFeatures
-        XCTAssertTrue(duringGrace)
+        #expect(duringGrace)
 
         await waitUntil("the grace period is confirmed") {
             await harness.watchObserver.confirmedDisconnections == 1
         }
         let showsConnected = await harness.watch.showsConnectedFeatures
-        XCTAssertFalse(showsConnected, "C-09: a confirmed outage drops to Downloads-only mode")
+        #expect(!showsConnected, "C-09: a confirmed outage drops to Downloads-only mode")
 
         await harness.link.setReachable(true)
         await harness.watch.reachabilityChanged(true)
         let reconnects = await harness.watchObserver.reconnections
-        XCTAssertEqual(reconnects, 1)
+        #expect(reconnects == 1)
         let confirmed = await harness.watchObserver.confirmedDisconnections
-        XCTAssertEqual(confirmed, 1, "one alert per outage")
+        #expect(confirmed == 1, "one alert per outage")
         let restored = await harness.watch.showsConnectedFeatures
-        XCTAssertTrue(restored)
+        #expect(restored)
 
         // C-10: reconnecting re-negotiates rather than replaying whatever it last knew.
         let hellos = await harness.phoneObserver.hellos
-        XCTAssertEqual(hellos.count, 2)
+        #expect(hellos.count == 2)
     }
 
-    func testASubGracePeriodBlipNeverConfirmsADisconnection() async {
+    @Test func testASubGracePeriodBlipNeverConfirmsADisconnection() async {
         let harness = await makeConnectedHarness()
         for _ in 0..<5 {
             await harness.link.setReachable(false)
@@ -649,81 +664,81 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         }
         let confirmed = await harness.watchObserver.confirmedDisconnections
         let reconnects = await harness.watchObserver.reconnections
-        XCTAssertEqual(confirmed, 0, "C-08: a blip must not switch the UI or fire a haptic")
-        XCTAssertEqual(reconnects, 0)
+        #expect(confirmed == 0, "C-08: a blip must not switch the UI or fire a haptic")
+        #expect(reconnects == 0)
         let showsConnected = await harness.watch.showsConnectedFeatures
-        XCTAssertTrue(showsConnected)
+        #expect(showsConnected)
     }
 
     // MARK: - Pairing identity (A-08)
 
-    func testAChangedLibraryIdentityAsksBeforeAnythingIsApplied() async {
+    @Test func testAChangedLibraryIdentityAsksBeforeAnythingIsApplied() async {
         // The watch is bound to library A; the phone now says it is library B.
         let harness = await makeHarness(libraryID: "library-B", boundLibraryID: libraryID)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
 
         let prompts = await harness.watchObserver.libraryChangePrompts
-        XCTAssertEqual(prompts.count, 1)
-        XCTAssertEqual(prompts.first?.current, libraryID)
-        XCTAssertEqual(prompts.first?.incoming, "library-B")
+        #expect(prompts.count == 1)
+        #expect(prompts.first?.current == libraryID)
+        #expect(prompts.first?.incoming == "library-B")
 
         // Nothing is applied and nothing is deleted while the question is open.
         let bound = await harness.watch.pairedLibraryID
-        XCTAssertEqual(bound, libraryID)
+        #expect(bound == libraryID)
         let negotiated = await harness.watch.negotiatedSession
-        XCTAssertNil(negotiated)
+        #expect(negotiated == nil)
         let faults = await harness.watchObserver.negotiationFaults
-        XCTAssertEqual(faults.map(\.code), [.pairedLibraryChanged])
+        #expect(faults.map(\.code) == [.pairedLibraryChanged])
         let awaiting = await harness.watch.awaitingPairedLibraryConfirmation
-        XCTAssertEqual(awaiting, "library-B")
+        #expect(awaiting == "library-B")
     }
 
-    func testConfirmingALibraryReplacementRebindsAndRenegotiates() async {
+    @Test func testConfirmingALibraryReplacementRebindsAndRenegotiates() async {
         let harness = await makeHarness(libraryID: "library-B", boundLibraryID: libraryID)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
         await harness.watch.confirmPairedLibraryReplacement()
 
         let bound = await harness.watch.pairedLibraryID
-        XCTAssertEqual(bound, "library-B")
+        #expect(bound == "library-B")
         let saved = await harness.watchState.loadPairedLibraryID()
-        XCTAssertEqual(saved, "library-B")
+        #expect(saved == "library-B")
         let session = await harness.watch.negotiatedSession
-        XCTAssertEqual(session?.pairedLibraryID, "library-B")
+        #expect(session?.pairedLibraryID == "library-B")
         let awaiting = await harness.watch.awaitingPairedLibraryConfirmation
-        XCTAssertNil(awaiting)
+        #expect(awaiting == nil)
     }
 
-    func testRejectingALibraryReplacementKeepsTheExistingBinding() async {
+    @Test func testRejectingALibraryReplacementKeepsTheExistingBinding() async {
         let harness = await makeHarness(libraryID: "library-B", boundLibraryID: libraryID)
         await harness.phone.activate(reachable: true)
         await harness.watch.activate(reachable: true)
         await harness.watch.rejectPairedLibraryReplacement()
 
         let bound = await harness.watch.pairedLibraryID
-        XCTAssertEqual(bound, libraryID)
+        #expect(bound == libraryID)
         let awaiting = await harness.watch.awaitingPairedLibraryConfirmation
-        XCTAssertNil(awaiting)
+        #expect(awaiting == nil)
         let saved = await harness.watchState.loadPairedLibraryID()
-        XCTAssertEqual(saved, libraryID, "declining must not quietly rebind")
+        #expect(saved == libraryID, "declining must not quietly rebind")
     }
 
-    func testAnEnvelopeFromAnotherLibraryIsNotApplied() async {
+    @Test func testAnEnvelopeFromAnotherLibraryIsNotApplied() async {
         let harness = await makeConnectedHarness()
         let foreign = try? WatchProtocolEnvelope.fromPhone(
             kind: .removeAssets,
             payload: WatchRemoveAssets(revision: 99, trackIDs: ["t1"], reason: .rootRemoved),
             libraryID: "library-B", revision: 99)
-        await harness.watch.receiveUserInfo(try! XCTUnwrap(foreign))
+        await harness.watch.receiveUserInfo(try! #require(foreign))
 
         let removals = await harness.watchObserver.removals
-        XCTAssertTrue(removals.isEmpty, "a delete signed by a library we are not bound to is not ours to run")
+        #expect(removals.isEmpty, "a delete signed by a library we are not bound to is not ours to run")
     }
 
     // MARK: - Threading
 
-    func testDeliveriesFromNonMainQueuesAreAppliedSafely() async {
+    @Test func testDeliveriesFromNonMainQueuesAreAppliedSafely() async {
         // WatchConnectivity calls back on its own queues. The coordinators are actors precisely so
         // this is boring; the test exists so it stays boring.
         let harness = await makeConnectedHarness()
@@ -739,7 +754,7 @@ final class WatchProtocolIntegrationTests: XCTestCase {
             for _ in 0..<8 {
                 group.addTask {
                     await offMainQueue()
-                    XCTAssertFalse(Thread.isMainThread)
+                    #expect(!Thread.isMainThread)
                     if let context { await watch.receiveApplicationContext(context) }
                     if let userInfo { await watch.receiveUserInfo(userInfo) }
                 }
@@ -747,14 +762,14 @@ final class WatchProtocolIntegrationTests: XCTestCase {
         }
 
         let removals = await harness.watchObserver.removals
-        XCTAssertEqual(removals.count, 1, "eight concurrent redeliveries are still one delete")
+        #expect(removals.count == 1, "eight concurrent redeliveries are still one delete")
         let playbacks = await harness.watchObserver.playbacks
-        XCTAssertEqual(playbacks.last?.revision, 11)
+        #expect(playbacks.last?.revision == 11)
     }
 
     // MARK: - §12 diagnostics wiring (Phase 10e)
 
-    func testASearchRoundTripRecordsARequestLatencyDiagnostic() async {
+    @Test func testASearchRoundTripRecordsARequestLatencyDiagnostic() async {
         let diag = WatchDiagnosticsRecorder()
         let harness = await makeConnectedHarness(diagnostics: diag)
         await harness.handler.setRows([WatchResultRow(kind: .track, id: "t1", title: "Blue Monday")])
@@ -762,23 +777,23 @@ final class WatchProtocolIntegrationTests: XCTestCase {
 
         let events = await diag.events()
         let requests = events.filter { $0.category == .request }
-        XCTAssertTrue(requests.contains { $0.stateCode == "hello" }, "negotiation is a recorded request")
+        #expect(requests.contains { $0.stateCode == "hello" }, "negotiation is a recorded request")
         let search = requests.first { $0.stateCode == "searchRequest" }
-        XCTAssertNotNil(search, "the search round trip is recorded by its message kind")
-        XCTAssertNotNil(search?.durationMillis)
-        XCTAssertGreaterThanOrEqual(search?.durationMillis ?? -1, 0)
+        #expect(search != nil, "the search round trip is recorded by its message kind")
+        #expect(search?.durationMillis != nil)
+        #expect((search?.durationMillis ?? -1) >= 0)
         // No event may carry a correlation id or any free text — only kinds and numbers.
-        XCTAssertTrue(events.allSatisfy { $0.correlationID == nil })
+        #expect(events.allSatisfy { $0.correlationID == nil })
     }
 
-    func testAFailedRequestRecordsTheFaultCodeNotTheKind() async {
+    @Test func testAFailedRequestRecordsTheFaultCodeNotTheKind() async {
         let diag = WatchDiagnosticsRecorder()
         let harness = await makeConnectedHarness(diagnostics: diag)
         await harness.link.setSwallowImmediateReplies(true)
         _ = await harness.watch.search("anything")
 
         let codes = await diag.events().filter { $0.category == .request }.map(\.stateCode)
-        XCTAssertTrue(codes.contains("requestTimedOut"), "a timed-out request is recorded by its fault code")
+        #expect(codes.contains("requestTimedOut"), "a timed-out request is recorded by its fault code")
     }
 
     // MARK: - Helpers
@@ -801,13 +816,13 @@ final class WatchProtocolIntegrationTests: XCTestCase {
     /// as fast as the machine allows and do not flake on a slow one.
     private func waitUntil(_ description: String, timeout: TimeInterval = 5,
                            _ condition: @Sendable () async -> Bool,
-                           file: StaticString = #filePath, line: UInt = #line) async {
+                           sourceLocation: SourceLocation = #_sourceLocation) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if await condition() { return }
             try? await Task.sleep(for: .milliseconds(5))
         }
-        XCTFail("timed out waiting until \(description)", file: file, line: line)
+        Issue.record("timed out waiting until \(description)", sourceLocation: sourceLocation)
     }
 }
 

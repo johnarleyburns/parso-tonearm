@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 
 /// Issue #206: `scripts/fetch-models.sh` unpacks pinned archives safely.
 /// Fixtures are local archives served over file:// — no network.
-final class ModelFetchScriptTests: XCTestCase {
+@Suite struct ModelFetchScriptTests {
     private let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
 
@@ -30,9 +30,8 @@ final class ModelFetchScriptTests: XCTestCase {
         try FileManager.default.createDirectory(at: src, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(
             at: repo.appendingPathComponent("Config"), withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: repo) }
         let made = try sh(build, cwd: src)
-        XCTAssertEqual(made.0, 0, made.1)
+        #expect(made.0 == 0, "\(made.1)")
         let actual = try sh("shasum -a 256 '\(archiveName)' | awk '{print $1}'", cwd: src).1
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let row = "file://\(src.path)/\(archiveName)  \(sha ?? actual)  \(destination)"
@@ -49,45 +48,48 @@ final class ModelFetchScriptTests: XCTestCase {
         return d
     }
 
-    private func assertOldIntact(_ d: URL, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertTrue(FileManager.default.fileExists(atPath: d.appendingPathComponent("old.txt").path),
-                      file: file, line: line)
+    private func assertOldIntact(_ d: URL, sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(FileManager.default.fileExists(atPath: d.appendingPathComponent("old.txt").path),
+                      sourceLocation: sourceLocation)
     }
 
-    func testZipMapsLowercaseRootToCanonicalDestination() throws {
+    @Test func testZipMapsLowercaseRootToCanonicalDestination() throws {
         let (repo, run) = try fixture(
             archiveName: "m.zip", build: "mkdir r.mlpackage && echo x > r.mlpackage/a && zip -qr m.zip r.mlpackage",
             destination: "CLAPAudioEncoder.mlpackage", archiveRoot: "r.mlpackage")
+        defer { try? FileManager.default.removeItem(at: repo) }
         let result = try run()
-        XCTAssertEqual(result.0, 0, result.1)
-        XCTAssertTrue(FileManager.default.fileExists(
+        #expect(result.0 == 0, "\(result.1)")
+        #expect(FileManager.default.fileExists(
             atPath: repo.appendingPathComponent("Resources/Models/CLAPAudioEncoder.mlpackage/a").path))
         let repeatRun = try run()
-        XCTAssertEqual(repeatRun.0, 0, repeatRun.1)
-        XCTAssertTrue(repeatRun.1.contains("already present"), repeatRun.1)
+        #expect(repeatRun.0 == 0, "\(repeatRun.1)")
+        #expect(repeatRun.1.contains("already present"), "\(repeatRun.1)")
     }
 
-    func testThreeFieldTarGzStillWorks() throws {
+    @Test func testThreeFieldTarGzStillWorks() throws {
         let (repo, run) = try fixture(
             archiveName: "D.tar.gz", build: "mkdir D.mlpackage && echo x > D.mlpackage/a && tar -czf D.tar.gz D.mlpackage",
             destination: "D.mlpackage", archiveRoot: nil)
+        defer { try? FileManager.default.removeItem(at: repo) }
         let result = try run()
-        XCTAssertEqual(result.0, 0, result.1)
-        XCTAssertTrue(FileManager.default.fileExists(
+        #expect(result.0 == 0, "\(result.1)")
+        #expect(FileManager.default.fileExists(
             atPath: repo.appendingPathComponent("Resources/Models/D.mlpackage/a").path))
     }
 
-    func testChecksumMismatchKeepsExistingDestination() throws {
+    @Test func testChecksumMismatchKeepsExistingDestination() throws {
         let (repo, run) = try fixture(
             archiveName: "m.zip", build: "mkdir r && echo x > r/a && zip -qr m.zip r",
             destination: "C.mlpackage", archiveRoot: "r", sha: String(repeating: "0", count: 64))
+        defer { try? FileManager.default.removeItem(at: repo) }
         let old = try existing(repo, "C.mlpackage")
         let result = try run()
-        XCTAssertNotEqual(result.0, 0)
+        #expect(result.0 != 0)
         assertOldIntact(old)
     }
 
-    func testWrongRootExtraRootAndUnsupportedFormatKeepExistingDestination() throws {
+    @Test func testWrongRootExtraRootAndUnsupportedFormatKeepExistingDestination() throws {
         let cases: [(String, String, String)] = [
             ("m.zip", "mkdir other && echo x > other/a && zip -qr m.zip other", "r"),
             ("m.zip", "mkdir r e && echo x > r/a && echo y > e/a && zip -qr m.zip r e", "r"),
@@ -96,15 +98,16 @@ final class ModelFetchScriptTests: XCTestCase {
         for (name, build, rootName) in cases {
             let (repo, run) = try fixture(
                 archiveName: name, build: build, destination: "C.mlpackage", archiveRoot: rootName)
+            defer { try? FileManager.default.removeItem(at: repo) }
             let old = try existing(repo, "C.mlpackage")
             // Pinned-row semantics: force replacement attempt via a stale marker.
             let result = try run()
-            XCTAssertNotEqual(result.0, 0, "\(name): \(result.1)")
+            #expect(result.0 != 0, "\(name): \(result.1)")
             assertOldIntact(old)
         }
     }
 
-    func testTraversalArchiveIsRejectedWithoutReplacingDestination() throws {
+    @Test func testTraversalArchiveIsRejectedWithoutReplacingDestination() throws {
         let (repo, run) = try fixture(
             archiveName: "m.zip",
             build: """
@@ -112,20 +115,21 @@ final class ModelFetchScriptTests: XCTestCase {
             z.writestr('r/a','x'); z.writestr('../evil','x'); z.close()"
             """,
             destination: "C.mlpackage", archiveRoot: "r")
+        defer { try? FileManager.default.removeItem(at: repo) }
         let old = try existing(repo, "C.mlpackage")
         let result = try run()
-        XCTAssertNotEqual(result.0, 0)
-        XCTAssertTrue(result.1.contains("traversal"), result.1)
+        #expect(result.0 != 0)
+        #expect(result.1.contains("traversal"), "\(result.1)")
         assertOldIntact(old)
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: repo.appendingPathComponent("Resources/evil").path))
+        #expect(!(FileManager.default.fileExists(
+            atPath: repo.appendingPathComponent("Resources/evil").path)))
     }
 
-    func testLockPinsOnlyApprovedClapPair() throws {
+    @Test func testLockPinsOnlyApprovedClapPair() throws {
         let lock = try String(contentsOf: root.appendingPathComponent("Config/models.lock"), encoding: .utf8)
-        XCTAssertTrue(lock.contains("b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a"))
-        XCTAssertTrue(lock.contains("429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86"))
-        XCTAssertFalse(lock.contains("CLAPAudioEncoder.mlpackage.tar.gz"))
-        XCTAssertFalse(lock.contains("CLAPTextEncoder.mlpackage.tar.gz"))
+        #expect(lock.contains("b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a"))
+        #expect(lock.contains("429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86"))
+        #expect(!(lock.contains("CLAPAudioEncoder.mlpackage.tar.gz")))
+        #expect(!(lock.contains("CLAPTextEncoder.mlpackage.tar.gz")))
     }
 }

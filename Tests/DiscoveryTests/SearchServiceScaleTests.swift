@@ -2,7 +2,7 @@
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -10,8 +10,8 @@ import XCTest
 /// Plan §9/§11 C06: a 20,000-track scope must scan without hitting SQLite's
 /// bound-variable limit, without an ANN dependency and without a full-matrix
 /// copy per query.
-final class SearchServiceScaleTests: XCTestCase {
-    func testTwentyThousandTrackScopeScansWithoutSQLVariableError() async throws {
+@Suite struct SearchServiceScaleTests {
+    @Test func testTwentyThousandTrackScopeScansWithoutSQLVariableError() async throws {
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("scale-\(UUID().uuidString).bin")
         defer { try? FileManager.default.removeItem(at: cacheURL) }
@@ -42,21 +42,21 @@ final class SearchServiceScaleTests: XCTestCase {
 
         // Whole-library semantic scan.
         let all = await service.search(DiscoverySearchQuery(text: "x", limit: 50))
-        XCTAssertEqual(all.state, .ready)
-        XCTAssertEqual(all.results.count, 50)
+        #expect(all.state == .ready)
+        #expect(all.results.count == 50)
 
         // Semantic + hard BPM gate over the same 20k scope.
         let filtered = await service.search(
             DiscoverySearchQuery(text: "x", bpmMin: 120, bpmMax: 125, limit: 50))
-        XCTAssertEqual(filtered.state, .ready)
-        XCTAssertGreaterThan(filtered.results.count, 0)
-        XCTAssertLessThanOrEqual(filtered.results.count, 50)
+        #expect(filtered.state == .ready)
+        #expect(filtered.results.count > 0)
+        #expect(filtered.results.count <= 50)
 
         // Filter-only over the same scope.
         let filterOnly = await service.search(
             DiscoverySearchQuery(text: "", bpmMin: 120, bpmMax: 122, limit: 50))
-        XCTAssertEqual(filterOnly.mode, .filterOnly)
-        XCTAssertEqual(filterOnly.state, .ready)
+        #expect(filterOnly.mode == .filterOnly)
+        #expect(filterOnly.state == .ready)
     }
 }
 #endif

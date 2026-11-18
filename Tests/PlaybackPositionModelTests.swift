@@ -1,8 +1,9 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-@MainActor
-final class PlaybackPositionModelTests: XCTestCase {
+extension SharedProductionSingletonTests {
+    @MainActor
+    @Suite struct PlaybackPositionModelTests {
 
     struct RNG {
         private var state: UInt64
@@ -21,7 +22,7 @@ final class PlaybackPositionModelTests: XCTestCase {
         case tick, pause, resume, seek, nextTrack, previousTrack, background, kill, uninstall
     }
 
-    func testInvariantsOverRuns() async throws {
+    @Test func testInvariantsOverRuns() async throws {
         for run in 0..<50 {
             let seed: UInt64 = 42 + UInt64(run)
             try await runOne(seed: seed)
@@ -76,12 +77,12 @@ final class PlaybackPositionModelTests: XCTestCase {
             if let d = durable, d.trackIDs == ids, d.currentIndex == index {
                 if reason == .tick || reason == .background {
                     let reg = lastDurableElapsed - d.elapsed
-                    XCTAssertLessThanOrEqual(reg, 1.0,
+                    #expect(reg <= 1.0,
                         "G3: tick/bg regression ≤1 s, seed=\(seed)")
                 }
                 switch event {
                 case .pause, .resume, .seek, .nextTrack, .previousTrack:
-                    XCTAssertEqual(d.elapsed, elapsed, accuracy: 0.01,
+                    #expect(abs(d.elapsed - elapsed) <= 0.01,
                         "G1: exact, seed=\(seed)")
                 default: break
                 }
@@ -103,5 +104,6 @@ final class PlaybackPositionModelTests: XCTestCase {
         // G6 is tested thoroughly in testSnapshotSurvivesReinstall; here we just
         // verify the model runs don't crash and basic invariants hold.
         _ = cloudSnap
+    }
     }
 }

@@ -1,11 +1,11 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// T3.6 — folder watch: a new file appears without relaunch (simulated rescan),
 /// and the watched-folder diff excludes already-tracked files.
-final class FolderWatchTests: XCTestCase {
+@Suite struct FolderWatchTests {
 
-    func testNewFilesDiffExcludesTracked() {
+    @Test func testNewFilesDiffExcludesTracked() {
         let a = URL(fileURLWithPath: "/music/one.mp3")
         let b = URL(fileURLWithPath: "/music/two.flac")
         let c = URL(fileURLWithPath: "/music/three.opus")
@@ -13,30 +13,30 @@ final class FolderWatchTests: XCTestCase {
         let existing: Set<String> = [a.standardizedFileURL.path, b.standardizedFileURL.path]
 
         let fresh = FolderWatchService.newFiles(scanned: scanned, existing: existing)
-        XCTAssertEqual(fresh, [c])
+        #expect(fresh == [c])
     }
 
-    func testNoNewFilesWhenAllTracked() {
+    @Test func testNoNewFilesWhenAllTracked() {
         let a = URL(fileURLWithPath: "/music/one.mp3")
         let existing: Set<String> = [a.standardizedFileURL.path]
-        XCTAssertTrue(FolderWatchService.newFiles(scanned: [a], existing: existing).isEmpty)
+        #expect(FolderWatchService.newFiles(scanned: [a], existing: existing).isEmpty)
     }
 
-    func testAllFilesNewWhenNothingTracked() {
+    @Test func testAllFilesNewWhenNothingTracked() {
         let files = [URL(fileURLWithPath: "/m/a.mp3"), URL(fileURLWithPath: "/m/b.mp3")]
         let fresh = FolderWatchService.newFiles(scanned: files, existing: [])
-        XCTAssertEqual(fresh.count, 2)
+        #expect(fresh.count == 2)
     }
 
-    func testRescanWithoutWatchedFoldersAddsNothing() async throws {
+    @Test func testRescanWithoutWatchedFoldersAddsNothing() async throws {
         let store = try LibraryStore(inMemory: true)
         let added = await FolderWatchService.shared.rescanWatchedFolders(store: store)
-        XCTAssertEqual(added, 0)
+        #expect(added == 0)
     }
 
     // Simulated rescan: a new file dropped into a watched folder is ingested into
     // the folder's source without a relaunch. Folder watch is free.
-    func testRescanIngestsNewFileWithoutRelaunch() async throws {
+    @Test func testRescanIngestsNewFileWithoutRelaunch() async throws {
 
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("watch-\(UUID().uuidString)", isDirectory: true)
@@ -52,8 +52,8 @@ final class FolderWatchTests: XCTestCase {
                                              watch: true, into: store)
 
         let fetchedSource = try await store.firstSource(title: folder.lastPathComponent, kind: .local)
-        let source = try XCTUnwrap(fetchedSource)
-        let sid = try XCTUnwrap(source.id)
+        let source = try #require(fetchedSource)
+        let sid = try #require(source.id)
         let countBefore = try await store.tracks(forSource: sid).count
 
         // Drop a NEW file, then rescan (no relaunch).
@@ -62,8 +62,8 @@ final class FolderWatchTests: XCTestCase {
         let added = await FolderWatchService.shared.rescanWatchedFolders(store: store)
 
         let countAfter = try await store.tracks(forSource: sid).count
-        XCTAssertGreaterThanOrEqual(added, 0)
-        XCTAssertGreaterThan(countAfter, countBefore, "new file should appear after rescan")
+        #expect(added >= 0)
+        #expect(countAfter > countBefore, "new file should appear after rescan")
     }
 
     /// Folder imports no longer create a playlist (real report: "do not add any of the files
@@ -71,7 +71,7 @@ final class FolderWatchTests: XCTestCase {
     /// A folder imported before that change still has its old `Playlist(kind: .folder, watch:
     /// true)` row, and must keep being watched unchanged, side by side with a brand-new,
     /// Source-only watched folder.
-    func testLegacyPlaylistBackedAndNewSourceBackedWatchedFoldersBothRescan() async throws {
+    @Test func testLegacyPlaylistBackedAndNewSourceBackedWatchedFoldersBothRescan() async throws {
         let store = try LibraryStore(inMemory: true)
 
         // Legacy representation: a Source with a Playlist(kind: .folder, watch: true) pointing
@@ -88,7 +88,7 @@ final class FolderWatchTests: XCTestCase {
                                   memberCapHit: false, localIsFolder: true,
                                   folderPath: FolderImportIdentity.key(for: legacyFolder))
         legacySource = try await store.insertSource(legacySource)
-        let legacySid = try XCTUnwrap(legacySource.id)
+        let legacySid = try #require(legacySource.id)
         _ = try await IngestService().addFiles([legacyFolder.appendingPathComponent("legacy-first.mp3")],
                                                 toSourceId: legacySid, into: store)
         var legacyPlaylist = Playlist(id: nil, title: legacyFolder.lastPathComponent, kind: .folder,
@@ -106,19 +106,19 @@ final class FolderWatchTests: XCTestCase {
         try await IngestService().addFolder(newFolder, includeSubfolders: true, keepOrder: true,
                                              watch: true, into: store)
         let newSource = try await store.firstSource(title: newFolder.lastPathComponent, kind: .local)
-        let newSid = try XCTUnwrap(newSource?.id)
+        let newSid = try #require(newSource?.id)
         let playlistCountAfterNewImport = try await store.allPlaylists().count
-        XCTAssertEqual(playlistCountAfterNewImport, 1, "only the legacy folder has a playlist")
+        #expect(playlistCountAfterNewImport == 1, "only the legacy folder has a playlist")
 
         // Drop a new file into each folder, then rescan once.
         try Data(count: 4096).write(to: legacyFolder.appendingPathComponent("legacy-second.flac"))
         try Data(count: 4096).write(to: newFolder.appendingPathComponent("new-second.flac"))
         let added = await FolderWatchService.shared.rescanWatchedFolders(store: store)
-        XCTAssertGreaterThanOrEqual(added, 2)
+        #expect(added >= 2)
 
         let legacyCount = try await store.tracks(forSource: legacySid).count
         let newCount = try await store.tracks(forSource: newSid).count
-        XCTAssertEqual(legacyCount, 2, "legacy playlist-backed watched folder must still pick up new files")
-        XCTAssertEqual(newCount, 2, "new source-backed watched folder must pick up new files")
+        #expect(legacyCount == 2, "legacy playlist-backed watched folder must still pick up new files")
+        #expect(newCount == 2, "new source-backed watched folder must pick up new files")
     }
 }

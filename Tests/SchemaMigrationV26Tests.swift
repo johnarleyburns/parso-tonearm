@@ -1,10 +1,10 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class SchemaMigrationV26Tests: XCTestCase {
-    func testV26AddsCrateMembershipWithoutChangingExistingPlaylists() throws {
+@Suite struct SchemaMigrationV26Tests {
+    @Test func testV26AddsCrateMembershipWithoutChangingExistingPlaylists() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v25").migrate(queue)
         try queue.write { db in
@@ -18,9 +18,9 @@ final class SchemaMigrationV26Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
 
         try queue.read { db in
-            XCTAssertTrue(try db.columns(in: "playlist").contains { $0.name == "isInCrate" })
+            #expect(try db.columns(in: "playlist").contains { $0.name == "isInCrate" })
             let row = try Row.fetchOne(db, sql: "SELECT isInCrate FROM playlist WHERE title = 'Existing'")
-            XCTAssertEqual(row?["isInCrate"] as Bool?, false)
+            #expect(row?["isInCrate"] as Bool? == false)
         }
     }
 }

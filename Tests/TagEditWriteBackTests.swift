@@ -1,9 +1,9 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class TagEditWriteBackTests: XCTestCase {
-    func testAppliesTagEditPlanToLibraryRowsAndSearchIndex() async throws {
+@Suite struct TagEditWriteBackTests {
+    @Test func testAppliesTagEditPlanToLibraryRowsAndSearchIndex() async throws {
         let store = try LibraryStore(inMemory: true)
         var source = Source(
             id: nil,
@@ -18,10 +18,10 @@ final class TagEditWriteBackTests: XCTestCase {
             memberCapHit: false
         )
         source = try await store.insertSource(source)
-        let sourceID = try XCTUnwrap(source.id)
+        let sourceID = try #require(source.id)
         var album = Album(id: nil, sourceId: sourceID, title: "Old Album", artist: "Old Artist", year: 1999)
         album = try await store.insertAlbum(album)
-        let albumID = try XCTUnwrap(album.id)
+        let albumID = try #require(album.id)
         var track = Track(
             id: nil,
             albumId: albumID,
@@ -38,7 +38,7 @@ final class TagEditWriteBackTests: XCTestCase {
             composer: nil
         )
         track = try await store.insertTrack(track)
-        let trackID = try XCTUnwrap(track.id)
+        let trackID = try #require(track.id)
         _ = try await store.insertAsset(Asset(
             id: nil,
             trackId: trackID,
@@ -67,21 +67,21 @@ final class TagEditWriteBackTests: XCTestCase {
 
         let applied = try await store.applyTagEditPlan(plan)
         let loadedRow = try await store.trackRow(id: trackID)
-        let row = try XCTUnwrap(loadedRow)
+        let row = try #require(loadedRow)
         let search = try await store.search("Soul")
 
-        XCTAssertEqual(applied, 1)
-        XCTAssertEqual(row.track.title, "New Title")
-        XCTAssertEqual(row.track.genre, "Soul")
-        XCTAssertEqual(row.track.composer, "Writer")
-        XCTAssertEqual(row.track.trackNo, 7)
-        XCTAssertEqual(row.track.sortKey, "0007")
-        XCTAssertEqual(row.album?.title, "New Album")
-        XCTAssertEqual(row.album?.year, 2026)
-        XCTAssertEqual(search.map(\.id), [trackID])
+        #expect(applied == 1)
+        #expect(row.track.title == "New Title")
+        #expect(row.track.genre == "Soul")
+        #expect(row.track.composer == "Writer")
+        #expect(row.track.trackNo == 7)
+        #expect(row.track.sortKey == "0007")
+        #expect(row.album?.title == "New Album")
+        #expect(row.album?.year == 2026)
+        #expect(search.map(\.id) == [trackID])
     }
 
-    func testRefusesPlanWithValidationErrors() async throws {
+    @Test func testRefusesPlanWithValidationErrors() async throws {
         let store = try LibraryStore(inMemory: true)
         let operation = TagEdit.Operation(
             trackID: 999,
@@ -96,6 +96,6 @@ final class TagEditWriteBackTests: XCTestCase {
 
         let applied = try await store.applyTagEditPlan(plan)
 
-        XCTAssertEqual(applied, 0)
+        #expect(applied == 0)
     }
 }

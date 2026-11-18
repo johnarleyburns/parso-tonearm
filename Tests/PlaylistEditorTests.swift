@@ -1,74 +1,74 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class PlaylistEditorTests: XCTestCase {
-    func testMoveToHeadRenumbersContiguously() {
+@Suite struct PlaylistEditorTests {
+    @Test func testMoveToHeadRenumbersContiguously() {
         let edited = PlaylistEditor.move(items([10, 20, 30, 40]), from: 3, to: 0)
 
-        XCTAssertEqual(edited.map(\.trackId), [40, 10, 20, 30])
+        #expect(edited.map(\.trackId) == [40, 10, 20, 30])
         XCTAssertContiguous(edited)
     }
 
-    func testMoveToTailRenumbersContiguously() {
+    @Test func testMoveToTailRenumbersContiguously() {
         let edited = PlaylistEditor.move(items([10, 20, 30, 40]), from: 0, to: 3)
 
-        XCTAssertEqual(edited.map(\.trackId), [20, 30, 40, 10])
+        #expect(edited.map(\.trackId) == [20, 30, 40, 10])
         XCTAssertContiguous(edited)
     }
 
-    func testMovePreservesDuplicateTrackIDsByItemIdentity() {
+    @Test func testMovePreservesDuplicateTrackIDsByItemIdentity() {
         let original = items([10, 10, 20, 10])
         let edited = PlaylistEditor.move(original, from: 1, to: 3)
 
-        XCTAssertEqual(edited.map(\.id), [1, 3, 4, 2])
-        XCTAssertEqual(edited.map(\.trackId), [10, 20, 10, 10])
+        #expect(edited.map(\.id) == [1, 3, 4, 2])
+        #expect(edited.map(\.trackId) == [10, 20, 10, 10])
         XCTAssertContiguous(edited)
     }
 
-    func testRemoveFromMiddleRenumbersContiguously() {
+    @Test func testRemoveFromMiddleRenumbersContiguously() {
         let edited = PlaylistEditor.remove(items([10, 20, 30, 40]), at: 1)
 
-        XCTAssertEqual(edited.map(\.trackId), [10, 30, 40])
+        #expect(edited.map(\.trackId) == [10, 30, 40])
         XCTAssertContiguous(edited)
     }
 
-    func testEmptyPlaylistIsStable() {
-        XCTAssertEqual(PlaylistEditor.normalized([]), [])
-        XCTAssertEqual(PlaylistEditor.move([], from: 0, to: 2), [])
-        XCTAssertEqual(PlaylistEditor.remove([], at: 0), [])
+    @Test func testEmptyPlaylistIsStable() {
+        #expect(PlaylistEditor.normalized([]) == [])
+        #expect(PlaylistEditor.move([], from: 0, to: 2) == [])
+        #expect(PlaylistEditor.remove([], at: 0) == [])
     }
 
-    func testBPMSortIsAscendingStableAndPutsUnknownLast() {
+    @Test func testBPMSortIsAscendingStableAndPutsUnknownLast() {
         let original = items([10, 20, 30, 40])
         let edited = PlaylistEditor.sortedByBPM(
             original, bpmByTrackID: [10: 128, 20: 100, 40: 128])
 
-        XCTAssertEqual(edited.map(\.trackId), [20, 10, 40, 30])
-        XCTAssertEqual(edited.map(\.position), [0, 1, 2, 3])
+        #expect(edited.map(\.trackId) == [20, 10, 40, 30])
+        #expect(edited.map(\.position) == [0, 1, 2, 3])
     }
 
-    func testSwiftUIMoveOffsetsRenumbersContiguously() {
+    @Test func testSwiftUIMoveOffsetsRenumbersContiguously() {
         let edited = PlaylistEditor.move(
             items([10, 20, 30, 40, 50]),
             fromOffsets: IndexSet([1, 2]),
             toOffset: 5)
 
-        XCTAssertEqual(edited.map(\.trackId), [10, 40, 50, 20, 30])
+        #expect(edited.map(\.trackId) == [10, 40, 50, 20, 30])
         XCTAssertContiguous(edited)
     }
 
-    func testSwiftUIDeleteOffsetsRenumbersContiguously() {
+    @Test func testSwiftUIDeleteOffsetsRenumbersContiguously() {
         let edited = PlaylistEditor.remove(
             items([10, 20, 30, 40, 50]),
             atOffsets: IndexSet([1, 3]))
 
-        XCTAssertEqual(edited.map(\.trackId), [10, 30, 50])
+        #expect(edited.map(\.trackId) == [10, 30, 50])
         XCTAssertContiguous(edited)
     }
 
-    func testNormalizesSparseAndDuplicatePositionsStably() {
+    @Test func testNormalizesSparseAndDuplicatePositionsStably() {
         let original = [
             item(id: 3, position: 7, trackId: 30),
             item(id: 1, position: 4, trackId: 10),
@@ -77,29 +77,29 @@ final class PlaylistEditorTests: XCTestCase {
 
         let edited = PlaylistEditor.normalized(original)
 
-        XCTAssertEqual(edited.map(\.id), [1, 2, 3])
+        #expect(edited.map(\.id) == [1, 2, 3])
         XCTAssertContiguous(edited)
     }
 
-    func testLibraryStoreReorderAndRemovalRoundTripThroughGRDB() async throws {
+    @Test func testLibraryStoreReorderAndRemovalRoundTripThroughGRDB() async throws {
         let store = try LibraryStore(inMemory: true)
         let trackIDs = try await seedTracks(into: store, count: 3)
         let playlist = try await store.createManualPlaylist(
             title: "Deduplicated",
             trackIds: [trackIDs[0], trackIDs[1], trackIDs[0], trackIDs[2]])
-        let playlistID = try XCTUnwrap(playlist.id)
+        let playlistID = try #require(playlist.id)
         let originalRows = try await store.playlistTrackRows(playlistId: playlistID)
 
         try await store.reorderPlaylist(id: playlistID, from: 2, to: 0)
         try await store.removeFromPlaylist(playlistId: playlistID, at: 1)
 
         let rows = try await store.playlistTrackRows(playlistId: playlistID)
-        XCTAssertEqual(rows.map(\.row.id), [trackIDs[2], trackIDs[1]])
-        XCTAssertEqual(rows.map(\.item.id), [originalRows[2].item.id, originalRows[1].item.id])
-        XCTAssertEqual(rows.map(\.item.position), [0, 1])
+        #expect(rows.map(\.row.id) == [trackIDs[2], trackIDs[1]])
+        #expect(rows.map(\.item.id) == [originalRows[2].item.id, originalRows[1].item.id])
+        #expect(rows.map(\.item.position) == [0, 1])
     }
 
-    func testLibraryStoreBPMSortPersistsAscendingOrderAndLeavesUnknownLast() async throws {
+    @Test func testLibraryStoreBPMSortPersistsAscendingOrderAndLeavesUnknownLast() async throws {
         let store = try LibraryStore(inMemory: true)
         let trackIDs = try await seedTracks(into: store, count: 3)
         for trackID in trackIDs {
@@ -108,7 +108,7 @@ final class PlaylistEditorTests: XCTestCase {
                       remoteURL: "https://example.com/\(trackID).mp3", altRemoteURL: nil,
                       sizeBytes: nil, unsupportedReason: nil))
             let analysis = DiscoveryTrackAnalysis(
-                trackId: trackID, assetId: try XCTUnwrap(asset.id), assetRevision: 1,
+                trackId: trackID, assetId: try #require(asset.id), assetRevision: 1,
                 analysisVersion: 1, bpm: trackID == trackIDs[0] ? 128 : (trackID == trackIDs[1] ? 100 : nil),
                 key: nil, energy: nil, phraseSummary: nil, analysisScopeSeconds: nil,
                 completedAt: Date())
@@ -120,10 +120,10 @@ final class PlaylistEditorTests: XCTestCase {
         let playlist = try await store.createManualPlaylist(
             title: "DJ Set", trackIds: [trackIDs[0], trackIDs[1], trackIDs[2]])
 
-        try await store.sortPlaylistByBPM(id: try XCTUnwrap(playlist.id))
-        let rows = try await store.playlistTrackRows(playlistId: try XCTUnwrap(playlist.id))
-        XCTAssertEqual(rows.map(\.row.id), [trackIDs[1], trackIDs[0], trackIDs[2]])
-        XCTAssertEqual(rows.map(\.item.position), [0, 1, 2])
+        try await store.sortPlaylistByBPM(id: try #require(playlist.id))
+        let rows = try await store.playlistTrackRows(playlistId: try #require(playlist.id))
+        #expect(rows.map(\.row.id) == [trackIDs[1], trackIDs[0], trackIDs[2]])
+        #expect(rows.map(\.item.position) == [0, 1, 2])
     }
 
     private func items(_ trackIDs: [Int64]) -> [PlaylistItem] {
@@ -147,7 +147,7 @@ final class PlaylistEditorTests: XCTestCase {
             Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                    title: "Fixture", addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false))
-        let sourceID = try XCTUnwrap(source.id)
+        let sourceID = try #require(source.id)
 
         var ids: [Int64] = []
         for index in 0..<count {
@@ -156,16 +156,15 @@ final class PlaylistEditorTests: XCTestCase {
                       trackNo: index + 1, discNo: nil, durationSec: nil, codec: nil,
                       sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "\(index)",
                       genre: nil, composer: nil, artistId: nil))
-            ids.append(try XCTUnwrap(track.id))
+            ids.append(try #require(track.id))
         }
         return ids
     }
 
     private func XCTAssertContiguous(
         _ items: [PlaylistItem],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        sourceLocation: SourceLocation = #_sourceLocation
     ) {
-        XCTAssertEqual(items.map(\.position), Array(items.indices), file: file, line: line)
+        #expect(items.map(\.position) == Array(items.indices), sourceLocation: sourceLocation)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 import GRDB
-import XCTest
+import Testing
 import TonearmWatchProtocol
 @testable import TonearmCore
 
@@ -155,29 +155,29 @@ private func manifest(_ ids: [String], id: String = UUID().uuidString) -> WatchM
 
 // MARK: - Tests
 
-final class PhoneWatchDownloadTests: XCTestCase {
-    func testFrozenWatchSelectionsAndTrackRemovalDoNotReexpandOrRestartPlaylistAudio() async throws {
+@Suite struct PhoneWatchDownloadTests {
+    @Test func testFrozenWatchSelectionsAndTrackRemovalDoNotReexpandOrRestartPlaylistAudio() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
         let manager = PhoneWatchDownloadManager(store: store, resolver: FakeResolver(local: ["a", "b", "new"]),
-            transfer: transfer, rootExpander: { _ in XCTFail("Frozen phone selection must not reexpand"); return ["a", "b", "new"] },
+            transfer: transfer, rootExpander: { _ in Issue.record("Frozen phone selection must not reexpand"); return ["a", "b", "new"] },
             keepsPlaylistsLive: false)
         try await manager.setRoots([root("playlist", kind: .playlist, tracks: ["a", "b"]), root("single", tracks: ["a"])])
         await transfer.setOutstanding(["a", "b"])
         try await manager.removeTracks(["a"])
         try await manager.tick()
         let roots = try await store.roots()
-        XCTAssertEqual(roots.count, 1)
-        XCTAssertEqual(roots.first?.desiredTrackIDs, ["b"])
+        #expect(roots.count == 1)
+        #expect(roots.first?.desiredTrackIDs == ["b"])
         let sent = await transfer.sentSet()
-        XCTAssertFalse(sent.contains("new"))
+        #expect(!sent.contains("new"))
         let count = await transfer.sentCount("a")
-        XCTAssertEqual(count, 1, "Removed audio must not silently redownload through a playlist")
+        #expect(count == 1, "Removed audio must not silently redownload through a playlist")
         let cancelled = await transfer.cancelled
-        XCTAssertTrue(cancelled.contains("a"))
+        #expect(cancelled.contains("a"))
     }
-    func testMetadataOnlyManifestIngestDoesNotStartQueuedAudio() async throws {
+    @Test func testMetadataOnlyManifestIngestDoesNotStartQueuedAudio() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -186,11 +186,11 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await store.upsertJob(PhoneWatchDownloadJob(trackID: "queued", rootIDs: ["r"]))
         try await manager.ingestManifest(manifest([]), reconcileDownloads: false)
         let sends = await transfer.sent
-        XCTAssertTrue(sends.isEmpty)
+        #expect(sends.isEmpty)
         let jobs = try await store.jobs()
-        XCTAssertEqual(jobs.first?.state, .queued)
+        #expect(jobs.first?.state == .queued)
     }
-    func testLostInstalledAudioAsksForApprovalInsteadOfAutomaticallyDownloadingAgain() async throws {
+    @Test func testLostInstalledAudioAsksForApprovalInsteadOfAutomaticallyDownloadingAgain() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["lost"]), transfer: transfer)
@@ -199,13 +199,13 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.ingestManifest(manifest([]))
         try await manager.tick()
         let count = await transfer.sentCount("lost")
-        XCTAssertEqual(count, 1)
+        #expect(count == 1)
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.state, .failed)
-        XCTAssertNil(job?.nextAttemptAt)
+        #expect(job?.state == .failed)
+        #expect(job?.nextAttemptAt == nil)
     }
-    func testAppleOwnedWholeFilePromptsAtTwentyFourHoursWithoutReenqueueing() async throws {
+    @Test func testAppleOwnedWholeFilePromptsAtTwentyFourHoursWithoutReenqueueing() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -216,29 +216,29 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(86_399)
         try await manager.tick()
         let before = try await store.jobs().first
-        XCTAssertEqual(before?.state, .sent)
+        #expect(before?.state == .sent)
         clock.advance(2)
         try await manager.tick()
         let expired = try await store.jobs().first
-        XCTAssertEqual(expired?.state, .failed)
-        XCTAssertTrue(expired?.message?.contains("Retry this transfer?") ?? false)
-        XCTAssertNil(expired?.nextAttemptAt)
+        #expect(expired?.state == .failed)
+        #expect(expired?.message?.contains("Retry this transfer?") ?? false)
+        #expect(expired?.nextAttemptAt == nil)
         let count = await transfer.sentCount("whole")
-        XCTAssertEqual(count, 1)
-        try await manager.requestRetry(requestID: try XCTUnwrap(expired?.requestID))
+        #expect(count == 1)
+        try await manager.requestRetry(requestID: try #require(expired?.requestID))
         let approved = await transfer.sentCount("whole")
-        XCTAssertEqual(approved, 2)
+        #expect(approved == 2)
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["whole"], "Only explicit consent cancels Apple's old file transfer")
+        #expect(cancelled == ["whole"], "Only explicit consent cancels Apple's old file transfer")
     }
-    func testIsStalledOnlyAfterThresholdWithoutProgress() {
+    @Test func testIsStalledOnlyAfterThresholdWithoutProgress() {
         let t0 = Date(timeIntervalSince1970: 1_000)
-        XCTAssertFalse(PhoneWatchTransferScheduler.isStalled(lastProgressAt: t0, now: t0))
-        XCTAssertTrue(PhoneWatchTransferScheduler.isStalled(
+        #expect(!PhoneWatchTransferScheduler.isStalled(lastProgressAt: t0, now: t0))
+        #expect(PhoneWatchTransferScheduler.isStalled(
             lastProgressAt: t0, now: t0.addingTimeInterval(PhoneWatchTransferScheduler.stallThreshold + 1)))
     }
 
-    func testFrozenFractionSurfacesStalledAndRetryCancelsStaleTransfer() async throws {
+    @Test func testFrozenFractionSurfacesStalledAndRetryCancelsStaleTransfer() async throws {
         let db = try freshQueue()
         let clock = TestClock()
         let transfer = FakeTransfer()
@@ -246,19 +246,19 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r", tracks: ["fred"])])
         await transfer.setOutstanding(["fred"])
         var snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
-        XCTAssertNotEqual(snap.activities.first?.stage, .stalled)
+        #expect(snap.activities.first?.stage != .stalled)
         clock.advance(PhoneWatchTransferScheduler.stallThreshold - 10)
         snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
-        XCTAssertNotEqual(snap.activities.first?.stage, .stalled)
+        #expect(snap.activities.first?.stage != .stalled)
         clock.advance(20)
         snap = try await manager.statusSnapshot(transferFractions: ["fred": 0.4])
-        XCTAssertEqual(snap.activities.first?.stage, .stalled)
+        #expect(snap.activities.first?.stage == .stalled)
         try await manager.requestRetry(trackID: "fred")
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["fred"])
+        #expect(cancelled == ["fred"])
     }
 
-    func testPauseAndRemoveCancelSystemOwnedFilesAndResumeQueuesOneReplacement() async throws {
+    @Test func testPauseAndRemoveCancelSystemOwnedFilesAndResumeQueuesOneReplacement() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["fred"]), transfer: transfer)
@@ -266,19 +266,19 @@ final class PhoneWatchDownloadTests: XCTestCase {
         await transfer.setOutstanding(["fred"])
         try await manager.pauseRoot(rootID: "r")
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["fred"])
+        #expect(cancelled == ["fred"])
         try await manager.resumeRoot(rootID: "r")
         let sent = await transfer.sentCount("fred")
-        XCTAssertEqual(sent, 2)
+        #expect(sent == 2)
         await transfer.setOutstanding(["fred"])
         try await manager.removeRoot(rootID: "r")
         let removed = await transfer.cancelled
-        XCTAssertEqual(removed, ["fred", "fred"])
+        #expect(removed == ["fred", "fred"])
         let outstanding = await transfer.outstandingTransfers()
-        XCTAssertTrue(outstanding.isEmpty, "Removed roots must not occupy all scheduler slots forever")
+        #expect(outstanding.isEmpty, "Removed roots must not occupy all scheduler slots forever")
     }
 
-    func testLongTransferStartsPersistedAcknowledgementClockAtDeliveryNotEnqueue() async throws {
+    @Test func testLongTransferStartsPersistedAcknowledgementClockAtDeliveryNotEnqueue() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -293,21 +293,21 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.transferDelivered(trackID: "fred")
         try await manager.tick()
         let delivered = try await store.jobs().first
-        XCTAssertEqual(delivered?.state, .sent)
-        XCTAssertEqual(delivered?.deliveryCompletedAt, clock.now)
+        #expect(delivered?.state == .sent)
+        #expect(delivered?.deliveryCompletedAt == clock.now)
         let restored = makeManager(dbQueue: db, resolver: resolver, transfer: transfer, clock: clock)
         clock.advance(60)
         try await restored.resumeOutstanding()
         let count = await transfer.sentCount("fred")
-        XCTAssertEqual(count, 1, "A relaunch during installation grace must not send another large file")
+        #expect(count == 1, "A relaunch during installation grace must not send another large file")
         try await restored.ingestManifest(manifest(["fred"]))
         clock.advance(600)
         try await restored.tick()
         let finalCount = await transfer.sentCount("fred")
-        XCTAssertEqual(finalCount, 1)
+        #expect(finalCount == 1)
     }
 
-    func testV32PreservesExistingJobsAndAddsUnknownDeliveryTime() async throws {
+    @Test func testV32PreservesExistingJobsAndAddsUnknownDeliveryTime() async throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v31").migrate(queue)
         try await queue.write { db in
@@ -319,12 +319,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try Schema.migrator().migrate(queue)
         let store = PhoneWatchDownloadStore(dbQueue: queue)
         let jobs = try await store.jobs()
-        XCTAssertEqual(jobs.first?.trackID, "fred")
-        XCTAssertEqual(jobs.first?.attempt, 3)
-        XCTAssertNil(jobs.first?.deliveryCompletedAt)
+        #expect(jobs.first?.trackID == "fred")
+        #expect(jobs.first?.attempt == 3)
+        #expect(jobs.first?.deliveryCompletedAt == nil)
     }
 
-    func testExplicitRestartCancelsOutstandingTransferBeforeOneReplacement() async throws {
+    @Test func testExplicitRestartCancelsOutstandingTransferBeforeOneReplacement() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["fred"]), transfer: transfer)
@@ -332,71 +332,71 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r", tracks: ["fred"])])
         await transfer.setOutstanding(["fred"])
         let jobs = try await store.jobs()
-        let job = try XCTUnwrap(jobs.first)
+        let job = try #require(jobs.first)
         try await manager.requestRetry(requestID: job.requestID)
         let cancelled = await transfer.cancelled
         let count = await transfer.sentCount("fred")
-        XCTAssertEqual(cancelled, ["fred"])
-        XCTAssertEqual(count, 2, "The original transfer and exactly one replacement")
+        #expect(cancelled == ["fred"])
+        #expect(count == 2, "The original transfer and exactly one replacement")
     }
 
-    func testSystemOwnedTransfersConsumeSchedulerSlotsUntilTheyFinish() {
+    @Test func testSystemOwnedTransfersConsumeSchedulerSlotsUntilTheyFinish() {
         let jobs = (0..<4).map { i in PhoneWatchDownloadJob(trackID: "t\(i)", rootIDs: ["r"], state: .queued) }
-        XCTAssertTrue(PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(),
+        #expect(PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(),
             canTransferOnNetwork: true, outstandingTrackIDs: ["sentA", "sentB"]).isEmpty)
-        XCTAssertEqual(PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(),
-            canTransferOnNetwork: true, outstandingTrackIDs: ["sentA"]).count, 1)
+        #expect(PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(),
+            canTransferOnNetwork: true, outstandingTrackIDs: ["sentA"]).count == 1)
     }
-    func testUnconfirmedSentDownloadCanBeCancelledButInstalledAudioCannot() async throws {
+    @Test func testUnconfirmedSentDownloadCanBeCancelledButInstalledAudioCannot() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a", "b"]), transfer: transfer)
         try await manager.setRoots([root("r", tracks: ["a", "b"])])
         let jobs = try await store.jobs()
-        let pending = try XCTUnwrap(jobs.first { $0.trackID == "a" })
-        let ready = try XCTUnwrap(jobs.first { $0.trackID == "b" })
-        XCTAssertEqual(pending.state, .sent)
+        let pending = try #require(jobs.first { $0.trackID == "a" })
+        let ready = try #require(jobs.first { $0.trackID == "b" })
+        #expect(pending.state == .sent)
         try await manager.ingestManifest(manifest(["b"]))
         // A late persisted job must not cancel a transfer for already installed audio.
         try await store.upsertJob(ready)
         try await manager.cancelJob(requestID: ready.requestID)
         let settled = try await store.jobs()
-        XCTAssertEqual(settled.first { $0.trackID == "b" }?.state, .sent)
+        #expect(settled.first { $0.trackID == "b" }?.state == .sent)
         try await manager.cancelJob(requestID: pending.requestID)
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["a"])
+        #expect(cancelled == ["a"])
         let after = try await store.jobs()
-        XCTAssertEqual(after.first { $0.trackID == "a" }?.state, .cancelled)
+        #expect(after.first { $0.trackID == "a" }?.state == .cancelled)
         let installed = try await store.installedTrackIDs()
-        XCTAssertEqual(installed, ["b"])
+        #expect(installed == ["b"])
     }
 
-    func testQueuedFilesAndUnconfirmedInstallationsRemainVisibleUntilWatchReportsReady() async throws {
+    @Test func testQueuedFilesAndUnconfirmedInstallationsRemainVisibleUntilWatchReportsReady() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: transfer)
         try await manager.setRoots([root("r", tracks: ["a"])])
         await transfer.setOutstanding(["a"])
         let queued = try await manager.statusSnapshot(transferFractions: ["a": 0])
-        XCTAssertEqual(queued.activities.first?.stage, .waitingForDelivery)
-        XCTAssertFalse(queued.isIdle)
-        XCTAssertEqual(queued.readyCount, 0)
+        #expect(queued.activities.first?.stage == .waitingForDelivery)
+        #expect(!queued.isIdle)
+        #expect(queued.readyCount == 0)
         let moving = try await manager.statusSnapshot(transferFractions: ["a": 0.5])
-        XCTAssertEqual(moving.activities.first?.stage, .transferring)
-        XCTAssertEqual(moving.activeCount, 1)
+        #expect(moving.activities.first?.stage == .transferring)
+        #expect(moving.activeCount == 1)
         await transfer.setOutstanding([])
         let unconfirmed = try await manager.statusSnapshot()
-        XCTAssertEqual(unconfirmed.activities.first?.stage, .awaitingInstallation)
-        XCTAssertFalse(unconfirmed.isIdle)
+        #expect(unconfirmed.activities.first?.stage == .awaitingInstallation)
+        #expect(!unconfirmed.isIdle)
         try await manager.ingestManifest(manifest(["a"]))
         let installed = try await manager.statusSnapshot()
-        XCTAssertTrue(installed.activities.isEmpty)
-        XCTAssertEqual(installed.readyCount, 1)
-        XCTAssertTrue(installed.isIdle)
+        #expect(installed.activities.isEmpty)
+        #expect(installed.readyCount == 1)
+        #expect(installed.isIdle)
     }
 
-    func testCancellationDuringPreparationDoesNotEnqueueAudio() async throws {
+    @Test func testCancellationDuringPreparationDoesNotEnqueueAudio() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -410,11 +410,11 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r", tracks: ["a"])])
         let job = try await store.jobs().first
         let sent = await transfer.sent
-        XCTAssertEqual(job?.state, .cancelled)
-        XCTAssertTrue(sent.isEmpty, "Stopping a download during file conversion must prevent delivery")
+        #expect(job?.state == .cancelled)
+        #expect(sent.isEmpty, "Stopping a download during file conversion must prevent delivery")
     }
 
-    func testDeliveryFailureDuringEnqueueSchedulesAutomaticRetry() async throws {
+    @Test func testDeliveryFailureDuringEnqueueSchedulesAutomaticRetry() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -424,12 +424,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         }
         try await manager.setRoots([root("r", tracks: ["a"])])
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.state, .queued)
-        XCTAssertEqual(job?.failureClass, .transient)
-        XCTAssertNotNil(job?.nextAttemptAt)
+        #expect(job?.state == .queued)
+        #expect(job?.failureClass == .transient)
+        #expect(job?.nextAttemptAt != nil)
     }
 
-    func testAsynchronousDeliveryFailureRetriesWithBackoff() async throws {
+    @Test func testAsynchronousDeliveryFailureRetriesWithBackoff() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -439,25 +439,25 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r", tracks: ["a"])])
         try await manager.transferFailed(trackID: "a", code: .transferFailed)
         let retrying = try await store.jobs().first
-        XCTAssertEqual(retrying?.state, .queued)
-        XCTAssertEqual(retrying?.failureClass, .transient)
-        XCTAssertEqual(retrying?.nextAttemptAt, clock.now.addingTimeInterval(5))
+        #expect(retrying?.state == .queued)
+        #expect(retrying?.failureClass == .transient)
+        #expect(retrying?.nextAttemptAt == clock.now.addingTimeInterval(5))
         try await manager.tick()
         let beforeRetry = await transfer.sentCount("a")
-        XCTAssertEqual(beforeRetry, 1)
+        #expect(beforeRetry == 1)
         clock.advance(6)
         try await manager.tick()
         let afterRetry = await transfer.sentCount("a")
-        XCTAssertEqual(afterRetry, 2)
+        #expect(afterRetry == 2)
         try await manager.ingestManifest(manifest(["a"]))
         try await manager.transferFailed(trackID: "a", code: .transferFailed)
         clock.advance(600)
         try await manager.tick()
         let afterInstall = await transfer.sentCount("a")
-        XCTAssertEqual(afterInstall, 2, "late delivery errors must not retry installed audio")
+        #expect(afterInstall == 2, "late delivery errors must not retry installed audio")
     }
 
-    func testMissingInstallAcknowledgementRecoversWithoutDuplicatingOutstandingTransfer() async throws {
+    @Test func testMissingInstallAcknowledgementRecoversWithoutDuplicatingOutstandingTransfer() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -470,42 +470,42 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.ingestManifest(manifest([]))
         try await manager.requestRetry(trackID: "a")
         let outstandingCount = await transfer.sentCount("a")
-        XCTAssertEqual(outstandingCount, 1)
+        #expect(outstandingCount == 1)
         await transfer.setOutstanding([])
         try await manager.tick()
         let awaiting = try await store.jobs().first
-        XCTAssertEqual(awaiting?.state, .sent, "A long queue wait must not consume installation grace")
+        #expect(awaiting?.state == .sent, "A long queue wait must not consume installation grace")
         clock.advance(PhoneWatchDownloadManager.installationAcknowledgementTimeout + 1)
         try await manager.tick()
         let failed = try await store.jobs().first
-        XCTAssertEqual(failed?.state, .failed)
+        #expect(failed?.state == .failed)
         clock.advance(6)
         try await manager.tick()
         let recoveredCount = await transfer.sentCount("a")
-        XCTAssertEqual(recoveredCount, 1)
-        XCTAssertNil(failed?.nextAttemptAt)
-        try await manager.requestRetry(requestID: try XCTUnwrap(failed?.requestID))
+        #expect(recoveredCount == 1)
+        #expect(failed?.nextAttemptAt == nil)
+        try await manager.requestRetry(requestID: try #require(failed?.requestID))
         try await manager.ingestManifest(manifest(["a"]))
         clock.advance(600)
         try await manager.tick()
         let installedCount = await transfer.sentCount("a")
-        XCTAssertEqual(installedCount, 2)
+        #expect(installedCount == 2)
     }
 
-    func testExplicitRetryRevivesUnconfirmedSentJob() {
+    @Test func testExplicitRetryRevivesUnconfirmedSentJob() {
         let job = PhoneWatchDownloadJob(trackID: "a", rootIDs: ["r"], state: .sent)
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: [root("r", tracks: ["a"])], installedTrackIDs: [], existingJobs: [job],
             transferability: { _ in .ready(bytes: 100, sha256: nil) },
             explicitRetryTrackIDs: ["a"])
-        XCTAssertEqual(plan.toReset, [job.requestID])
-        XCTAssertTrue(plan.toCreate.isEmpty)
+        #expect(plan.toReset == [job.requestID])
+        #expect(plan.toCreate.isEmpty)
     }
 
 
     // MARK: schema
 
-    func testV15CreatesDownloadTables() throws {
+    @Test func testV15CreatesDownloadTables() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v14").migrate(queue)
         try Schema.migrator().migrate(queue)
@@ -513,67 +513,67 @@ final class PhoneWatchDownloadTests: XCTestCase {
             for table in ["watchDownloadRoot", "watchDownloadJob",
                           "watchDownloadManifestEntry", "watchDownloadRevision"] {
                 let exists = try db.tableExists(table)
-                XCTAssertTrue(exists, "\(table) missing")
+                #expect(exists, "\(table) missing")
             }
             let seed = try Int64.fetchOne(db, sql: "SELECT value FROM watchDownloadRevision WHERE id = 1")
-            XCTAssertEqual(seed, 0)
+            #expect(seed == 0)
         }
     }
 
-    func testV17DropsLegacyWatchTransferTables() throws {
+    @Test func testV17DropsLegacyWatchTransferTables() throws {
         // Phase 10 (§10): the pre-cutover v12 `watchTransfer` / `watchManifest` tables are
         // dropped once the v15 download-root stack is in place. Nothing reads them any more.
         let queue = try freshQueue()
         try queue.read { db in
-            XCTAssertFalse(try db.tableExists("watchTransfer"))
-            XCTAssertFalse(try db.tableExists("watchManifest"))
+            #expect(!(try db.tableExists("watchTransfer")))
+            #expect(!(try db.tableExists("watchManifest")))
         }
     }
 
     // MARK: store round-trips
 
-    func testStoreRootAndJobRoundTrip() async throws {
+    @Test func testStoreRootAndJobRoundTrip() async throws {
         let store = PhoneWatchDownloadStore(dbQueue: try freshQueue())
         try await store.replaceRoots([root("r1", tracks: ["a", "b"])])
         let roots = try await store.roots()
-        XCTAssertEqual(roots.map(\.rootID), ["r1"])
-        XCTAssertEqual(roots.first?.desiredTrackIDs, ["a", "b"])
+        #expect(roots.map(\.rootID) == ["r1"])
+        #expect(roots.first?.desiredTrackIDs == ["a", "b"])
 
         var job = PhoneWatchDownloadJob(trackID: "a", rootIDs: ["r1"], expectedBytes: 42)
         try await store.upsertJob(job)
         job.state = .sent
         try await store.upsertJob(job)
         let jobs = try await store.jobs()
-        XCTAssertEqual(jobs.count, 1)
-        XCTAssertEqual(jobs.first?.state, .sent)
-        XCTAssertEqual(jobs.first?.expectedBytes, 42)
+        #expect(jobs.count == 1)
+        #expect(jobs.first?.state == .sent)
+        #expect(jobs.first?.expectedBytes == 42)
     }
 
-    func testBumpRevisionMonotonic() async throws {
+    @Test func testBumpRevisionMonotonic() async throws {
         let store = PhoneWatchDownloadStore(dbQueue: try freshQueue())
         let start = try await store.currentRevision()
-        XCTAssertEqual(start, 0)
+        #expect(start == 0)
         let first = try await store.bumpRevision()
-        XCTAssertEqual(first, 1)
+        #expect(first == 1)
         let second = try await store.bumpRevision()
-        XCTAssertEqual(second, 2)
+        #expect(second == 2)
         let current = try await store.currentRevision()
-        XCTAssertEqual(current, 2)
+        #expect(current == 2)
     }
 
     // MARK: planner
 
-    func testPlannerDedupesSharedReferences() {
+    @Test func testPlannerDedupesSharedReferences() {
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: [root("r1", tracks: ["a", "b"]), root("r2", kind: .playlist, tracks: ["b", "c"])],
             installedTrackIDs: [], existingJobs: [],
             transferability: { _ in .ready(bytes: 100, sha256: nil) })
-        XCTAssertEqual(Set(plan.toCreate.map(\.trackID)), ["a", "b", "c"])
-        XCTAssertEqual(plan.referenceCounts["b"], 2)
-        XCTAssertEqual(plan.toCreate.first { $0.trackID == "b" }?.priority, .trackOrAlbumBatch)
+        #expect(Set(plan.toCreate.map(\.trackID)) == ["a", "b", "c"])
+        #expect(plan.referenceCounts["b"] == 2)
+        #expect(plan.toCreate.first { $0.trackID == "b" }?.priority == .trackOrAlbumBatch)
     }
 
-    func testPlannerSkipsInstalledAndUnsupported() {
+    @Test func testPlannerSkipsInstalledAndUnsupported() {
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: [root("r1", tracks: ["installed", "bad", "ok"])],
             installedTrackIDs: ["installed"], existingJobs: [],
@@ -583,11 +583,11 @@ final class PhoneWatchDownloadTests: XCTestCase {
                 default: return .ready(bytes: 1, sha256: nil)
                 }
             })
-        XCTAssertEqual(plan.toCreate.map(\.trackID), ["ok"])
-        XCTAssertEqual(plan.unsupported, ["bad"])
+        #expect(plan.toCreate.map(\.trackID) == ["ok"])
+        #expect(plan.unsupported == ["bad"])
     }
 
-    func testPlannerQueuesRemoteTrackWhenResolverCanMaterializeIt() {
+    @Test func testPlannerQueuesRemoteTrackWhenResolverCanMaterializeIt() {
         // A remote track does not need to be cached on the phone before it is requested from the
         // watch. The app resolver materializes it during dispatch; the planner must therefore
         // preserve the job instead of classifying a streaming-only row as unavailable.
@@ -595,54 +595,54 @@ final class PhoneWatchDownloadTests: XCTestCase {
             roots: [root("remote", tracks: ["streaming-only"])],
             installedTrackIDs: [], existingJobs: [],
             transferability: { id in
-                XCTAssertEqual(id, "streaming-only")
+                #expect(id == "streaming-only")
                 return .ready(bytes: 12_345, sha256: nil)
             })
 
-        XCTAssertEqual(plan.unavailable, [])
-        XCTAssertEqual(plan.toCreate.map(\.trackID), ["streaming-only"])
-        XCTAssertEqual(plan.toCreate.first?.expectedBytes, 12_345)
+        #expect(plan.unavailable == [])
+        #expect(plan.toCreate.map(\.trackID) == ["streaming-only"])
+        #expect(plan.toCreate.first?.expectedBytes == 12_345)
     }
 
-    func testPlannerCancelsUndesiredActiveJobs() {
+    @Test func testPlannerCancelsUndesiredActiveJobs() {
         let existing = [PhoneWatchDownloadJob(trackID: "gone", rootIDs: ["r1"], state: .transferring)]
         let plan = PhoneWatchDownloadPlanner.plan(
             roots: [root("r1", tracks: ["kept"])],
             installedTrackIDs: [], existingJobs: existing,
             transferability: { _ in .ready(bytes: 1, sha256: nil) })
-        XCTAssertEqual(plan.toCancel, [existing[0].requestID])
-        XCTAssertEqual(plan.toCreate.map(\.trackID), ["kept"])
+        #expect(plan.toCancel == [existing[0].requestID])
+        #expect(plan.toCreate.map(\.trackID) == ["kept"])
     }
 
     // MARK: scheduler
 
-    func testSchedulerRespectsAudioCap() {
+    @Test func testSchedulerRespectsAudioCap() {
         let jobs = (0..<5).map { PhoneWatchDownloadJob(trackID: "t\($0)", rootIDs: ["r"], state: .queued,
                                                        createdAt: Date(timeIntervalSince1970: Double($0))) }
         let picked = PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(), canTransferOnNetwork: true)
-        XCTAssertEqual(picked.count, PhoneWatchTransferScheduler.maxAudioInFlight)
+        #expect(picked.count == PhoneWatchTransferScheduler.maxAudioInFlight)
     }
 
-    func testSchedulerHoldsBackoffJobs() {
+    @Test func testSchedulerHoldsBackoffJobs() {
         let future = Date().addingTimeInterval(120)
         let jobs = [PhoneWatchDownloadJob(trackID: "t", rootIDs: ["r"], state: .queued, nextAttemptAt: future)]
         let picked = PhoneWatchTransferScheduler.nextDispatch(jobs: jobs, now: Date(), canTransferOnNetwork: true)
-        XCTAssertTrue(picked.isEmpty)
+        #expect(picked.isEmpty)
     }
 
-    func testSchedulerBackoffIsBoundedAndExponential() {
-        XCTAssertEqual(PhoneWatchTransferScheduler.backoff(attempt: 1), 5)
-        XCTAssertEqual(PhoneWatchTransferScheduler.backoff(attempt: 2), 10)
-        XCTAssertEqual(PhoneWatchTransferScheduler.backoff(attempt: 3), 20)
-        XCTAssertEqual(PhoneWatchTransferScheduler.backoff(attempt: 99), 300)
+    @Test func testSchedulerBackoffIsBoundedAndExponential() {
+        #expect(PhoneWatchTransferScheduler.backoff(attempt: 1) == 5)
+        #expect(PhoneWatchTransferScheduler.backoff(attempt: 2) == 10)
+        #expect(PhoneWatchTransferScheduler.backoff(attempt: 3) == 20)
+        #expect(PhoneWatchTransferScheduler.backoff(attempt: 99) == 300)
     }
 
-    func testSchedulerClassifyNeverPermanentByOmission() {
-        XCTAssertEqual(PhoneWatchTransferScheduler.classify(nil), .transient)
-        XCTAssertEqual(PhoneWatchTransferScheduler.classify(.transferFailed), .transient)
-        XCTAssertEqual(PhoneWatchTransferScheduler.classify(.authenticationRequired), .needsAuth)
-        XCTAssertEqual(PhoneWatchTransferScheduler.classify(.sourceUnavailable), .sourceUnavailable)
-        XCTAssertEqual(PhoneWatchTransferScheduler.classify(.unsupportedAudio), .fileUnsupported)
+    @Test func testSchedulerClassifyNeverPermanentByOmission() {
+        #expect(PhoneWatchTransferScheduler.classify(nil) == .transient)
+        #expect(PhoneWatchTransferScheduler.classify(.transferFailed) == .transient)
+        #expect(PhoneWatchTransferScheduler.classify(.authenticationRequired) == .needsAuth)
+        #expect(PhoneWatchTransferScheduler.classify(.sourceUnavailable) == .sourceUnavailable)
+        #expect(PhoneWatchTransferScheduler.classify(.unsupportedAudio) == .fileUnsupported)
     }
 
     // MARK: manager builder
@@ -662,7 +662,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
     // MARK: manager — happy paths
 
-    func testSetRootsTransfersEachTrackOnce() async throws {
+    @Test func testSetRootsTransfersEachTrackOnce() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b", "c"])
         let transfer = FakeTransfer()
@@ -672,14 +672,14 @@ final class PhoneWatchDownloadTests: XCTestCase {
                                     root("r2", kind: .playlist, tracks: ["b", "c"])])
 
         let sent = await transfer.sentSet()
-        XCTAssertEqual(sent, ["a", "b", "c"])
+        #expect(sent == ["a", "b", "c"])
         let sharedCount = await transfer.sentCount("b")
-        XCTAssertEqual(sharedCount, 1)
+        #expect(sharedCount == 1)
         let resolveCount = await resolver.resolveCount("b")
-        XCTAssertEqual(resolveCount, 1)
+        #expect(resolveCount == 1)
     }
 
-    func testDesiredDownloadResolvesAndTransfersDerivativeArtworkWithBindings() async throws {
+    @Test func testDesiredDownloadResolvesAndTransfersDerivativeArtworkWithBindings() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a"])
         let transfer = FakeTransfer()
@@ -702,11 +702,11 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("art", tracks: ["a"])])
         let sentArtworkIDs = await artworkTransfer.sent.map(\.artworkID)
         let binding = await bindings.binding(for: "a")
-        XCTAssertEqual(sentArtworkIDs, [artwork.artworkID])
-        XCTAssertEqual(binding.coverArtworkID, artwork.artworkID)
+        #expect(sentArtworkIDs == [artwork.artworkID])
+        #expect(binding.coverArtworkID == artwork.artworkID)
     }
 
-    func testMissingArtworkInManifestIsResentOnReconcile() async throws {
+    @Test func testMissingArtworkInManifestIsResentOnReconcile() async throws {
         let db = try freshQueue()
         let audioResolver = FakeResolver(local: ["a"])
         let audioTransfer = FakeTransfer()
@@ -722,14 +722,14 @@ final class PhoneWatchDownloadTests: XCTestCase {
             artworkResolver: artworkResolver, artworkTransfer: artworkTransfer)
         try await manager.setRoots([root("resend", tracks: ["a"])])
         let firstSendCount = await artworkTransfer.sent.count
-        XCTAssertEqual(firstSendCount, 1)
+        #expect(firstSendCount == 1)
         try await manager.ingestManifest(.init(manifestID: "missing", readyTrackIDs: [], installedBytes: 0,
                                                installedArtworkIDs: []))
         let resendCount = await artworkTransfer.sent.count
-        XCTAssertEqual(resendCount, 2)
+        #expect(resendCount == 2)
     }
 
-    func testArtworkPlanningAndTransferRespectCapabilityAndNetworkGates() async throws {
+    @Test func testArtworkPlanningAndTransferRespectCapabilityAndNetworkGates() async throws {
         let db = try freshQueue()
         let audioResolver = FakeResolver(local: ["a"])
         let audioTransfer = FakeTransfer()
@@ -750,8 +750,8 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("gated", tracks: ["a"])])
         let resolverCallsWithoutCapability = await artworkResolver.calls
         let sentWithoutCapability = await artworkTransfer.sent.count
-        XCTAssertEqual(resolverCallsWithoutCapability, 0)
-        XCTAssertEqual(sentWithoutCapability, 0)
+        #expect(resolverCallsWithoutCapability == 0)
+        #expect(sentWithoutCapability == 0)
 
         let networked = FakeGate(true)
         let networkManager = PhoneWatchDownloadManager(
@@ -761,23 +761,23 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await networkManager.setRoots([root("networked", tracks: ["a"])])
         let resolverCallsWithNetwork = await artworkResolver.calls
         let sentWithNetwork = await artworkTransfer.sent.count
-        XCTAssertEqual(resolverCallsWithNetwork, 1)
-        XCTAssertEqual(sentWithNetwork, 1)
+        #expect(resolverCallsWithNetwork == 1)
+        #expect(sentWithNetwork == 1)
     }
 
-    func testSetRootsEmitsDescriptorsWithBumpedRevision() async throws {
+    @Test func testSetRootsEmitsDescriptorsWithBumpedRevision() async throws {
         let db = try freshQueue()
         let emitted = EmittedRoots()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]),
                                   transfer: FakeTransfer(), emitted: emitted)
         try await manager.setRoots([root("r1", tracks: ["a"])])
-        XCTAssertEqual(emitted.calls.count, 1)
-        XCTAssertEqual(emitted.calls[0].revision, 1)
-        XCTAssertEqual(emitted.calls[0].roots.map { $0.rootID.rawValue }, ["r1"])
-        XCTAssertEqual(emitted.calls[0].roots[0].trackIDs.map(\.rawValue), ["a"])
+        #expect(emitted.calls.count == 1)
+        #expect(emitted.calls[0].revision == 1)
+        #expect(emitted.calls[0].roots.map { $0.rootID.rawValue } == ["r1"])
+        #expect(emitted.calls[0].roots[0].trackIDs.map(\.rawValue) == ["a"])
     }
 
-    func testUnavailableTrackIsNotTransferredAndStaysDesired() async throws {
+    @Test func testUnavailableTrackIsNotTransferredAndStaysDesired() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a"], unavailable: ["b"])
         let transfer = FakeTransfer()
@@ -785,17 +785,17 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("r1", tracks: ["a", "b"])])
         let afterFirst = await transfer.sent
-        XCTAssertEqual(afterFirst, ["a"])
+        #expect(afterFirst == ["a"])
 
         await resolver.makeAvailable("b")
         try await manager.tick()
         let afterConverge = await transfer.sentSet()
-        XCTAssertEqual(afterConverge, ["a", "b"])
+        #expect(afterConverge == ["a", "b"])
         let aCount = await transfer.sentCount("a")
-        XCTAssertEqual(aCount, 1)
+        #expect(aCount == 1)
     }
 
-    func testUnsupportedTrackNeverCreatesAJob() async throws {
+    @Test func testUnsupportedTrackNeverCreatesAJob() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -803,14 +803,14 @@ final class PhoneWatchDownloadTests: XCTestCase {
                                   transfer: transfer)
         try await manager.setRoots([root("r1", tracks: ["a", "b"])])
         let jobs = try await store.jobs()
-        XCTAssertEqual(jobs.map(\.trackID), ["a"])
+        #expect(jobs.map(\.trackID) == ["a"])
         let sent = await transfer.sent
-        XCTAssertEqual(sent, ["a"])
+        #expect(sent == ["a"])
     }
 
     // MARK: manager — Wi-Fi gate
 
-    func testWaitingForWiFiThenResumes() async throws {
+    @Test func testWaitingForWiFiThenResumes() async throws {
         let db = try freshQueue()
         let gate = FakeGate(false)
         let transfer = FakeTransfer()
@@ -819,21 +819,21 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("r1", tracks: ["a", "b"])])
         let stalled = await transfer.sent
-        XCTAssertTrue(stalled.isEmpty)
+        #expect(stalled.isEmpty)
         let waiting = try await manager.statusSnapshot()
-        XCTAssertEqual(waiting.waitingForWiFiCount, 2)
+        #expect(waiting.waitingForWiFiCount == 2)
 
         await gate.set(true)
         try await manager.tick()
         let resumed = await transfer.sentSet()
-        XCTAssertEqual(resumed, ["a", "b"])
+        #expect(resumed == ["a", "b"])
         let after = try await manager.statusSnapshot()
-        XCTAssertEqual(after.waitingForWiFiCount, 0)
+        #expect(after.waitingForWiFiCount == 0)
     }
 
     // MARK: manager — cancellation & divergence
 
-    func testRemovingARootCancelsItsInFlightJob() async throws {
+    @Test func testRemovingARootCancelsItsInFlightJob() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         try await store.replaceRoots([root("r1", tracks: ["a"])])
@@ -843,13 +843,13 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.removeRoot(rootID: "r1")
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["a"])
+        #expect(cancelled == ["a"])
         // The job is cancelled and, its track no longer wanted, pruned in the same pass.
         let active = try await store.activeJobs()
-        XCTAssertTrue(active.isEmpty)
+        #expect(active.isEmpty)
     }
 
-    func testManifestArrivalConvergesAndStopsWork() async throws {
+    @Test func testManifestArrivalConvergesAndStopsWork() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b", "c"])
         let transfer = FakeTransfer()
@@ -858,17 +858,17 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.ingestManifest(manifest(["a", "b", "c"]))
         let snap = try await manager.statusSnapshot()
-        XCTAssertTrue(snap.isIdle)
-        XCTAssertEqual(snap.readyCount, 3)
+        #expect(snap.isIdle)
+        #expect(snap.readyCount == 3)
         let remaining = try await manager.estimatedRemainingBytes()
-        XCTAssertEqual(remaining, 0)
+        #expect(remaining == 0)
 
         try await manager.tick()
         let sent = await transfer.sentSorted()
-        XCTAssertEqual(sent, ["a", "b", "c"])
+        #expect(sent == ["a", "b", "c"])
     }
 
-    func testWatchStoreResetDoesNotAutomaticallyRequeueDroppedTracks() async throws {
+    @Test func testWatchStoreResetDoesNotAutomaticallyRequeueDroppedTracks() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
@@ -876,29 +876,29 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r1", tracks: ["a", "b"])])
         try await manager.ingestManifest(manifest(["a", "b"]))
         let afterFirst = await transfer.sent
-        XCTAssertEqual(afterFirst.count, 2)
+        #expect(afterFirst.count == 2)
 
         try await manager.ingestManifest(manifest([]))
         let afterReset = await transfer.sentSorted()
-        XCTAssertEqual(afterReset, ["a", "b"])
+        #expect(afterReset == ["a", "b"])
     }
 
-    func testManifestReadyForUndesiredTrackIsHonoured() async throws {
+    @Test func testManifestReadyForUndesiredTrackIsHonoured() async throws {
         let db = try freshQueue()
         let transfer = FakeTransfer()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: transfer)
         try await manager.setRoots([root("r1", tracks: ["a"])])
         try await manager.ingestManifest(manifest(["a", "legacy"]))
         let snap = try await manager.statusSnapshot()
-        XCTAssertEqual(snap.readyCount, 2)
-        XCTAssertTrue(snap.isIdle)
+        #expect(snap.readyCount == 2)
+        #expect(snap.isIdle)
         let sent = await transfer.sent
-        XCTAssertEqual(sent, ["a"])
+        #expect(sent == ["a"])
     }
 
     // MARK: manager — retry classes
 
-    func testAllTracksMissingOnWatchAfterCatalogRebuildAreResentOnReconcile() async throws {
+    @Test func testAllTracksMissingOnWatchAfterCatalogRebuildAreResentOnReconcile() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -909,16 +909,16 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("r1", tracks: ["a", "b"])])
         for _ in 0..<3 { clock.advance(10); try await manager.tick() }
         let exhausted = try await store.jobs()
-        XCTAssertEqual(exhausted.count, 2)
-        XCTAssertTrue(exhausted.allSatisfy { $0.state == .failed })
+        #expect(exhausted.count == 2)
+        #expect(exhausted.allSatisfy { $0.state == .failed })
 
         await transfer.setFailAlways([:])
         try await manager.ingestManifest(manifest([]))
         let sent = await transfer.sent
-        XCTAssertEqual(Set(sent), ["a", "b"])
+        #expect(Set(sent) == ["a", "b"])
     }
 
-    func testTransientFailureRetriesThreeTimesThenRequiresUserApproval() async throws {
+    @Test func testTransientFailureRetriesThreeTimesThenRequiresUserApproval() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -929,34 +929,34 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("r1", tracks: ["a"])])
         let stalled = await transfer.sent
-        XCTAssertTrue(stalled.isEmpty)
+        #expect(stalled.isEmpty)
         let failed = try await store.jobs().first
-        XCTAssertEqual(failed?.state, .queued)
-        XCTAssertEqual(failed?.failureClass, .transient)
-        XCTAssertEqual(failed?.attempt, 1)
-        XCTAssertEqual(failed?.nextAttemptAt, clock.now.addingTimeInterval(5))
+        #expect(failed?.state == .queued)
+        #expect(failed?.failureClass == .transient)
+        #expect(failed?.attempt == 1)
+        #expect(failed?.nextAttemptAt == clock.now.addingTimeInterval(5))
 
         try await manager.tick()
         let stillStalled = await transfer.sent
-        XCTAssertTrue(stillStalled.isEmpty)
+        #expect(stillStalled.isEmpty)
 
         clock.advance(10)
         try await manager.tick()
         let retried = await transfer.sent
-        XCTAssertTrue(retried.isEmpty, "The second attempt also backs off before surfacing failure")
+        #expect(retried.isEmpty, "The second attempt also backs off before surfacing failure")
         clock.advance(10)
         try await manager.tick()
         let terminal = try await store.jobs().first
-        XCTAssertEqual(terminal?.state, .failed)
-        XCTAssertEqual(terminal?.attempt, PhoneWatchTransferScheduler.maxAutomaticAttempts)
-        XCTAssertNil(terminal?.nextAttemptAt)
+        #expect(terminal?.state == .failed)
+        #expect(terminal?.attempt == PhoneWatchTransferScheduler.maxAutomaticAttempts)
+        #expect(terminal?.nextAttemptAt == nil)
         await transfer.setFailAlways([:])
-        try await manager.requestRetry(requestID: try XCTUnwrap(terminal?.requestID))
+        try await manager.requestRetry(requestID: try #require(terminal?.requestID))
         let approved = await transfer.sent
-        XCTAssertEqual(approved, ["a"])
+        #expect(approved == ["a"])
     }
 
-    func testAuthFailureDoesNotSpinButExplicitRetryWorks() async throws {
+    @Test func testAuthFailureDoesNotSpinButExplicitRetryWorks() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let clock = TestClock()
@@ -967,23 +967,23 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("r1", tracks: ["a"])])
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.failureClass, .needsAuth)
-        XCTAssertNil(job?.nextAttemptAt)
+        #expect(job?.failureClass == .needsAuth)
+        #expect(job?.nextAttemptAt == nil)
 
         clock.advance(10_000)
         try await manager.tick()
         let stillStalled = await transfer.sent
-        XCTAssertTrue(stillStalled.isEmpty)
+        #expect(stillStalled.isEmpty)
 
         await resolver.makeAvailable("a")
         try await manager.requestRetry(trackID: "a")
         let sent = await transfer.sent
-        XCTAssertEqual(sent, ["a"])
+        #expect(sent == ["a"])
         let resolved = try await store.jobs().first
-        XCTAssertEqual(resolved?.state, .sent)
+        #expect(resolved?.state == .sent)
     }
 
-    func testPermanentFailureNeverRetries() async throws {
+    @Test func testPermanentFailureNeverRetries() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         let transfer = FakeTransfer()
@@ -996,29 +996,29 @@ final class PhoneWatchDownloadTests: XCTestCase {
         clock.advance(100_000)
         try await manager.tick()
         let sent = await transfer.sent
-        XCTAssertTrue(sent.isEmpty)
+        #expect(sent.isEmpty)
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.failureClass, .fileUnsupported)
+        #expect(job?.failureClass == .fileUnsupported)
     }
 
     // MARK: manager — relaunch
 
-    func testRelaunchDoesNotResendCompletedTransfers() async throws {
+    @Test func testRelaunchDoesNotResendCompletedTransfers() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
         let managerA = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
         try await managerA.setRoots([root("r1", tracks: ["a", "b"])])
         let afterA = await transfer.sent
-        XCTAssertEqual(afterA.count, 2)
+        #expect(afterA.count == 2)
 
         let managerB = makeManager(dbQueue: db, resolver: resolver, transfer: transfer)
         try await managerB.resumeOutstanding()
         let afterB = await transfer.sent
-        XCTAssertEqual(afterB.count, 2, "no track should be re-sent after relaunch")
+        #expect(afterB.count == 2, "no track should be re-sent after relaunch")
     }
 
-    func testRelaunchDoesNotAutomaticallyRequeueStrandedTransfer() async throws {
+    @Test func testRelaunchDoesNotAutomaticallyRequeueStrandedTransfer() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         try await store.replaceRoots([root("r1", tracks: ["a"])])
@@ -1028,12 +1028,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.resumeOutstanding()
         let sent = await transfer.sent
-        XCTAssertTrue(sent.isEmpty)
+        #expect(sent.isEmpty)
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.state, .failed)
+        #expect(job?.state == .failed)
     }
 
-    func testRelaunchLeavesGenuinelyOutstandingTransferAlone() async throws {
+    @Test func testRelaunchLeavesGenuinelyOutstandingTransferAlone() async throws {
         let db = try freshQueue()
         let store = PhoneWatchDownloadStore(dbQueue: db)
         try await store.replaceRoots([root("r1", tracks: ["a"])])
@@ -1044,14 +1044,14 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.resumeOutstanding()
         let sent = await transfer.sent
-        XCTAssertTrue(sent.isEmpty)
+        #expect(sent.isEmpty)
         let job = try await store.jobs().first
-        XCTAssertEqual(job?.state, .transferring)
+        #expect(job?.state == .transferring)
     }
 
     // MARK: manager — playlist liveness & DoD integration
 
-    func testPlaylistRootStaysLiveAcrossEdits() async throws {
+    @Test func testPlaylistRootStaysLiveAcrossEdits() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b", "c"])
         let transfer = FakeTransfer()
@@ -1060,19 +1060,19 @@ final class PhoneWatchDownloadTests: XCTestCase {
                                   expander: { _ in await contents.value })
         try await manager.setRoots([root("p1", kind: .playlist, tracks: ["a", "b"])])
         let afterFirst = await transfer.sentSet()
-        XCTAssertEqual(afterFirst, ["a", "b"])
+        #expect(afterFirst == ["a", "b"])
 
         await contents.set(["a", "b", "c"])
         try await manager.tick()
         let afterEdit = await transfer.sentSet()
-        XCTAssertEqual(afterEdit, ["a", "b", "c"])
+        #expect(afterEdit == ["a", "b", "c"])
         let aCount = await transfer.sentCount("a")
-        XCTAssertEqual(aCount, 1)
+        #expect(aCount == 1)
     }
 
     /// §Phase 5 definition of done: plan a mixed playlist, transfer each audio file once through a
     /// fake writer, survive relaunch, and converge after manifest receipt.
-    func testDefinitionOfDone() async throws {
+    @Test func testDefinitionOfDone() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["t1", "t2", "t3", "t4", "shared"], unsupported: ["bad"])
         let transfer = FakeTransfer()
@@ -1096,25 +1096,25 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         for id in ["t1", "t2", "t3", "t4", "shared"] {
             let count = await transfer.sentCount(id)
-            XCTAssertEqual(count, 1, "\(id) transferred \(count)×")
+            #expect(count == 1, "\(id) transferred \(count)×")
         }
         let sent = await transfer.sent
-        XCTAssertFalse(sent.contains("bad"))
+        #expect(!sent.contains("bad"))
 
         let snap = try await managerB.statusSnapshot()
-        XCTAssertTrue(snap.isIdle)
-        XCTAssertEqual(snap.readyCount, 5)
+        #expect(snap.isIdle)
+        #expect(snap.readyCount == 5)
         let remaining = try await managerB.estimatedRemainingBytes()
-        XCTAssertEqual(remaining, 0)
+        #expect(remaining == 0)
 
         try await managerB.tick()
         let afterTick = await transfer.sent
-        XCTAssertEqual(afterTick.sorted(), sent.sorted())
+        #expect(afterTick.sorted() == sent.sorted())
     }
 
     // MARK: Phase 8 — pause / resume / cancel
 
-    func testV16AddsPausedColumnDefaultingFalse() async throws {
+    @Test func testV16AddsPausedColumnDefaultingFalse() async throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v15").migrate(queue)
         try await queue.write { db in
@@ -1126,16 +1126,16 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try Schema.migrator().migrate(queue)
         let store = PhoneWatchDownloadStore(dbQueue: queue)
         let roots = try await store.roots()
-        XCTAssertEqual(roots.first?.paused, false)
+        #expect(roots.first?.paused == false)
 
         var paused = roots[0]
         paused.paused = true
         try await store.upsertRoot(paused)
         let reread = try await store.roots()
-        XCTAssertEqual(reread.first?.paused, true)
+        #expect(reread.first?.paused == true)
     }
 
-    func testPauseRootCancelsInFlightAndStopsQueueing() async throws {
+    @Test func testPauseRootCancelsInFlightAndStopsQueueing() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
@@ -1149,17 +1149,17 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.pauseRoot(rootID: "pl")
 
         let cancelled = await transfer.cancelled
-        XCTAssertEqual(cancelled, ["a"])
+        #expect(cancelled == ["a"])
         let active = try await store.activeJobs()
-        XCTAssertTrue(active.isEmpty, "paused root left active jobs: \(active.map(\.state))")
+        #expect(active.isEmpty, "paused root left active jobs: \(active.map(\.state))")
 
         // A tick while paused queues nothing new.
         try await manager.tick()
         let afterTick = try await store.activeJobs()
-        XCTAssertTrue(afterTick.isEmpty)
+        #expect(afterTick.isEmpty)
     }
 
-    func testResumeRootReQueuesMissingTracks() async throws {
+    @Test func testResumeRootReQueuesMissingTracks() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
@@ -1171,12 +1171,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.resumeRoot(rootID: "pl")
 
         let sentB = await transfer.sentCount("b")
-        XCTAssertEqual(sentB, 1)
+        #expect(sentB == 1)
     }
 
     // MARK: watch redesign D1 — root status + watch-side control
 
-    func testRootStatusPrecedence() {
+    @Test func testRootStatusPrecedence() {
         let roots = [root("done", tracks: ["a"]), root("paused", tracks: ["b"]),
                      root("dl", tracks: ["c", "d"]), root("wifi", tracks: ["e"]),
                      root("q", tracks: ["f"]), root("bad", tracks: ["g"])]
@@ -1192,12 +1192,12 @@ final class PhoneWatchDownloadTests: XCTestCase {
         let statuses = PhoneWatchDownloadManager.rootStatuses(
             roots: [roots[0], paused, roots[2], roots[3], roots[4], roots[5]],
             jobs: jobs, installed: ["a"])
-        XCTAssertEqual(statuses.map(\.state), [.complete, .paused, .downloading, .waitingForWiFi, .queued, .failed])
-        XCTAssertEqual(statuses[2].failedCount, 1, "a failed track inside a downloading root is still counted")
-        XCTAssertEqual(statuses[0].fraction, 1)
+        #expect(statuses.map(\.state) == [.complete, .paused, .downloading, .waitingForWiFi, .queued, .failed])
+        #expect(statuses[2].failedCount == 1, "a failed track inside a downloading root is still counted")
+        #expect(statuses[0].fraction == 1)
     }
 
-    func testWatchPauseAndResumeControlAddressEveryRootWhenUnscoped() async throws {
+    @Test func testWatchPauseAndResumeControlAddressEveryRootWhenUnscoped() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a", "b"])
         let transfer = FakeTransfer()
@@ -1208,14 +1208,14 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.applyControl(WatchDownloadControl(action: .pause))
         let pausedFlags = try await store.roots().map(\.paused)
-        XCTAssertEqual(pausedFlags, [true, true])
+        #expect(pausedFlags == [true, true])
 
         try await manager.applyControl(WatchDownloadControl(action: .resume, rootID: "p2"))
         let byID = Dictionary(uniqueKeysWithValues: try await store.roots().map { ($0.rootID, $0.paused) })
-        XCTAssertEqual(byID, ["p1": true, "p2": false])
+        #expect(byID == ["p1": true, "p2": false])
     }
 
-    func testWatchStopControlRemovesTheRoot() async throws {
+    @Test func testWatchStopControlRemovesTheRoot() async throws {
         let db = try freshQueue()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: FakeTransfer())
         let store = PhoneWatchDownloadStore(dbQueue: db)
@@ -1223,23 +1223,23 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.applyControl(WatchDownloadControl(action: .stop, rootID: "p1"))
         let remaining = try await store.roots()
-        XCTAssertTrue(remaining.isEmpty)
+        #expect(remaining.isEmpty)
     }
 
-    func testStatusSnapshotCarriesRootsAndDecodesWithoutThem() async throws {
+    @Test func testStatusSnapshotCarriesRootsAndDecodesWithoutThem() async throws {
         let db = try freshQueue()
         let manager = makeManager(dbQueue: db, resolver: FakeResolver(local: ["a"]), transfer: FakeTransfer())
         let store = PhoneWatchDownloadStore(dbQueue: db)
         try await store.replaceRoots([root("p1", kind: .playlist, tracks: ["a"])])
         let snapshot = try await manager.statusSnapshot()
-        XCTAssertEqual(snapshot.roots.map(\.rootID), ["p1"])
+        #expect(snapshot.roots.map(\.rootID) == ["p1"])
 
         let legacy = Data(#"{"revision":4,"queuedCount":1}"#.utf8)
         let decoded = try JSONDecoder().decode(WatchDownloadStatusSnapshot.self, from: legacy)
-        XCTAssertTrue(decoded.roots.isEmpty)
+        #expect(decoded.roots.isEmpty)
     }
 
-    func testCancelJobStaysCancelledAcrossReconcile() async throws {
+    @Test func testCancelJobStaysCancelledAcrossReconcile() async throws {
         let db = try freshQueue()
         let resolver = FakeResolver(local: ["a"])
         let transfer = FakeTransfer()
@@ -1249,18 +1249,18 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("pl", kind: .playlist, tracks: ["a"])])
         let failed = try await store.jobs().first { $0.trackID == "a" }
-        let requestID = try XCTUnwrap(failed?.requestID)
+        let requestID = try #require(failed?.requestID)
 
         try await manager.cancelJob(requestID: requestID)
         try await manager.tick()
 
         let after = try await store.jobs().first { $0.trackID == "a" }
-        XCTAssertEqual(after?.state, .cancelled)
+        #expect(after?.state == .cancelled)
 
         // An explicit retry revives it.
         try await manager.requestRetry(requestID: requestID)
         let revived = try await store.jobs().first { $0.trackID == "a" }
-        XCTAssertNotEqual(revived?.state, .cancelled)
+        #expect(revived?.state != .cancelled)
     }
 
     // MARK: - Phase 10f — fault-injection / soak harnesses (§12)
@@ -1268,7 +1268,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
     /// 500-track desired set: the pipeline converges (idle, all ready, nothing outstanding), every
     /// file crosses the transfer seam exactly once, and the job table does not grow unbounded — it
     /// prunes to empty once the manifest confirms the installs.
-    func test500TrackDesiredSetConvergesAndTheJobTableIsBounded() async throws {
+    @Test func test500TrackDesiredSetConvergesAndTheJobTableIsBounded() async throws {
         let db = try freshQueue()
         let ids = (0..<500).map { "t\($0)" }
         let resolver = FakeResolver(local: Set(ids))
@@ -1279,30 +1279,30 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.setRoots([root("big", kind: .playlist, tracks: ids)])
 
         let sent = await transfer.sent
-        XCTAssertEqual(sent.count, 500)
-        XCTAssertEqual(Set(sent).count, 500, "each track transferred exactly once")
+        #expect(sent.count == 500)
+        #expect(Set(sent).count == 500, "each track transferred exactly once")
 
         try await manager.ingestManifest(manifest(ids))
         let snap = try await manager.statusSnapshot()
-        XCTAssertTrue(snap.isIdle)
-        XCTAssertEqual(snap.readyCount, 500)
+        #expect(snap.isIdle)
+        #expect(snap.readyCount == 500)
         let remaining = try await manager.estimatedRemainingBytes()
-        XCTAssertEqual(remaining, 0)
+        #expect(remaining == 0)
 
         // Bounded: settled jobs for installed+desired tracks are pruned, so the table does not carry
         // one row per track forever.
         let jobs = try await store.jobs()
-        XCTAssertTrue(jobs.isEmpty, "the job table should prune to empty after convergence, had \(jobs.count)")
+        #expect(jobs.isEmpty, "the job table should prune to empty after convergence, had \(jobs.count)")
 
         // Idempotent: another tick moves nothing.
         try await manager.tick()
         let sentAfterTick = await transfer.sent
-        XCTAssertEqual(sentAfterTick.count, 500)
+        #expect(sentAfterTick.count == 500)
     }
 
     /// 100 cancellations: every cancelled job stays cancelled across a reconcile, none is revived by
     /// a bare tick, and no duplicate job is created for a still-desired track.
-    func test100CancellationsAllStayCancelled() async throws {
+    @Test func test100CancellationsAllStayCancelled() async throws {
         let db = try freshQueue()
         let ids = (0..<100).map { "c\($0)" }
         let transfer = FakeTransfer()
@@ -1313,7 +1313,7 @@ final class PhoneWatchDownloadTests: XCTestCase {
 
         try await manager.setRoots([root("pl", kind: .playlist, tracks: ids)])
         let requestIDs = try await store.jobs().map(\.requestID)
-        XCTAssertEqual(requestIDs.count, 100)
+        #expect(requestIDs.count == 100)
 
         for requestID in requestIDs {
             try await manager.cancelJob(requestID: requestID)
@@ -1322,17 +1322,17 @@ final class PhoneWatchDownloadTests: XCTestCase {
         try await manager.tick()
 
         let jobs = try await store.jobs()
-        XCTAssertEqual(jobs.count, 100, "no duplicate jobs for still-desired tracks")
-        XCTAssertTrue(jobs.allSatisfy { $0.state == .cancelled }, "every cancelled job stayed cancelled")
+        #expect(jobs.count == 100, "no duplicate jobs for still-desired tracks")
+        #expect(jobs.allSatisfy { $0.state == .cancelled }, "every cancelled job stayed cancelled")
         let active = try await store.activeJobs()
-        XCTAssertTrue(active.isEmpty)
+        #expect(active.isEmpty)
     }
 
     /// Relaunch at every job state: a crash can leave a job in any `PhoneWatchJobState`. After the
     /// §8.2 relaunch flow (`resumeOutstanding`), each converges to a consistent terminal — the
     /// in-flight-ish states resume and complete, and `sent` / `failed` / `cancelled` are respected —
     /// with never more than one job per track.
-    func testRelaunchAtEveryJobStateConvergesConsistently() async throws {
+    @Test func testRelaunchAtEveryJobStateConvergesConsistently() async throws {
         let resumesToSent: Set<PhoneWatchJobState> = [.queued, .waitingForWiFi]
 
         for state in PhoneWatchJobState.allCases {
@@ -1347,16 +1347,15 @@ final class PhoneWatchDownloadTests: XCTestCase {
             try await manager.resumeOutstanding()
 
             let jobs = try await store.jobs().filter { $0.trackID == "a" }
-            XCTAssertEqual(jobs.count, 1, "state \(state): exactly one job per track")
+            #expect(jobs.count == 1, "state \(state): exactly one job per track")
             let sent = await transfer.sent
 
             if resumesToSent.contains(state) {
-                XCTAssertEqual(sent, ["a"], "state \(state) should resume and complete the transfer")
-                XCTAssertEqual(jobs.first?.state, .sent)
+                #expect(sent == ["a"], "state \(state) should resume and complete the transfer")
+                #expect(jobs.first?.state == .sent)
             } else {
-                XCTAssertTrue(sent.isEmpty, "state \(state) is terminal — nothing should transfer")
-                XCTAssertEqual(jobs.first?.state, [.resolving, .transferring].contains(state) ? .failed : state,
-                    "Interrupted work must ask for approval rather than automatically resend")
+                #expect(sent.isEmpty, "state \(state) is terminal — nothing should transfer")
+                #expect(jobs.first?.state == ([.resolving, .transferring].contains(state) ? .failed : state), "Interrupted work must ask for approval rather than automatically resend")
             }
         }
     }

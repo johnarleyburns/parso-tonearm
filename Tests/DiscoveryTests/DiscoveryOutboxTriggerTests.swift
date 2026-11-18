@@ -1,5 +1,5 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -20,7 +20,7 @@ import XCTest
 /// by driving the triggers with plain `INSERT`/`UPDATE`/`DELETE` statements
 /// (no manual outbox inserts) and, in the final test, a real `LibraryStore`
 /// import end to end into a real `discovery_index_job`.
-final class DiscoveryOutboxTriggerTests: XCTestCase {
+@Suite struct DiscoveryOutboxTriggerTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -43,7 +43,7 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
         try DiscoveryChange.order(Column("id")).fetchAll(db)
     }
 
-    func testInsertingTrackFiresTrackInsertedTrigger() throws {
+    @Test func testInsertingTrackFiresTrackInsertedTrigger() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -53,13 +53,13 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
             let trackID = db.lastInsertedRowID
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .trackInserted)
-            XCTAssertEqual(rows[0].trackId, trackID)
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .trackInserted)
+            #expect(rows[0].trackId == trackID)
         }
     }
 
-    func testInsertingAssetFiresTrackInsertedTriggerForItsTrack() throws {
+    @Test func testInsertingAssetFiresTrackInsertedTriggerForItsTrack() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -76,13 +76,13 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
                 arguments: [trackID])
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .trackInserted)
-            XCTAssertEqual(rows[0].trackId, trackID)
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .trackInserted)
+            #expect(rows[0].trackId == trackID)
         }
     }
 
-    func testUpdatingTrackTitleFiresMetadataUpdatedTrigger() throws {
+    @Test func testUpdatingTrackTitleFiresMetadataUpdatedTrigger() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -95,13 +95,13 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
             try db.execute(sql: "UPDATE track SET title = 'Renamed' WHERE id = ?", arguments: [trackID])
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .trackMetadataUpdated)
-            XCTAssertEqual(rows[0].trackId, trackID)
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .trackMetadataUpdated)
+            #expect(rows[0].trackId == trackID)
         }
     }
 
-    func testUpdatingAssetContentColumnFiresAssetContentReplacedTrigger() throws {
+    @Test func testUpdatingAssetContentColumnFiresAssetContentReplacedTrigger() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -120,16 +120,16 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
                 arguments: [assetID])
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .assetContentReplaced)
-            XCTAssertEqual(rows[0].trackId, trackID)
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .assetContentReplaced)
+            #expect(rows[0].trackId == trackID)
         }
     }
 
     /// Plan §4: "Cache path/last-access changes alone are NOT content
     /// revisions." Updating a non-content column on `asset` must not fire
     /// `assetContentReplaced`.
-    func testUpdatingAssetNonContentColumnDoesNotFireContentReplaced() throws {
+    @Test func testUpdatingAssetNonContentColumnDoesNotFireContentReplaced() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -150,13 +150,13 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
                 sql: "UPDATE asset SET needsReimport = 1 WHERE id = ?", arguments: [assetID])
 
             let rows = try self.changes(db)
-            XCTAssertTrue(
+            #expect(
                 rows.isEmpty,
                 "cache/status-only asset column changes must not create a content-replaced event")
         }
     }
 
-    func testDeletingTrackFiresTrackDeletedTriggerWithNullTrackId() throws {
+    @Test func testDeletingTrackFiresTrackDeletedTriggerWithNullTrackId() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -169,13 +169,13 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
             try db.execute(sql: "DELETE FROM track WHERE id = ?", arguments: [trackID])
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .trackDeleted)
-            XCTAssertNil(rows[0].trackId, "the deleted track's own id must not be referenced")
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .trackDeleted)
+            #expect(rows[0].trackId == nil, "the deleted track's own id must not be referenced")
         }
     }
 
-    func testDeletingSourceFiresSourceDeletedTrigger() throws {
+    @Test func testDeletingSourceFiresSourceDeletedTrigger() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceID = try self.insertSource(db)
@@ -184,16 +184,16 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
             try db.execute(sql: "DELETE FROM source WHERE id = ?", arguments: [sourceID])
 
             let rows = try self.changes(db)
-            XCTAssertEqual(rows.count, 1)
-            XCTAssertEqual(rows[0].kind, .sourceDeleted)
-            XCTAssertNil(rows[0].trackId)
+            #expect(rows.count == 1)
+            #expect(rows[0].kind == .sourceDeleted)
+            #expect(rows[0].trackId == nil)
         }
     }
 
     /// End-to-end: a real `LibraryStore` import (no manual outbox SQL
     /// anywhere in this test) must produce a real, drainable
     /// `discovery_index_job` through the trigger + reconciler pipeline.
-    func testRealLibraryStoreImportProducesARealDiscoveryIndexJob() async throws {
+    @Test func testRealLibraryStoreImportProducesARealDiscoveryIndexJob() async throws {
         let store = try LibraryStore(inMemory: true)
         var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                              title: "Local Files", addedAt: Date(), lastResolvedAt: nil,
@@ -214,16 +214,16 @@ final class DiscoveryOutboxTriggerTests: XCTestCase {
         let repo = IndexJobRepository(writer: writer)
         let reconciler = DiscoveryReconciler(writer: writer, jobs: repo, pipelineVersion: 1)
         let processed = try await reconciler.processOutbox()
-        XCTAssertGreaterThanOrEqual(
-            processed, 1, "the track/asset insert triggers must have produced outbox rows")
+        #expect(
+            processed >= 1, "the track/asset insert triggers must have produced outbox rows")
 
         let job = try await repo.job(trackId: track.id!, pipelineVersion: 1)
-        XCTAssertNotNil(job, "a real LibraryStore import must yield a real discovery_index_job")
-        XCTAssertEqual(job?.state, .queued)
+        #expect(job != nil, "a real LibraryStore import must yield a real discovery_index_job")
+        #expect(job?.state == .queued)
 
         let remaining = try await writer.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
         }
-        XCTAssertEqual(remaining, 0, "processOutbox must drain everything the triggers wrote")
+        #expect(remaining == 0, "processOutbox must drain everything the triggers wrote")
     }
 }

@@ -2,13 +2,13 @@ import Foundation
 import AVFoundation
 import Synchronization
 import SwiftData
-import XCTest
+import Testing
 import TonearmCore
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-final class WatchResumableAudioTransferTests: XCTestCase {
-    func testFailureReportWithoutCurrentAttemptIdentityCannotFailARestart() async throws {
+@Suite struct WatchResumableAudioTransferTests {
+    @Test func testFailureReportWithoutCurrentAttemptIdentityCannotFailARestart() async throws {
         let fx = try ChunkFixture(bytes: 3_000_000)
         defer { fx.clean() }
         let sender = fx.sender()
@@ -22,41 +22,41 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         stale.audioDownloadFailures = ["track": .sourceUnavailable]
         try await sender.ingestManifest(stale)
         let active = await sender.activeTrackIDs()
-        XCTAssertEqual(active, ["track"], "A track-only failure cannot identify the new chunk attempt")
+        #expect(active == ["track"], "A track-only failure cannot identify the new chunk attempt")
         stale.generatedAt = Date(timeIntervalSince1970: 3)
         stale.audioFailureTransferIDs = ["track": failed.metadata.transferID]
         try await sender.ingestManifest(stale)
         let afterOldAttempt = await sender.activeTrackIDs()
-        XCTAssertEqual(afterOldAttempt, ["track"], "An old attempt ID cannot fail its replacement")
+        #expect(afterOldAttempt == ["track"], "An old attempt ID cannot fail its replacement")
         let current = await fx.transport.files.last!
         stale.generatedAt = Date(timeIntervalSince1970: 4)
         stale.audioFailureTransferIDs = ["track": current.metadata.transferID]
         try await sender.ingestManifest(stale)
         let afterCurrentAttempt = await sender.activeTrackIDs()
-        XCTAssertTrue(afterCurrentAttempt.isEmpty, "A real rejection of the current attempt must still fail visibly")
+        #expect(afterCurrentAttempt.isEmpty, "A real rejection of the current attempt must still fail visibly")
     }
-    func testBackgroundRelaunchRemembersChunkCapabilityOnlyForTheSamePairedWatch() async {
+    @Test func testBackgroundRelaunchRemembersChunkCapabilityOnlyForTheSamePairedWatch() async {
         let suite = "watch-capabilities-" + UUID().uuidString
         defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
         let first = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
         let unknown = await first.supports(.resumableAudioChunks)
-        XCTAssertFalse(unknown)
+        #expect(!unknown)
         await first.set([.resumableAudioChunks])
         let relaunched = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
         let remembered = await relaunched.supports(.resumableAudioChunks)
-        XCTAssertTrue(remembered)
+        #expect(remembered)
         let other = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-b" })
         let reused = await other.supports(.resumableAudioChunks)
-        XCTAssertFalse(reused)
+        #expect(!reused)
         await relaunched.set([])
         let revoked = await first.supports(.resumableAudioChunks)
         // A fresh process must see the capability removal, not an old in-memory negotiation.
         let fresh = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
         let freshValue = await fresh.supports(.resumableAudioChunks)
-        XCTAssertFalse(freshValue)
-        XCTAssertTrue(revoked, "The first actor still represents its original live negotiation")
+        #expect(!freshValue)
+        #expect(revoked, "The first actor still represents its original live negotiation")
     }
-    func testAcknowledgedChunkStillOwnedBySystemDoesNotOpenAnotherTransferSlot() async throws {
+    @Test func testAcknowledgedChunkStillOwnedBySystemDoesNotOpenAnotherTransferSlot() async throws {
         let fx = try ChunkFixture(bytes: 2_000_000)
         defer { fx.clean() }
         let owned = Mutex<[WatchAudioChunkMetadata]>([])
@@ -68,15 +68,15 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         _ = await fx.receive(first)
         try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
         let held = await fx.transport.files.count
-        XCTAssertEqual(held, 1)
+        #expect(held == 1)
         owned.withLock { $0.removeAll() }
         await sender.deliveryFinished(first.metadata, error: nil)
         await sender.tick()
         let next = await fx.transport.files.last!
-        XCTAssertEqual(next.metadata.index, 1)
+        #expect(next.metadata.index == 1)
     }
 
-    func testRemovalDiscardsPartialBytesAndRejectsLateDeliveryUntilRequestedAgain() async throws {
+    @Test func testRemovalDiscardsPartialBytesAndRejectsLateDeliveryUntilRequestedAgain() async throws {
         let fx = try ChunkFixture(bytes: 2_000_000)
         defer { fx.clean() }
         let sender = fx.sender()
@@ -86,28 +86,40 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         await fx.assembler.remove(trackIDs: ["track"], tombstone: true)
         let restored = WatchAudioChunkAssembler(directory: fx.watchDirectory)
         let late = await fx.receive(first, using: restored)
-        guard case .rejected = late else { return XCTFail("Removed download resurrected") }
+        guard case .rejected = late else {
+            Issue.record("Removed download resurrected")
+            return
+        }
         let receipts = await restored.partialDownloads()
-        XCTAssertTrue(receipts.isEmpty)
+        #expect(receipts.isEmpty)
         await restored.allow(trackIDs: ["track"])
         let requestedAgain = await fx.receive(first, using: restored)
-        guard case .retained = requestedAgain else { return XCTFail("Explicit new request must work") }
+        guard case .retained = requestedAgain else {
+            Issue.record("Explicit new request must work")
+            return
+        }
     }
-    func testWatchCrashAfterLastCheckpointCanFinishAssemblyWithoutRedownloading() async throws {
+    @Test func testWatchCrashAfterLastCheckpointCanFinishAssemblyWithoutRedownloading() async throws {
         let fx = try ChunkFixture(bytes: 20)
         defer { fx.clean() }
         let sender = fx.sender()
         try await sender.begin(fileURL: fx.source, audio: fx.audio)
         let first = await fx.receive(await fx.transport.files[0])
-        guard case .assembled(let uninstalled, _) = first else { return XCTFail("Expected complete chunks") }
+        guard case .assembled(let uninstalled, _) = first else {
+            Issue.record("Expected complete chunks")
+            return
+        }
         let restarted = WatchAudioChunkAssembler(directory: fx.watchDirectory)
         let outcomes = await restarted.resumeCompleted()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: uninstalled.path), "Orphan assembly must not accumulate storage")
-        guard case .assembled(let recovered, _) = outcomes.first else { return XCTFail("Did not recover final assembly") }
-        XCTAssertEqual(try WatchFileDigest.measure(recovered).sha256, fx.audio.sha256)
+        #expect(!FileManager.default.fileExists(atPath: uninstalled.path), "Orphan assembly must not accumulate storage")
+        guard case .assembled(let recovered, _) = outcomes.first else {
+            Issue.record("Did not recover final assembly")
+            return
+        }
+        #expect(try WatchFileDigest.measure(recovered).sha256 == fx.audio.sha256)
     }
-    func testLegacyChunkRouteInstallsCompleteFileAndMakesOfflinePlaybackAvailable() async throws {
-        let original = try XCTUnwrap(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
+    @Test func testLegacyChunkRouteInstallsCompleteFileAndMakesOfflinePlaybackAvailable() async throws {
+        let original = try #require(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
         let fx = try ChunkFixture(bytes: 0, audioBytes: Data(contentsOf: original), fileExtension: "wav")
         defer { fx.clean() }
         let audioDirectory = fx.root.appendingPathComponent("installed")
@@ -130,42 +142,45 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         let count = Int((fx.audio.expectedBytes - 1) / Int64(WatchAudioChunkPolicy.defaultChunkBytes) + 1)
         for index in 0..<count {
             let files = await fx.transport.files
-            guard files.indices.contains(index) else { return XCTFail("Missing next chunk after acknowledgement") }
+            guard files.indices.contains(index) else {
+                Issue.record("Missing next chunk after acknowledgement")
+                return
+            }
             let file = files[index]
             let staged = fx.root.appendingPathComponent(UUID().uuidString)
             try FileManager.default.copyItem(at: file.url, to: staged)
             await coordinator.receiveFile(staged, metadata: file.metadata.dictionary)
             let manifest = try await repository.manifest()
-            if index == 0 { XCTAssertTrue(manifest.readyTrackIDs.isEmpty, "A partial file must never be playable") }
+            if index == 0 { #expect(manifest.readyTrackIDs.isEmpty, "A partial file must never be playable") }
             var report = fx.manifest(await fx.assembler.partialDownloads(), at: index + 1)
             report.readyTrackIDs = manifest.readyTrackIDs.map(WatchTrackID.init)
             report.installedBytes = manifest.installedBytes
             try await sender.ingestManifest(report)
         }
         let manifest = try await repository.manifest()
-        XCTAssertEqual(manifest.readyTrackIDs, ["track"])
-        XCTAssertEqual(manifest.installedBytes, fx.audio.expectedBytes)
+        #expect(manifest.readyTrackIDs == ["track"])
+        #expect(manifest.installedBytes == fx.audio.expectedBytes)
         let tracks = try await repository.tracks(readyOnly: true)
-        let track = try XCTUnwrap(tracks.first)
-        let local = audioDirectory.appendingPathComponent(try XCTUnwrap(track.localFilename))
-        XCTAssertEqual(try WatchFileDigest.measure(local).sha256, fx.audio.sha256)
+        let track = try #require(tracks.first)
+        let local = audioDirectory.appendingPathComponent(try #require(track.localFilename))
+        #expect(try WatchFileDigest.measure(local).sha256 == fx.audio.sha256)
         let decoded = try AVAudioFile(forReading: local)
-        XCTAssertGreaterThan(decoded.length, 0, "The installed asset must remain decodable audio")
-        XCTAssertEqual(decoded.length, try AVAudioFile(forReading: original).length)
+        #expect(decoded.length > 0, "The installed asset must remain decodable audio")
+        #expect(decoded.length == (try AVAudioFile(forReading: original).length))
         var player = WatchPlayerEngine(queue: ["track"])
         let directives = player.command(.play, urlForTrack: { $0 == "track" ? local : nil })
-        XCTAssertEqual(directives, [.loadItem(local), .play])
+        #expect(directives == [.loadItem(local), .play])
         let remaining = await fx.assembler.partialDownloads()
-        XCTAssertTrue(remaining.isEmpty)
+        #expect(remaining.isEmpty)
         let outstanding = await sender.activeTrackIDs()
-        XCTAssertTrue(outstanding.isEmpty)
+        #expect(outstanding.isEmpty)
         let events = await diagnostics.events()
-        XCTAssertEqual(events.filter { $0.category == .installResult && $0.stateCode == "chunkRetained" }.count, count - 1)
-        XCTAssertTrue(events.contains { $0.category == .installResult && $0.stateCode == "installed" })
-        XCTAssertEqual(events.filter { $0.category == .manifestConvergence && $0.stateCode == "reported" }.count, count + 1)
+        #expect(events.filter { $0.category == .installResult && $0.stateCode == "chunkRetained" }.count == count - 1)
+        #expect(events.contains { $0.category == .installResult && $0.stateCode == "installed" })
+        #expect(events.filter { $0.category == .manifestConvergence && $0.stateCode == "reported" }.count == count + 1)
     }
 
-    func testWatchRejectionBecomesVisibleFailureWithoutDiscardingSavedProgress() async throws {
+    @Test func testWatchRejectionBecomesVisibleFailureWithoutDiscardingSavedProgress() async throws {
         let fx = try ChunkFixture(bytes: 3_000_000)
         defer { fx.clean() }
         let sender = fx.sender()
@@ -178,18 +193,18 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         manifest.audioFailureTransferIDs = ["track": unconfirmed.metadata.transferID]
         try await sender.ingestManifest(manifest)
         let progress = await sender.progress()["track"]
-        XCTAssertEqual(progress?.checkpoint.retainedBytes, 1_048_576)
+        #expect(progress?.checkpoint.retainedBytes == 1_048_576)
         let before = await fx.transport.files.count
         await sender.tick()
         let after = await fx.transport.files.count
-        XCTAssertEqual(after, before, "A rejected track must wait for retry, not loop silently")
+        #expect(after == before, "A rejected track must wait for retry, not loop silently")
         try await sender.begin(fileURL: fx.source, audio: fx.audio)
         let retry = await fx.transport.files.last!
-        XCTAssertEqual(retry.metadata.index, 1)
+        #expect(retry.metadata.index == 1)
     }
-    func testLegacyChunkPolicyIsOneUnconfirmedOneMiBChunkGlobally() async throws {
-        XCTAssertEqual(WatchAudioChunkPolicy.defaultChunkBytes, 1_048_576)
-        XCTAssertEqual(WatchAudioChunkPolicy.maximumUnconfirmedChunks, 1)
+    @Test func testLegacyChunkPolicyIsOneUnconfirmedOneMiBChunkGlobally() async throws {
+        #expect(WatchAudioChunkPolicy.defaultChunkBytes == 1_048_576)
+        #expect(WatchAudioChunkPolicy.maximumUnconfirmedChunks == 1)
         let fx = try ChunkFixture(bytes: 3 * 1_048_576 + 17)
         defer { fx.clean() }
         let sender = fx.sender()
@@ -198,22 +213,22 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         try await sender.begin(fileURL: fx.source, audio: second)
         await sender.tick()
         let sent = await fx.transport.files
-        XCTAssertEqual(sent.count, 1, "The window is global, not one chunk per track")
-        XCTAssertEqual(try Data(contentsOf: sent[0].url).count, 1_048_576)
+        #expect(sent.count == 1, "The window is global, not one chunk per track")
+        #expect(try Data(contentsOf: sent[0].url).count == 1_048_576)
         _ = await fx.receive(sent[0])
         await sender.deliveryFinished(sent[0].metadata, error: nil)
         await sender.tick()
         let afterDelivery = await fx.transport.files.count
-        XCTAssertEqual(afterDelivery, 1, "Native completion is not a durable watch acknowledgement")
+        #expect(afterDelivery == 1, "Native completion is not a durable watch acknowledgement")
         let progress = await sender.progress()["track"]
-        XCTAssertEqual(progress?.checkpoint.retainedBytes, 0)
-        XCTAssertEqual(progress?.stage, .awaitingChunkConfirmation)
+        #expect(progress?.checkpoint.retainedBytes == 0)
+        #expect(progress?.stage == .awaitingChunkConfirmation)
         try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
         let afterAck = await fx.transport.files.count
-        XCTAssertEqual(afterAck, 2)
+        #expect(afterAck == 2)
     }
 
-    func testHundredMiBTransferResumesAtFiftyPercentAfterBothAppsRestart() async throws {
+    @Test func testHundredMiBTransferResumesAtFiftyPercentAfterBothAppsRestart() async throws {
         let fx = try ChunkFixture(bytes: 100 * 1_048_576)
         defer { fx.clean() }
         var sender = fx.sender()
@@ -222,39 +237,42 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         for index in 0..<50 {
             let file = await fx.transport.files[index]
             let outcome = await fx.receive(file, using: assembler)
-            guard case .retained = outcome else { return XCTFail("Unexpected outcome at chunk \(index)") }
+            guard case .retained = outcome else {
+                Issue.record("Unexpected outcome at chunk \(index)")
+                return
+            }
             await sender.deliveryFinished(file.metadata, error: nil)
             try await sender.ingestManifest(fx.manifest(await assembler.partialDownloads(), at: index + 1))
         }
         let halfway = await assembler.partialDownloads()
-        XCTAssertEqual(halfway.first?.retainedBytes, 50 * 1_048_576)
-        XCTAssertEqual(halfway.first?.fractionRetained, 0.5)
+        #expect(halfway.first?.retainedBytes == 50 * 1_048_576)
+        #expect(halfway.first?.fractionRetained == 0.5)
         await sender.suspend(trackID: "track")
         sender = fx.sender()
         assembler = WatchAudioChunkAssembler(directory: fx.watchDirectory)
         let recovered = await assembler.partialDownloads()
-        XCTAssertEqual(recovered, halfway)
+        #expect(recovered == halfway)
         try await sender.ingestManifest(fx.manifest(recovered, at: 51))
         try await sender.begin(fileURL: fx.source, audio: fx.audio)
         let resumed = await fx.transport.files.last!
-        XCTAssertEqual(resumed.metadata.index, 50, "Must not start over from chunk zero")
+        #expect(resumed.metadata.index == 50, "Must not start over from chunk zero")
         var final: URL?
         for index in 50..<100 {
             let file = await fx.transport.files.last!
-            XCTAssertEqual(file.metadata.index, index)
+            #expect(file.metadata.index == index)
             let outcome = await fx.receive(file, using: assembler)
-            if case .assembled(let url, let audio) = outcome { final = url; XCTAssertEqual(audio, fx.audio) }
+            if case .assembled(let url, let audio) = outcome { final = url; #expect(audio == fx.audio) }
             await sender.deliveryFinished(file.metadata, error: nil)
             try await sender.ingestManifest(fx.manifest(await assembler.partialDownloads(), at: index + 2))
         }
-        let digest = try WatchFileDigest.measure(XCTUnwrap(final))
-        XCTAssertEqual(digest.bytes, 100 * 1_048_576)
-        XCTAssertEqual(digest.sha256, fx.audio.sha256)
+        let digest = try WatchFileDigest.measure(#require(final))
+        #expect(digest.bytes == 100 * 1_048_576)
+        #expect(digest.sha256 == fx.audio.sha256)
         let all = await fx.transport.files
-        XCTAssertEqual(all.filter { $0.metadata.index == 0 }.count, 1)
+        #expect(all.filter { $0.metadata.index == 0 }.count == 1)
     }
 
-    func testMissingAcknowledgementRetriesOnlyUnconfirmedChunkAndIgnoresLateFailure() async throws {
+    @Test func testMissingAcknowledgementRetriesOnlyUnconfirmedChunkAndIgnoresLateFailure() async throws {
         let fx = try ChunkFixture(bytes: 2_000_000)
         defer { fx.clean() }
         let clock = ChunkClock()
@@ -266,20 +284,20 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         clock.advance(301)
         await sender.tick()
         let retry = await fx.transport.files[1]
-        XCTAssertEqual(retry.metadata.index, 0)
-        XCTAssertNotEqual(retry.metadata.transferID, first.metadata.transferID)
+        #expect(retry.metadata.index == 0)
+        #expect(retry.metadata.transferID != first.metadata.transferID)
         let accepted = await sender.deliveryFinished(first.metadata, error: .transferFailed)
-        XCTAssertFalse(accepted)
+        #expect(!accepted)
         _ = await fx.receive(retry)
         try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
         let next = await fx.transport.files.last!
-        XCTAssertEqual(next.metadata.index, 1)
+        #expect(next.metadata.index == 1)
         try await sender.ingestManifest(fx.manifest([], at: 0))
         let progress = await sender.progress()["track"]
-        XCTAssertEqual(progress?.checkpoint.retainedBytes, 1_048_576, "An old report cannot erase checkpoints")
+        #expect(progress?.checkpoint.retainedBytes == 1_048_576, "An old report cannot erase checkpoints")
     }
 
-    func testFreshPhoneJournalAdoptsWatchCheckpointsInsteadOfStartingOver() async throws {
+    @Test func testFreshPhoneJournalAdoptsWatchCheckpointsInsteadOfStartingOver() async throws {
         let fx = try ChunkFixture(bytes: 2_000_000)
         defer { fx.clean() }
         let first = fx.sender()
@@ -289,10 +307,10 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         try await fresh.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: 1))
         try await fresh.begin(fileURL: fx.source, audio: fx.audio)
         let next = await fx.transport.files.last!
-        XCTAssertEqual(next.metadata.index, 1)
+        #expect(next.metadata.index == 1)
     }
 
-    func testCorruptCheckpointOnDiskLosesOnlyThatPieceAfterRelaunch() async throws {
+    @Test func testCorruptCheckpointOnDiskLosesOnlyThatPieceAfterRelaunch() async throws {
         let fx = try ChunkFixture(bytes: 4_000_000)
         defer { fx.clean() }
         let sender = fx.sender()
@@ -301,19 +319,19 @@ final class WatchResumableAudioTransferTests: XCTestCase {
             _ = await fx.receive(await fx.transport.files[index])
             try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: index + 1))
         }
-        let folder = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: fx.watchDirectory, includingPropertiesForKeys: nil).first)
+        let folder = try #require(FileManager.default.contentsOfDirectory(at: fx.watchDirectory, includingPropertiesForKeys: nil).first)
         try Data("corrupt".utf8).write(to: folder.appendingPathComponent("0.chunk"))
         let recovered = WatchAudioChunkAssembler(directory: fx.watchDirectory)
         let receipts = await recovered.partialDownloads()
-        XCTAssertEqual(receipts.first?.receivedChunkIndexes, [1])
+        #expect(receipts.first?.receivedChunkIndexes == [1])
         await sender.suspend(trackID: "track")
         try await sender.ingestManifest(fx.manifest(receipts, at: 3))
         try await sender.begin(fileURL: fx.source, audio: fx.audio)
         let next = await fx.transport.files.last!
-        XCTAssertEqual(next.metadata.index, 0)
+        #expect(next.metadata.index == 0)
     }
 
-    func testOutOfOrderDuplicateAndCorruptChunksNeverProduceCorruptCompleteAudio() async throws {
+    @Test func testOutOfOrderDuplicateAndCorruptChunksNeverProduceCorruptCompleteAudio() async throws {
         let fx = try ChunkFixture(bytes: 2_000_000)
         defer { fx.clean() }
         let bytes = try Data(contentsOf: fx.source)
@@ -328,31 +346,37 @@ final class WatchResumableAudioTransferTests: XCTestCase {
         _ = await fx.receive(try piece(1))
         _ = await fx.receive(try piece(1))
         var receipt = await fx.assembler.partialDownloads()
-        XCTAssertEqual(receipt.first?.receivedChunkIndexes, [1])
+        #expect(receipt.first?.receivedChunkIndexes == [1])
         let bad = try piece(0)
         try Data("bad".utf8).write(to: bad.url)
         let rejected = await fx.receive(bad)
-        guard case .rejected(_, let fault) = rejected else { return XCTFail("Corrupt chunk accepted") }
-        XCTAssertEqual(fault.code, .checksumMismatch)
+        guard case .rejected(_, let fault) = rejected else {
+            Issue.record("Corrupt chunk accepted")
+            return
+        }
+        #expect(fault.code == .checksumMismatch)
         receipt = await fx.assembler.partialDownloads()
-        XCTAssertEqual(receipt.first?.receivedChunkIndexes, [1])
+        #expect(receipt.first?.receivedChunkIndexes == [1])
         let complete = await fx.receive(try piece(0))
-        guard case .assembled(let url, _) = complete else { return XCTFail("Did not assemble") }
-        XCTAssertEqual(try Data(contentsOf: url), bytes)
+        guard case .assembled(let url, _) = complete else {
+            Issue.record("Did not assemble")
+            return
+        }
+        #expect(try Data(contentsOf: url) == bytes)
     }
 
-    func testChunkMetadataCannotBeMisinterpretedAsLegacyWholeAudio() throws {
+    @Test func testChunkMetadataCannotBeMisinterpretedAsLegacyWholeAudio() throws {
         let fx = try ChunkFixture(bytes: 20)
         defer { fx.clean() }
         let metadata = WatchAudioChunkMetadata(audio: fx.audio, chunkBytes: 1_048_576, index: 0, chunkSHA256: fx.audio.sha256!)
-        XCTAssertEqual(WatchAudioChunkMetadata(dictionary: metadata.dictionary), metadata)
-        XCTAssertNil(WatchAudioFileMetadata(dictionary: metadata.dictionary))
+        #expect(WatchAudioChunkMetadata(dictionary: metadata.dictionary) == metadata)
+        #expect(WatchAudioFileMetadata(dictionary: metadata.dictionary) == nil)
         var malformed = metadata.dictionary; malformed["chunkBytes"] = "0"
-        XCTAssertNil(WatchAudioChunkMetadata(dictionary: malformed))
+        #expect(WatchAudioChunkMetadata(dictionary: malformed) == nil)
         malformed = metadata.dictionary; malformed["chunkIndex"] = "-1"
-        XCTAssertNil(WatchAudioChunkMetadata(dictionary: malformed))
+        #expect(WatchAudioChunkMetadata(dictionary: malformed) == nil)
         malformed = metadata.dictionary; malformed["chunkSHA256"] = "bad"
-        XCTAssertNil(WatchAudioChunkMetadata(dictionary: malformed))
+        #expect(WatchAudioChunkMetadata(dictionary: malformed) == nil)
     }
 }
 

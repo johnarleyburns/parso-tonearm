@@ -1,12 +1,12 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
 /// C01 fixture: upgrading a v17 database to v18 must preserve all existing
 /// core rows exactly and add the new discovery_* tables with the FK/
 /// cascade/uniqueness invariants plan §4 requires.
-final class DiscoverySchemaMigrationTests: XCTestCase {
+@Suite struct DiscoverySchemaMigrationTests {
     /// Cascade/uniqueness assertions need real FK enforcement, matching
     /// `LibraryStore`'s on-disk configuration (`config.foreignKeysEnabled = true`).
     private func makeQueue() throws -> DatabaseQueue {
@@ -69,7 +69,7 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
         }
     }
 
-    func testV18UpgradePreservesExistingCoreData() throws {
+    @Test func testV18UpgradePreservesExistingCoreData() throws {
         let queue = try makeQueue()
         try Schema.migrator(upTo: "v17").migrate(queue)
         try seedV17Catalog(queue)
@@ -78,15 +78,15 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
         try Schema.migrator().migrate(queue)
 
         let after = try before(queue)
-        XCTAssertEqual(after.sources, snapshot.sources)
-        XCTAssertEqual(after.tracks, snapshot.tracks)
-        XCTAssertEqual(after.assets, snapshot.assets)
-        XCTAssertEqual(after.playlists, snapshot.playlists)
-        XCTAssertEqual(after.items, snapshot.items)
-        XCTAssertEqual(after.syncIDs, snapshot.syncIDs)
+        #expect(after.sources == snapshot.sources)
+        #expect(after.tracks == snapshot.tracks)
+        #expect(after.assets == snapshot.assets)
+        #expect(after.playlists == snapshot.playlists)
+        #expect(after.items == snapshot.items)
+        #expect(after.syncIDs == snapshot.syncIDs)
     }
 
-    func testV18CreatesAllDiscoveryTables() throws {
+    @Test func testV18CreatesAllDiscoveryTables() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db in
@@ -96,12 +96,12 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
                 "discovery_setting", "discovery_import_job", "discovery_import_item",
                 "discovery_runtime",
             ] {
-                XCTAssertTrue(try db.tableExists(table), "\(table) should exist after v18")
+                #expect(try db.tableExists(table), "\(table) should exist after v18")
             }
         }
     }
 
-    func testDiscoveryTablesHaveNoSyncIDColumn() throws {
+    @Test func testDiscoveryTablesHaveNoSyncIDColumn() throws {
         // Plan §4: device-local tables are excluded from CloudKit export.
         // This repo's sync export list is keyed off syncID columns (v7), so
         // the absence of syncID is the structural guarantee.
@@ -121,26 +121,26 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
                 "discovery_setting", "discovery_import_job", "discovery_import_item",
                 "discovery_runtime",
             ] {
-                XCTAssertFalse(
-                    try db.columns(in: table).contains { $0.name == "syncID" },
+                #expect(
+                    !(try db.columns(in: table).contains { $0.name == "syncID" }),
                     "\(table) must not be sync-exported")
             }
         }
     }
 
-    func testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn() throws {
+    @Test func testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db in
             for table in ["discovery_embedding", "discovery_track_analysis"] {
-                XCTAssertTrue(
+                #expect(
                     try db.columns(in: table).contains { $0.name == "syncID" },
                     "\(table) is meant to sync its indexing outcome (plan §4.1)")
             }
         }
     }
 
-    func testDeletingTrackCascadesDiscoveryRows() throws {
+    @Test func testDeletingTrackCascadesDiscoveryRows() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try seedV17Catalog(queue)
@@ -163,23 +163,23 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
                     """,
                 arguments: [UUID().uuidString, trackID, Date(), Date()])
 
-            XCTAssertEqual(
-                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_asset_state"), 1)
-            XCTAssertEqual(
-                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_index_job"), 1)
+            #expect(
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_asset_state") == 1)
+            #expect(
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_index_job") == 1)
 
             try db.execute(sql: "DELETE FROM track WHERE id = ?", arguments: [trackID])
 
-            XCTAssertEqual(
-                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_asset_state"), 0,
+            #expect(
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_asset_state") == 0,
                 "asset cascade (asset deleted via track cascade) must remove discovery_asset_state")
-            XCTAssertEqual(
-                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_index_job"), 0,
+            #expect(
+                try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_index_job") == 0,
                 "deleting a track must cascade-delete its index job")
         }
     }
 
-    func testOneActiveJobPerTrackAndPipelineVersionIsEnforced() throws {
+    @Test func testOneActiveJobPerTrackAndPipelineVersionIsEnforced() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try seedV17Catalog(queue)
@@ -194,16 +194,17 @@ final class DiscoverySchemaMigrationTests: XCTestCase {
                     """,
                 arguments: [UUID().uuidString, trackID, Date(), Date()])
 
-            XCTAssertThrowsError(
+            do {
                 try db.execute(
                     sql: """
                         INSERT INTO discovery_index_job (id, trackId, pipelineVersion, state,
                             createdAt, updatedAt, embeddingStageState, musicalAnalysisStageState)
                         VALUES (?, ?, 1, 'queued', ?, ?, 'pending', 'pending')
                         """,
-                    arguments: [UUID().uuidString, trackID, Date(), Date()]),
-                "a second job for the same (trackId, pipelineVersion) must be rejected"
-            )
+                    arguments: [UUID().uuidString, trackID, Date(), Date()])
+                Issue.record("a second job for the same (trackId, pipelineVersion) must be rejected")
+            } catch {
+            }
         }
     }
 }

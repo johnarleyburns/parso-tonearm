@@ -1,6 +1,6 @@
 #if !os(watchOS)
 import AVFoundation
-import XCTest
+import Testing
 @testable import StarterGeneratorSupport
 
 /// `LocalAnalysisReaderSession` (Phase C of the LeanAnalysis/indexing-efficiency pass) opens an
@@ -16,7 +16,7 @@ private final class ReleaseFlag: @unchecked Sendable {
     var value = false
 }
 
-final class WindowedAudioReaderSessionTests: XCTestCase {
+@Suite struct WindowedAudioReaderSessionTests {
     private func writeToneWAV(seconds: Double, to url: URL) throws {
         let sampleRate = 44_100.0
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
@@ -40,7 +40,7 @@ final class WindowedAudioReaderSessionTests: XCTestCase {
         }
     }
 
-    func testSessionReadsMatchFreshReadsForTheSameWindowsReadOutOfOrder() throws {
+    @Test func testSessionReadsMatchFreshReadsForTheSameWindowsReadOutOfOrder() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -65,14 +65,14 @@ final class WindowedAudioReaderSessionTests: XCTestCase {
         }
         session.close()
 
-        XCTAssertTrue(releaseFlag.value, "close() must run the release closure")
-        XCTAssertEqual(expected.count, actual.count)
+        #expect(releaseFlag.value, "close() must run the release closure")
+        #expect(expected.count == actual.count)
         for (i, (e, a)) in zip(expected, actual).enumerated() {
-            XCTAssertEqual(e, a, "window \(i) (\(windows[i])) diverged between a fresh read and the session")
+            #expect(e == a, "window \(i) (\(windows[i])) diverged between a fresh read and the session")
         }
     }
 
-    func testSessionZeroPadsATailWindowPastEndOfFileSameAsAFreshRead() throws {
+    @Test func testSessionZeroPadsATailWindowPastEndOfFileSameAsAFreshRead() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -87,8 +87,8 @@ final class WindowedAudioReaderSessionTests: XCTestCase {
         let actual = try session.readWindow(startSeconds: 0, windowSeconds: 10)
         session.close()
 
-        XCTAssertEqual(expected, actual)
-        XCTAssertEqual(actual.count, Int(10 * reader.targetSampleRate))
+        #expect(expected == actual)
+        #expect(actual.count == Int(10 * reader.targetSampleRate))
     }
 }
 #endif

@@ -3,7 +3,7 @@ import CoreML
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -16,38 +16,51 @@ import XCTest
 ///
 /// Gated: skipped when the converted text package / tokenizer sidecars are
 /// not on this host (a clean checkout that has not run `make models`).
-final class SearchServiceRealTextSmokeTests: XCTestCase {
+@Suite struct SearchServiceRealTextSmokeTests {
     private var repoRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     }
 
-    private func realTextResources() async throws -> ModelManager.Resources {
+    // NOTE(swift-testing-migration): the original XCTest version registered
+    // `addTeardownBlock { try? FileManager.default.removeItem(at: compiled) }` here, which
+    // XCTest runs after the whole test method finishes, regardless of which function requested
+    // it. Swift Testing has no such per-test teardown registry, and a `defer` placed inside this
+    // helper would fire when the helper returns, before the caller ever uses the compiled model.
+    // This now returns the compiled-model URL (if one was created) alongside the resources, so
+    // the sole call site below can `defer` its cleanup at the correct (test-function) scope.
+    private func realTextResources() async throws -> (
+        resources: ModelManager.Resources, compiledURLToClean: URL?
+    ) {
         let r = ModelResourceLocator(searchDirectories: [
             repoRoot.appendingPathComponent("Resources/Models", isDirectory: true),
             repoRoot.appendingPathComponent("Resources/CLAP", isDirectory: true),
         ]).resolve()
-        try XCTSkipUnless(
-            r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil,
-            "converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
+        if !(r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil) {
+            try Test.cancel("converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
+        }
         var encoderURL = r.textEncoderURL!
+        var compiledURLToClean: URL?
         if encoderURL.pathExtension == "mlpackage" {
             let compiled = try await MLModel.compileModel(at: encoderURL)
-            addTeardownBlock { try? FileManager.default.removeItem(at: compiled) }
+            compiledURLToClean = compiled
             encoderURL = compiled
         }
-        return ModelManager.Resources(
-            audioEncoderURL: nil, melFilterBankURL: nil, textEncoderURL: encoderURL,
-            tokenizerVocabURL: r.tokenizerVocabURL, tokenizerMergesURL: r.tokenizerMergesURL)
+        return (
+            ModelManager.Resources(
+                audioEncoderURL: nil, melFilterBankURL: nil, textEncoderURL: encoderURL,
+                tokenizerVocabURL: r.tokenizerVocabURL, tokenizerMergesURL: r.tokenizerMergesURL),
+            compiledURLToClean)
     }
 
-    func testRealTextEncoderRanksRealEmbeddings() async throws {
-        let resources = try await realTextResources()
+    @Test func testRealTextEncoderRanksRealEmbeddings() async throws {
+        let (resources, compiledURLToClean) = try await realTextResources()
+        defer { if let compiledURLToClean { try? FileManager.default.removeItem(at: compiledURLToClean) } }
         let dims = 512
 
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ssrt-\(UUID().uuidString).bin")
-        addTeardownBlock { try? FileManager.default.removeItem(at: cacheURL) }
+        defer { try? FileManager.default.removeItem(at: cacheURL) }
 
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
@@ -72,24 +85,24 @@ final class SearchServiceRealTextSmokeTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: "gentle acoustic guitar with soft vocals"))
 
-        XCTAssertEqual(response.mode, .semantic)
-        XCTAssertEqual(response.state, .ready, "real text encoder + real embeddings should rank")
-        XCTAssertEqual(response.results.count, 6)
+        #expect(response.mode == .semantic)
+        #expect(response.state == .ready, "real text encoder + real embeddings should rank")
+        #expect(response.results.count == 6)
         for r in response.results {
-            XCTAssertNotNil(r.similarity)
-            XCTAssertTrue(r.similarity!.isFinite)
-            XCTAssertGreaterThanOrEqual(r.similarity!, -1.0001)
-            XCTAssertLessThanOrEqual(r.similarity!, 1.0001)
+            #expect(r.similarity != nil)
+            #expect(r.similarity!.isFinite)
+            #expect(r.similarity! >= -1.0001)
+            #expect(r.similarity! <= 1.0001)
         }
         let scores = response.results.compactMap(\.finalScore)
-        XCTAssertEqual(scores, scores.sorted(by: >), "results must be ranked by finalScore desc")
+        #expect(scores == scores.sorted(by: >), "results must be ranked by finalScore desc")
 
         let index2 = VectorIndex(writer: queue, cacheURL: cacheURL)
         let service2 = SearchService(writer: queue, index: index2, models: models)
         let again = await service2.search(
             DiscoverySearchQuery(text: "gentle acoustic guitar with soft vocals"))
-        XCTAssertEqual(
-            response.results.map(\.trackID), again.results.map(\.trackID),
+        #expect(
+            response.results.map(\.trackID) == again.results.map(\.trackID),
             "ranking must be deterministic for the same prompt + embeddings")
     }
 }

@@ -2,7 +2,6 @@
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
 
 @testable import TonearmCore
 @testable import TonearmDiscovery

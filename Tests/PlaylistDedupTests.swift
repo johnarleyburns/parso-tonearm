@@ -1,45 +1,45 @@
 import GRDB
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class PlaylistDedupTests: XCTestCase {
-    func testFirstOccurrenceWinsAndPositionsBecomeContiguous() {
+@Suite struct PlaylistDedupTests {
+    @Test func testFirstOccurrenceWinsAndPositionsBecomeContiguous() {
         let items = [
             PlaylistItem(id: 10, playlistId: 1, position: 4, trackId: 7, sectionTitle: nil),
             PlaylistItem(id: 11, playlistId: 1, position: 8, trackId: 8, sectionTitle: nil),
             PlaylistItem(id: 12, playlistId: 1, position: 9, trackId: 7, sectionTitle: nil),
         ]
-        XCTAssertEqual(PlaylistDedup.duplicateItemIDs(in: items), [12])
-        XCTAssertEqual(PlaylistDedup.deduplicated(items).map(\.id), [10, 11])
-        XCTAssertEqual(PlaylistDedup.deduplicated(items).map(\.position), [0, 1])
+        #expect(PlaylistDedup.duplicateItemIDs(in: items) == [12])
+        #expect(PlaylistDedup.deduplicated(items).map(\.id) == [10, 11])
+        #expect(PlaylistDedup.deduplicated(items).map(\.position) == [0, 1])
     }
 
-    func testStoreDoesNotAddTheSameTrackTwice() async throws {
+    @Test func testStoreDoesNotAddTheSameTrackTwice() async throws {
         let store = try LibraryStore(inMemory: true)
         let track = try await insertTrack(store: store, title: "One")
         let playlist = try await store.createManualPlaylist(title: "Set", trackIds: [])
-        try await store.addToPlaylist(playlistId: try XCTUnwrap(playlist.id), trackId: try XCTUnwrap(track.id))
-        try await store.addToPlaylist(playlistId: try XCTUnwrap(playlist.id), trackId: try XCTUnwrap(track.id))
+        try await store.addToPlaylist(playlistId: try #require(playlist.id), trackId: try #require(track.id))
+        try await store.addToPlaylist(playlistId: try #require(playlist.id), trackId: try #require(track.id))
         let rows = try await store.playlistTrackRows(playlistId: playlist.id!)
-        XCTAssertEqual(rows.count, 1)
+        #expect(rows.count == 1)
     }
 
-    func testManualPlaylistDeduplicatesInput() async throws {
+    @Test func testManualPlaylistDeduplicatesInput() async throws {
         let store = try LibraryStore(inMemory: true)
         let one = try await insertTrack(store: store, title: "One")
         let two = try await insertTrack(store: store, title: "Two")
         let playlist = try await store.createManualPlaylist(
             title: "Set", trackIds: [one.id!, two.id!, one.id!])
         let rows = try await store.playlistTrackRows(playlistId: playlist.id!)
-        XCTAssertEqual(rows.map(\.row.id), [one.id!, two.id!])
+        #expect(rows.map(\.row.id) == [one.id!, two.id!])
     }
 
-    func testRepairRemovesSeededDuplicatesAndRenumbersSurvivors() async throws {
+    @Test func testRepairRemovesSeededDuplicatesAndRenumbersSurvivors() async throws {
         let store = try LibraryStore(inMemory: true)
         let one = try await insertTrack(store: store, title: "One")
         let two = try await insertTrack(store: store, title: "Two")
         let playlist = try await store.createManualPlaylist(title: "Repair", trackIds: [])
-        let playlistID = try XCTUnwrap(playlist.id)
+        let playlistID = try #require(playlist.id)
         try await store.dbQueue.write { db in
             for (position, trackID) in [one.id!, two.id!, one.id!].enumerated() {
                 var item = PlaylistItem(id: nil, playlistId: playlistID,
@@ -50,13 +50,13 @@ final class PlaylistDedupTests: XCTestCase {
         }
 
         let removed = try await store.removeDuplicatePlaylistItems()
-        XCTAssertEqual(removed, 1)
+        #expect(removed == 1)
         let rows = try await store.playlistTrackRows(playlistId: playlistID)
-        XCTAssertEqual(rows.map(\.row.id), [one.id!, two.id!])
-        XCTAssertEqual(rows.map(\.item.position), [0, 1])
+        #expect(rows.map(\.row.id) == [one.id!, two.id!])
+        #expect(rows.map(\.item.position) == [0, 1])
     }
 
-    func testMergeDuplicateFolderPlaylistsKeepsTracksAndDeletesDuplicateSource() async throws {
+    @Test func testMergeDuplicateFolderPlaylistsKeepsTracksAndDeletesDuplicateSource() async throws {
         let store = try LibraryStore(inMemory: true)
         let path = FolderImportIdentity.key(for: URL(fileURLWithPath: "/fixtures/Music"))
         let first = try await insertFolderSource(store: store, title: "Music", path: path)
@@ -73,20 +73,18 @@ final class PlaylistDedupTests: XCTestCase {
         try await store.addToPlaylist(playlistId: secondPlaylist.id!, trackId: secondTrack.id!)
 
         let merged = try await store.mergeDuplicateFolderPlaylists()
-        XCTAssertEqual(merged, 1)
+        #expect(merged == 1)
         let folderPlaylists = try await store.allPlaylists().filter { $0.kind == .folder }
-        XCTAssertEqual(folderPlaylists.count, 1)
+        #expect(folderPlaylists.count == 1)
         let rows = try await store.playlistTrackRows(playlistId: folderPlaylists[0].id!)
-        XCTAssertEqual(rows.map(\.row.track.title), ["One", "Two"])
+        #expect(rows.map(\.row.track.title) == ["One", "Two"])
         let sources = try await store.allSources()
-        XCTAssertEqual(sources.filter { $0.folderPath == path }.count, 1)
+        #expect(sources.filter { $0.folderPath == path }.count == 1)
     }
 
-    func testFolderIdentityNormalizesEquivalentPaths() {
-        XCTAssertEqual(FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b")),
-                       FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b/")))
-        XCTAssertEqual(FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b")),
-                       FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/./b")))
+    @Test func testFolderIdentityNormalizesEquivalentPaths() {
+        #expect(FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b")) == FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b/")))
+        #expect(FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/b")) == FolderImportIdentity.key(for: URL(fileURLWithPath: "/a/./b")))
     }
 
     private func insertTrack(store: LibraryStore, title: String) async throws -> Track {

@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// Real bug this answers: `AppState.makeOffline(source:)`/`download(rows:)`
@@ -18,7 +18,7 @@ private final class Box<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
-final class RemoteAssetRefetchTests: XCTestCase {
+@Suite struct RemoteAssetRefetchTests {
     private func asset(
         remoteURL: String? = "https://example.test/stale.mp3",
         remoteNodeID: String? = nil,
@@ -36,7 +36,7 @@ final class RemoteAssetRefetchTests: XCTestCase {
     /// The primary fixed case: a node reference exists, re-resolution
     /// succeeds, and the FRESH url/headers are used — not the stale
     /// persisted ones.
-    func testUsesFreshlyResolvedURLAndHeadersWhenANodeReferenceExists() async {
+    @Test func testUsesFreshlyResolvedURLAndHeadersWhenANodeReferenceExists() async {
         let a = asset(
             remoteURL: "https://example.test/stale-signed-link?expired=1",
             remoteNodeID: "42", remoteNodePath: "artist/album/42",
@@ -50,10 +50,10 @@ final class RemoteAssetRefetchTests: XCTestCase {
                 headers: ["Authorization": "Bearer fresh-token"])
         }
 
-        XCTAssertEqual(seenNode.value?.id, "42")
-        XCTAssertEqual(seenNode.value?.path, "artist/album/42")
-        XCTAssertEqual(request?.url?.absoluteString, "https://example.test/fresh-signed-link?token=abc")
-        XCTAssertEqual(request?.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-token")
+        #expect(seenNode.value?.id == "42")
+        #expect(seenNode.value?.path == "artist/album/42")
+        #expect(request?.url?.absoluteString == "https://example.test/fresh-signed-link?token=abc")
+        #expect(request?.value(forHTTPHeaderField: "Authorization") == "Bearer fresh-token")
     }
 
     /// Re-resolution failing (offline, revoked credential) falls back to the
@@ -61,7 +61,7 @@ final class RemoteAssetRefetchTests: XCTestCase {
     /// outright — strictly no worse than pre-fix behavior, and still
     /// correct for a provider (Subsonic) whose persisted URL is normally
     /// self-authenticating.
-    func testFallsBackToPersistedURLWhenReResolutionFails() async {
+    @Test func testFallsBackToPersistedURLWhenReResolutionFails() async {
         enum Failure: Error { case offline }
         let a = asset(
             remoteURL: "https://example.test/still-good.mp3",
@@ -70,13 +70,13 @@ final class RemoteAssetRefetchTests: XCTestCase {
 
         let request = await RemoteAssetRefetch.request(for: a) { _ in throw Failure.offline }
 
-        XCTAssertEqual(request?.url?.absoluteString, "https://example.test/still-good.mp3")
-        XCTAssertEqual(request?.value(forHTTPHeaderField: "X-Test"), "1")
+        #expect(request?.url?.absoluteString == "https://example.test/still-good.mp3")
+        #expect(request?.value(forHTTPHeaderField: "X-Test") == "1")
     }
 
     /// An asset persisted before this fix existed (no node reference at
     /// all) — same legacy fallback, and `resolveNode` must never be called.
-    func testFallsBackDirectlyWhenNoNodeReferenceIsPersisted() async {
+    @Test func testFallsBackDirectlyWhenNoNodeReferenceIsPersisted() async {
         let a = asset(remoteURL: "https://example.test/legacy.mp3", remoteNodeID: nil, remoteNodePath: nil)
 
         let resolveNodeCalled = Box(false)
@@ -85,17 +85,17 @@ final class RemoteAssetRefetchTests: XCTestCase {
             return ResolvedAsset(url: URL(string: "https://example.test/should-not-be-used")!)
         }
 
-        XCTAssertFalse(resolveNodeCalled.value)
-        XCTAssertEqual(request?.url?.absoluteString, "https://example.test/legacy.mp3")
+        #expect(!resolveNodeCalled.value)
+        #expect(request?.url?.absoluteString == "https://example.test/legacy.mp3")
     }
 
     /// Neither a node reference nor a usable persisted URL — genuinely
     /// nothing to fetch.
-    func testNilWhenNeitherANodeReferenceNorARemoteURLExists() async {
+    @Test func testNilWhenNeitherANodeReferenceNorARemoteURLExists() async {
         let a = asset(remoteURL: nil, remoteNodeID: nil, remoteNodePath: nil)
         let request = await RemoteAssetRefetch.request(for: a) { _ in
             ResolvedAsset(url: URL(string: "https://example.test/unused")!)
         }
-        XCTAssertNil(request)
+        #expect(request == nil)
     }
 }

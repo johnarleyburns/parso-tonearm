@@ -1,5 +1,5 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -32,7 +32,7 @@ final class MutableTestClock: @unchecked Sendable {
 
 /// C03 fixtures: leases, retry backoff, recovery-across-relaunch and
 /// idempotent enqueue (IMPLEMENT_CLAP_PLAN.md §3/§11).
-final class IndexJobRepositoryTests: XCTestCase {
+@Suite struct IndexJobRepositoryTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -68,7 +68,7 @@ final class IndexJobRepositoryTests: XCTestCase {
         }
     }
 
-    func testEnqueueIsIdempotentUntilRestartRequested() async throws {
+    @Test func testEnqueueIsIdempotentUntilRestartRequested() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let assetID = try await seedAsset(queue, trackId: trackID)
@@ -78,18 +78,18 @@ final class IndexJobRepositoryTests: XCTestCase {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         let second = try await repo.enqueueOrRestart(
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
-        XCTAssertEqual(first.id, second.id, "same (track, pipelineVersion) must not duplicate a job")
+        #expect(first.id == second.id, "same (track, pipelineVersion) must not duplicate a job")
 
         let restarted = try await repo.enqueueOrRestart(
             trackId: trackID, selectedAssetId: assetID, assetRevision: 2, pipelineVersion: 1,
             restart: true)
-        XCTAssertEqual(restarted.id, first.id, "restart reuses the same logical job")
-        XCTAssertEqual(restarted.assetRevision, 2)
-        XCTAssertEqual(restarted.state, .queued)
-        XCTAssertEqual(restarted.attemptCount, 0)
+        #expect(restarted.id == first.id, "restart reuses the same logical job")
+        #expect(restarted.assetRevision == 2)
+        #expect(restarted.state == .queued)
+        #expect(restarted.attemptCount == 0)
     }
 
-    func testClaimAssignsLeaseAndSecondClaimSeesNothingUntilExpiry() async throws {
+    @Test func testClaimAssignsLeaseAndSecondClaimSeesNothingUntilExpiry() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let clock = MutableTestClock(Date())
@@ -98,25 +98,25 @@ final class IndexJobRepositoryTests: XCTestCase {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
         guard let claim = try await repo.claimNextJob(leaseDuration: 60) else {
-            return XCTFail("expected a claimable job")
+            return Issue.record("expected a claimable job")
         }
-        XCTAssertEqual(claim.job.state, .running)
+        #expect(claim.job.state == .running)
 
         // A concurrent claim attempt before the lease expires must see nothing.
         let concurrentClaim = try await repo.claimNextJob(leaseDuration: 60)
-        XCTAssertNil(concurrentClaim)
+        #expect(concurrentClaim == nil)
 
         // Advance the clock past lease expiry: the crashed claim becomes
         // reclaimable (plan §7: recover after expiration/process death).
         clock.advance(by: 61)
         guard let reclaim = try await repo.claimNextJob(leaseDuration: 60) else {
-            return XCTFail("expected the expired lease to be reclaimable")
+            return Issue.record("expected the expired lease to be reclaimable")
         }
-        XCTAssertEqual(reclaim.job.id, claim.job.id)
-        XCTAssertNotEqual(reclaim.leaseToken, claim.leaseToken)
+        #expect(reclaim.job.id == claim.job.id)
+        #expect(reclaim.leaseToken != claim.leaseToken)
     }
 
-    func testStaleTokenMutationsAreDiscarded() async throws {
+    @Test func testStaleTokenMutationsAreDiscarded() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -131,11 +131,11 @@ final class IndexJobRepositoryTests: XCTestCase {
             errorMessage: nil)
 
         let job = try await repo.job(id: claim.job.id)!
-        XCTAssertEqual(job.state, .running, "a stale lease token must not mutate the job")
-        XCTAssertEqual(job.attemptCount, 0)
+        #expect(job.state == .running, "a stale lease token must not mutate the job")
+        #expect(job.attemptCount == 0)
     }
 
-    func testRetryBackoffEscalatesThenFailsAfterFiveAttempts() async throws {
+    @Test func testRetryBackoffEscalatesThenFailsAfterFiveAttempts() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let clock = MutableTestClock(Date())
@@ -153,33 +153,32 @@ final class IndexJobRepositoryTests: XCTestCase {
                 errorMessage: "boom")
             let job = try await repo.job(id: claim.job.id)!
             if attempt < IndexJobRepository.maxTransientFailures {
-                XCTAssertEqual(job.state, .retryScheduled)
+                #expect(job.state == .retryScheduled)
                 let expectedDelay = IndexJobRepository.retryBackoffSeconds[
                     min(attempt - 1, IndexJobRepository.retryBackoffSeconds.count - 1)]
-                XCTAssertEqual(
-                    job.nextAttemptAt!.timeIntervalSince(beforeFailure), expectedDelay,
-                    accuracy: 0.001)
+                #expect(
+                    abs(job.nextAttemptAt!.timeIntervalSince(beforeFailure) - expectedDelay) <= 0.001)
                 // Advance clock so the next attempt is actually claimable.
                 clock.set(job.nextAttemptAt!.addingTimeInterval(1))
             } else {
-                XCTAssertEqual(job.state, .failed)
-                XCTAssertNil(job.nextAttemptAt)
+                #expect(job.state == .failed)
+                #expect(job.nextAttemptAt == nil)
             }
         }
 
         // A failed job is not auto-retried even after time passes.
         clock.advance(by: 10_000)
         let noClaim = try await repo.claimNextJob()
-        XCTAssertNil(noClaim)
+        #expect(noClaim == nil)
 
         // Manual retry resets it.
         try await repo.manualRetry(jobId: jobId)
         let retried = try await repo.job(id: jobId)!
-        XCTAssertEqual(retried.state, .queued)
-        XCTAssertEqual(retried.attemptCount, 0)
+        #expect(retried.state == .queued)
+        #expect(retried.attemptCount == 0)
     }
 
-    func testWaitingDoesNotConsumeRetryAttempt() async throws {
+    @Test func testWaitingDoesNotConsumeRetryAttempt() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -192,11 +191,11 @@ final class IndexJobRepositoryTests: XCTestCase {
             retryAfter: 30)
 
         let job = try await repo.job(id: claim.job.id)!
-        XCTAssertEqual(job.state, .waitingForPower)
-        XCTAssertEqual(job.attemptCount, 0, "waiting must not consume a retry attempt")
+        #expect(job.state == .waitingForPower)
+        #expect(job.attemptCount == 0, "waiting must not consume a retry attempt")
     }
 
-    func testRecoverStaleLeasesAtLaunchResetsRunningToQueued() async throws {
+    @Test func testRecoverStaleLeasesAtLaunchResetsRunningToQueued() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -204,20 +203,20 @@ final class IndexJobRepositoryTests: XCTestCase {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         let claim = try await repo.claimNextJob()!
         let claimedJob = try await repo.job(id: claim.job.id)!
-        XCTAssertEqual(claimedJob.state, .running)
+        #expect(claimedJob.state == .running)
 
         // Simulate process relaunch: a fresh repository over the same DB.
         let relaunchedRepo = IndexJobRepository(writer: queue)
         let result = try await relaunchedRepo.recoverStaleLeasesAtLaunch()
-        XCTAssertEqual(result.resetJobCount, 1)
+        #expect(result.resetJobCount == 1)
 
         let recovered = try await relaunchedRepo.job(id: claim.job.id)!
-        XCTAssertEqual(recovered.state, .queued)
-        XCTAssertNil(recovered.leaseToken)
-        XCTAssertNil(recovered.leaseExpiresAt)
+        #expect(recovered.state == .queued)
+        #expect(recovered.leaseToken == nil)
+        #expect(recovered.leaseExpiresAt == nil)
     }
 
-    func testWindowCheckpointProgressAndStageCompletionIsIndependent() async throws {
+    @Test func testWindowCheckpointProgressAndStageCompletionIsIndependent() async throws {
         let queue = try makeQueue()
         let trackID = try await seedTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -233,7 +232,7 @@ final class IndexJobRepositoryTests: XCTestCase {
             totalWindows: 1)
 
         let indices = try await repo.completedWindowIndices(jobId: claim.job.id)
-        XCTAssertEqual(indices, [0])
+        #expect(indices == [0])
 
         // Musical analysis fails, but embedding completing alone still marks
         // the job overall complete (plan §4: musicalAnalysisStageState may
@@ -242,16 +241,16 @@ final class IndexJobRepositoryTests: XCTestCase {
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis,
             state: .failed)
         var job = try await repo.job(id: claim.job.id)!
-        XCTAssertEqual(job.state, .running, "not complete until embedding stage also terminal")
+        #expect(job.state == .running, "not complete until embedding stage also terminal")
 
         try await repo.completeStage(
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
         job = try await repo.job(id: claim.job.id)!
-        XCTAssertEqual(job.state, .complete)
-        XCTAssertTrue(job.isComplete)
+        #expect(job.state == .complete)
+        #expect(job.isComplete)
     }
 
-    func testCoverageCounts() async throws {
+    @Test func testCoverageCounts() async throws {
         let queue = try makeQueue()
         let clock = MutableTestClock(Date())
         let repo = IndexJobRepository(writer: queue, clock: clock.now)
@@ -276,7 +275,7 @@ final class IndexJobRepositoryTests: XCTestCase {
         // claimed first).
         let claimA = try await repo.claimNextJob()!
         let jobA = try await repo.job(trackId: trackIDs[0], pipelineVersion: 1)!
-        XCTAssertEqual(claimA.job.id, jobA.id)
+        #expect(claimA.job.id == jobA.id)
         try await repo.completeStage(
             jobId: claimA.job.id, leaseToken: claimA.leaseToken, stage: .embedding, state: .complete)
         try await repo.completeStage(
@@ -288,7 +287,7 @@ final class IndexJobRepositoryTests: XCTestCase {
         let targetJobId = try await repo.job(trackId: trackIDs[1], pipelineVersion: 1)!.id
         for _ in 0..<IndexJobRepository.maxTransientFailures {
             let claim = try await repo.claimNextJob()!
-            XCTAssertEqual(claim.job.id, targetJobId, "priority 50 must always outrank priority 0")
+            #expect(claim.job.id == targetJobId, "priority 50 must always outrank priority 0")
             try await repo.recordTransientFailure(
                 jobId: claim.job.id, leaseToken: claim.leaseToken, errorCode: "x",
                 errorMessage: nil)
@@ -297,13 +296,13 @@ final class IndexJobRepositoryTests: XCTestCase {
             }
         }
         let finalFailingJob = try await repo.job(id: targetJobId)!
-        XCTAssertEqual(finalFailingJob.state, .failed)
+        #expect(finalFailingJob.state == .failed)
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.total, 4)
-        XCTAssertEqual(coverage.complete, 1)
-        XCTAssertEqual(coverage.failed, 1)
-        XCTAssertEqual(coverage.queuedOrRunning, 2)
+        #expect(coverage.total == 4)
+        #expect(coverage.complete == 1)
+        #expect(coverage.failed == 1)
+        #expect(coverage.queuedOrRunning == 2)
     }
 
     /// Real user report: the status screen only ever said "Waiting to
@@ -313,7 +312,7 @@ final class IndexJobRepositoryTests: XCTestCase {
     /// must expose the actual per-state breakdown of the `waiting` bucket,
     /// plus the real error text from the most recent retry/failure, so the
     /// presentation layer has something honest to say.
-    func testCoverageBreaksDownWaitingReasonsAndSurfacesTheLastRealError() async throws {
+    @Test func testCoverageBreaksDownWaitingReasonsAndSurfacesTheLastRealError() async throws {
         let queue = try makeQueue()
         let clock = MutableTestClock(Date())
         let repo = IndexJobRepository(writer: queue, clock: clock.now)
@@ -337,26 +336,26 @@ final class IndexJobRepositoryTests: XCTestCase {
         // couldn't distinguish from the clean wait above.
         for trackId in [trackIDs[1], trackIDs[2]] {
             let claim = try await repo.claimNextJob()!
-            XCTAssertEqual(claim.job.trackId, trackId)
+            #expect(claim.job.trackId == trackId)
             try await repo.recordTransientFailure(
                 jobId: claim.job.id, leaseToken: claim.leaseToken, errorCode: "windowReadFailed",
                 errorMessage: "Could not read audio window from the source file.")
         }
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.waiting, 3)
-        XCTAssertEqual(coverage.waitingBreakdown[.waitingForAsset], 1)
-        XCTAssertEqual(coverage.waitingBreakdown[.retryScheduled], 2)
-        XCTAssertNil(coverage.waitingBreakdown[.waitingForNetwork])
-        XCTAssertEqual(coverage.mostRecentFailureError?.code, "windowReadFailed")
-        XCTAssertEqual(
-            coverage.mostRecentFailureError?.message,
+        #expect(coverage.waiting == 3)
+        #expect(coverage.waitingBreakdown[.waitingForAsset] == 1)
+        #expect(coverage.waitingBreakdown[.retryScheduled] == 2)
+        #expect(coverage.waitingBreakdown[.waitingForNetwork] == nil)
+        #expect(coverage.mostRecentFailureError?.code == "windowReadFailed")
+        #expect(
+            coverage.mostRecentFailureError?.message ==
             "Could not read audio window from the source file.")
     }
 
     /// C07 "Retry failed" action (plan §10): every `.failed` job for the
     /// pipeline is re-queued; queued/running jobs are untouched.
-    func testRetryAllFailedRequeuesOnlyFailedJobs() async throws {
+    @Test func testRetryAllFailedRequeuesOnlyFailedJobs() async throws {
         let queue = try makeQueue()
         let clock = MutableTestClock(Date())
         let repo = IndexJobRepository(writer: queue, clock: clock.now)
@@ -389,20 +388,20 @@ final class IndexJobRepositoryTests: XCTestCase {
         }
 
         let before = try await repo.coverage(pipelineVersion: 1)
-        XCTAssertEqual(before.failed, 2)
-        XCTAssertEqual(before.queuedOrRunning, 1)
+        #expect(before.failed == 2)
+        #expect(before.queuedOrRunning == 1)
 
         let requeued = try await repo.retryAllFailed(pipelineVersion: 1)
-        XCTAssertEqual(requeued, 2)
+        #expect(requeued == 2)
 
         let after = try await repo.coverage(pipelineVersion: 1)
-        XCTAssertEqual(after.failed, 0)
-        XCTAssertEqual(after.queuedOrRunning, 3)
+        #expect(after.failed == 0)
+        #expect(after.queuedOrRunning == 3)
         for id in failedIds {
             let job = try await repo.job(id: id)!
-            XCTAssertEqual(job.state, .queued)
-            XCTAssertEqual(job.attemptCount, 0)
-            XCTAssertNil(job.errorCode)
+            #expect(job.state == .queued)
+            #expect(job.attemptCount == 0)
+            #expect(job.errorCode == nil)
         }
     }
 
@@ -429,7 +428,7 @@ final class IndexJobRepositoryTests: XCTestCase {
     /// Each bucket gets its own fresh queue/track/job — no shared state, so there is no risk of
     /// `claimNextJob()` picking a different test's job by accident.
 
-    func testTrackSummariesReadsCompleteBucket() async throws {
+    @Test func testTrackSummariesReadsCompleteBucket() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let trackID = try await seedTrack(queue, title: "Zebra Done")
@@ -443,13 +442,13 @@ final class IndexJobRepositoryTests: XCTestCase {
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
         let list = try await repo.trackSummaries(for: .complete, pipelineVersion: 1)
-        XCTAssertEqual(list.count, coverage.complete)
-        XCTAssertEqual(list.map(\.title), ["Zebra Done"])
+        #expect(list.count == coverage.complete)
+        #expect(list.map(\.title) == ["Zebra Done"])
         let waitingWhileComplete = try await repo.trackSummaries(for: .waiting, pipelineVersion: 1)
-        XCTAssertTrue(waitingWhileComplete.isEmpty)
+        #expect(waitingWhileComplete.isEmpty)
     }
 
-    func testTrackSummariesReadsQueuedBucket() async throws {
+    @Test func testTrackSummariesReadsQueuedBucket() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let trackID = try await seedTrack(queue, title: "Alpha Queued")
@@ -458,29 +457,29 @@ final class IndexJobRepositoryTests: XCTestCase {
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
         let list = try await repo.trackSummaries(for: .queuedOrRunning, pipelineVersion: 1)
-        XCTAssertEqual(list.count, coverage.queuedOrRunning)
-        XCTAssertEqual(list.map(\.title), ["Alpha Queued"])
+        #expect(list.count == coverage.queuedOrRunning)
+        #expect(list.map(\.title) == ["Alpha Queued"])
     }
 
-    func testTrackSummariesReadsWaitingBucket() async throws {
+    @Test func testTrackSummariesReadsWaitingBucket() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let trackID = try await seedTrack(queue, title: "Beta Waiting")
         let job = try await repo.enqueueOrRestart(
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         let claim = try await repo.claimNextJob()!
-        XCTAssertEqual(claim.job.id, job.id)
+        #expect(claim.job.id == job.id)
         try await repo.markWaiting(
             jobId: job.id, leaseToken: claim.leaseToken, reason: .waitingForCooling, retryAfter: nil)
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
         let list = try await repo.trackSummaries(for: .waiting, pipelineVersion: 1)
-        XCTAssertEqual(list.count, coverage.waiting)
-        XCTAssertEqual(list.map(\.title), ["Beta Waiting"])
+        #expect(list.count == coverage.waiting)
+        #expect(list.map(\.title) == ["Beta Waiting"])
     }
 
     /// Also proves the real recorded error surfaces on the row (`detail`), not a generic label.
-    func testTrackSummariesReadsFailedBucketWithRealError() async throws {
+    @Test func testTrackSummariesReadsFailedBucketWithRealError() async throws {
         let queue = try makeQueue()
         // A real clock: `recordTransientFailure` clears the lease and schedules a real backoff
         // delay each time, so reaching the failure ceiling means re-claiming between attempts
@@ -492,27 +491,27 @@ final class IndexJobRepositoryTests: XCTestCase {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         for _ in 0..<IndexJobRepository.maxTransientFailures {
             let claim = try await repo.claimNextJob()!
-            XCTAssertEqual(claim.job.id, job.id)
+            #expect(claim.job.id == job.id)
             try await repo.recordTransientFailure(
                 jobId: job.id, leaseToken: claim.leaseToken,
                 errorCode: "decodeFailed", errorMessage: "could not decode audio")
             testClock.advance(by: IndexJobRepository.retryBackoffSeconds.max()! + 1)
         }
         let settled = try await repo.job(id: job.id)
-        XCTAssertEqual(settled?.state, .failed, "test setup must actually reach .failed")
+        #expect(settled?.state == .failed, "test setup must actually reach .failed")
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
         let list = try await repo.trackSummaries(for: .failed, pipelineVersion: 1)
-        XCTAssertEqual(list.count, coverage.failed)
-        XCTAssertEqual(list.map(\.title), ["Gamma Failed"])
-        XCTAssertEqual(list.first?.detail, "could not decode audio",
+        #expect(list.count == coverage.failed)
+        #expect(list.map(\.title) == ["Gamma Failed"])
+        #expect(list.first?.detail == "could not decode audio",
                        "must surface the real recorded error, not a generic label")
     }
 
     // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
     // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
 
-    func testCurrentlyRunningTrackReflectsTheOneClaimedJobsOwnProgress() async throws {
+    @Test func testCurrentlyRunningTrackReflectsTheOneClaimedJobsOwnProgress() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let trackID = try await seedTrack(queue, title: "Now Playing Track")
@@ -520,13 +519,13 @@ final class IndexJobRepositoryTests: XCTestCase {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
         let notYetRunning = try await repo.currentlyRunningTrack(pipelineVersion: 1)
-        XCTAssertNil(notYetRunning, "nothing is running before a job is claimed")
+        #expect(notYetRunning == nil, "nothing is running before a job is claimed")
 
         let claim = try await repo.claimNextJob()!
         let fresh = try await repo.currentlyRunningTrack(pipelineVersion: 1)
-        XCTAssertEqual(fresh?.id, trackID)
-        XCTAssertEqual(fresh?.title, "Now Playing Track")
-        XCTAssertNil(fresh?.fractionComplete, "no window count reported yet -> no fabricated 0%")
+        #expect(fresh?.id == trackID)
+        #expect(fresh?.title == "Now Playing Track")
+        #expect(fresh?.fractionComplete == nil, "no window count reported yet -> no fabricated 0%")
 
         try await repo.recordWindowCompletion(
             jobId: claim.job.id, leaseToken: claim.leaseToken,
@@ -535,26 +534,26 @@ final class IndexJobRepositoryTests: XCTestCase {
                 embeddingVector: Data([1]), poolingWeight: 1, completedAt: Date()),
             totalWindows: 4)
         let partial = try await repo.currentlyRunningTrack(pipelineVersion: 1)
-        XCTAssertEqual(partial?.completedWindows, 1)
-        XCTAssertEqual(partial?.totalWindows, 4)
-        XCTAssertEqual(partial?.fractionComplete, 0.25)
+        #expect(partial?.completedWindows == 1)
+        #expect(partial?.totalWindows == 4)
+        #expect(partial?.fractionComplete == 0.25)
 
         try await repo.completeStage(
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
         try await repo.completeStage(
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
         let afterCompletion = try await repo.currentlyRunningTrack(pipelineVersion: 1)
-        XCTAssertNil(afterCompletion, "a completed job no longer holds a running lease")
+        #expect(afterCompletion == nil, "a completed job no longer holds a running lease")
     }
 
-    func testRecentCompletionRateMeasuresRealWallClockThroughputNotQueueWaitTime() async throws {
+    @Test func testRecentCompletionRateMeasuresRealWallClockThroughputNotQueueWaitTime() async throws {
         let queue = try makeQueue()
         let clock = MutableTestClock(Date(timeIntervalSince1970: 1_700_000_000))
         let repo = IndexJobRepository(writer: queue, clock: clock.now)
 
         // No completions yet -> nil, never a fabricated rate.
         let noCompletionsYet = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
-        XCTAssertNil(noCompletionsYet)
+        #expect(noCompletionsYet == nil)
 
         // A job that sat queued for a long time before running must not count that wait as
         // "processing time" -- the rate is measured from real completion timestamps, not
@@ -571,11 +570,11 @@ final class IndexJobRepositoryTests: XCTestCase {
 
         // One completion inside a 300s trailing window -> rate = 1/300.
         let rate = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
-        XCTAssertEqual(try XCTUnwrap(rate), 1.0 / 300, accuracy: 0.0001)
+        #expect(abs(try #require(rate) - 1.0 / 300) <= 0.0001)
 
         // The same completion falls outside a short trailing window measured later -> nil again.
         clock.advance(by: 301)
         let outsideWindow = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())
-        XCTAssertNil(outsideWindow)
+        #expect(outsideWindow == nil)
     }
 }

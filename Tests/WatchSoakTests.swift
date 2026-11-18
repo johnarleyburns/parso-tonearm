@@ -1,5 +1,5 @@
 import Foundation
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 @testable import TonearmWatchProtocol
 
@@ -9,11 +9,11 @@ import XCTest
 ///
 /// The definition of done for each: the system **converges** (settles on one consistent answer) and
 /// **memory/disk stays bounded** (nothing accumulates per event).
-final class WatchSoakTests: XCTestCase {
+@Suite struct WatchSoakTests {
 
     // MARK: - 1,000 duplicate / out-of-order events
 
-    func test1000DuplicateAndOutOfOrderDurableEventsConvergeAndStayBounded() async {
+    @Test func test1000DuplicateAndOutOfOrderDurableEventsConvergeAndStayBounded() async {
         let capacity = 512
         let ledger = WatchAppliedMessageLedger(capacity: capacity)
         var gate = WatchRevisionGate()
@@ -29,7 +29,7 @@ final class WatchSoakTests: XCTestCase {
         }
         var rng = SystemRandomNumberGenerator()
         stream.shuffle(using: &rng)
-        XCTAssertEqual(stream.count, 1_000)
+        #expect(stream.count == 1_000)
 
         var appliedRevisions: Set<Int64> = []
         var maxApplied: Int64 = 0
@@ -38,27 +38,27 @@ final class WatchSoakTests: XCTestCase {
             guard admitted == .apply else { continue }
             // Ledger says "new message" — now the revision gate decides whether it is fresh state.
             if gate.evaluate(scope: .downloadRoots, revision: event.revision) == .apply {
-                XCTAssertGreaterThan(event.revision, maxApplied, "the gate must never apply a regression")
+                #expect(event.revision > maxApplied, "the gate must never apply a regression")
                 maxApplied = event.revision
                 appliedRevisions.insert(event.revision)
             }
         }
 
         // Convergence: the newest revision won, and it is the only authority now.
-        XCTAssertEqual(gate.lastApplied(.downloadRoots), Int64(distinct))
-        XCTAssertEqual(maxApplied, Int64(distinct))
+        #expect(gate.lastApplied(.downloadRoots) == Int64(distinct))
+        #expect(maxApplied == Int64(distinct))
         // Every applied revision was strictly increasing, so at most `distinct` were applied and
         // each distinct message was admitted exactly once.
-        XCTAssertLessThanOrEqual(appliedRevisions.count, distinct)
+        #expect(appliedRevisions.count <= distinct)
 
         // Bounded: the ledger holds at most `capacity` ids no matter how many crossed it.
         let count = await ledger.count
-        XCTAssertLessThanOrEqual(count, capacity)
+        #expect(count <= capacity)
     }
 
     // MARK: - rapid connect / disconnect
 
-    func testRapidConnectDisconnectFlappingSettlesWithOneAlertPerConfirmedOutage() {
+    @Test func testRapidConnectDisconnectFlappingSettlesWithOneAlertPerConfirmedOutage() {
         var reducer = WatchConnectionReducer(gracePeriod: 2.0)
         var now = Date(timeIntervalSince1970: 0)
         _ = reducer.apply(.activated(reachable: true), at: now)
@@ -94,17 +94,18 @@ final class WatchSoakTests: XCTestCase {
 
         // Converged: after a peerResponded the reducer is back to connected.
         guard case .connected = reducer.state else {
-            return XCTFail("expected connected after the last recovery, got \(reducer.state)")
+            Issue.record("expected connected after the last recovery, got \(reducer.state)")
+            return
         }
         // Bounded alerts: one disconnect alert per confirmed outage (250 of the 500 flaps stayed
         // down past the grace period), never one per flap, and a matching reconnect for each.
-        XCTAssertEqual(announcedDisconnects, 250, "one alert per confirmed outage, not per flap")
-        XCTAssertEqual(announcedReconnects, announcedDisconnects)
+        #expect(announcedDisconnects == 250, "one alert per confirmed outage, not per flap")
+        #expect(announcedReconnects == announcedDisconnects)
     }
 
     // MARK: - six-hour local playback state simulation
 
-    func testSixHoursOfLocalPlaybackStateStaysBoundedAndConsistent() {
+    @Test func testSixHoursOfLocalPlaybackStateStaysBoundedAndConsistent() {
         let suiteName = "watch-soak-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -133,19 +134,19 @@ final class WatchSoakTests: XCTestCase {
         // Convergence / consistency: the engine is still a valid 12-track queue with an in-range
         // index and a non-negative elapsed, after 90 track rolls.
         let snap = engine.snapshot
-        XCTAssertEqual(snap.trackKeys.count, 12)
-        XCTAssertTrue((0..<12).contains(snap.currentIndex))
-        XCTAssertGreaterThanOrEqual(snap.elapsed, 0)
-        XCTAssertTrue(engine.isPlaying)
+        #expect(snap.trackKeys.count == 12)
+        #expect((0..<12).contains(snap.currentIndex))
+        #expect(snap.elapsed >= 0)
+        #expect(engine.isPlaying)
 
         // Bounded disk: the persisted blob never grows — it is one snapshot, overwritten in place.
         let maxSize = savedSizes.max() ?? 0
         let minSize = savedSizes.min() ?? 0
-        XCTAssertGreaterThan(savedSizes.count, 2_000)
-        XCTAssertLessThan(maxSize, 2_048, "the persisted position must stay small")
-        XCTAssertLessThan(maxSize - minSize, 256, "and must not grow with playback time")
+        #expect(savedSizes.count > 2_000)
+        #expect(maxSize < 2_048, "the persisted position must stay small")
+        #expect(maxSize - minSize < 256, "and must not grow with playback time")
 
         // And it still round-trips.
-        XCTAssertEqual(WatchPositionStore.load(defaults: defaults)?.trackKeys.count, 12)
+        #expect(WatchPositionStore.load(defaults: defaults)?.trackKeys.count == 12)
     }
 }

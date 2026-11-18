@@ -1,7 +1,7 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class SourceFallbackIconTests: XCTestCase {
+@Suite struct SourceFallbackIconTests {
 
     private func makeSource(kind: SourceKind, localIsFolder: Bool = false) -> Source {
         Source(id: 1, kind: kind, iaIdentifier: nil, originalURL: nil,
@@ -10,51 +10,51 @@ final class SourceFallbackIconTests: XCTestCase {
                localIsFolder: localIsFolder)
     }
 
-    func testLocalFilesIcon() {
-        XCTAssertEqual(makeSource(kind: .local, localIsFolder: false).fallbackIcon,
+    @Test func testLocalFilesIcon() {
+        #expect(makeSource(kind: .local, localIsFolder: false).fallbackIcon ==
                        "music.note.list")
     }
 
-    func testLocalFolderIcon() {
-        XCTAssertEqual(makeSource(kind: .local, localIsFolder: true).fallbackIcon,
+    @Test func testLocalFolderIcon() {
+        #expect(makeSource(kind: .local, localIsFolder: true).fallbackIcon ==
                        "folder.fill")
     }
 
-    func testIACollectionIcons() {
-        XCTAssertEqual(makeSource(kind: .iaList).fallbackIcon, "square.stack.fill")
-        XCTAssertEqual(makeSource(kind: .iaCollection).fallbackIcon, "square.stack.fill")
-        XCTAssertEqual(makeSource(kind: .iaFavorites).fallbackIcon, "square.stack.fill")
+    @Test func testIACollectionIcons() {
+        #expect(makeSource(kind: .iaList).fallbackIcon == "square.stack.fill")
+        #expect(makeSource(kind: .iaCollection).fallbackIcon == "square.stack.fill")
+        #expect(makeSource(kind: .iaFavorites).fallbackIcon == "square.stack.fill")
     }
 
-    func testIAItemIcon() {
-        XCTAssertEqual(makeSource(kind: .iaItem).fallbackIcon, "music.note")
+    @Test func testIAItemIcon() {
+        #expect(makeSource(kind: .iaItem).fallbackIcon == "music.note")
     }
 
-    func testRemoteServerIcons() {
-        XCTAssertEqual(makeSource(kind: .subsonic).fallbackIcon, "server.rack")
-        XCTAssertEqual(makeSource(kind: .jellyfin).fallbackIcon, "server.rack")
-        XCTAssertEqual(makeSource(kind: .emby).fallbackIcon, "server.rack")
-        XCTAssertEqual(makeSource(kind: .plex).fallbackIcon, "server.rack")
+    @Test func testRemoteServerIcons() {
+        #expect(makeSource(kind: .subsonic).fallbackIcon == "server.rack")
+        #expect(makeSource(kind: .jellyfin).fallbackIcon == "server.rack")
+        #expect(makeSource(kind: .emby).fallbackIcon == "server.rack")
+        #expect(makeSource(kind: .plex).fallbackIcon == "server.rack")
     }
 
-    func testRemoteStorageIcons() {
+    @Test func testRemoteStorageIcons() {
         let icon = "externaldrive.connected.to.line.below"
-        XCTAssertEqual(makeSource(kind: .webDAV).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .smb).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .dropbox).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .googleDrive).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .oneDrive).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .pCloud).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .box).fallbackIcon, icon)
-        XCTAssertEqual(makeSource(kind: .yandexDisk).fallbackIcon, icon)
+        #expect(makeSource(kind: .webDAV).fallbackIcon == icon)
+        #expect(makeSource(kind: .smb).fallbackIcon == icon)
+        #expect(makeSource(kind: .dropbox).fallbackIcon == icon)
+        #expect(makeSource(kind: .googleDrive).fallbackIcon == icon)
+        #expect(makeSource(kind: .oneDrive).fallbackIcon == icon)
+        #expect(makeSource(kind: .pCloud).fallbackIcon == icon)
+        #expect(makeSource(kind: .box).fallbackIcon == icon)
+        #expect(makeSource(kind: .yandexDisk).fallbackIcon == icon)
     }
 
-    func testLocalFilesAndFolderIconsDiffer() {
+    @Test func testLocalFilesAndFolderIconsDiffer() {
         let files = makeSource(kind: .local, localIsFolder: false).fallbackIcon
         let folder = makeSource(kind: .local, localIsFolder: true).fallbackIcon
         let collection = makeSource(kind: .iaCollection).fallbackIcon
-        XCTAssertNotEqual(files, folder)
-        XCTAssertNotEqual(files, collection)
-        XCTAssertNotEqual(folder, collection)
+        #expect(files != folder)
+        #expect(files != collection)
+        #expect(folder != collection)
     }
 }

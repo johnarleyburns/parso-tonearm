@@ -1,119 +1,119 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class WatchGlyphStateTests: XCTestCase {
+@Suite struct WatchGlyphStateTests {
 
-    func testNotOnWatchByDefault() {
+    @Test func testNotOnWatchByDefault() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: nil, errorText: nil)
-        XCTAssertEqual(state, .notOnWatch)
+        #expect(state == .notOnWatch)
     }
 
-    func testOnWatchWhenInManifest() {
+    @Test func testOnWatchWhenInManifest() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: ["t1", "t2"], transferState: nil, errorText: nil)
-        XCTAssertEqual(state, .onWatch)
+        #expect(state == .onWatch)
     }
 
-    func testTransferringWhenQueued() {
+    @Test func testTransferringWhenQueued() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .queued, errorText: nil)
-        XCTAssertEqual(state, .transferring(progress: nil))
+        #expect(state == .transferring(progress: nil))
     }
 
-    func testTransferringWhenSending() {
+    @Test func testTransferringWhenSending() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sending, errorText: nil)
-        XCTAssertEqual(state, .transferring(progress: nil))
+        #expect(state == .transferring(progress: nil))
     }
 
-    func testSendingCarriesByteProgressWhenKnown() {
+    @Test func testSendingCarriesByteProgressWhenKnown() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sending,
                                      errorText: nil, sendingProgress: 0.6)
-        XCTAssertEqual(state, .transferring(progress: 0.6))
+        #expect(state == .transferring(progress: 0.6))
     }
 
-    func testSentIsStillTransferringUntilWatchReportsInstallation() {
+    @Test func testSentIsStillTransferringUntilWatchReportsInstallation() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .sent, errorText: nil)
-        XCTAssertEqual(state, .transferring(progress: nil))
-        XCTAssertEqual(WatchGlyph.state(trackKey: "t1", manifest: ["t1"], transferState: .sent, errorText: nil), .onWatch)
+        #expect(state == .transferring(progress: nil))
+        #expect(WatchGlyph.state(trackKey: "t1", manifest: ["t1"], transferState: .sent, errorText: nil) == .onWatch)
     }
 
-    func testCollectionStillShowsProgressWhenAppleTransferFinishedButInstallationIsUnknown() {
+    @Test func testCollectionStillShowsProgressWhenAppleTransferFinishedButInstallationIsUnknown() {
         let (state, fraction) = WatchGlyph.aggregateState(trackKeys: ["t1"], manifest: [],
             transferStates: ["t1": .sent], errorTexts: [:])
-        XCTAssertEqual(state, .transferring(progress: 0))
-        XCTAssertEqual(fraction, 0)
+        #expect(state == .transferring(progress: 0))
+        #expect(fraction == 0)
     }
 
-    func testFailedWhenTransferFailed() {
+    @Test func testFailedWhenTransferFailed() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: .failed, errorText: "timeout")
-        XCTAssertEqual(state, .failed)
+        #expect(state == .failed)
     }
 
-    func testFailedWithErrorTextOnly() {
+    @Test func testFailedWithErrorTextOnly() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: [], transferState: nil, errorText: "some error")
-        XCTAssertEqual(state, .failed)
+        #expect(state == .failed)
     }
 
-    func testTransferringOverridesOnWatch() {
+    @Test func testTransferringOverridesOnWatch() {
         let state = WatchGlyph.state(trackKey: "t1", manifest: ["t1"], transferState: .queued, errorText: nil)
-        XCTAssertEqual(state, .transferring(progress: nil), "transferring should override manifest")
+        #expect(state == .transferring(progress: nil), "transferring should override manifest")
     }
 
     // MARK: - Aggregate state
 
-    func testAggregateAllOnWatch() {
+    @Test func testAggregateAllOnWatch() {
         let (state, fraction) = WatchGlyph.aggregateState(
             trackKeys: ["t1", "t2"],
             manifest: ["t1", "t2"],
             transferStates: [:],
             errorTexts: [:])
-        XCTAssertEqual(state, .onWatch)
-        XCTAssertEqual(fraction, 1.0)
+        #expect(state == .onWatch)
+        #expect(fraction == 1.0)
     }
 
-    func testAggregateNoneOnWatch() {
+    @Test func testAggregateNoneOnWatch() {
         let (state, fraction) = WatchGlyph.aggregateState(
             trackKeys: ["t1", "t2"],
             manifest: [],
             transferStates: [:],
             errorTexts: [:])
-        XCTAssertEqual(state, .notOnWatch)
-        XCTAssertEqual(fraction, 0.0)
+        #expect(state == .notOnWatch)
+        #expect(fraction == 0.0)
     }
 
-    func testAggregatePartialOnWatch() {
+    @Test func testAggregatePartialOnWatch() {
         let (state, fraction) = WatchGlyph.aggregateState(
             trackKeys: ["t1", "t2"],
             manifest: ["t1"],
             transferStates: [:],
             errorTexts: [:])
-        XCTAssertEqual(state, .notOnWatch)
-        XCTAssertEqual(fraction, 0.5)
+        #expect(state == .notOnWatch)
+        #expect(fraction == 0.5)
     }
 
-    func testAggregateHasTransferring() {
+    @Test func testAggregateHasTransferring() {
         let (state, _) = WatchGlyph.aggregateState(
             trackKeys: ["t1", "t2"],
             manifest: [],
             transferStates: ["t1": .queued],
             errorTexts: [:])
-        XCTAssertEqual(state, .transferring(progress: 0.0))
+        #expect(state == .transferring(progress: 0.0))
     }
 
-    func testAggregateHasFailed() {
+    @Test func testAggregateHasFailed() {
         let (state, _) = WatchGlyph.aggregateState(
             trackKeys: ["t1"],
             manifest: [],
             transferStates: ["t1": .failed],
             errorTexts: [:])
-        XCTAssertEqual(state, .failed)
+        #expect(state == .failed)
     }
 
-    func testAggregateEmptyTrackKeys() {
+    @Test func testAggregateEmptyTrackKeys() {
         let (state, fraction) = WatchGlyph.aggregateState(
             trackKeys: [],
             manifest: [],
             transferStates: [:],
             errorTexts: [:])
-        XCTAssertEqual(state, .notOnWatch)
-        XCTAssertEqual(fraction, 0.0)
+        #expect(state == .notOnWatch)
+        #expect(fraction == 0.0)
     }
 }

@@ -1,15 +1,15 @@
 import SwiftData
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 
-final class WatchStoreBootstrapTests: XCTestCase {
-    func testResetClearsAllWatchStorageAndDefaultsButPreservesNeighboringFiles() throws {
+@Suite struct WatchStoreBootstrapTests {
+    @Test func testResetClearsAllWatchStorageAndDefaultsButPreservesNeighboringFiles() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let root = folder.appendingPathComponent(WatchStoreBootstrap.storeName)
         let legacy = folder.appendingPathComponent("WatchAudio")
         let inbox = folder.appendingPathComponent("tmp")
         let suite = "watch-reset-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defer { try? FileManager.default.removeItem(at: folder); defaults.removePersistentDomain(forName: suite) }
         for directory in [root, legacy, inbox] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -22,63 +22,68 @@ final class WatchStoreBootstrapTests: XCTestCase {
         defaults.set("old-library", forKey: "watch.sync.pairedLibraryID")
         defaults.set(123, forKey: "watch.sync.lastAppliedPhoneRevision")
         defaults.set(true, forKey: WatchStoreBootstrap.resetPendingKey)
-        XCTAssertTrue(try WatchStoreBootstrap.performPendingReset(root: root, legacyDirectories: [legacy],
+        #expect(try WatchStoreBootstrap.performPendingReset(root: root, legacyDirectories: [legacy],
             temporaryDirectory: inbox, defaults: defaults, defaultsDomain: suite))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: inbox.appendingPathComponent("inbox-audio.m4a").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: inbox.appendingPathComponent("unrelated").path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("phone-copy").path))
-        XCTAssertNil(defaults.object(forKey: "watch.sync.pairedLibraryID"))
-        XCTAssertNil(defaults.object(forKey: "watch.sync.lastAppliedPhoneRevision"))
-        XCTAssertFalse(try WatchStoreBootstrap.performPendingReset(root: root, defaults: defaults, defaultsDomain: suite))
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+        #expect(!FileManager.default.fileExists(atPath: legacy.path))
+        #expect(!FileManager.default.fileExists(atPath: inbox.appendingPathComponent("inbox-audio.m4a").path))
+        #expect(FileManager.default.fileExists(atPath: inbox.appendingPathComponent("unrelated").path))
+        #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent("phone-copy").path))
+        #expect(defaults.object(forKey: "watch.sync.pairedLibraryID") == nil)
+        #expect(defaults.object(forKey: "watch.sync.lastAppliedPhoneRevision") == nil)
+        #expect(!(try WatchStoreBootstrap.performPendingReset(root: root, defaults: defaults, defaultsDomain: suite)))
     }
 
-    func testResetRejectsBroadDirectoryWithoutClearingConsent() throws {
+    @Test func testResetRejectsBroadDirectoryWithoutClearingConsent() throws {
         let suite = "watch-reset-guard-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: WatchStoreBootstrap.resetPendingKey)
-        XCTAssertThrowsError(try WatchStoreBootstrap.performPendingReset(root: FileManager.default.temporaryDirectory,
-            defaults: defaults, defaultsDomain: suite))
-        XCTAssertTrue(defaults.bool(forKey: WatchStoreBootstrap.resetPendingKey))
+        do {
+            _ = try WatchStoreBootstrap.performPendingReset(root: FileManager.default.temporaryDirectory,
+                defaults: defaults, defaultsDomain: suite)
+            Issue.record("expected performPendingReset to throw")
+        } catch {
+            // Expected: a broad directory must be rejected without clearing the reset consent flag.
+        }
+        #expect(defaults.bool(forKey: WatchStoreBootstrap.resetPendingKey))
     }
     private enum Failure: Error { case injected }
 
-    func testInMemoryStoreRoundTrip() throws {
+    @Test func testInMemoryStoreRoundTrip() throws {
         let container = try WatchStoreBootstrap.inMemory()
         let context = ModelContext(container)
         context.insert(WatchStoreMetadata(key: "paired", value: "yes"))
         try context.save()
-        XCTAssertEqual(try context.fetch(FetchDescriptor<WatchStoreMetadata>()).first?.value, "yes")
+        #expect(try context.fetch(FetchDescriptor<WatchStoreMetadata>()).first?.value == "yes")
     }
 
-    func testPersistentSuccessIsReady() throws {
+    @Test func testPersistentSuccessIsReady() throws {
         let container = try WatchStoreBootstrap.inMemory()
         let result = WatchStoreBootstrap.open(persistent: { container }, recovery: { throw Failure.injected })
-        XCTAssertEqual(result.state, .ready)
+        #expect(result.state == .ready)
     }
 
-    func testPersistentFailureRecoversInMemory() throws {
+    @Test func testPersistentFailureRecoversInMemory() throws {
         let fallback = try WatchStoreBootstrap.inMemory()
         let result = WatchStoreBootstrap.open(persistent: { throw Failure.injected }, recovery: { fallback })
-        XCTAssertEqual(result.state, .recovered)
-        XCTAssertNotNil(result.container)
-        XCTAssertNotNil(result.recoveryNotice)
+        #expect(result.state == .recovered)
+        #expect(result.container != nil)
+        #expect(result.recoveryNotice != nil)
     }
 
-    func testDoubleFailureIsDegradedNotFatal() {
+    @Test func testDoubleFailureIsDegradedNotFatal() {
         let result = WatchStoreBootstrap.open(persistent: { throw Failure.injected }, recovery: { throw Failure.injected })
-        XCTAssertEqual(result.state, .degraded)
-        XCTAssertNil(result.container)
+        #expect(result.state == .degraded)
+        #expect(result.container == nil)
     }
 }
 
-final class WatchStoreLaunchResyncTests: XCTestCase {
-    func testOnlyRecoveredAndDegradedRequirePhoneResync() {
-        XCTAssertTrue(WatchStoreLaunchState.recovered.requiresPhoneResync)
-        XCTAssertTrue(WatchStoreLaunchState.degraded.requiresPhoneResync)
-        XCTAssertFalse(WatchStoreLaunchState.ready.requiresPhoneResync)
-        XCTAssertFalse(WatchStoreLaunchState.opening.requiresPhoneResync)
+@Suite struct WatchStoreLaunchResyncTests {
+    @Test func testOnlyRecoveredAndDegradedRequirePhoneResync() {
+        #expect(WatchStoreLaunchState.recovered.requiresPhoneResync)
+        #expect(WatchStoreLaunchState.degraded.requiresPhoneResync)
+        #expect(!WatchStoreLaunchState.ready.requiresPhoneResync)
+        #expect(!WatchStoreLaunchState.opening.requiresPhoneResync)
     }
 }

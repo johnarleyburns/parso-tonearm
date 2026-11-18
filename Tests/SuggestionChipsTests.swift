@@ -1,5 +1,5 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
@@ -10,8 +10,8 @@ import XCTest
 /// is unchanged from the original (now-deleted) `SearchModelTests.swift`
 /// coverage, just testing the standalone utility directly instead of
 /// through the deleted `VibeSearchModel`.
-final class SuggestionChipsTests: XCTestCase {
-    func testChipsReflectTheLibraryDistribution() async throws {
+@Suite struct SuggestionChipsTests {
+    @Test func testChipsReflectTheLibraryDistribution() async throws {
         let library = try LibraryStore(inMemory: true)
         for i in 0..<4 {
             try await seedLibraryTrack(in: library, title: "Track \(i)",
@@ -20,28 +20,28 @@ final class SuggestionChipsTests: XCTestCase {
         }
         let summary = await SuggestionChips.summary(library: library)
         let chips = SuggestionChips.seed(from: summary)
-        XCTAssertEqual(chips, ["steady around 125 BPM", "in 9A", "high energy"],
+        #expect(chips == ["steady around 125 BPM", "in 9A", "high energy"],
                        "chips are seeded from the library's median tempo, dominant key and energy")
     }
 
-    func testEmptyLibraryYieldsNoChips() async throws {
+    @Test func testEmptyLibraryYieldsNoChips() async throws {
         let library = try LibraryStore(inMemory: true)
         let summary = await SuggestionChips.summary(library: library)
-        XCTAssertTrue(SuggestionChips.seed(from: summary).isEmpty)
+        #expect(SuggestionChips.seed(from: summary).isEmpty)
     }
 
-    func testDurationExtremesProduceLengthChips() {
+    @Test func testDurationExtremesProduceLengthChips() {
         let short = LibraryDescriptorSummary(durationSec: [120, 150])
-        XCTAssertEqual(SuggestionChips.seed(from: short), ["shorter tracks"])
+        #expect(SuggestionChips.seed(from: short) == ["shorter tracks"])
 
         let long = LibraryDescriptorSummary(durationSec: [360, 400])
-        XCTAssertEqual(SuggestionChips.seed(from: long), ["long-form tracks"])
+        #expect(SuggestionChips.seed(from: long) == ["long-form tracks"])
     }
 
-    func testLimitCapsTheReturnedChipCount() {
+    @Test func testLimitCapsTheReturnedChipCount() {
         let summary = LibraryDescriptorSummary(
             bpm: [124], energy: [8], durationSec: [120], camelotCounts: ["9A": 1])
-        XCTAssertEqual(SuggestionChips.seed(from: summary, limit: 2).count, 2)
+        #expect(SuggestionChips.seed(from: summary, limit: 2).count == 2)
     }
 
     // MARK: - Fixture

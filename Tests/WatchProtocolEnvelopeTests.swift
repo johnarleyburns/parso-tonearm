@@ -1,20 +1,20 @@
-import XCTest
+import Testing
 @testable import TonearmWatchProtocol
 
 /// §5.1–5.5 codec coverage: every kind round-trips, unknown fields and versions behave as
 /// specified, and the error vocabulary stays complete.
-final class WatchProtocolEnvelopeTests: XCTestCase {
-    func testStatusPushesCoalesceClockChangesButNotRealProgress() {
+@Suite struct WatchProtocolEnvelopeTests {
+    @Test func testStatusPushesCoalesceClockChangesButNotRealProgress() {
         var first = WatchDownloadStatusSnapshot(revision: 1, activeTransfers: [.init(trackID: "a", fractionComplete: 0.2)], generatedAt: Date(timeIntervalSince1970: 1))
         var later = first
         later.revision = 99
         later.generatedAt = Date(timeIntervalSince1970: 99)
         later.lastWatchReportAt = Date()
-        XCTAssertEqual(first.coalescingContent, later.coalescingContent)
+        #expect(first.coalescingContent == later.coalescingContent)
         first.activeTransfers[0].fractionComplete = 0.3
-        XCTAssertNotEqual(first.coalescingContent, later.coalescingContent)
+        #expect(first.coalescingContent != later.coalescingContent)
     }
-    func testSelectedCatalogIsLZFSECompressedAndRoundTrips() throws {
+    @Test func testSelectedCatalogIsLZFSECompressedAndRoundTrips() throws {
         let tracks = (0..<20).map { index in
             WatchTrackSummary(trackID: WatchTrackID("track-\(index)"),
                 title: String(repeating: "Long searchable track title \(index) ", count: 8),
@@ -24,31 +24,31 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
             pageCount: 1, tracks: tracks, playlists: [], downloadSelectionOnly: true)
         let encoded = try WatchProtocolEnvelope.fromPhone(kind: .catalogPage, payload: page,
             libraryID: "library", revision: 1)
-        let dictionary = try XCTUnwrap(PropertyListSerialization.propertyList(from: encoded, format: nil) as? [String: Any])
-        XCTAssertEqual(dictionary["payloadCompression"] as? String, "lzfse")
-        let compressed = try XCTUnwrap(dictionary["payload"] as? Data)
-        XCTAssertLessThan(compressed.count, try WatchProtocolEnvelope.encodePayload(page).count)
+        let dictionary = try #require(PropertyListSerialization.propertyList(from: encoded, format: nil) as? [String: Any])
+        #expect(dictionary["payloadCompression"] as? String == "lzfse")
+        let compressed = try #require(dictionary["payload"] as? Data)
+        #expect(compressed.count < (try WatchProtocolEnvelope.encodePayload(page).count))
         let decoded = try WatchProtocolEnvelope.decode(encoded).get().decodePayload(WatchLibraryPage.self)
-        XCTAssertEqual(decoded, page)
+        #expect(decoded == page)
     }
-    func testMinimalTrackMetadataOmitsEmptyAndDerivedFields() throws {
+    @Test func testMinimalTrackMetadataOmitsEmptyAndDerivedFields() throws {
         let track = WatchTrackSummary(trackID: "id", title: "Title")
         let data = try WatchProtocolEnvelope.encodePayload(track)
-        let fields = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
-        XCTAssertEqual(Set(fields.keys), ["trackID", "title"])
-        XCTAssertEqual(try PropertyListDecoder().decode(WatchTrackSummary.self, from: data), track)
+        let fields = try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        #expect(Set(fields.keys) == ["trackID", "title"])
+        #expect(try PropertyListDecoder().decode(WatchTrackSummary.self, from: data) == track)
     }
-    func testCancellationBeforeContinuationInstallationIsNotLost() async {
+    @Test func testCancellationBeforeContinuationInstallationIsNotLost() async {
         let completion = WatchImmediateCompletion()
         completion.finish(.failure(.init(code: .requestTimedOut)))
         do {
             let _: Data = try await withCheckedThrowingContinuation { completion.install($0) }
-            XCTFail("Cancelled request must finish")
-        } catch { XCTAssertEqual((error as? WatchProtocolFault)?.code, .requestTimedOut) }
+            Issue.record("Cancelled request must finish")
+        } catch { #expect((error as? WatchProtocolFault)?.code == .requestTimedOut) }
         completion.finish(.success(Data([1])))
     }
 
-    func testNativeCallbackThatNeverArrivesDoesNotTrapDeadlineTaskGroup() async {
+    @Test func testNativeCallbackThatNeverArrivesDoesNotTrapDeadlineTaskGroup() async {
         let completion = WatchImmediateCompletion()
         let clock = ContinuousClock()
         let start = clock.now
@@ -60,23 +60,23 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
                     completion.finish(.failure(.init(code: .requestTimedOut)))
                 }
             }
-            XCTFail("Missing native reply must time out")
-        } catch { XCTAssertEqual((error as? WatchProtocolFault)?.code, .requestTimedOut) }
-        XCTAssertLessThan(start.duration(to: clock.now), .seconds(2))
+            Issue.record("Missing native reply must time out")
+        } catch { #expect((error as? WatchProtocolFault)?.code == .requestTimedOut) }
+        #expect(start.duration(to: clock.now) < .seconds(2))
         completion.finish(.success(Data([42])))
     }
 
-    func testWatchReconcilesRootUsingItsOwnFilesNotPhoneReadinessClaims() {
+    @Test func testWatchReconcilesRootUsingItsOwnFilesNotPhoneReadinessClaims() {
         let stalePhone = WatchDownloadRootStatus(rootID: "r", title: "Playlist", desiredCount: 2,
             readyCount: 2, state: .complete, trackIDs: ["a", "b"])
         let local = stalePhone.reconciled(readyTrackIDs: ["a"])
-        XCTAssertEqual(local.readyCount, 1)
-        XCTAssertEqual(local.state, .queued)
+        #expect(local.readyCount == 1)
+        #expect(local.state == .queued)
         let stalePending = WatchDownloadRootStatus(rootID: "r", title: "Playlist", desiredCount: 2,
             readyCount: 0, state: .queued, trackIDs: ["a", "b"])
-        XCTAssertEqual(stalePending.reconciled(readyTrackIDs: ["a", "b"]).state, .complete)
+        #expect(stalePending.reconciled(readyTrackIDs: ["a", "b"]).state == .complete)
     }
-    func testImmediateCompletionIgnoresRepeatedErrorsAndLateReply() async {
+    @Test func testImmediateCompletionIgnoresRepeatedErrorsAndLateReply() async {
         do {
             let _: Data = try await withCheckedThrowingContinuation { continuation in
                 let completion = WatchImmediateCompletion(continuation)
@@ -84,48 +84,48 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
                 completion.finish(.failure(.init(code: .requestTimedOut)))
                 completion.finish(.success(Data([1])))
             }
-            XCTFail("The first error must win")
+            Issue.record("The first error must win")
         } catch {
-            XCTAssertEqual((error as? WatchProtocolFault)?.code, .phoneUnavailable)
+            #expect((error as? WatchProtocolFault)?.code == .phoneUnavailable)
         }
     }
 
-    func testImmediateCompletionIgnoresLateErrorsAfterReply() async throws {
+    @Test func testImmediateCompletionIgnoresLateErrorsAfterReply() async throws {
         let result: Data = try await withCheckedThrowingContinuation { continuation in
             let completion = WatchImmediateCompletion(continuation)
             completion.finish(.success(Data([42])))
             completion.finish(.failure(.init(code: .requestTimedOut)))
             completion.finish(.success(Data([99])))
         }
-        XCTAssertEqual(result, Data([42]))
+        #expect(result == Data([42]))
     }
 
-    func testImmediateCompletionClaimsExactlyOneConcurrentCallback() async throws {
+    @Test func testImmediateCompletionClaimsExactlyOneConcurrentCallback() async throws {
         let result: Data = try await withCheckedThrowingContinuation { continuation in
             let completion = WatchImmediateCompletion(continuation)
             DispatchQueue.concurrentPerform(iterations: 100) { index in
                 completion.finish(.success(Data([UInt8(index)])))
             }
         }
-        XCTAssertEqual(result.count, 1)
+        #expect(result.count == 1)
     }
 
-    func testAudioContainerSurvivesMetadataRoundTripAndCacheNaming() throws {
+    @Test func testAudioContainerSurvivesMetadataRoundTripAndCacheNaming() throws {
         let cache = URL(fileURLWithPath: "/cache/" + String(repeating: "a", count: 64) + "-MP3")
         let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: 42,
             fileExtension: WatchAudioFileMetadata.fileExtension(for: cache))
-        XCTAssertEqual(metadata.fileExtension, "mp3")
-        XCTAssertEqual(WatchAudioFileMetadata(dictionary: metadata.dictionary), metadata)
-        XCTAssertEqual(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/music/one.M4A")), "m4a")
-        XCTAssertNil(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/cache/arbitrary-mp3")))
-        XCTAssertNil(WatchAudioFileMetadata(dictionary: ["trackID": "old", "expectedBytes": "42"])?.fileExtension)
+        #expect(metadata.fileExtension == "mp3")
+        #expect(WatchAudioFileMetadata(dictionary: metadata.dictionary) == metadata)
+        #expect(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/music/one.M4A")) == "m4a")
+        #expect(WatchAudioFileMetadata.fileExtension(for: URL(fileURLWithPath: "/cache/arbitrary-mp3")) == nil)
+        #expect(WatchAudioFileMetadata(dictionary: ["trackID": "old", "expectedBytes": "42"])?.fileExtension == nil)
     }
 
     private let library = WatchPairedLibraryID("library-A")
 
     // MARK: - Round trips
 
-    func testEveryRequestKindRoundTripsThroughTheEnvelope() throws {
+    @Test func testEveryRequestKindRoundTripsThroughTheEnvelope() throws {
         // One representative payload per §5.3 kind. The point of enumerating all of them is that a
         // new kind added without a codec fails here rather than in the field.
         var covered: Set<WatchMessageKind> = []
@@ -134,11 +134,11 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
             let data = try WatchProtocolEnvelope.encode(kind: kind, payload: payload,
                                                         pairedLibraryID: library, phoneRevision: 7)
             let envelope = try WatchProtocolEnvelope.decode(data).get()
-            XCTAssertEqual(envelope.kind, kind)
-            XCTAssertEqual(envelope.pairedLibraryID, library)
-            XCTAssertEqual(envelope.phoneRevision, 7)
-            XCTAssertEqual(envelope.protocolVersion, WatchProtocolEnvelope.currentProtocolVersion)
-            XCTAssertEqual(try envelope.decodePayload(type(of: payload)), payload)
+            #expect(envelope.kind == kind)
+            #expect(envelope.pairedLibraryID == library)
+            #expect(envelope.phoneRevision == 7)
+            #expect(envelope.protocolVersion == WatchProtocolEnvelope.currentProtocolVersion)
+            #expect(try envelope.decodePayload(type(of: payload)) == payload)
             covered.insert(kind)
         }
 
@@ -187,38 +187,39 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
                                                                trackIDs: ["t1"])]) )
         try check(.error, WatchProtocolFault(code: .insufficientWatchStorage, retryAfterSeconds: 30))
 
-        XCTAssertEqual(covered, Set(WatchMessageKind.allCases),
+        #expect(covered == Set(WatchMessageKind.allCases),
                        "a message kind has no codec test: \(Set(WatchMessageKind.allCases).subtracting(covered))")
     }
 
-    func testEnvelopeIsBinaryPropertyList() throws {
+    @Test func testEnvelopeIsBinaryPropertyList() throws {
         let data = try WatchProtocolEnvelope.encode(kind: .hello, payload: WatchHello(),
                                                     pairedLibraryID: library)
         var format = PropertyListSerialization.PropertyListFormat.xml
         _ = try PropertyListSerialization.propertyList(from: data, options: [], format: &format)
-        XCTAssertEqual(format, .binary)
+        #expect(format == .binary)
     }
 
-    func testTypedIDsEncodeAsBareStrings() throws {
+    @Test func testTypedIDsEncodeAsBareStrings() throws {
         // A keyed `{"rawValue": …}` shape would silently double the size of every ID in every page.
         let data = try JSONEncoder().encode(WatchTrackID("track-7"))
-        XCTAssertEqual(String(data: data, encoding: .utf8), "\"track-7\"")
-        XCTAssertEqual(try JSONDecoder().decode(WatchTrackID.self, from: data), "track-7")
+        #expect(String(data: data, encoding: .utf8) == "\"track-7\"")
+        #expect(try JSONDecoder().decode(WatchTrackID.self, from: data) == "track-7")
     }
 
     // MARK: - Version and kind handling
 
-    func testUnsupportedProtocolVersionIsReportedWithBothVersions() throws {
+    @Test func testUnsupportedProtocolVersionIsReportedWithBothVersions() throws {
         let data = try WatchProtocolEnvelope.encode(kind: .hello, payload: WatchHello(),
                                                     pairedLibraryID: library, protocolVersion: 99)
         guard case .failure(let failure) = WatchProtocolEnvelope.decode(data) else {
-            return XCTFail("a version-99 envelope must not decode")
+            Issue.record("a version-99 envelope must not decode")
+            return
         }
-        XCTAssertEqual(failure, .unsupportedVersion(peer: 99, local: WatchProtocolEnvelope.currentProtocolVersion))
-        XCTAssertEqual(failure.errorCode, .protocolUpgradeRequired)
+        #expect(failure == .unsupportedVersion(peer: 99, local: WatchProtocolEnvelope.currentProtocolVersion))
+        #expect(failure.errorCode == .protocolUpgradeRequired)
     }
 
-    func testUnknownKindFromASupportedVersionNamesTheKind() throws {
+    @Test func testUnknownKindFromASupportedVersionNamesTheKind() throws {
         // Hand-built because the enum cannot express a kind we do not have.
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary
@@ -227,13 +228,14 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
             phoneRevision: 0, sentAt: Date(), kind: "teleport", payload: Data(),
             unknownFutureField: "ignored", anotherUnknown: 42))
         guard case .failure(let failure) = WatchProtocolEnvelope.decode(data) else {
-            return XCTFail("an unknown kind must not decode")
+            Issue.record("an unknown kind must not decode")
+            return
         }
-        XCTAssertEqual(failure, .unsupportedKind("teleport"))
-        XCTAssertEqual(failure.errorCode, .protocolUpgradeRequired)
+        #expect(failure == .unsupportedKind("teleport"))
+        #expect(failure.errorCode == .protocolUpgradeRequired)
     }
 
-    func testUnknownFieldsFromANewerPeerAreIgnored() throws {
+    @Test func testUnknownFieldsFromANewerPeerAreIgnored() throws {
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary
         let messageID = UUID()
@@ -243,62 +245,63 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
             payload: try WatchProtocolEnvelope.encodePayload(WatchHello()),
             unknownFutureField: "a field we have never heard of", anotherUnknown: 7))
         let envelope = try WatchProtocolEnvelope.decode(data).get()
-        XCTAssertEqual(envelope.kind, .hello)
-        XCTAssertEqual(envelope.messageID, messageID)
-        XCTAssertEqual(envelope.phoneRevision, 12)
+        #expect(envelope.kind == .hello)
+        #expect(envelope.messageID == messageID)
+        #expect(envelope.phoneRevision == 12)
     }
 
-    func testMalformedDataIsMalformedNotAVersionProblem() {
+    @Test func testMalformedDataIsMalformedNotAVersionProblem() {
         guard case .failure(let failure) = WatchProtocolEnvelope.decode(Data([0x00, 0x01, 0x02])) else {
-            return XCTFail("random bytes must not decode")
+            Issue.record("random bytes must not decode")
+            return
         }
-        XCTAssertEqual(failure, .malformed)
+        #expect(failure == .malformed)
         // A corrupt blob is a transport problem, not a reason to tell the user to update the app.
-        XCTAssertEqual(failure.errorCode, .transferFailed)
+        #expect(failure.errorCode == .transferFailed)
     }
 
-    func testOptionalPayloadFieldsSurviveOmission() throws {
+    @Test func testOptionalPayloadFieldsSurviveOmission() throws {
         let minimal = WatchPlayCommand(action: .pause)
         let data = try WatchProtocolEnvelope.encode(kind: .playCommand, payload: minimal,
                                                     pairedLibraryID: library)
         let decoded = try WatchProtocolEnvelope.decode(data).get().decodePayload(WatchPlayCommand.self)
-        XCTAssertEqual(decoded, minimal)
-        XCTAssertNil(decoded.collection)
-        XCTAssertNil(decoded.startIndex)
+        #expect(decoded == minimal)
+        #expect(decoded.collection == nil)
+        #expect(decoded.startIndex == nil)
     }
 
-    func testArtworkMetadataRoundTripsAndUsesArtworkDiscriminator() throws {
+    @Test func testArtworkMetadataRoundTripsAndUsesArtworkDiscriminator() throws {
         let metadata = WatchArtworkFileMetadata(
             artworkID: String(repeating: "a", count: 64), expectedBytes: 12_345,
             sha256: String(repeating: "a", count: 64), role: .custom, phoneRevision: 9)
-        XCTAssertEqual(WatchArtworkFileMetadata(dictionary: metadata.dictionary), metadata)
-        XCTAssertEqual(metadata.dictionary["assetKind"], "artwork")
-        XCTAssertNil(WatchArtworkFileMetadata(dictionary: ["assetKind": "audio"]))
+        #expect(WatchArtworkFileMetadata(dictionary: metadata.dictionary) == metadata)
+        #expect(metadata.dictionary["assetKind"] == "artwork")
+        #expect(WatchArtworkFileMetadata(dictionary: ["assetKind": "audio"]) == nil)
     }
 
-    func testTrackSummaryDecodesWhenArtworkBindingsAreAbsent() throws {
+    @Test func testTrackSummaryDecodesWhenArtworkBindingsAreAbsent() throws {
         let legacyJSON = Data(#"{"trackID":"t1","title":"Song","artist":"","albumTitle":"","artworkID":null,"isDownloadedOnWatch":false}"#.utf8)
         let decoded = try JSONDecoder().decode(WatchTrackSummary.self, from: legacyJSON)
-        XCTAssertNil(decoded.coverArtworkID)
-        XCTAssertNil(decoded.customArtworkID)
+        #expect(decoded.coverArtworkID == nil)
+        #expect(decoded.customArtworkID == nil)
     }
 
-    func testLegacyManifestDecodesWhenArtworkIDsWereNotPresent() throws {
+    @Test func testLegacyManifestDecodesWhenArtworkIDsWereNotPresent() throws {
         let legacyJSON = Data(#"{"manifestID":"m1","readyTrackIDs":["t1"],"installedBytes":42}"#.utf8)
         let decoded = try JSONDecoder().decode(WatchManifestPayload.self, from: legacyJSON)
-        XCTAssertEqual(decoded.readyTrackIDs, [WatchTrackID("t1")])
-        XCTAssertEqual(decoded.installedBytes, 42)
-        XCTAssertEqual(decoded.installedArtworkIDs, [])
-        XCTAssertNil(decoded.lastCatalogReceivedAt)
-        XCTAssertNil(decoded.lastAudioInstalledAt)
-        XCTAssertTrue(decoded.partialAudioDownloads.isEmpty)
-        XCTAssertTrue(decoded.audioDownloadFailures.isEmpty)
-        XCTAssertTrue(decoded.audioFailureTransferIDs.isEmpty)
+        #expect(decoded.readyTrackIDs == [WatchTrackID("t1")])
+        #expect(decoded.installedBytes == 42)
+        #expect(decoded.installedArtworkIDs == [])
+        #expect(decoded.lastCatalogReceivedAt == nil)
+        #expect(decoded.lastAudioInstalledAt == nil)
+        #expect(decoded.partialAudioDownloads.isEmpty)
+        #expect(decoded.audioDownloadFailures.isEmpty)
+        #expect(decoded.audioFailureTransferIDs.isEmpty)
     }
 
     // MARK: - Correlation
 
-    func testReplyCarriesTheRequestsMessageIDAsCorrelation() throws {
+    @Test func testReplyCarriesTheRequestsMessageIDAsCorrelation() throws {
         let requestData = try WatchProtocolEnvelope.encode(
             kind: .collectionRequest, payload: WatchCollectionRequest(collection: .album("al1")),
             pairedLibraryID: library)
@@ -308,127 +311,129 @@ final class WatchProtocolEnvelopeTests: XCTestCase {
             payload: WatchCollectionResponse(collection: .album("al1"), title: "Record",
                                              tracks: [], totalCount: 0))
         let reply = try WatchProtocolEnvelope.decode(replyData).get()
-        XCTAssertEqual(reply.correlationID, request.messageID)
-        XCTAssertNotEqual(reply.messageID, request.messageID)
-        XCTAssertFalse(try reply.decodePayload(WatchCollectionResponse.self).isPlayable)
+        #expect(reply.correlationID == request.messageID)
+        #expect(reply.messageID != request.messageID)
+        #expect(!(try reply.decodePayload(WatchCollectionResponse.self).isPlayable))
     }
 
-    func testDictionaryChannelUsesOneStableKey() throws {
+    @Test func testDictionaryChannelUsesOneStableKey() throws {
         let data = try WatchProtocolEnvelope.encode(kind: .hello, payload: WatchHello(),
                                                     pairedLibraryID: library)
         let dictionary = WatchProtocolEnvelope.dictionary(for: data)
-        XCTAssertEqual(dictionary.count, 1)
-        XCTAssertEqual(WatchProtocolEnvelope.payloadData(in: dictionary), data)
-        XCTAssertNil(WatchProtocolEnvelope.payloadData(in: ["someOtherKey": data]))
+        #expect(dictionary.count == 1)
+        #expect(WatchProtocolEnvelope.payloadData(in: dictionary) == data)
+        #expect(WatchProtocolEnvelope.payloadData(in: ["someOtherKey": data]) == nil)
     }
 
     // MARK: - §5.5 vocabulary
 
-    func testEveryErrorCodeHasARetryPolicyAndACopyStringWithNoInterpolation() {
+    @Test func testEveryErrorCodeHasARetryPolicyAndACopyStringWithNoInterpolation() {
         for code in WatchProtocolErrorCode.allCases {
             let message = code.safeDisplayMessage
-            XCTAssertFalse(message.isEmpty, "\(code) has no display message")
+            #expect(!message.isEmpty, "\(code) has no display message")
             // A-06: the copy table is fixed text. If a message ever gains a placeholder, it is one
             // step from carrying a title or a path.
-            XCTAssertFalse(message.contains("\\("), "\(code) interpolates into its display message")
-            XCTAssertFalse(message.contains("/"), "\(code) display message looks like a path")
+            #expect(!message.contains("\\("), "\(code) interpolates into its display message")
+            #expect(!message.contains("/"), "\(code) display message looks like a path")
         }
-        XCTAssertEqual(WatchProtocolErrorCode.requestTimedOut.retryPolicy, .singleUserRetry)
-        XCTAssertEqual(WatchProtocolErrorCode.waitingForWiFi.retryPolicy, .automaticWhenPolicyPermits)
-        XCTAssertEqual(WatchProtocolErrorCode.storeRecovered.retryPolicy, .informationalOnly)
-        XCTAssertEqual(WatchProtocolErrorCode.protocolUpgradeRequired.retryPolicy, .appUpgradeRequired)
+        #expect(WatchProtocolErrorCode.requestTimedOut.retryPolicy == .singleUserRetry)
+        #expect(WatchProtocolErrorCode.waitingForWiFi.retryPolicy == .automaticWhenPolicyPermits)
+        #expect(WatchProtocolErrorCode.storeRecovered.retryPolicy == .informationalOnly)
+        #expect(WatchProtocolErrorCode.protocolUpgradeRequired.retryPolicy == .appUpgradeRequired)
     }
 
-    func testFaultPayloadCarriesNoFreeText() throws {
+    @Test func testFaultPayloadCarriesNoFreeText() throws {
         // The whole of A-06's protocol-side guarantee: there is no string field to leak into.
         let fault = WatchProtocolFault(code: .checksumMismatch)
         let data = try WatchProtocolEnvelope.encodePayload(fault)
         let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
-        let dictionary = try XCTUnwrap(plist as? [String: Any])
-        XCTAssertEqual(Set(dictionary.keys), ["code"])
+        let dictionary = try #require(plist as? [String: Any])
+        #expect(Set(dictionary.keys) == ["code"])
     }
 
-    func testDownloadStatusSnapshotToleratesAnOlderPhoneOmittingActiveTransfers() throws {
+    @Test func testDownloadStatusSnapshotToleratesAnOlderPhoneOmittingActiveTransfers() throws {
         let legacyJSON = Data(#"{"revision":3,"queuedCount":1,"activeCount":1}"#.utf8)
         let decoded = try JSONDecoder().decode(WatchDownloadStatusSnapshot.self, from: legacyJSON)
-        XCTAssertEqual(decoded.activeCount, 1)
-        XCTAssertTrue(decoded.activeTransfers.isEmpty)
-        XCTAssertNil(decoded.fraction(for: "t1"))
-        XCTAssertTrue(decoded.activities.isEmpty)
-        XCTAssertNil(decoded.generatedAt)
-        XCTAssertNil(decoded.lastWatchReportAt)
+        #expect(decoded.activeCount == 1)
+        #expect(decoded.activeTransfers.isEmpty)
+        #expect(decoded.fraction(for: "t1") == nil)
+        #expect(decoded.activities.isEmpty)
+        #expect(decoded.generatedAt == nil)
+        #expect(decoded.lastWatchReportAt == nil)
     }
 
-    func testMessageKindsAreRoutedToTheChannelSection5_2Assigns() {
-        XCTAssertEqual(WatchMessageKind.searchRequest.channel, .immediate)
-        XCTAssertEqual(WatchMessageKind.phonePlaybackSnapshot.channel, .applicationContext)
-        XCTAssertEqual(WatchMessageKind.setDownloadRoots.channel, .userInfo)
-        XCTAssertEqual(WatchMessageKind.watchManifest.channel, .userInfo)
-        XCTAssertEqual(WatchMessageKind.requestDownload.channel, .userInfo)
-        XCTAssertTrue(WatchMessageKind.removeAssets.isRevisioned)
-        XCTAssertFalse(WatchMessageKind.searchRequest.isRevisioned)
-        XCTAssertFalse(WatchMessageKind.requestDownload.isRevisioned)
+    @Test func testMessageKindsAreRoutedToTheChannelSection5_2Assigns() {
+        #expect(WatchMessageKind.searchRequest.channel == .immediate)
+        #expect(WatchMessageKind.phonePlaybackSnapshot.channel == .applicationContext)
+        #expect(WatchMessageKind.setDownloadRoots.channel == .userInfo)
+        #expect(WatchMessageKind.watchManifest.channel == .userInfo)
+        #expect(WatchMessageKind.requestDownload.channel == .userInfo)
+        #expect(WatchMessageKind.removeAssets.isRevisioned)
+        #expect(!WatchMessageKind.searchRequest.isRevisioned)
+        #expect(!WatchMessageKind.requestDownload.isRevisioned)
     }
 
     // MARK: - Negotiation
 
-    func testCapabilityNegotiationIntersectsAndRejectsAVersionMismatch() {
+    @Test func testCapabilityNegotiationIntersectsAndRejectsAVersionMismatch() {
         let local = WatchHello(capabilities: [.connectedSearch, .connectedBrowse, .downloadRoots, .artworkAssets])
         let remote = WatchHelloReply(pairedLibraryID: library,
                                      capabilities: [.connectedSearch, .phonePlaybackControl, .artworkAssets],
                                      phoneRevision: 4)
         guard case .success(let session) = WatchCapabilityNegotiation.negotiate(local: local, remote: remote) else {
-            return XCTFail("same-version peers must negotiate")
+            Issue.record("same-version peers must negotiate")
+            return
         }
-        XCTAssertEqual(session.capabilities, [.connectedSearch, .artworkAssets])
-        XCTAssertTrue(session.supports(.artworkAssets))
-        XCTAssertTrue(session.supports(.connectedSearch))
-        XCTAssertFalse(session.supports(.phonePlaybackControl))
-        XCTAssertEqual(session.phoneRevision, 4)
+        #expect(session.capabilities == [.connectedSearch, .artworkAssets])
+        #expect(session.supports(.artworkAssets))
+        #expect(session.supports(.connectedSearch))
+        #expect(!session.supports(.phonePlaybackControl))
+        #expect(session.phoneRevision == 4)
 
         let futureRemote = WatchHelloReply(protocolVersion: WatchProtocolEnvelope.currentProtocolVersion + 1, pairedLibraryID: library)
         guard case .failure(let fault) = WatchCapabilityNegotiation.negotiate(local: local, remote: futureRemote) else {
-            return XCTFail("a version mismatch must not negotiate")
+            Issue.record("a version mismatch must not negotiate")
+            return
         }
-        XCTAssertEqual(fault.code, .protocolUpgradeRequired)
+        #expect(fault.code == .protocolUpgradeRequired)
     }
 
     // MARK: - Playback anchoring
 
-    func testElapsedPositionIsProjectedFromTheAnchorAndClampedToDuration() {
+    @Test func testElapsedPositionIsProjectedFromTheAnchorAndClampedToDuration() {
         let anchor = Date(timeIntervalSince1970: 1_000)
         let track = WatchTrackSummary(trackID: "t1", title: "Song", durationSeconds: 100)
         let playing = WatchPhonePlaybackSnapshot(revision: 1, isPlaying: true, rate: 1,
                                                  currentItem: track, elapsedSeconds: 10,
                                                  elapsedAnchorDate: anchor)
-        XCTAssertEqual(playing.elapsedSeconds(at: anchor), 10, accuracy: 0.001)
-        XCTAssertEqual(playing.elapsedSeconds(at: anchor.addingTimeInterval(5)), 15, accuracy: 0.001)
+        #expect(abs(playing.elapsedSeconds(at: anchor) - 10) <= 0.001)
+        #expect(abs(playing.elapsedSeconds(at: anchor.addingTimeInterval(5)) - 15) <= 0.001)
         // A snapshot that arrived after the track ended must not render past the end.
-        XCTAssertEqual(playing.elapsedSeconds(at: anchor.addingTimeInterval(500)), 100, accuracy: 0.001)
+        #expect(abs(playing.elapsedSeconds(at: anchor.addingTimeInterval(500)) - 100) <= 0.001)
 
         let paused = WatchPhonePlaybackSnapshot(revision: 1, isPlaying: false, rate: 0,
                                                 currentItem: track, elapsedSeconds: 42,
                                                 elapsedAnchorDate: anchor)
-        XCTAssertEqual(paused.elapsedSeconds(at: anchor.addingTimeInterval(60)), 42, accuracy: 0.001)
+        #expect(abs(paused.elapsedSeconds(at: anchor.addingTimeInterval(60)) - 42) <= 0.001)
     }
 
-    func testSearchDebouncePolicyMatchesSection6_1() {
-        XCTAssertFalse(WatchSearchRequest.isSubmittableWhileTyping("a"))
-        XCTAssertFalse(WatchSearchRequest.isSubmittableWhileTyping("  a  "))
-        XCTAssertTrue(WatchSearchRequest.isSubmittableWhileTyping("ab"))
-        XCTAssertEqual(WatchSearchRequest.debounceInterval, 0.25, accuracy: 0.0001)
+    @Test func testSearchDebouncePolicyMatchesSection6_1() {
+        #expect(!WatchSearchRequest.isSubmittableWhileTyping("a"))
+        #expect(!WatchSearchRequest.isSubmittableWhileTyping("  a  "))
+        #expect(WatchSearchRequest.isSubmittableWhileTyping("ab"))
+        #expect(abs(WatchSearchRequest.debounceInterval - 0.25) <= 0.0001)
         // §6.1 caps a page at 30 mixed results, and the initializer enforces it rather than trusting
         // the caller.
-        XCTAssertEqual(WatchSearchRequest(query: "x", generation: 1, limit: 5_000).limit, 30)
+        #expect(WatchSearchRequest(query: "x", generation: 1, limit: 5_000).limit == 30)
     }
 
-    func testDesiredTrackSetDeduplicatesAcrossRoots() {
+    @Test func testDesiredTrackSetDeduplicatesAcrossRoots() {
         // E-04: a track required by two roots is one desired track.
         let roots = WatchSetDownloadRoots(revision: 1, roots: [
             WatchDownloadRootDescriptor(rootID: "r1", kind: .playlist, sourceID: "p1", trackIDs: ["t1", "t2"]),
             WatchDownloadRootDescriptor(rootID: "r2", kind: .albumBatch, sourceID: "al1", trackIDs: ["t2", "t3"])
         ])
-        XCTAssertEqual(roots.desiredTrackIDs, ["t1", "t2", "t3"])
+        #expect(roots.desiredTrackIDs == ["t1", "t2", "t3"])
     }
 }
 

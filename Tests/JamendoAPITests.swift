@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 private final class JamendoStubProtocol: URLProtocol {
@@ -38,7 +38,7 @@ private func envelope(_ ids: [String]) -> String {
 }
 
 @MainActor
-final class JamendoAPITests: XCTestCase {
+@Suite struct JamendoAPITests {
     private func makeAPI() -> JamendoAPI {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [JamendoStubProtocol.self]
@@ -48,35 +48,35 @@ final class JamendoAPITests: XCTestCase {
     }
 
     private func rawQuery() throws -> String {
-        let url = try XCTUnwrap(JamendoStubProtocol.requests.last?.url)
-        return try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
+        let url = try #require(JamendoStubProtocol.requests.last?.url)
+        return try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
     }
 
-    func testMultipleIDsUsePercentEncodedPlus() async throws {
+    @Test func testMultipleIDsUsePercentEncodedPlus() async throws {
         JamendoStubProtocol.body = envelope(["1884163"])
         _ = try await makeAPI().tracks(ids: ["1884163", "1876521", "1892244"])
         let query = try rawQuery()
-        XCTAssertTrue(query.contains("id=1884163%2B1876521%2B1892244"), query)
-        XCTAssertFalse(query.contains("id=1884163+1876521+1892244"), query)
-        XCTAssertFalse(query.contains("%20"), query)
+        #expect(query.contains("id=1884163%2B1876521%2B1892244"), query)
+        #expect(!query.contains("id=1884163+1876521+1892244"), query)
+        #expect(!query.contains("%20"), query)
     }
 
-    func testSingleIDHasNoSeparator() async throws {
+    @Test func testSingleIDHasNoSeparator() async throws {
         JamendoStubProtocol.body = envelope(["1892244"])
         _ = try await makeAPI().tracks(ids: ["1892244"])
         let query = try rawQuery()
-        XCTAssertTrue(query.contains("id=1892244&"), query)
-        XCTAssertFalse(query.contains("%2B"), query)
-        XCTAssertFalse(query.contains("+"), query)
+        #expect(query.contains("id=1892244&"), query)
+        #expect(!query.contains("%2B"), query)
+        #expect(!query.contains("+"), query)
     }
 
-    func testEmptyIDsMakeNoRequest() async throws {
+    @Test func testEmptyIDsMakeNoRequest() async throws {
         let result = try await makeAPI().tracks(ids: [])
-        XCTAssertTrue(result.isEmpty)
-        XCTAssertTrue(JamendoStubProtocol.requests.isEmpty)
+        #expect(result.isEmpty)
+        #expect(JamendoStubProtocol.requests.isEmpty)
     }
 
-    func testOtherQueryParametersArePreserved() async throws {
+    @Test func testOtherQueryParametersArePreserved() async throws {
         // A non-empty, matching result — an empty one would now (correctly) trigger the
         // empty-lookup retry below and just slow this test down for no reason.
         JamendoStubProtocol.body = envelope(["1"])
@@ -84,18 +84,18 @@ final class JamendoAPITests: XCTestCase {
         let query = try rawQuery()
         for part in ["client_id=cid", "format=json", "limit=2", "include=musicinfo",
                      "audioformat=mp32", "audiodlformat=mp32"] {
-            XCTAssertTrue(query.contains(part), "\(part) missing from \(query)")
+            #expect(query.contains(part), "\(part) missing from \(query)")
         }
     }
 
-    func testResponseDecodesInServerOrder() async throws {
+    @Test func testResponseDecodesInServerOrder() async throws {
         let ids = ["10", "11", "12", "13", "14"]
         // Only three of the requested tracks come back, in reverse order.
         let available = [ids[4], ids[2], ids[0]]
         JamendoStubProtocol.body = envelope(available)
         let decoded = try await makeAPI().tracks(ids: ids)
-        XCTAssertEqual(decoded.map(\.id), available)
-        XCTAssertEqual(decoded.first?.audio, "https://example.test/\(ids[4]).mp3")
+        #expect(decoded.map(\.id) == available)
+        #expect(decoded.first?.audio == "https://example.test/\(ids[4]).mp3")
     }
 
     // MARK: - tracks(ids:) empty-lookup retry
@@ -105,31 +105,31 @@ final class JamendoAPITests: XCTestCase {
     /// retry of its own, and treats any failure as immediately fatal — so a single instance of
     /// this same confirmed-live upstream flake (a well-formed `success` envelope with zero
     /// matching rows) permanently failed that one play attempt.
-    func testEmptyIDLookupRetriesBeforeSucceeding() async throws {
+    @Test func testEmptyIDLookupRetriesBeforeSucceeding() async throws {
         // makeAPI() resets bodySequence, so it must be set AFTER constructing the API, not before.
         let api = makeAPI()
         JamendoStubProtocol.bodySequence = [envelope([]), envelope(["42"])]
         let tracks = try await api.tracks(ids: ["42"])
-        XCTAssertEqual(tracks.map(\.id), ["42"])
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 2, "initial attempt + 1 retry")
+        #expect(tracks.map(\.id) == ["42"])
+        #expect(JamendoStubProtocol.requests.count == 2, "initial attempt + 1 retry")
     }
 
     /// A genuinely gone/invalid id must still resolve to an empty array (the caller decides what
     /// that means) rather than retrying forever.
-    func testEmptyIDLookupGivesUpAfterExhaustingRetries() async throws {
+    @Test func testEmptyIDLookupGivesUpAfterExhaustingRetries() async throws {
         JamendoStubProtocol.body = envelope([])
         let tracks = try await makeAPI().tracks(ids: ["999999"])
-        XCTAssertTrue(tracks.isEmpty)
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries, then stop")
+        #expect(tracks.isEmpty)
+        #expect(JamendoStubProtocol.requests.count == 3, "initial attempt + 2 retries, then stop")
     }
 
     /// A partial match (some requested ids came back, some didn't) is not retried — only a
     /// complete miss is treated as the transient-flake case.
-    func testPartiallyMatchingIDLookupIsNotRetried() async throws {
+    @Test func testPartiallyMatchingIDLookupIsNotRetried() async throws {
         JamendoStubProtocol.body = envelope(["1"])
         let tracks = try await makeAPI().tracks(ids: ["1", "2"])
-        XCTAssertEqual(tracks.map(\.id), ["1"])
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 1)
+        #expect(tracks.map(\.id) == ["1"])
+        #expect(JamendoStubProtocol.requests.count == 1)
     }
 
     // MARK: - tags(tag:offset:limit:) empty-first-page retry
@@ -137,30 +137,30 @@ final class JamendoAPITests: XCTestCase {
     /// Real report, confirmed live against the real API: an identical `tags=dance` request
     /// returned a real, non-empty page on one attempt and then zero on the next TWO consecutive
     /// attempts moments later — a single retry isn't always enough.
-    func testEmptyFirstPageRetriesUpToTwiceBeforeSucceeding() async throws {
+    @Test func testEmptyFirstPageRetriesUpToTwiceBeforeSucceeding() async throws {
         // makeAPI() resets bodySequence, so it must be set AFTER constructing the API, not before.
         let api = makeAPI()
         JamendoStubProtocol.bodySequence = [envelope([]), envelope([]), envelope(["1"])]
         let page = try await api.tracks(tag: "dance", offset: 0, limit: 10)
-        XCTAssertEqual(page.tracks.map(\.id), ["1"])
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries")
+        #expect(page.tracks.map(\.id) == ["1"])
+        #expect(JamendoStubProtocol.requests.count == 3, "initial attempt + 2 retries")
     }
 
     /// A tag that's genuinely empty (not just transiently flaky) must still resolve to an empty
     /// page rather than throwing or retrying forever — exactly 3 attempts, then give up quietly.
-    func testEmptyFirstPageGivesUpAfterExhaustingRetries() async throws {
+    @Test func testEmptyFirstPageGivesUpAfterExhaustingRetries() async throws {
         JamendoStubProtocol.body = envelope([])
         let page = try await makeAPI().tracks(tag: "nonexistent-tag", offset: 0, limit: 10)
-        XCTAssertTrue(page.tracks.isEmpty)
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 3, "initial attempt + 2 retries, then stop")
+        #expect(page.tracks.isEmpty)
+        #expect(JamendoStubProtocol.requests.count == 3, "initial attempt + 2 retries, then stop")
     }
 
     /// Only the first page gets the retry treatment — a real end of a non-empty list (offset > 0)
     /// must never be mistaken for the transient-empty-first-page flake.
-    func testEmptyLaterPageIsNeverRetried() async throws {
+    @Test func testEmptyLaterPageIsNeverRetried() async throws {
         JamendoStubProtocol.body = envelope([])
         let page = try await makeAPI().tracks(tag: "dance", offset: 50, limit: 10)
-        XCTAssertTrue(page.tracks.isEmpty)
-        XCTAssertEqual(JamendoStubProtocol.requests.count, 1, "no retry past the first page")
+        #expect(page.tracks.isEmpty)
+        #expect(JamendoStubProtocol.requests.count == 1, "no retry past the first page")
     }
 }

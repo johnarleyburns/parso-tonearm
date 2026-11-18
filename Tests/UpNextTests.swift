@@ -1,42 +1,43 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-@MainActor
-final class UpNextTests: XCTestCase {
+extension SharedProductionSingletonTests {
+    @MainActor
+    @Suite struct UpNextTests {
 
     // MARK: - Queue Source
 
-    func testQueueSourceFromPlaylist() {
+    @Test func testQueueSourceFromPlaylist() {
         let playlist = Playlist(id: 1, title: "Test Playlist", kind: .manual,
                                 folderBookmark: nil, watch: false)
         let source = QueueSource.playlist(playlist)
-        XCTAssertEqual(source.label, "From Playlist: Test Playlist")
+        #expect(source.label == "From Playlist: Test Playlist")
     }
 
-    func testQueueSourceFromSource() {
+    @Test func testQueueSourceFromSource() {
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "test",
                          originalURL: nil, title: "Beethoven",
                          addedAt: Date(), lastResolvedAt: nil,
                          followUpdates: false, licenseText: nil, memberCapHit: false)
         let source = QueueSource.source(src)
-        XCTAssertEqual(source.label, "From Library: Beethoven")
+        #expect(source.label == "From Library: Beethoven")
     }
 
-    func testQueueSourceLibrary() {
-        XCTAssertEqual(QueueSource.library.label, "From Music")
+    @Test func testQueueSourceLibrary() {
+        #expect(QueueSource.library.label == "From Music")
     }
 
-    func testQueueSourceAmbient() {
-        XCTAssertEqual(QueueSource.ambient.label, "Ambient")
+    @Test func testQueueSourceAmbient() {
+        #expect(QueueSource.ambient.label == "Ambient")
     }
 
-    func testQueueSourceNone() {
-        XCTAssertEqual(QueueSource.none.label, "")
+    @Test func testQueueSourceNone() {
+        #expect(QueueSource.none.label == "")
     }
 
     // MARK: - Up Next
 
-    func testUpNextContents() {
+    @Test func testUpNextContents() {
         let player = AudioPlayer.shared
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test Source",
@@ -58,15 +59,15 @@ final class UpNextTests: XCTestCase {
 
         player.play(tracks: tracks, startAt: 2, source: .source(src))
 
-        XCTAssertEqual(player.queueSource, .source(src))
-        XCTAssertEqual(player.index, 2)
-        XCTAssertEqual(player.queue.count, 10)
-        XCTAssertEqual(player.upNextTracks.count, 7) // tracks after index 2 = 3..9 = 7
-        XCTAssertEqual(player.upNextTracks.first?.track.title, "Track 4")
-        XCTAssertEqual(player.upNextTracks.last?.track.title, "Track 10")
+        #expect(player.queueSource == .source(src))
+        #expect(player.index == 2)
+        #expect(player.queue.count == 10)
+        #expect(player.upNextTracks.count == 7) // tracks after index 2 = 3..9 = 7
+        #expect(player.upNextTracks.first?.track.title == "Track 4")
+        #expect(player.upNextTracks.last?.track.title == "Track 10")
     }
 
-    func testUpNextEmptyWhenLastTrack() {
+    @Test func testUpNextEmptyWhenLastTrack() {
         let player = AudioPlayer.shared
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
@@ -83,10 +84,10 @@ final class UpNextTests: XCTestCase {
 
         player.play(tracks: [row], startAt: 0)
 
-        XCTAssertEqual(player.upNextTracks.count, 0)
+        #expect(player.upNextTracks.count == 0)
     }
 
-    func testUpNextAfterPlayResets() {
+    @Test func testUpNextAfterPlayResets() {
         let player = AudioPlayer.shared
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
@@ -107,7 +108,7 @@ final class UpNextTests: XCTestCase {
         }
 
         player.play(tracks: tracks1, startAt: 0)
-        XCTAssertEqual(player.upNextTracks.count, 4)
+        #expect(player.upNextTracks.count == 4)
 
         let tracks2: [TrackRow] = (1...3).map { i in
             let t = Track(id: Int64(i + 10), albumId: 1, sourceId: 1,
@@ -122,7 +123,7 @@ final class UpNextTests: XCTestCase {
         }
 
         player.play(tracks: tracks2, startAt: 1)
-        XCTAssertEqual(player.upNextTracks.count, 1)
+        #expect(player.upNextTracks.count == 1)
     }
 
     // MARK: - Direct library play
@@ -143,7 +144,7 @@ final class UpNextTests: XCTestCase {
         }
     }
 
-    func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
+    @Test func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
         let player = AudioPlayer.shared
         player.play(tracks: libraryRows("Old", 1...5), startAt: 2)
         let results = libraryRows("New", 20...24)
@@ -151,20 +152,21 @@ final class UpNextTests: XCTestCase {
 
         player.playLibraryResult(results, startAt: 1) { messages.append($0) }
 
-        XCTAssertEqual(player.queue.map(\.id), results.map(\.id))
-        XCTAssertEqual(player.index, 1)
-        XCTAssertEqual(player.queueSource, .library)
-        XCTAssertEqual(player.upNextTracks.map(\.track.title), ["New22", "New23", "New24"])
-        XCTAssertEqual(messages, ["Queue updated with New21"])
-        XCTAssertEqual(AudioPlayer.queueReplacedToastTag, "playback.queue-replaced")
+        #expect(player.queue.map(\.id) == results.map(\.id))
+        #expect(player.index == 1)
+        #expect(player.queueSource == .library)
+        #expect(player.upNextTracks.map(\.track.title) == ["New22", "New23", "New24"])
+        #expect(messages == ["Queue updated with New21"])
+        #expect(AudioPlayer.queueReplacedToastTag == "playback.queue-replaced")
     }
 
-    func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
+    @Test func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
         let player = AudioPlayer.shared
         player.play(tracks: [], startAt: 0)
-        XCTAssertTrue(player.queue.isEmpty)
+        #expect(player.queue.isEmpty)
         var messages: [String] = []
         player.playLibraryResult(libraryRows("New", 20...22), startAt: 0) { messages.append($0) }
-        XCTAssertTrue(messages.isEmpty)
+        #expect(messages.isEmpty)
+    }
     }
 }

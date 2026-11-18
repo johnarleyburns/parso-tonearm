@@ -1,10 +1,10 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class EmbyAPITests: XCTestCase {
+@Suite struct EmbyAPITests {
 
-    func testAuthenticateRequestAddsDeviceHeaderAndJSONBody() throws {
+    @Test func testAuthenticateRequestAddsDeviceHeaderAndJSONBody() throws {
         let baseURL = try EmbyAPI.normalizeBaseURL("media.example.com/emby/")
         let client = EmbyAPI.Client(name: "TonearmTests", device: "iPhone", deviceID: "device-1", version: "0.1")
         let request = try EmbyAPI.request(
@@ -12,56 +12,56 @@ final class EmbyAPITests: XCTestCase {
             endpoint: .authenticate(username: "alice", password: "secret"),
             client: client
         )
-        let body = try XCTUnwrap(request.httpBody)
-        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        let body = try #require(request.httpBody)
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
 
-        XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.url?.path, "/emby/Users/AuthenticateByName")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-        XCTAssertEqual(
-            request.value(forHTTPHeaderField: "X-Emby-Authorization"),
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/emby/Users/AuthenticateByName")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(
+            request.value(forHTTPHeaderField: "X-Emby-Authorization") ==
             #"MediaBrowser Client="TonearmTests", Device="iPhone", DeviceId="device-1", Version="0.1""#
         )
-        XCTAssertEqual(object["Username"], "alice")
-        XCTAssertEqual(object["Pw"], "secret")
+        #expect(object["Username"] == "alice")
+        #expect(object["Pw"] == "secret")
     }
 
-    func testAuthenticatedBrowseRequestBuildsExpectedQuery() throws {
+    @Test func testAuthenticatedBrowseRequestBuildsExpectedQuery() throws {
         let request = try EmbyAPI.request(
             baseURL: try EmbyAPI.normalizeBaseURL("https://media.example.com"),
             endpoint: .albums(userID: "user-1", artistID: "artist 1"),
             token: "token-1"
         )
-        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.path, "/Users/user-1/Items")
-        XCTAssertEqual(query["Recursive"], "true")
-        XCTAssertEqual(query["IncludeItemTypes"], "MusicAlbum")
-        XCTAssertEqual(query["AlbumArtistIds"], "artist 1")
-        XCTAssertEqual(query["SortBy"], "ProductionYear,SortName")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "token-1")
-        XCTAssertEqual(
-            request.value(forHTTPHeaderField: "X-Emby-Authorization"),
+        #expect(components.path == "/Users/user-1/Items")
+        #expect(query["Recursive"] == "true")
+        #expect(query["IncludeItemTypes"] == "MusicAlbum")
+        #expect(query["AlbumArtistIds"] == "artist 1")
+        #expect(query["SortBy"] == "ProductionYear,SortName")
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == "token-1")
+        #expect(
+            request.value(forHTTPHeaderField: "X-Emby-Authorization") ==
             #"MediaBrowser Client="Tonearm", Device="iPhone", DeviceId="tonearm-ios-emby", Version="1.0", Token="token-1""#
         )
     }
 
-    func testStreamRequestUsesAudioEndpointWithoutQueryToken() throws {
+    @Test func testStreamRequestUsesAudioEndpointWithoutQueryToken() throws {
         let request = try EmbyAPI.request(
             baseURL: try EmbyAPI.normalizeBaseURL("http://localhost:8096"),
             endpoint: .stream(itemID: "song 1"),
             token: "token-1"
         )
 
-        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false))
 
-        XCTAssertEqual(components.percentEncodedPath, "/Audio/song%201/stream")
-        XCTAssertNil(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.query)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Emby-Token"), "token-1")
+        #expect(components.percentEncodedPath == "/Audio/song%201/stream")
+        #expect(URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.query == nil)
+        #expect(request.value(forHTTPHeaderField: "X-Emby-Token") == "token-1")
     }
 
-    func testAuthenticationResponseDecodesTokenAndUser() throws {
+    @Test func testAuthenticationResponseDecodesTokenAndUser() throws {
         let auth = try EmbyAPI.decodeAuthentication(data("""
         {
           "User": { "Id": "user-1", "Name": "alice" },
@@ -70,7 +70,7 @@ final class EmbyAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(auth, EmbyAuthentication(
+        #expect(auth == EmbyAuthentication(
             accessToken: "access-token",
             userID: "user-1",
             username: "alice",
@@ -78,7 +78,7 @@ final class EmbyAPITests: XCTestCase {
         ))
     }
 
-    func testItemPageDecodesArtistsAlbumsAndTracks() throws {
+    @Test func testItemPageDecodesArtistsAlbumsAndTracks() throws {
         let page = try EmbyAPI.decodeItems(data("""
         {
           "Items": [
@@ -99,69 +99,78 @@ final class EmbyAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(page.totalRecordCount, 3)
-        XCTAssertEqual(page.items[0].type, .artist)
-        XCTAssertEqual(page.items[1].productionYear, 1997)
-        XCTAssertEqual(page.items[2].durationSec, 282)
-        XCTAssertEqual(page.items[2].sizeBytes, 98_765)
-        XCTAssertEqual(page.items[2].container, "flac")
-        XCTAssertEqual(page.items[2].albumID, "album-1")
-        XCTAssertEqual(page.items[2].albumArtist, "Biosphere")
-        XCTAssertEqual(page.items[2].codec, "flac")
-        XCTAssertEqual(page.items[2].sampleRate, 44_100)
-        XCTAssertEqual(page.items[2].bitRate, 879_000)
-        XCTAssertEqual(page.items[2].albumPrimaryImageTag, "album-tag")
+        #expect(page.totalRecordCount == 3)
+        #expect(page.items[0].type == .artist)
+        #expect(page.items[1].productionYear == 1997)
+        #expect(page.items[2].durationSec == 282)
+        #expect(page.items[2].sizeBytes == 98_765)
+        #expect(page.items[2].container == "flac")
+        #expect(page.items[2].albumID == "album-1")
+        #expect(page.items[2].albumArtist == "Biosphere")
+        #expect(page.items[2].codec == "flac")
+        #expect(page.items[2].sampleRate == 44_100)
+        #expect(page.items[2].bitRate == 879_000)
+        #expect(page.items[2].albumPrimaryImageTag == "album-tag")
     }
 
-    func testImageURLUsesPrimaryImageEndpoint() throws {
+    @Test func testImageURLUsesPrimaryImageEndpoint() throws {
         let url = try EmbyAPI.imageURL(
             baseURL: try EmbyAPI.normalizeBaseURL("https://media.example.com/emby"),
             itemID: "album-1",
             tag: "tag-1"
         )
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.path, "/emby/Items/album-1/Images/Primary")
-        XCTAssertEqual(query["tag"], "tag-1")
+        #expect(components.path == "/emby/Items/album-1/Images/Primary")
+        #expect(query["tag"] == "tag-1")
     }
 
-    func testEmptyLibraryDecodesToEmptyPage() throws {
+    @Test func testEmptyLibraryDecodesToEmptyPage() throws {
         let page = try EmbyAPI.decodeItems(data("""
         { "Items": [], "TotalRecordCount": 0, "StartIndex": 0 }
         """))
 
-        XCTAssertEqual(page, EmbyItemPage(items: [], totalRecordCount: 0, startIndex: 0))
+        #expect(page == EmbyItemPage(items: [], totalRecordCount: 0, startIndex: 0))
     }
 
-    func testUnknownItemTypesArePreserved() throws {
+    @Test func testUnknownItemTypesArePreserved() throws {
         let page = try EmbyAPI.decodeItems(data("""
         { "Items": [{ "Id": "box-1", "Name": "Box", "Type": "BoxSet" }] }
         """))
 
-        XCTAssertEqual(page.items.first?.type, .unknown("BoxSet"))
+        #expect(page.items.first?.type == .unknown("BoxSet"))
     }
 
-    func testMalformedResponsesThrow() {
-        XCTAssertThrowsError(try EmbyAPI.decodeAuthentication(data("{}"))) { error in
-            XCTAssertEqual(error as? EmbyAPI.Error, .missingField("AccessToken"))
+    @Test func testMalformedResponsesThrow() {
+        do {
+            _ = try EmbyAPI.decodeAuthentication(data("{}"))
+            Issue.record("expected decodeAuthentication(data(\"{}\")) to throw")
+        } catch {
+            #expect(error as? EmbyAPI.Error == .missingField("AccessToken"))
         }
-        XCTAssertThrowsError(try EmbyAPI.decodeItems(data("{}"))) { error in
-            XCTAssertEqual(error as? EmbyAPI.Error, .missingField("Items"))
+        do {
+            _ = try EmbyAPI.decodeItems(data("{}"))
+            Issue.record("expected decodeItems(data(\"{}\")) to throw")
+        } catch {
+            #expect(error as? EmbyAPI.Error == .missingField("Items"))
         }
-        XCTAssertThrowsError(try EmbyAPI.decodeItems(data("not-json"))) { error in
-            XCTAssertEqual(error as? EmbyAPI.Error, .malformedResponse)
+        do {
+            _ = try EmbyAPI.decodeItems(data("not-json"))
+            Issue.record("expected decodeItems(data(\"not-json\")) to throw")
+        } catch {
+            #expect(error as? EmbyAPI.Error == .malformedResponse)
         }
     }
 
-    func testServerFormPolicy() throws {
+    @Test func testServerFormPolicy() throws {
         let url = try EmbyServerPolicy.normalizeBaseURL("localhost:8096")
 
-        XCTAssertEqual(url.absoluteString, "https://localhost:8096")
-        XCTAssertTrue(EmbyServerPolicy.canSubmit(url: "http://localhost:8096", username: "alice", password: "secret"))
-        XCTAssertTrue(EmbyServerPolicy.canSubmit(url: "http://localhost:8096", username: "demo", password: ""))
-        XCTAssertFalse(EmbyServerPolicy.canSubmit(url: "ftp://localhost", username: "alice", password: "secret"))
-        XCTAssertFalse(EmbyServerPolicy.canSubmit(url: "http://localhost", username: "", password: "secret"))
+        #expect(url.absoluteString == "https://localhost:8096")
+        #expect(EmbyServerPolicy.canSubmit(url: "http://localhost:8096", username: "alice", password: "secret"))
+        #expect(EmbyServerPolicy.canSubmit(url: "http://localhost:8096", username: "demo", password: ""))
+        #expect(!EmbyServerPolicy.canSubmit(url: "ftp://localhost", username: "alice", password: "secret"))
+        #expect(!EmbyServerPolicy.canSubmit(url: "http://localhost", username: "", password: "secret"))
     }
 
     private func data(_ string: String) -> Data {

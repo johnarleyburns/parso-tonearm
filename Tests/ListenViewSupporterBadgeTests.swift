@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 
 /// Real report: the supporter badge rendered as the first element of the Listen tab's scrolling
 /// body (under the large "Listen" title) instead of the integrated top-right glass toolbar
@@ -6,7 +6,7 @@ import XCTest
 /// native iOS 26+ toolbar glass renders it). These tests pin the corrected shape via source
 /// inspection (no simulator), matching this repo's established convention — see
 /// `Tests/RootTabNavigationContractTests.swift`.
-final class ListenViewSupporterBadgeTests: XCTestCase {
+@Suite struct ListenViewSupporterBadgeTests {
     private func listenViewSource() throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         return try String(
@@ -17,51 +17,51 @@ final class ListenViewSupporterBadgeTests: XCTestCase {
     /// Pins the one gate on the badge: it must render only when
     /// `SupportDevelopmentStore.shared.isSupporter` is true, via the local
     /// `support` ObservedObject — never unconditionally.
-    func testBadgeIsGatedBehindIsSupporter() throws {
+    @Test func testBadgeIsGatedBehindIsSupporter() throws {
         let source = try listenViewSource()
-        XCTAssertTrue(source.contains("@ObservedObject private var support = SupportDevelopmentStore.shared"),
+        #expect(source.contains("@ObservedObject private var support = SupportDevelopmentStore.shared"),
             "ListenView must observe SupportDevelopmentStore.shared to react live to a purchase completing")
 
-        let guardRange = try XCTUnwrap(source.range(of: "if support.isSupporter {"))
-        let badgeCallRange = try XCTUnwrap(source.range(of: "supporterBadge"))
-        XCTAssertLessThan(guardRange.lowerBound, badgeCallRange.lowerBound,
+        let guardRange = try #require(source.range(of: "if support.isSupporter {"))
+        let badgeCallRange = try #require(source.range(of: "supporterBadge"))
+        #expect(guardRange.lowerBound < badgeCallRange.lowerBound,
             "the isSupporter guard must come before the first supporterBadge reference")
     }
 
     /// Pins the accessibility identifier the (hand-run, out-of-scope-here)
     /// UI regression suite would key off of.
-    func testBadgeHasStableAccessibilityIdentifier() throws {
+    @Test func testBadgeHasStableAccessibilityIdentifier() throws {
         let source = try listenViewSource()
         let count = source.components(separatedBy: "\"listen.supporterBadge\"").count - 1
-        XCTAssertEqual(count, 1, "listen.supporterBadge identifier must be present exactly once")
+        #expect(count == 1, "listen.supporterBadge identifier must be present exactly once")
     }
 
     /// Pins the badge to the real nav-bar toolbar (matching voxglass) instead of the scrolling
     /// body — a `ToolbarItemGroup(placement: .primaryAction)` alongside Settings.
-    func testBadgeLivesInToolbarNotBody() throws {
+    @Test func testBadgeLivesInToolbarNotBody() throws {
         let source = try listenViewSource()
-        let toolbarRange = try XCTUnwrap(source.range(of: ".toolbar {"))
-        let groupRange = try XCTUnwrap(source.range(of: "ToolbarItemGroup(placement: .primaryAction)"))
-        let guardRange = try XCTUnwrap(source.range(of: "if support.isSupporter {\n                    supporterBadge"))
-        XCTAssertLessThan(toolbarRange.lowerBound, groupRange.lowerBound,
+        let toolbarRange = try #require(source.range(of: ".toolbar {"))
+        let groupRange = try #require(source.range(of: "ToolbarItemGroup(placement: .primaryAction)"))
+        let guardRange = try #require(source.range(of: "if support.isSupporter {\n                    supporterBadge"))
+        #expect(toolbarRange.lowerBound < groupRange.lowerBound,
             "the supporter badge's toolbar group must be declared inside a .toolbar { } block")
-        XCTAssertLessThan(groupRange.lowerBound, guardRange.lowerBound,
+        #expect(groupRange.lowerBound < guardRange.lowerBound,
             "the isSupporter guard must sit inside the ToolbarItemGroup")
-        XCTAssertTrue(source.contains("settingsButton"),
+        #expect(source.contains("settingsButton"),
             "Settings must be factored into its own view alongside the badge in the same group")
 
-        XCTAssertFalse(source.contains("} else {\n                    Spacer().frame(height: 16)"),
+        #expect(!source.contains("} else {\n                    Spacer().frame(height: 16)"),
             "the old body-inline badge/else-spacer branch must be gone")
     }
 
     /// No manual glass surface on the badge — native iOS 26+ toolbar glass renders it, matching
     /// voxglass's badge (which has no explicit glass modifier either).
-    func testBadgeHasNoManualGlassSurface() throws {
+    @Test func testBadgeHasNoManualGlassSurface() throws {
         let source = try listenViewSource()
-        let declRange = try XCTUnwrap(source.range(of: "private var supporterBadge: some View {"))
-        let closeRange = try XCTUnwrap(source.range(of: "\n    }", range: declRange.upperBound..<source.endIndex))
+        let declRange = try #require(source.range(of: "private var supporterBadge: some View {"))
+        let closeRange = try #require(source.range(of: "\n    }", range: declRange.upperBound..<source.endIndex))
         let body = source[declRange.upperBound..<closeRange.lowerBound]
-        XCTAssertFalse(body.contains(".glassSurface"),
+        #expect(!body.contains(".glassSurface"),
             "native toolbar glass replaces the manual glassSurface modifier")
     }
 }

@@ -1,23 +1,23 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class WatchManifestTests: XCTestCase {
+@Suite struct WatchManifestTests {
 
-    func testEmptyManifestStats() {
+    @Test func testEmptyManifestStats() {
         let entries: [WatchLocalManifestEntry] = []
-        XCTAssertEqual(WatchManifest.totalBytes(entries), 0)
-        XCTAssertEqual(WatchManifest.pinnedBytes(entries), 0)
-        XCTAssertEqual(WatchManifest.trackCount(entries), 0)
+        #expect(WatchManifest.totalBytes(entries) == 0)
+        #expect(WatchManifest.pinnedBytes(entries) == 0)
+        #expect(WatchManifest.trackCount(entries) == 0)
     }
 
-    func testManifestStatsWithEntries() {
+    @Test func testManifestStatsWithEntries() {
         let entries = [
             WatchLocalManifestEntry(trackKey: "t1", bytes: 1024, pinned: true),
             WatchLocalManifestEntry(trackKey: "t2", bytes: 2048, pinned: false),
             WatchLocalManifestEntry(trackKey: "t3", bytes: 512, pinned: true)
         ]
-        XCTAssertEqual(WatchManifest.totalBytes(entries), 3584)
-        XCTAssertEqual(WatchManifest.pinnedBytes(entries), 1536)
-        XCTAssertEqual(WatchManifest.trackCount(entries), 3)
+        #expect(WatchManifest.totalBytes(entries) == 3584)
+        #expect(WatchManifest.pinnedBytes(entries) == 1536)
+        #expect(WatchManifest.trackCount(entries) == 3)
     }
 }

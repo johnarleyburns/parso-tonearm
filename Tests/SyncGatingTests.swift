@@ -1,50 +1,49 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// C7 — engine gating: no-ops without toggle / iCloud account; toggle-off
 /// stops the engine but never deletes local data. Pure logic.
 /// iCloud sync is free for all users.
-final class SyncGatingTests: XCTestCase {
+@Suite final class SyncGatingTests {
 
-    override func tearDown() {
+    deinit {
         UserDefaults.standard.removeObject(forKey: "sync.icloud.enabled")
-        super.tearDown()
     }
 
-    func testRunsOnlyWithToggleAndAccount() {
-        XCTAssertTrue(SyncGating.shouldRun(toggleOn: true, account: .available))
+    @Test func testRunsOnlyWithToggleAndAccount() {
+        #expect(SyncGating.shouldRun(toggleOn: true, account: .available))
     }
 
-    func testNoOpWithoutToggle() {
-        XCTAssertFalse(SyncGating.shouldRun(toggleOn: false, account: .available))
-        XCTAssertEqual(SyncGating.inactiveHint(toggleOn: false, account: .available),
+    @Test func testNoOpWithoutToggle() {
+        #expect(!SyncGating.shouldRun(toggleOn: false, account: .available))
+        #expect(SyncGating.inactiveHint(toggleOn: false, account: .available) ==
                        "iCloud sync is off.")
     }
 
-    func testNoOpWithoutAccount() {
-        XCTAssertFalse(SyncGating.shouldRun(toggleOn: true, account: .noAccount))
-        XCTAssertEqual(SyncGating.inactiveHint(toggleOn: true, account: .noAccount),
+    @Test func testNoOpWithoutAccount() {
+        #expect(!SyncGating.shouldRun(toggleOn: true, account: .noAccount))
+        #expect(SyncGating.inactiveHint(toggleOn: true, account: .noAccount) ==
                        "Sign in to iCloud to sync.")
     }
 
-    func testHintNilWhenRunning() {
-        XCTAssertNil(SyncGating.inactiveHint(toggleOn: true, account: .available))
+    @Test func testHintNilWhenRunning() {
+        #expect(SyncGating.inactiveHint(toggleOn: true, account: .available) == nil)
     }
 
-    func testToggleOffStopsButKeepsData() {
-        XCTAssertTrue(SyncGating.shouldStopButKeepData(toggleOn: false))
-        XCTAssertFalse(SyncGating.shouldStopButKeepData(toggleOn: true))
+    @Test func testToggleOffStopsButKeepsData() {
+        #expect(SyncGating.shouldStopButKeepData(toggleOn: false))
+        #expect(!SyncGating.shouldStopButKeepData(toggleOn: true))
     }
 
-    func testToggleDefaultsOff() {
+    @Test func testToggleDefaultsOff() {
         UserDefaults.standard.removeObject(forKey: "sync.icloud.enabled")
-        XCTAssertFalse(SyncGating.isEnabled, "iCloud sync must default OFF (privacy stance)")
+        #expect(!SyncGating.isEnabled, "iCloud sync must default OFF (privacy stance)")
     }
 
-    func testTogglePersists() {
+    @Test func testTogglePersists() {
         SyncGating.isEnabled = true
-        XCTAssertTrue(SyncGating.isEnabled)
+        #expect(SyncGating.isEnabled)
         SyncGating.isEnabled = false
-        XCTAssertFalse(SyncGating.isEnabled)
+        #expect(!SyncGating.isEnabled)
     }
 }

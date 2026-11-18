@@ -1,10 +1,10 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class ReplayGainTests: XCTestCase {
-    func testParsesVorbisCommentTags() {
+@Suite struct ReplayGainTests {
+    @Test func testParsesVorbisCommentTags() {
         let tags = ReplayGain.parse(items: [
             item(key: "REPLAYGAIN_TRACK_GAIN", stringValue: "-6.54 dB"),
             item(key: "REPLAYGAIN_ALBUM_GAIN", stringValue: "-5.25 dB"),
@@ -12,23 +12,23 @@ final class ReplayGainTests: XCTestCase {
             item(key: "REPLAYGAIN_ALBUM_PEAK", stringValue: "0.987654"),
         ])
 
-        XCTAssertEqual(tags.trackGainDB, -6.54)
-        XCTAssertEqual(tags.albumGainDB, -5.25)
-        XCTAssertEqual(tags.trackPeak, 0.912345)
-        XCTAssertEqual(tags.albumPeak, 0.987654)
+        #expect(tags.trackGainDB == -6.54)
+        #expect(tags.albumGainDB == -5.25)
+        #expect(tags.trackPeak == 0.912345)
+        #expect(tags.albumPeak == 0.987654)
     }
 
-    func testParsesID3TXXXFrames() {
+    @Test func testParsesID3TXXXFrames() {
         let tags = ReplayGain.parse(items: [
             item(key: "TXXX", keySpace: "org.id3", stringValue: "REPLAYGAIN_TRACK_GAIN\u{0}-7.00 dB"),
             item(key: "TXXX", keySpace: "org.id3", stringValue: "REPLAYGAIN_TRACK_PEAK=0.75"),
         ])
 
-        XCTAssertEqual(tags.trackGainDB, -7)
-        XCTAssertEqual(tags.trackPeak, 0.75)
+        #expect(tags.trackGainDB == -7)
+        #expect(tags.trackPeak == 0.75)
     }
 
-    func testParsesITunesFreeformAtoms() {
+    @Test func testParsesITunesFreeformAtoms() {
         let tags = ReplayGain.parse(items: [
             item(identifier: "----:com.apple.iTunes:REPLAYGAIN_ALBUM_GAIN", keySpace: "itsk",
                  stringValue: "-4.50"),
@@ -36,64 +36,57 @@ final class ReplayGainTests: XCTestCase {
                  stringValue: "0.80"),
         ])
 
-        XCTAssertEqual(tags.albumGainDB, -4.5)
-        XCTAssertEqual(tags.albumPeak, 0.8)
+        #expect(tags.albumGainDB == -4.5)
+        #expect(tags.albumPeak == 0.8)
     }
 
-    func testGainFormsWithAndWithoutDBSuffix() {
-        XCTAssertEqual(ReplayGain.parseGainDB("-6.54 dB"), -6.54)
-        XCTAssertEqual(ReplayGain.parseGainDB("-6.54"), -6.54)
-        XCTAssertEqual(ReplayGain.parseGainDB("+3,00 dB"), 3)
+    @Test func testGainFormsWithAndWithoutDBSuffix() {
+        #expect(ReplayGain.parseGainDB("-6.54 dB") == -6.54)
+        #expect(ReplayGain.parseGainDB("-6.54") == -6.54)
+        #expect(ReplayGain.parseGainDB("+3,00 dB") == 3)
     }
 
-    func testMissingPeakUsesUnclippedGain() {
+    @Test func testMissingPeakUsesUnclippedGain() {
         let tags = ReplayGain.Tags(trackGainDB: -6, albumGainDB: nil,
                                    trackPeak: nil, albumPeak: nil)
-        XCTAssertEqual(
-            ReplayGain.appliedGain(mode: .track, tags: tags),
-            pow(10, -6 / 20),
-            accuracy: 0.000_001)
+        #expect(
+            abs(ReplayGain.appliedGain(mode: .track, tags: tags) - pow(10, -6 / 20)) <= 0.000_001)
     }
 
-    func testClippingPreventionEngages() {
+    @Test func testClippingPreventionEngages() {
         let tags = ReplayGain.Tags(trackGainDB: 6, albumGainDB: nil,
                                    trackPeak: 0.8, albumPeak: nil)
-        XCTAssertEqual(
-            ReplayGain.appliedGain(mode: .track, tags: tags, preventClipping: true),
-            1.25,
-            accuracy: 0.000_001)
+        #expect(
+            abs(ReplayGain.appliedGain(mode: .track, tags: tags, preventClipping: true) - 1.25) <= 0.000_001)
     }
 
-    func testAlbumModeFallsBackToTrackGain() {
+    @Test func testAlbumModeFallsBackToTrackGain() {
         let tags = ReplayGain.Tags(trackGainDB: -3, albumGainDB: nil,
                                    trackPeak: 0.9, albumPeak: nil)
-        XCTAssertEqual(
-            ReplayGain.appliedGain(mode: .album, tags: tags),
-            ReplayGain.appliedGain(mode: .track, tags: tags),
-            accuracy: 0.000_001)
+        #expect(
+            abs(ReplayGain.appliedGain(mode: .album, tags: tags) -
+            ReplayGain.appliedGain(mode: .track, tags: tags)) <= 0.000_001)
     }
 
-    func testPreampArithmetic() {
+    @Test func testPreampArithmetic() {
         let tags = ReplayGain.Tags(trackGainDB: -6, albumGainDB: nil,
                                    trackPeak: nil, albumPeak: nil)
-        XCTAssertEqual(
-            ReplayGain.appliedGain(mode: .track, tags: tags, preampDB: 3),
-            pow(10, -3 / 20),
-            accuracy: 0.000_001)
+        #expect(
+            abs(ReplayGain.appliedGain(mode: .track, tags: tags, preampDB: 3) - pow(10, -3 / 20)) <= 0.000_001)
     }
 
-    func testNoTagsAreExactlyUnityGain() {
-        XCTAssertEqual(ReplayGain.appliedGain(mode: .track, tags: .empty, preampDB: 6), 1)
-        XCTAssertEqual(ReplayGain.appliedGain(mode: .album, tags: .empty), 1)
+    @Test func testNoTagsAreExactlyUnityGain() {
+        #expect(ReplayGain.appliedGain(mode: .track, tags: .empty, preampDB: 6) == 1)
+        #expect(ReplayGain.appliedGain(mode: .album, tags: .empty) == 1)
     }
 
-    func testOffModeIsUnityEvenWithTags() {
+    @Test func testOffModeIsUnityEvenWithTags() {
         let tags = ReplayGain.Tags(trackGainDB: 12, albumGainDB: 12,
                                    trackPeak: 0.1, albumPeak: 0.1)
-        XCTAssertEqual(ReplayGain.appliedGain(mode: .off, tags: tags), 1)
+        #expect(ReplayGain.appliedGain(mode: .off, tags: tags) == 1)
     }
 
-    func testMetadataNormalizerCarriesFieldBagReplayGain() {
+    @Test func testMetadataNormalizerCarriesFieldBagReplayGain() {
         var fields = MetadataNormalizer.FieldBag()
         fields.replayGainTrackGain = ["-8.00 dB"]
         fields.replayGainAlbumGain = ["-5.00"]
@@ -102,13 +95,13 @@ final class ReplayGainTests: XCTestCase {
 
         let metadata = MetadataNormalizer.normalize(fields: fields, fallbackFilename: "song.flac")
 
-        XCTAssertEqual(metadata.rgTrackGain, -8)
-        XCTAssertEqual(metadata.rgAlbumGain, -5)
-        XCTAssertEqual(metadata.rgTrackPeak, 0.7)
-        XCTAssertEqual(metadata.rgAlbumPeak, 0.9)
+        #expect(metadata.rgTrackGain == -8)
+        #expect(metadata.rgAlbumGain == -5)
+        #expect(metadata.rgTrackPeak == 0.7)
+        #expect(metadata.rgAlbumPeak == 0.9)
     }
 
-    func testMigrationV10AddsReplayGainColumns() throws {
+    @Test func testMigrationV10AddsReplayGainColumns() throws {
         let dbQueue = try DatabaseQueue()
         try Schema.migrator(upTo: "v9").migrate(dbQueue)
         try Schema.migrator().migrate(dbQueue)
@@ -118,10 +111,10 @@ final class ReplayGainTests: XCTestCase {
                 .compactMap { row -> String? in row["name"] }
         }
 
-        XCTAssertTrue(columns.contains("rgTrackGain"))
-        XCTAssertTrue(columns.contains("rgAlbumGain"))
-        XCTAssertTrue(columns.contains("rgTrackPeak"))
-        XCTAssertTrue(columns.contains("rgAlbumPeak"))
+        #expect(columns.contains("rgTrackGain"))
+        #expect(columns.contains("rgAlbumGain"))
+        #expect(columns.contains("rgTrackPeak"))
+        #expect(columns.contains("rgAlbumPeak"))
     }
 
     private func item(

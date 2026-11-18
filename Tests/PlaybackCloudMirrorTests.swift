@@ -1,12 +1,12 @@
-import XCTest
+import Testing
 import CloudKit
 @testable import TonearmCore
 
-@MainActor final class PlaybackCloudMirrorTests: XCTestCase {
+@MainActor @Suite struct PlaybackCloudMirrorTests {
 
     // MARK: - Record round-trip
 
-    func testPlaybackStateRecordRoundTrip() throws {
+    @Test func testPlaybackStateRecordRoundTrip() throws {
         let snap = PlaybackStateSnapshot(
             trackIDs: [1, 2, 3],
             trackSyncIDs: ["s1", "s2", nil],
@@ -18,17 +18,17 @@ import CloudKit
         let zoneID = CKRecordZone.ID(zoneName: "test", ownerName: CKCurrentUserDefaultName)
         let record = RecordMapping.record(from: snap, zoneID: zoneID)
 
-        let restored = try XCTUnwrap(RecordMapping.playbackState(from: record))
-        XCTAssertEqual(restored.trackIDs, [1, 2, 3])
-        XCTAssertEqual(restored.trackSyncIDs, ["s1", "s2", nil])
-        XCTAssertEqual(restored.currentIndex, 1)
-        XCTAssertEqual(restored.elapsed, 42.5, accuracy: 0.01)
-        XCTAssertTrue(restored.isPlaying)
+        let restored = try #require(RecordMapping.playbackState(from: record))
+        #expect(restored.trackIDs == [1, 2, 3])
+        #expect(restored.trackSyncIDs == ["s1", "s2", nil])
+        #expect(restored.currentIndex == 1)
+        #expect(abs((restored.elapsed) - (42.5)) <= 0.01)
+        #expect(restored.isPlaying)
     }
 
     // MARK: - Merge: latest savedAt wins
 
-    func testLatestSavedAtWins() {
+    @Test func testLatestSavedAtWins() {
         let local = PlaybackStateSnapshot(
             trackIDs: [1], currentIndex: 0, elapsed: 30,
             isPlaying: true, savedAt: Date(timeIntervalSince1970: 100))
@@ -39,10 +39,10 @@ import CloudKit
         let winner = SyncMerge.winner(
             local: local, localModified: local.savedAt,
             remote: remote, remoteModified: remote.savedAt)
-        XCTAssertEqual(winner.trackIDs, [2], "remote wins (newer savedAt)")
+        #expect(winner.trackIDs == [2], "remote wins (newer savedAt)")
     }
 
-    func testTieGoesToLocal() {
+    @Test func testTieGoesToLocal() {
         let date = Date(timeIntervalSince1970: 100)
         let local = PlaybackStateSnapshot(
             trackIDs: [1], currentIndex: 0, elapsed: 30,
@@ -54,14 +54,12 @@ import CloudKit
         let winner = SyncMerge.winner(
             local: local, localModified: local.savedAt,
             remote: remote, remoteModified: remote.savedAt)
-        XCTAssertEqual(winner.trackIDs, [2],
-            "tie → remote wins (≥ comparison)")
+        #expect(winner.trackIDs == [2], "tie → remote wins (≥ comparison)")
     }
 
     // MARK: - 30 s throttle
 
-    func testCloudPushThrottleInterval() {
-        XCTAssertEqual(PlaybackPositionPersistor.cloudPushInterval, 30,
-            "cloud push must throttle to 30 s")
+    @Test func testCloudPushThrottleInterval() {
+        #expect(PlaybackPositionPersistor.cloudPushInterval == 30, "cloud push must throttle to 30 s")
     }
 }

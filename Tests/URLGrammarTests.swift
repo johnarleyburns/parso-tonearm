@@ -1,107 +1,107 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class URLGrammarTests: XCTestCase {
+@Suite struct URLGrammarTests {
 
-    func testItemBare() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/GratefulDead1977").get(),
+    @Test func testItemBare() {
+        #expect(try? URLGrammar.parse("https://archive.org/details/GratefulDead1977").get() ==
                        .item(identifier: "GratefulDead1977", filename: nil))
     }
 
-    func testItemWithFilename() {
-        XCTAssertEqual(try? URLGrammar.parse("archive.org/details/foo/track01.flac").get(),
+    @Test func testItemWithFilename() {
+        #expect(try? URLGrammar.parse("archive.org/details/foo/track01.flac").get() ==
                        .item(identifier: "foo", filename: "track01.flac"))
     }
 
-    func testItemNestedFilename() {
-        XCTAssertEqual(try? URLGrammar.parse("archive.org/details/foo/disc1/track01.flac").get(),
+    @Test func testItemNestedFilename() {
+        #expect(try? URLGrammar.parse("archive.org/details/foo/disc1/track01.flac").get() ==
                        .item(identifier: "foo", filename: "disc1/track01.flac"))
     }
 
-    func testList() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/@shellac_hound/lists/2841/early-opera").get(),
+    @Test func testList() {
+        #expect(try? URLGrammar.parse("https://archive.org/details/@shellac_hound/lists/2841/early-opera").get() ==
                        .list(screenname: "shellac_hound", listId: "2841", slug: "early-opera"))
     }
 
-    func testListNoSlug() {
-        XCTAssertEqual(try? URLGrammar.parse("archive.org/details/@user/lists/99").get(),
+    @Test func testListNoSlug() {
+        #expect(try? URLGrammar.parse("archive.org/details/@user/lists/99").get() ==
                        .list(screenname: "user", listId: "99", slug: nil))
     }
 
-    func testListWithEncodedAtSign() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/%40user/lists/99/favorites").get(),
+    @Test func testListWithEncodedAtSign() {
+        #expect(try? URLGrammar.parse("https://archive.org/details/%40user/lists/99/favorites").get() ==
                        .list(screenname: "user", listId: "99", slug: "favorites"))
     }
 
-    func testListsTab() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/@user/lists").get(),
+    @Test func testListsTab() {
+        #expect(try? URLGrammar.parse("https://archive.org/details/@user/lists").get() ==
                        .lists(screenname: "user"))
     }
 
-    func testFavorites() {
-        XCTAssertEqual(try? URLGrammar.parse("archive.org/details/fav-jsmith").get(),
+    @Test func testFavorites() {
+        #expect(try? URLGrammar.parse("archive.org/details/fav-jsmith").get() ==
                        .favorites(screenname: "jsmith"))
     }
 
-    func testEmbedNormalizesToItem() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/embed/foo?start=10").get(),
+    @Test func testEmbedNormalizesToItem() {
+        #expect(try? URLGrammar.parse("https://archive.org/embed/foo?start=10").get() ==
                        .item(identifier: "foo", filename: nil))
     }
 
-    func testTrailingQueryTolerated() {
-        XCTAssertEqual(try? URLGrammar.parse("https://archive.org/details/foo?utm=x&y=1").get(),
+    @Test func testTrailingQueryTolerated() {
+        #expect(try? URLGrammar.parse("https://archive.org/details/foo?utm=x&y=1").get() ==
                        .item(identifier: "foo", filename: nil))
     }
 
-    func testWwwHostAccepted() {
-        XCTAssertEqual(try? URLGrammar.parse("https://www.archive.org/details/foo").get(),
+    @Test func testWwwHostAccepted() {
+        #expect(try? URLGrammar.parse("https://www.archive.org/details/foo").get() ==
                        .item(identifier: "foo", filename: nil))
     }
 
     // MARK: - Share-sheet payloads
 
-    func testShareSheetURLPayloadExtractsArchiveURL() throws {
+    @Test func testShareSheetURLPayloadExtractsArchiveURL() throws {
         let raw = "https://archive.org/details/foo"
         let resolved = SharePayloadResolver.archiveURL(from: [
-            .url(try XCTUnwrap(URL(string: raw)))
+            .url(try #require(URL(string: raw)))
         ])
 
-        XCTAssertEqual(resolved, raw)
+        #expect(resolved == raw)
     }
 
-    func testShareSheetTextPayloadExtractsArchiveURL() {
+    @Test func testShareSheetTextPayloadExtractsArchiveURL() {
         let resolved = SharePayloadResolver.archiveURL(from: [
             .text("Listen here: https://archive.org/details/foo/track01.flac")
         ])
 
-        XCTAssertEqual(resolved, "https://archive.org/details/foo/track01.flac")
+        #expect(resolved == "https://archive.org/details/foo/track01.flac")
     }
 
-    func testShareSheetAttributedPayloadExtractsArchiveURL() {
+    @Test func testShareSheetAttributedPayloadExtractsArchiveURL() {
         let resolved = SharePayloadResolver.archiveURL(from: [
             .attributedText("Archive source\narchive.org/details/@user/lists/99")
         ])
 
-        XCTAssertEqual(resolved, "archive.org/details/@user/lists/99")
+        #expect(resolved == "archive.org/details/@user/lists/99")
     }
 
-    func testShareSheetPayloadSkipsForeignURLs() throws {
+    @Test func testShareSheetPayloadSkipsForeignURLs() throws {
         let resolved = SharePayloadResolver.archiveURL(from: [
-            .url(try XCTUnwrap(URL(string: "https://example.com/details/nope"))),
+            .url(try #require(URL(string: "https://example.com/details/nope"))),
             .text("fallback https://archive.org/details/good")
         ])
 
-        XCTAssertEqual(resolved, "https://archive.org/details/good")
+        #expect(resolved == "https://archive.org/details/good")
     }
 
-    func testTonearmDeepLinkRoundTripForSharedURL() throws {
+    @Test func testTonearmDeepLinkRoundTripForSharedURL() throws {
         let raw = "https://archive.org/details/foo?utm=x"
-        let url = try XCTUnwrap(TonearmDeepLink.url(for: .addSource(raw)))
+        let url = try #require(TonearmDeepLink.url(for: .addSource(raw)))
 
-        XCTAssertEqual(TonearmDeepLink.parse(url), .addSource(raw))
+        #expect(TonearmDeepLink.parse(url) == .addSource(raw))
     }
 
-    func testTonearmDeepLinkRoundTripsWidgetControls() throws {
+    @Test func testTonearmDeepLinkRoundTripsWidgetControls() throws {
         let actions: [TonearmDeepLink] = [
             .nowPlaying,
             .resumePlayback,
@@ -112,28 +112,28 @@ final class URLGrammarTests: XCTestCase {
         ]
 
         for action in actions {
-            let url = try XCTUnwrap(TonearmDeepLink.url(for: action))
-            XCTAssertEqual(TonearmDeepLink.parse(url), action)
+            let url = try #require(TonearmDeepLink.url(for: action))
+            #expect(TonearmDeepLink.parse(url) == action)
         }
     }
 
     // MARK: - Rejections
 
-    func testEmpty() {
+    @Test func testEmpty() {
         assertFails("", .empty)
         assertFails("   ", .empty)
     }
 
-    func testWayback() {
+    @Test func testWayback() {
         assertFails("https://web.archive.org/web/2020/http://x.com", .wayback)
     }
 
-    func testForeignHost() {
+    @Test func testForeignHost() {
         assertFails("https://example.com/details/foo", .notArchiveHost)
         assertFails("https://archive.org.evil.com/details/foo", .notArchiveHost)
     }
 
-    func testUnrecognizedPaths() {
+    @Test func testUnrecognizedPaths() {
         assertFails("https://archive.org/", .unrecognized)
         assertFails("https://archive.org/search?query=bach", .unrecognized)
         assertFails("https://archive.org/details/", .unrecognized)
@@ -146,12 +146,12 @@ final class URLGrammarTests: XCTestCase {
     }
 
     private func assertFails(_ input: String, _ expected: IAURLError,
-                             file: StaticString = #filePath, line: UInt = #line) {
+                             sourceLocation: Testing.SourceLocation = #_sourceLocation) {
         switch URLGrammar.parse(input) {
         case .success(let v):
-            XCTFail("Expected failure but got \(v)", file: file, line: line)
+            Issue.record("Expected failure but got \(v)", sourceLocation: sourceLocation)
         case .failure(let e):
-            XCTAssertEqual(e, expected, file: file, line: line)
+            #expect(e == expected, sourceLocation: sourceLocation)
         }
     }
 }

@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// Real report: "the Jamendo onboarding genres are much too sparse... I
@@ -11,39 +11,39 @@ import XCTest
 /// built; a unit test re-hitting the live API on every run would be flaky
 /// and slow, matching this codebase's existing convention of keeping
 /// pure/structural logic unit-tested and live-network behavior separate).
-final class JamendoGenreTreeTests: XCTestCase {
-    func testGenreBrowserRetainsStableScrollAnchorsDuringPaging() throws {
+@Suite struct JamendoGenreTreeTests {
+    @Test func testGenreBrowserRetainsStableScrollAnchorsDuringPaging() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let view = try String(contentsOf: root.appendingPathComponent("Sources/Features/Sources/JamendoBrowseView.swift"), encoding: .utf8)
-        XCTAssertTrue(view.contains(".scrollPosition(id: $visibleTrackID, anchor: .top)"))
-        XCTAssertTrue(view.contains(".scrollTargetLayout()"))
-        XCTAssertTrue(view.contains(".id(node.id)"))
-        XCTAssertTrue(view.contains("existingIDs.insert($0.id).inserted"), "Paging must not introduce duplicate scroll-target identities")
-        XCTAssertTrue(view.contains("loadedGenrePath != selectedGenre.path"), "Reappearance must not reload the same genre and replace its list")
-        XCTAssertTrue(view.contains("offset += page.count"), "Deduplicating rows must not alter the API cursor")
+        #expect(view.contains(".scrollPosition(id: $visibleTrackID, anchor: .top)"))
+        #expect(view.contains(".scrollTargetLayout()"))
+        #expect(view.contains(".id(node.id)"))
+        #expect(view.contains("existingIDs.insert($0.id).inserted"), "Paging must not introduce duplicate scroll-target identities")
+        #expect(view.contains("loadedGenrePath != selectedGenre.path"), "Reappearance must not reload the same genre and replace its list")
+        #expect(view.contains("offset += page.count"), "Deduplicating rows must not alter the API cursor")
     }
-    func testMyMusicJamendoImportPolicyUsesADurableSearchSource() {
-        XCTAssertEqual(JamendoImportPolicy.sourceIdentifier, "catalog-search")
-        XCTAssertEqual(JamendoImportPolicy.sourceTitle, "Jamendo Search")
-        XCTAssertTrue(JamendoImportPolicy.explanation.contains("index it"))
+    @Test func testMyMusicJamendoImportPolicyUsesADurableSearchSource() {
+        #expect(JamendoImportPolicy.sourceIdentifier == "catalog-search")
+        #expect(JamendoImportPolicy.sourceTitle == "Jamendo Search")
+        #expect(JamendoImportPolicy.explanation.contains("index it"))
     }
 
-    func testNoDuplicatePathsAcrossTheWholeTree() {
+    @Test func testNoDuplicatePathsAcrossTheWholeTree() {
         let paths = JamendoGenreTree.all.map(\.path)
-        XCTAssertEqual(paths.count, Set(paths).count, "every node's source identity (path) must be unique")
+        #expect(paths.count == Set(paths).count, "every node's source identity (path) must be unique")
     }
 
-    func testTagIsAlwaysTheLastPathComponent() {
+    @Test func testTagIsAlwaysTheLastPathComponent() {
         for node in JamendoGenreTree.all {
             let expectedTag = String(node.path.split(separator: "/").last ?? Substring(node.path))
-            XCTAssertEqual(node.tag, expectedTag, "\(node.path)'s tag must be its own last path segment")
+            #expect(node.tag == expectedTag, "\(node.path)'s tag must be its own last path segment")
         }
     }
 
-    func testChildPathIsPrefixedByItsParentPath() {
+    @Test func testChildPathIsPrefixedByItsParentPath() {
         for parent in JamendoGenreTree.roots {
             for child in parent.children {
-                XCTAssertTrue(child.path.hasPrefix("\(parent.path)/"),
+                #expect(child.path.hasPrefix("\(parent.path)/"),
                              "\(child.path) should be nested under \(parent.path)")
             }
         }
@@ -55,13 +55,13 @@ final class JamendoGenreTreeTests: XCTestCase {
     /// content. Four of five now resolve under their real spelling;
     /// "boom-bap" (no working equivalent found) was dropped rather than
     /// kept as a permanently-dead entry.
-    func testPreviouslyDeadTagsNowUseTheirRealNoHyphenSpelling() {
+    @Test func testPreviouslyDeadTagsNowUseTheirRealNoHyphenSpelling() {
         let tags = Set(JamendoGenreTree.all.map(\.tag))
         for realTag in ["lofi", "nujazz", "dreampop", "musiqueconcrete"] {
-            XCTAssertTrue(tags.contains(realTag), "\(realTag) should be present under its real spelling")
+            #expect(tags.contains(realTag), "\(realTag) should be present under its real spelling")
         }
         for deadHyphenatedForm in ["lo-fi", "nu-jazz", "dream-pop", "musique-concrete", "boom-bap"] {
-            XCTAssertFalse(tags.contains(deadHyphenatedForm),
+            #expect(!tags.contains(deadHyphenatedForm),
                           "\(deadHyphenatedForm) was never a real Jamendo tag value")
         }
     }
@@ -69,24 +69,24 @@ final class JamendoGenreTreeTests: XCTestCase {
     /// Real report literal ask: "essentially exposing every genre category
     /// that jamendo has" — a regression guard against the tree silently
     /// shrinking back down to its old 8-top-level/33-node size.
-    func testTreeIsSubstantiallyBroaderThanThePreviousCuratedVersion() {
-        XCTAssertGreaterThanOrEqual(JamendoGenreTree.roots.count, 12,
+    @Test func testTreeIsSubstantiallyBroaderThanThePreviousCuratedVersion() {
+        #expect(JamendoGenreTree.roots.count >= 12,
                                     "expected broad top-level coverage, not the old curated 8")
-        XCTAssertGreaterThanOrEqual(JamendoGenreTree.all.count, 100,
+        #expect(JamendoGenreTree.all.count >= 100,
                                     "expected genuinely deep genre+subgenre coverage")
     }
 
-    func testEveryNodeHasANonEmptyNameAndTag() {
+    @Test func testEveryNodeHasANonEmptyNameAndTag() {
         for node in JamendoGenreTree.all {
-            XCTAssertFalse(node.name.isEmpty)
-            XCTAssertFalse(node.tag.isEmpty)
+            #expect(!node.name.isEmpty)
+            #expect(!node.tag.isEmpty)
         }
     }
 
-    func testHumanizedGenreMapsTaxonomyKeysAndPassesOthersThrough() {
-        XCTAssertEqual(JamendoGenreTree.humanizedGenre("subgenre:electronic:progressivehouse"), "Progressive House")
-        XCTAssertEqual(JamendoGenreTree.humanizedGenre("genre:rock"), JamendoGenreTree.roots.first { $0.path == "rock" }?.name)
-        XCTAssertEqual(JamendoGenreTree.humanizedGenre("Classic Rock"), "Classic Rock")
-        XCTAssertEqual(JamendoGenreTree.humanizedGenre("subgenre:nope:nope"), "subgenre:nope:nope")
+    @Test func testHumanizedGenreMapsTaxonomyKeysAndPassesOthersThrough() {
+        #expect(JamendoGenreTree.humanizedGenre("subgenre:electronic:progressivehouse") == "Progressive House")
+        #expect(JamendoGenreTree.humanizedGenre("genre:rock") == JamendoGenreTree.roots.first { $0.path == "rock" }?.name)
+        #expect(JamendoGenreTree.humanizedGenre("Classic Rock") == "Classic Rock")
+        #expect(JamendoGenreTree.humanizedGenre("subgenre:nope:nope") == "subgenre:nope:nope")
     }
 }

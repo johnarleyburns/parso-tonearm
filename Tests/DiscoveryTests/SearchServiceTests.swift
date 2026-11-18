@@ -2,7 +2,7 @@
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -10,16 +10,14 @@ import XCTest
 /// The mandatory C06 retrieval fixtures (IMPLEMENT_CLAP_PLAN.md §9/§11 C06),
 /// against real pipeline-quantized embedding rows, real analysis attribute
 /// rows and the shared `HybridRanker`.
-final class SearchServiceTests: XCTestCase {
+@Suite final class SearchServiceTests {
     private var cacheURL: URL!
-    override func setUp() {
-        super.setUp()
+    init() {
         cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ss-\(UUID().uuidString).bin")
     }
-    override func tearDown() {
+    deinit {
         try? FileManager.default.removeItem(at: cacheURL)
-        super.tearDown()
     }
 
     private let dims = 8
@@ -39,7 +37,7 @@ final class SearchServiceTests: XCTestCase {
 
     // MARK: - Filter-only / browse
 
-    func testFilterOnlyWorksWithNoModelsAndNoEmbeddings() async throws {
+    @Test func testFilterOnlyWorksWithNoModelsAndNoEmbeddings() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -53,14 +51,14 @@ final class SearchServiceTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: "", bpmMin: 120, bpmMax: 130))
 
-        XCTAssertEqual(response.mode, .filterOnly)
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(response.results.map(\.track.track.title), ["alpha", "beta"])
-        XCTAssertNil(response.results.first?.similarity)
-        XCTAssertNil(response.results.first?.finalScore)
+        #expect(response.mode == .filterOnly)
+        #expect(response.state == .ready)
+        #expect(response.results.map(\.track.track.title) == ["alpha", "beta"])
+        #expect(response.results.first?.similarity == nil)
+        #expect(response.results.first?.finalScore == nil)
     }
 
-    func testEmptyTextNoFiltersIsMetadataBrowseNotError() async throws {
+    @Test func testEmptyTextNoFiltersIsMetadataBrowseNotError() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -69,18 +67,18 @@ final class SearchServiceTests: XCTestCase {
         }
         let service = await makeService(queue)
         let response = await service.search(DiscoverySearchQuery(text: ""))
-        XCTAssertEqual(response.mode, .metadataBrowse)
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(response.results.map(\.track.track.title), ["a", "z"])
+        #expect(response.mode == .metadataBrowse)
+        #expect(response.state == .ready)
+        #expect(response.results.map(\.track.track.title) == ["a", "z"])
     }
 
     // MARK: - Empty index vs no matches vs empty library
 
-    func testEmptyLibraryDistinctFromZeroIndexedAndNoMatches() async throws {
+    @Test func testEmptyLibraryDistinctFromZeroIndexedAndNoMatches() async throws {
         let empty = try SearchFixture.makeQueue()
         let s1 = await makeService(empty, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let r1 = await s1.search(DiscoverySearchQuery(text: "anything"))
-        XCTAssertEqual(r1.state, .emptyLibrary)
+        #expect(r1.state == .emptyLibrary)
 
         let unindexed = try SearchFixture.makeQueue()
         try await unindexed.write { db in
@@ -89,7 +87,7 @@ final class SearchServiceTests: XCTestCase {
         }
         let s2 = await makeService(unindexed, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let r2 = await s2.search(DiscoverySearchQuery(text: "anything"))
-        XCTAssertEqual(r2.state, .zeroIndexed)
+        #expect(r2.state == .zeroIndexed)
 
         let indexed = try SearchFixture.makeQueue()
         try await indexed.write { db in
@@ -101,12 +99,12 @@ final class SearchServiceTests: XCTestCase {
         }
         let s3 = await makeService(indexed, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let r3 = await s3.search(DiscoverySearchQuery(text: "x", bpmMin: 160, bpmMax: 170))
-        XCTAssertEqual(r3.state, .noMatches)
+        #expect(r3.state == .noMatches)
     }
 
     // MARK: - Out-of-scope exclusion
 
-    func testOutOfScopeNearestMatchesExcluded() async throws {
+    @Test func testOutOfScopeNearestMatchesExcluded() async throws {
         let queue = try SearchFixture.makeQueue()
         let (sourceA, _): (Int64, Int64) = try await queue.write { db in
             let sa = try SearchFixture.seedSource(db, title: "A")
@@ -122,12 +120,12 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let response = await service.search(
             DiscoverySearchQuery(text: "x", sourceIDs: [sourceA]))
-        XCTAssertEqual(response.results.map(\.track.track.title), ["a-far"])
+        #expect(response.results.map(\.track.track.title) == ["a-far"])
     }
 
     // MARK: - Reference exclusion + hybrid winner below a semantic shortlist
 
-    func testSimilarExcludesReferenceAndHybridBeatsSemanticShortlist() async throws {
+    @Test func testSimilarExcludesReferenceAndHybridBeatsSemanticShortlist() async throws {
         let queue = try SearchFixture.makeQueue()
         let (refID, highSemID, hybridID): (Int64, Int64, Int64) = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -151,14 +149,14 @@ final class SearchServiceTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: ""), referenceTrackID: refID)
 
-        XCTAssertEqual(response.mode, .similar(referenceTrackID: refID))
-        XCTAssertFalse(response.results.contains { $0.trackID == refID }, "reference must be excluded")
-        XCTAssertEqual(response.results.first?.trackID, hybridID, "hybrid winner should rank first")
+        #expect(response.mode == .similar(referenceTrackID: refID))
+        #expect(!response.results.contains { $0.trackID == refID }, "reference must be excluded")
+        #expect(response.results.first?.trackID == hybridID, "hybrid winner should rank first")
         let bySemantic = response.results.sorted { ($0.similarity ?? 0) > ($1.similarity ?? 0) }
-        XCTAssertEqual(bySemantic.first?.trackID, highSemID)
+        #expect(bySemantic.first?.trackID == highSemID)
     }
 
-    func testMatchingTracksGateUsesCamelotAndRelativeBPMBeforeRanking() async throws {
+    @Test func testMatchingTracksGateUsesCamelotAndRelativeBPMBeforeRanking() async throws {
         let queue = try SearchFixture.makeQueue()
         let referenceID: Int64 = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -190,14 +188,14 @@ final class SearchServiceTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: ""), referenceTrackID: referenceID, matchingTracksOnly: true)
 
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(
-            Set(response.results.map(\.track.track.title)),
+        #expect(response.state == .ready)
+        #expect(
+            Set(response.results.map(\.track.track.title)) ==
             ["relative-key-match", "wrapped-key-match"])
-        XCTAssertFalse(response.results.contains { $0.trackID == referenceID })
+        #expect(!response.results.contains { $0.trackID == referenceID })
     }
 
-    func testMatchingTracksGateAlsoRequiresCompatibleEnergyWhenBothAreKnown() async throws {
+    @Test func testMatchingTracksGateAlsoRequiresCompatibleEnergyWhenBothAreKnown() async throws {
         let queue = try SearchFixture.makeQueue()
         let referenceID: Int64 = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -230,16 +228,16 @@ final class SearchServiceTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: ""), referenceTrackID: referenceID, matchingTracksOnly: true)
 
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(
-            Set(response.results.map(\.track.track.title)), ["energy-close", "energy-unknown"],
+        #expect(response.state == .ready)
+        #expect(
+            Set(response.results.map(\.track.track.title)) == ["energy-close", "energy-unknown"],
             "energy-far is BPM/key compatible but too far in energy; a track with no stored "
                 + "energy must never be excluded on that basis")
     }
 
     // MARK: - Filtered match below the old global top-N
 
-    func testFilteredHybridMatchRanksAboveHigherSemanticInRange() async throws {
+    @Test func testFilteredHybridMatchRanksAboveHigherSemanticInRange() async throws {
         let queue = try SearchFixture.makeQueue()
         let winnerID: Int64 = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -261,15 +259,15 @@ final class SearchServiceTests: XCTestCase {
         let response = await service.search(
             DiscoverySearchQuery(text: "bright", bpmMin: 120, bpmMax: 130))
 
-        XCTAssertEqual(response.results.first?.trackID, winnerID)
+        #expect(response.results.first?.trackID == winnerID)
         let bySemantic = response.results.sorted { ($0.similarity ?? 0) > ($1.similarity ?? 0) }
-        XCTAssertNotEqual(bySemantic.first?.trackID, winnerID,
+        #expect(bySemantic.first?.trackID != winnerID,
             "winner must not be the top pure-semantic result")
     }
 
     // MARK: - Signed cosine
 
-    func testSignedCosineSurfacedNotClampedToProbability() async throws {
+    @Test func testSignedCosineSurfacedNotClampedToProbability() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -283,14 +281,14 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let response = await service.search(DiscoverySearchQuery(text: "x"))
         let opp = response.results.first { $0.track.track.title == "opposite" }
-        XCTAssertNotNil(opp)
-        XCTAssertLessThan(opp!.similarity ?? 0, 0, "raw negative cosine must be exposed, not clamped")
-        XCTAssertEqual(response.results.last?.track.track.title, "opposite", "and it ranks last")
+        #expect(opp != nil)
+        #expect((opp!.similarity ?? 0) < 0, "raw negative cosine must be exposed, not clamped")
+        #expect(response.results.last?.track.track.title == "opposite", "and it ranks last")
     }
 
     // MARK: - Deterministic ties
 
-    func testDeterministicTieBreakByTrackIDAscending() async throws {
+    @Test func testDeterministicTieBreakByTrackIDAscending() async throws {
         let queue = try SearchFixture.makeQueue()
         let ids: [Int64] = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -306,13 +304,13 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue, queryVector: unit([1, 1, 0, 0, 0, 0, 0, 0]))
         let a = await service.search(DiscoverySearchQuery(text: "x"))
         let b = await service.search(DiscoverySearchQuery(text: "x"))
-        XCTAssertEqual(a.results.map(\.trackID), ids.sorted())
-        XCTAssertEqual(a.results.map(\.trackID), b.results.map(\.trackID))
+        #expect(a.results.map(\.trackID) == ids.sorted())
+        #expect(a.results.map(\.trackID) == b.results.map(\.trackID))
     }
 
     // MARK: - Stale index generation
 
-    func testStaleIndexGenerationRefreshedBetweenQueries() async throws {
+    @Test func testStaleIndexGenerationRefreshedBetweenQueries() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -330,13 +328,13 @@ final class SearchServiceTests: XCTestCase {
             try SearchFixture.seedEmbedding(db, trackId: t, assetId: a, vector: [0, 1, 0, 0, 0, 0, 0, 0])
         }
         let r2 = await service.search(DiscoverySearchQuery(text: "x"))
-        XCTAssertGreaterThan(r2.indexGeneration ?? 0, g1 ?? 0)
-        XCTAssertTrue(r2.results.contains { $0.track.track.title == "second" })
+        #expect((r2.indexGeneration ?? 0) > (g1 ?? 0))
+        #expect(r2.results.contains { $0.track.track.title == "second" })
     }
 
     // MARK: - Source / track deletion invalidates results
 
-    func testDeletedTrackDisappearsFromResults() async throws {
+    @Test func testDeletedTrackDisappearsFromResults() async throws {
         let queue = try SearchFixture.makeQueue()
         let deletedID: Int64 = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -355,8 +353,8 @@ final class SearchServiceTests: XCTestCase {
             try db.execute(sql: "DELETE FROM track WHERE id = ?", arguments: [deletedID])
         }
         let response = await service.search(DiscoverySearchQuery(text: "x"))
-        XCTAssertEqual(response.results.count, 2)
-        XCTAssertFalse(response.results.contains { $0.trackID == deletedID })
+        #expect(response.results.count == 2)
+        #expect(!response.results.contains { $0.trackID == deletedID })
     }
 
     /// C06 fixture, previously PARTIAL (session 9): a track deleted *during*
@@ -364,7 +362,7 @@ final class SearchServiceTests: XCTestCase {
     /// hook deletes a track while `scanAndRank` is genuinely iterating the
     /// snapshot; the result set must stay consistent (deleted id absent, no
     /// crash) and the engine must revalidate against a fresh snapshot.
-    func testTrackDeletedMidScanStaysConsistent() async throws {
+    @Test func testTrackDeletedMidScanStaysConsistent() async throws {
         let queue = try SearchFixture.makeQueue()
         let d = 8
         let deletedID: Int64 = try await queue.write { db in
@@ -389,22 +387,22 @@ final class SearchServiceTests: XCTestCase {
 
         let response = await service.search(DiscoverySearchQuery(text: "x"))
 
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertFalse(
-            response.results.contains { $0.trackID == deletedID },
+        #expect(response.state == .ready)
+        #expect(
+            !response.results.contains { $0.trackID == deletedID },
             "a track deleted mid-scan must not appear in the result set")
         let didRun = await fired.didRun
-        XCTAssertTrue(didRun, "the mid-scan hook must have fired")
+        #expect(didRun, "the mid-scan hook must have fired")
         // Every returned row still exists.
         let liveIDs: Set<Int64> = try await queue.read { db in
             Set(try Int64.fetchAll(db, sql: "SELECT id FROM track"))
         }
-        XCTAssertTrue(response.results.allSatisfy { liveIDs.contains($0.trackID) })
+        #expect(response.results.allSatisfy { liveIDs.contains($0.trackID) })
     }
 
     // MARK: - Similar-track: missing / stale reference embedding
 
-    func testSimilarWithMissingReferenceEmbeddingOffersAnalyze() async throws {
+    @Test func testSimilarWithMissingReferenceEmbeddingOffersAnalyze() async throws {
         let queue = try SearchFixture.makeQueue()
         let refID: Int64 = try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -417,12 +415,12 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue)
         let response = await service.search(
             DiscoverySearchQuery(text: ""), referenceTrackID: refID)
-        XCTAssertEqual(response.state, .unindexedReference)
+        #expect(response.state == .unindexedReference)
     }
 
     // MARK: - Semantic mode without a text model
 
-    func testSemanticQueryWithoutTextModelReportsModelMissing() async throws {
+    @Test func testSemanticQueryWithoutTextModelReportsModelMissing() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -432,7 +430,7 @@ final class SearchServiceTests: XCTestCase {
         }
         let service = await makeService(queue)
         let response = await service.search(DiscoverySearchQuery(text: "warm pads"))
-        XCTAssertEqual(response.state, .modelMissing)
+        #expect(response.state == .modelMissing)
     }
 
     // MARK: - Keywords (title / artist / album / genre via FTS)
@@ -466,47 +464,47 @@ final class SearchServiceTests: XCTestCase {
         }
     }
 
-    func testKeywordHitsRankAboveSoundOnlyMatches() async throws {
+    @Test func testKeywordHitsRankAboveSoundOnlyMatches() async throws {
         let queue = try SearchFixture.makeQueue()
         _ = try await seedKeywordLibrary(queue)
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let response = await service.search(DiscoverySearchQuery(text: "progressive house"))
 
-        XCTAssertEqual(response.state, .ready)
+        #expect(response.state == .ready)
         // Genre phrase hits first (ordered by sound, unindexed last), then the
         // title+genre word hit, then the sound-only match.
-        XCTAssertEqual(response.results.map(\.track.track.title), [
+        #expect(response.results.map(\.track.track.title) == [
             "genre near", "genre far", "genre unindexed", "progressive anthem", "sound match",
         ])
     }
 
-    func testKeywordsStillWorkWithoutTheTextModel() async throws {
+    @Test func testKeywordsStillWorkWithoutTheTextModel() async throws {
         let queue = try SearchFixture.makeQueue()
         _ = try await seedKeywordLibrary(queue)
         let service = await makeService(queue)
         let response = await service.search(DiscoverySearchQuery(text: "progressive hou"))
 
-        XCTAssertEqual(response.state, .ready)
-        XCTAssertEqual(Set(response.results.prefix(3).map(\.track.track.title)),
+        #expect(response.state == .ready)
+        #expect(Set(response.results.prefix(3).map(\.track.track.title)) ==
                        ["genre near", "genre far", "genre unindexed"])
-        XCTAssertEqual(response.results.last?.track.track.title, "progressive anthem")
+        #expect(response.results.last?.track.track.title == "progressive anthem")
     }
 
-    func testGenreTagsFilterEveryMode() async throws {
+    @Test func testGenreTagsFilterEveryMode() async throws {
         let queue = try SearchFixture.makeQueue()
         _ = try await seedKeywordLibrary(queue)
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
 
         let mood = await service.search(DiscoverySearchQuery(text: "warm", genres: ["Progressive House"]))
-        XCTAssertEqual(mood.results.map(\.track.track.title), ["genre near", "genre far"])
+        #expect(mood.results.map(\.track.track.title) == ["genre near", "genre far"])
 
         let browse = await service.search(DiscoverySearchQuery(genres: ["Deep House", "Ambient"]))
-        XCTAssertEqual(Set(browse.results.map(\.track.track.title)), ["progressive anthem", "sound match"])
+        #expect(Set(browse.results.map(\.track.track.title)) == ["progressive anthem", "sound match"])
     }
 
     // MARK: - Coverage states
 
-    func testCoverageReportsIndexingInProgress() async throws {
+    @Test func testCoverageReportsIndexingInProgress() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -519,15 +517,15 @@ final class SearchServiceTests: XCTestCase {
         }
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let response = await service.search(DiscoverySearchQuery(text: "x"))
-        XCTAssertEqual(response.coverage?.state, .indexingInProgress)
-        XCTAssertEqual(response.coverage?.totalInScope, 2)
-        XCTAssertEqual(response.coverage?.indexed, 1)
-        XCTAssertEqual(response.coverage?.awaitingIndex, 1)
+        #expect(response.coverage?.state == .indexingInProgress)
+        #expect(response.coverage?.totalInScope == 2)
+        #expect(response.coverage?.indexed == 1)
+        #expect(response.coverage?.awaitingIndex == 1)
     }
 
     // MARK: - Cancellation
 
-    func testCancelledSearchReturnsCancelledAndNoResults() async throws {
+    @Test func testCancelledSearchReturnsCancelledAndNoResults() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -538,8 +536,8 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let response = await service.search(
             DiscoverySearchQuery(text: "x"), isCancelled: { true })
-        XCTAssertEqual(response.state, .cancelled)
-        XCTAssertTrue(response.results.isEmpty)
+        #expect(response.state == .cancelled)
+        #expect(response.results.isEmpty)
     }
 
     // MARK: - Mood's mix-compatible gate (migration v46 `track.indexed`)
@@ -549,7 +547,7 @@ final class SearchServiceTests: XCTestCase {
     /// search keeps finding an embedding-only track (its existing, deliberate, broader contract —
     /// see `testOutOfScopeNearestMatchesExcluded` above); only `requireFullyIndexed` (Mood's gate)
     /// excludes it.
-    func testRequireFullyIndexedExcludesEmbeddingOnlyTrack() async throws {
+    @Test func testRequireFullyIndexedExcludesEmbeddingOnlyTrack() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -562,17 +560,17 @@ final class SearchServiceTests: XCTestCase {
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
 
         let discover = await service.search(DiscoverySearchQuery(text: "x"))
-        XCTAssertEqual(discover.results.map(\.track.track.title), ["embedding-only"],
+        #expect(discover.results.map(\.track.track.title) == ["embedding-only"],
             "general Discover search must still find an embedding-only track")
 
         let mood = await service.search(DiscoverySearchQuery(text: "x"), requireFullyIndexed: true)
-        XCTAssertEqual(mood.results, [],
+        #expect(mood.results == [],
             "Mood's mix-compatible gate must exclude a track with no BPM/camelot yet")
     }
 
     /// The companion case: once both tables exist and `track.indexed` is set (the atomic
     /// `BoundedIndexWorker.commitAnalysis` flip), Mood's gate finds it just like Discover does.
-    func testRequireFullyIndexedIncludesFullyAnalyzedTrack() async throws {
+    @Test func testRequireFullyIndexedIncludesFullyAnalyzedTrack() async throws {
         let queue = try SearchFixture.makeQueue()
         try await queue.write { db in
             let s = try SearchFixture.seedSource(db)
@@ -584,7 +582,7 @@ final class SearchServiceTests: XCTestCase {
         }
         let service = await makeService(queue, queryVector: unit([1, 0, 0, 0, 0, 0, 0, 0]))
         let mood = await service.search(DiscoverySearchQuery(text: "x"), requireFullyIndexed: true)
-        XCTAssertEqual(mood.results.map(\.track.track.title), ["fully-indexed"])
+        #expect(mood.results.map(\.track.track.title) == ["fully-indexed"])
     }
 }
 #endif

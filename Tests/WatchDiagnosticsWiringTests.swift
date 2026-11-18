@@ -1,11 +1,11 @@
 import Foundation
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 import TonearmWatchProtocol
 
 /// Phase 10e — the §12 diagnostics call sites in `WatchSyncActor` (install result, manifest
 /// convergence) and `WatchDiagnosticsObserver` (activation, transfer state, route events).
-final class WatchDiagnosticsWiringTests: XCTestCase {
+@Suite struct WatchDiagnosticsWiringTests {
 
     // MARK: - WatchSyncActor
 
@@ -47,7 +47,7 @@ final class WatchDiagnosticsWiringTests: XCTestCase {
         }
     }
 
-    func testInstallOutcomeAndManifestConvergenceAreRecorded() async throws {
+    @Test func testInstallOutcomeAndManifestConvergenceAreRecorded() async throws {
         let fx = try await SyncFixture()
         await fx.syncActor.didReceiveDownloadRoots(WatchSetDownloadRoots(revision: 1, roots: [
             WatchDownloadRootDescriptor(rootID: "r", kind: .track, sourceID: "one",
@@ -61,16 +61,16 @@ final class WatchDiagnosticsWiringTests: XCTestCase {
         let events = await fx.diagnostics.events()
 
         let install = events.first { $0.category == .installResult }
-        XCTAssertEqual(install?.stateCode, "installed")
-        XCTAssertEqual(install?.byteCount, digest.bytes)
+        #expect(install?.stateCode == "installed")
+        #expect(install?.byteCount == digest.bytes)
 
         let convergence = events.filter { $0.category == .manifestConvergence && $0.stateCode == "reported" }
-        XCTAssertFalse(convergence.isEmpty)
-        XCTAssertEqual(convergence.last?.count, 1, "one ready track after the install")
-        XCTAssertTrue(events.allSatisfy { $0.correlationID == nil })
+        #expect(!convergence.isEmpty)
+        #expect(convergence.last?.count == 1, "one ready track after the install")
+        #expect(events.allSatisfy { $0.correlationID == nil })
     }
 
-    func testARejectedInstallIsRecordedByItsFaultCode() async throws {
+    @Test func testARejectedInstallIsRecordedByItsFaultCode() async throws {
         let fx = try await SyncFixture()
         await fx.syncActor.didReceiveDownloadRoots(WatchSetDownloadRoots(revision: 1, roots: [
             WatchDownloadRootDescriptor(rootID: "r", kind: .track, sourceID: "bad",
@@ -81,12 +81,12 @@ final class WatchDiagnosticsWiringTests: XCTestCase {
             trackID: "bad", expectedBytes: 999_999, sha256: nil).dictionary)
 
         let codes = await fx.diagnostics.events().filter { $0.category == .installResult }.map(\.stateCode)
-        XCTAssertEqual(codes, ["checksumMismatch"])
+        #expect(codes == ["checksumMismatch"])
     }
 
     // MARK: - WatchDiagnosticsObserver
 
-    func testObserverRecordsTransferStateActivationAndRoute() async {
+    @Test func testObserverRecordsTransferStateActivationAndRoute() async {
         let diag = WatchDiagnosticsRecorder()
         let observer = WatchDiagnosticsObserver(diagnostics: diag)
 
@@ -100,10 +100,10 @@ final class WatchDiagnosticsWiringTests: XCTestCase {
         await observer.connectionStateDidChange(.connected(lastReplyAt: Date()), connectivity: .connected)
 
         let events = await diag.events()
-        XCTAssertEqual(events.first { $0.category == .transferState && $0.stateCode == "rootsReceived" }?.count, 3)
-        XCTAssertEqual(events.first { $0.stateCode == "failing" }?.count, 4)
-        XCTAssertTrue(events.contains { $0.category == .activation && $0.stateCode == "protocolUpgradeRequired" })
-        XCTAssertTrue(events.contains { $0.category == .routeEvent && $0.stateCode == "connected" })
-        XCTAssertTrue(events.allSatisfy { $0.correlationID == nil })
+        #expect(events.first { $0.category == .transferState && $0.stateCode == "rootsReceived" }?.count == 3)
+        #expect(events.first { $0.stateCode == "failing" }?.count == 4)
+        #expect(events.contains { $0.category == .activation && $0.stateCode == "protocolUpgradeRequired" })
+        #expect(events.contains { $0.category == .routeEvent && $0.stateCode == "connected" })
+        #expect(events.allSatisfy { $0.correlationID == nil })
     }
 }

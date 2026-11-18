@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 import TonearmWatchProtocol
 
@@ -14,8 +14,8 @@ private final class Counter: @unchecked Sendable {
 }
 
 @MainActor
-final class WatchSearchPresenterTests: XCTestCase {
-    func testTypingSearchesSyncedCatalogAndMetadataArrivalRefreshesResults() async throws {
+@Suite struct WatchSearchPresenterTests {
+    @Test func testTypingSearchesSyncedCatalogAndMetadataArrivalRefreshesResults() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let repository = WatchLibraryRepository(container: try WatchStoreBootstrap.inMemory(),
@@ -28,16 +28,17 @@ final class WatchSearchPresenterTests: XCTestCase {
         })
         presenter.query = "Home Cooking"
         try await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .offlineNoResults)
+        #expect(presenter.phase == .offlineNoResults)
         try await repository.upsertTrack(.init(trackID: "home", title: "Home Cooking I"))
         presenter.refresh()
         try await Task.sleep(for: .milliseconds(50))
         guard case .offlineResults(let rows) = presenter.phase else {
-            return XCTFail("Typed query must refresh when catalog metadata arrives")
+            Issue.record("Typed query must refresh when catalog metadata arrives")
+            return
         }
-        XCTAssertEqual(rows.map(\.id), ["home"])
-        XCTAssertFalse(rows[0].isDownloadedOnWatch, "Search All Music includes undownloaded catalog tracks")
-        XCTAssertTrue(presenter.recentSearches.isEmpty, "Refresh is not a user submission")
+        #expect(rows.map(\.id) == ["home"])
+        #expect(!rows[0].isDownloadedOnWatch, "Search All Music includes undownloaded catalog tracks")
+        #expect(presenter.recentSearches.isEmpty, "Refresh is not a user submission")
     }
 
     private func makePresenter(
@@ -51,19 +52,19 @@ final class WatchSearchPresenterTests: XCTestCase {
             debounce: .zero, sleep: { _ in })
     }
 
-    func testStartsOnRecents() {
+    @Test func testStartsOnRecents() {
         let presenter = makePresenter(mode: .connected, recents: .init(["ambient", "piano"]))
-        XCTAssertEqual(presenter.phase, .recent(["ambient", "piano"]))
+        #expect(presenter.phase == .recent(["ambient", "piano"]))
     }
 
-    func testShortQueryIsTooShortWhileTyping() async {
+    @Test func testShortQueryIsTooShortWhileTyping() async {
         let presenter = makePresenter(mode: .connected)
         presenter.query = "a"
         await Task.yield()
-        XCTAssertEqual(presenter.phase, .tooShort)
+        #expect(presenter.phase == .tooShort)
     }
 
-    func testConnectedResultsAndNoResults() async {
+    @Test func testConnectedResultsAndNoResults() async {
         let calls = Counter()
         let presenter = makePresenter(mode: .connected, connected: { q, gen in
             calls.bump()
@@ -72,22 +73,22 @@ final class WatchSearchPresenterTests: XCTestCase {
         })
         presenter.query = "piano"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .results([row("t1")]))
+        #expect(presenter.phase == .results([row("t1")]))
 
         presenter.query = "empty"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .noResults)
-        XCTAssertEqual(calls.count, 2)
+        #expect(presenter.phase == .noResults)
+        #expect(calls.count == 2)
     }
 
-    func testConnectedFaultBecomesUnreachable() async {
+    @Test func testConnectedFaultBecomesUnreachable() async {
         let presenter = makePresenter(mode: .connected, connected: { _, _ in .failed(.init(code: .phoneUnavailable)) })
         presenter.query = "piano"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .unreachable(fallback: []))
+        #expect(presenter.phase == .unreachable(fallback: []))
     }
 
-    func testSupersededReplyDoesNotRepaint() async {
+    @Test func testSupersededReplyDoesNotRepaint() async {
         let presenter = makePresenter(mode: .connected, connected: { q, gen in
             if q == "slow" {
                 try? await Task.sleep(for: .milliseconds(80))
@@ -99,52 +100,52 @@ final class WatchSearchPresenterTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(10))
         presenter.query = "fresh"
         try? await Task.sleep(for: .milliseconds(150))
-        XCTAssertEqual(presenter.phase, .results([row("fresh")]),
+        #expect(presenter.phase == .results([row("fresh")]),
                        "a late superseded reply must not overwrite the newer query's results")
     }
 
-    func testOfflineModeUsesLocalSearch() async {
+    @Test func testOfflineModeUsesLocalSearch() async {
         let presenter = makePresenter(mode: .offline, offline: { q in q == "rain" ? [row("local1")] : [] })
         presenter.query = "rain"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .offlineResults([row("local1")]))
+        #expect(presenter.phase == .offlineResults([row("local1")]))
 
         presenter.query = "nothing"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .offlineNoResults)
+        #expect(presenter.phase == .offlineNoResults)
     }
 
-    func testSubmitRecordsRecentAndRunsImmediately() async {
+    @Test func testSubmitRecordsRecentAndRunsImmediately() async {
         let recents = WatchInMemoryRecentSearchStore()
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] }, recents: recents)
         presenter.submit("jazz")
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(recents.load(), ["jazz"])
-        XCTAssertEqual(presenter.phase, .offlineResults([row("x")]))
+        #expect(recents.load() == ["jazz"])
+        #expect(presenter.phase == .offlineResults([row("x")]))
     }
 
-    func testModeFlipReRunsQuery() async {
+    @Test func testModeFlipReRunsQuery() async {
         let presenter = makePresenter(
             mode: .connected,
             connected: { _, _ in .failed(.init(code: .phoneUnavailable)) },
             offline: { _ in [row("localhit")] })
         presenter.query = "piano"
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .unreachable(fallback: [row("localhit")]),
+        #expect(presenter.phase == .unreachable(fallback: [row("localhit")]),
                        "a phone fault falls back to the watch's downloads and says so")
 
         presenter.setMode(.offline)
         try? await Task.sleep(for: .milliseconds(50))
-        XCTAssertEqual(presenter.phase, .offlineResults([row("localhit")]))
+        #expect(presenter.phase == .offlineResults([row("localhit")]))
     }
 
-    func testClearingQueryReturnsToRecents() async {
+    @Test func testClearingQueryReturnsToRecents() async {
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] },
                                       recents: .init(["old"]))
         presenter.query = "abc"
         try? await Task.sleep(for: .milliseconds(50))
         presenter.query = ""
         await Task.yield()
-        XCTAssertEqual(presenter.phase, .recent(["old"]))
+        #expect(presenter.phase == .recent(["old"]))
     }
 }

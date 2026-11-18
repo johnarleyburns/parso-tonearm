@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 import GRDB
 @testable import TonearmCore
 
-final class CustomArtworkTests: XCTestCase {
+@Suite struct CustomArtworkTests {
 
     private func makeStore() throws -> LibraryStore {
         try LibraryStore(inMemory: true)
@@ -14,59 +14,59 @@ final class CustomArtworkTests: XCTestCase {
                    title: sourceTitle, addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false,
                    localIsFolder: false, artworkTrackId: nil))
-        let sourceId = try XCTUnwrap(source.id)
+        let sourceId = try #require(source.id)
         let track = try await store.insertTrack(
             Track(id: nil, albumId: nil, sourceId: sourceId, title: "Track",
                   trackNo: 1, discNo: nil, durationSec: nil, codec: nil,
                   sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "a"))
-        let trackId = try XCTUnwrap(track.id)
+        let trackId = try #require(track.id)
         return (sourceId, trackId)
     }
 
-    func testNoCustomArtworkReturnsNil() async throws {
+    @Test func testNoCustomArtworkReturnsNil() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         let result = try await store.customArtworkId(for: ids.trackId)
-        XCTAssertNil(result)
+        #expect(result == nil)
     }
 
-    func testSetAndReadCustomArtwork() async throws {
+    @Test func testSetAndReadCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "abc")
         let read = try await store.customArtworkId(for: ids.trackId)
-        XCTAssertEqual(read, "abc")
+        #expect(read == "abc")
     }
 
-    func testUpsertUpdatesArtworkId() async throws {
+    @Test func testUpsertUpdatesArtworkId() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "abc")
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "def")
         let read = try await store.customArtworkId(for: ids.trackId)
-        XCTAssertEqual(read, "def")
+        #expect(read == "def")
         let allCount = try await store.allCustomArtworkIds().count
-        XCTAssertEqual(allCount, 1)
+        #expect(allCount == 1)
     }
 
-    func testDeleteCustomArtwork() async throws {
+    @Test func testDeleteCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "abc")
         try await store.deleteCustomArtwork(trackId: ids.trackId)
         let read = try await store.customArtworkId(for: ids.trackId)
-        XCTAssertNil(read)
+        #expect(read == nil)
     }
 
-    func testCustomArtworkIdsForSource() async throws {
+    @Test func testCustomArtworkIdsForSource() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "abc")
         let forSource = try await store.customArtworkIds(forSource: ids.sourceId)
-        XCTAssertEqual(forSource, ["abc"])
+        #expect(forSource == ["abc"])
     }
 
-    func testClearAllCustomArtwork() async throws {
+    @Test func testClearAllCustomArtwork() async throws {
         let store = try makeStore()
         let a = try await seedTrack(store, sourceTitle: "A")
         let b = try await seedTrack(store, sourceTitle: "B")
@@ -74,7 +74,7 @@ final class CustomArtworkTests: XCTestCase {
         try await store.setCustomArtwork(trackId: b.trackId, artworkId: "2")
         try await store.clearAllCustomArtwork()
         let count = try await store.allCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 
     /// Documents the DB-level invariant behind the remote-track custom-artwork
@@ -83,26 +83,26 @@ final class CustomArtworkTests: XCTestCase {
     /// row's negative `TrackRow.id`) must fail rather than silently landing on
     /// an id that will never become the track's real, lasting one. This is why
     /// `AppState.assignCustomArtwork(toTrack:data:)` persists the row first.
-    func testSetCustomArtworkFailsForNonExistentTrackId() async throws {
+    @Test func testSetCustomArtworkFailsForNonExistentTrackId() async throws {
         let store = try makeStore()
         let transientId: Int64 = -1
         do {
             try await store.setCustomArtwork(trackId: transientId, artworkId: "abc")
-            XCTFail("expected a foreign-key violation for a transient/non-existent trackId")
+            Issue.record("expected a foreign-key violation for a transient/non-existent trackId")
         } catch {
             // Expected: GRDB surfaces the FK constraint failure.
         }
         let read = try await store.customArtworkId(for: transientId)
-        XCTAssertNil(read)
+        #expect(read == nil)
     }
 
-    func testSourceDeletionCascadesCustomArtwork() async throws {
+    @Test func testSourceDeletionCascadesCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setCustomArtwork(trackId: ids.trackId, artworkId: "abc")
         try await store.deleteSource(id: ids.sourceId)
         let count = try await store.allCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 
     // MARK: - Album-level
@@ -113,39 +113,39 @@ final class CustomArtworkTests: XCTestCase {
                    title: sourceTitle, addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false,
                    localIsFolder: false, artworkTrackId: nil))
-        let sourceId = try XCTUnwrap(source.id)
+        let sourceId = try #require(source.id)
         let album = try await store.insertAlbum(
             Album(id: nil, sourceId: sourceId, title: "Album", artist: "Artist"))
-        let albumId = try XCTUnwrap(album.id)
+        let albumId = try #require(album.id)
         return (sourceId, albumId)
     }
 
-    func testNoAlbumCustomArtworkReturnsNil() async throws {
+    @Test func testNoAlbumCustomArtworkReturnsNil() async throws {
         let store = try makeStore()
         let ids = try await seedAlbum(store)
         let result = try await store.albumCustomArtworkId(for: ids.albumId)
-        XCTAssertNil(result)
+        #expect(result == nil)
     }
 
-    func testSetGetDeleteAlbumCustomArtwork() async throws {
+    @Test func testSetGetDeleteAlbumCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedAlbum(store)
         try await store.setAlbumCustomArtwork(albumId: ids.albumId, artworkId: "album-art")
         var read = try await store.albumCustomArtworkId(for: ids.albumId)
-        XCTAssertEqual(read, "album-art")
+        #expect(read == "album-art")
 
         try await store.setAlbumCustomArtwork(albumId: ids.albumId, artworkId: "album-art-2")
         read = try await store.albumCustomArtworkId(for: ids.albumId)
-        XCTAssertEqual(read, "album-art-2")
+        #expect(read == "album-art-2")
         let allCount = try await store.allAlbumCustomArtworkIds().count
-        XCTAssertEqual(allCount, 1)
+        #expect(allCount == 1)
 
         try await store.deleteAlbumCustomArtwork(albumId: ids.albumId)
         read = try await store.albumCustomArtworkId(for: ids.albumId)
-        XCTAssertNil(read)
+        #expect(read == nil)
     }
 
-    func testClearAllAlbumCustomArtwork() async throws {
+    @Test func testClearAllAlbumCustomArtwork() async throws {
         let store = try makeStore()
         let a = try await seedAlbum(store, sourceTitle: "A")
         let b = try await seedAlbum(store, sourceTitle: "B")
@@ -153,46 +153,46 @@ final class CustomArtworkTests: XCTestCase {
         try await store.setAlbumCustomArtwork(albumId: b.albumId, artworkId: "2")
         try await store.clearAllAlbumCustomArtwork()
         let count = try await store.allAlbumCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 
-    func testSourceDeletionCascadesAlbumCustomArtwork() async throws {
+    @Test func testSourceDeletionCascadesAlbumCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedAlbum(store)
         try await store.setAlbumCustomArtwork(albumId: ids.albumId, artworkId: "abc")
         try await store.deleteSource(id: ids.sourceId)
         let count = try await store.allAlbumCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 
     // MARK: - Source-level
 
-    func testNoSourceCustomArtworkReturnsNil() async throws {
+    @Test func testNoSourceCustomArtworkReturnsNil() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         let result = try await store.sourceCustomArtworkId(for: ids.sourceId)
-        XCTAssertNil(result)
+        #expect(result == nil)
     }
 
-    func testSetGetDeleteSourceCustomArtwork() async throws {
+    @Test func testSetGetDeleteSourceCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setSourceCustomArtwork(sourceId: ids.sourceId, artworkId: "source-art")
         var read = try await store.sourceCustomArtworkId(for: ids.sourceId)
-        XCTAssertEqual(read, "source-art")
+        #expect(read == "source-art")
 
         try await store.setSourceCustomArtwork(sourceId: ids.sourceId, artworkId: "source-art-2")
         read = try await store.sourceCustomArtworkId(for: ids.sourceId)
-        XCTAssertEqual(read, "source-art-2")
+        #expect(read == "source-art-2")
         let allCount = try await store.allSourceCustomArtworkIds().count
-        XCTAssertEqual(allCount, 1)
+        #expect(allCount == 1)
 
         try await store.deleteSourceCustomArtwork(sourceId: ids.sourceId)
         read = try await store.sourceCustomArtworkId(for: ids.sourceId)
-        XCTAssertNil(read)
+        #expect(read == nil)
     }
 
-    func testClearAllSourceCustomArtwork() async throws {
+    @Test func testClearAllSourceCustomArtwork() async throws {
         let store = try makeStore()
         let a = try await seedTrack(store, sourceTitle: "A")
         let b = try await seedTrack(store, sourceTitle: "B")
@@ -200,15 +200,15 @@ final class CustomArtworkTests: XCTestCase {
         try await store.setSourceCustomArtwork(sourceId: b.sourceId, artworkId: "2")
         try await store.clearAllSourceCustomArtwork()
         let count = try await store.allSourceCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 
-    func testSourceDeletionCascadesSourceCustomArtwork() async throws {
+    @Test func testSourceDeletionCascadesSourceCustomArtwork() async throws {
         let store = try makeStore()
         let ids = try await seedTrack(store)
         try await store.setSourceCustomArtwork(sourceId: ids.sourceId, artworkId: "abc")
         try await store.deleteSource(id: ids.sourceId)
         let count = try await store.allSourceCustomArtworkIds().count
-        XCTAssertEqual(count, 0)
+        #expect(count == 0)
     }
 }

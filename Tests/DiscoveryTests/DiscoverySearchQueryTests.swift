@@ -1,11 +1,11 @@
 #if !os(watchOS)
-import XCTest
+import Testing
 
 @testable import TonearmDiscovery
 
 /// Plan §9: `Query` is a Codable validated value. Oversize / malformed input
 /// yields an actionable validation result, never a silently-clamped query.
-final class DiscoverySearchQueryTests: XCTestCase {
+@Suite struct DiscoverySearchQueryTests {
     private func validate(_ q: DiscoverySearchQuery) -> [QueryValidationIssue] {
         switch ValidatedQuery.validate(q) {
         case .success: return []
@@ -13,97 +13,97 @@ final class DiscoverySearchQueryTests: XCTestCase {
         }
     }
 
-    func testDefaultsAreValidAndNormalized() throws {
+    @Test func testDefaultsAreValidAndNormalized() throws {
         let out = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "  gentle   acoustic  guitar \n"))
-        guard case .success(let v) = out else { return XCTFail("expected success") }
-        XCTAssertEqual(v.text, "gentle acoustic guitar")
-        XCTAssertEqual(v.limit, 50)
-        XCTAssertNil(v.bpmRange)
-        XCTAssertFalse(v.hasHardMusicalFilter)
-        XCTAssertTrue(v.hasText)
+        guard case .success(let v) = out else { return Issue.record("expected success") }
+        #expect(v.text == "gentle acoustic guitar")
+        #expect(v.limit == 50)
+        #expect(v.bpmRange == nil)
+        #expect(!v.hasHardMusicalFilter)
+        #expect(v.hasText)
     }
 
-    func testTextOverFiveHundredCharsRejected() {
+    @Test func testTextOverFiveHundredCharsRejected() {
         let issues = validate(DiscoverySearchQuery(text: String(repeating: "a", count: 501)))
-        XCTAssertEqual(issues, [.textTooLong(limit: 500, actual: 501)])
+        #expect(issues == [.textTooLong(limit: 500, actual: 501)])
     }
 
-    func testTooManyRefinements() {
+    @Test func testTooManyRefinements() {
         let issues = validate(
             DiscoverySearchQuery(
                 text: "x", positiveRefinements: Array(repeating: "a", count: 5),
                 negativeRefinements: Array(repeating: "b", count: 4)))
-        XCTAssertEqual(issues, [.tooManyRefinements(limit: 8, actual: 9)])
+        #expect(issues == [.tooManyRefinements(limit: 8, actual: 9)])
     }
 
-    func testRefinementTermTooLong() {
+    @Test func testRefinementTermTooLong() {
         let long = String(repeating: "z", count: 101)
         let issues = validate(DiscoverySearchQuery(text: "x", positiveRefinements: [long]))
-        XCTAssertEqual(issues, [.refinementTermTooLong(limit: 100, actual: 101, term: long)])
+        #expect(issues == [.refinementTermTooLong(limit: 100, actual: 101, term: long)])
     }
 
-    func testReversedBPMRejected() {
+    @Test func testReversedBPMRejected() {
         let issues = validate(DiscoverySearchQuery(text: "x", bpmMin: 140, bpmMax: 100))
-        XCTAssertEqual(issues, [.bpmReversed(min: 140, max: 100)])
+        #expect(issues == [.bpmReversed(min: 140, max: 100)])
     }
 
-    func testNonFiniteBPMRejected() {
+    @Test func testNonFiniteBPMRejected() {
         let issues = validate(DiscoverySearchQuery(text: "x", bpmMin: .nan, bpmMax: 120))
-        XCTAssertEqual(issues, [.bpmNotFinite])
+        #expect(issues == [.bpmNotFinite])
     }
 
-    func testNegativeBPMRejected() {
+    @Test func testNegativeBPMRejected() {
         let issues = validate(DiscoverySearchQuery(text: "x", bpmMin: -10, bpmMax: 20))
-        XCTAssertEqual(issues, [.bpmNegative(-10)])
+        #expect(issues == [.bpmNegative(-10)])
     }
 
-    func testInvalidKeyCodeRejected() {
+    @Test func testInvalidKeyCodeRejected() {
         let issues = validate(DiscoverySearchQuery(text: "x", compatibleKey: "99Z"))
-        XCTAssertEqual(issues, [.invalidKeyCode("99Z")])
+        #expect(issues == [.invalidKeyCode("99Z")])
     }
 
-    func testValidKeyCodeParsed() {
+    @Test func testValidKeyCodeParsed() {
         guard case .success(let v) = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "x", compatibleKey: "8A"))
-        else { return XCTFail() }
-        XCTAssertEqual(v.compatibleKey?.code, "8A")
-        XCTAssertTrue(v.hasHardMusicalFilter)
+        else { return Issue.record() }
+        #expect(v.compatibleKey?.code == "8A")
+        #expect(v.hasHardMusicalFilter)
     }
 
-    func testLimitOutOfRange() {
-        XCTAssertEqual(
-            validate(DiscoverySearchQuery(text: "x", limit: 0)),
+    @Test func testLimitOutOfRange() {
+        #expect(
+            validate(DiscoverySearchQuery(text: "x", limit: 0)) ==
             [.limitOutOfRange(min: 1, max: 200, actual: 0)])
-        XCTAssertEqual(
-            validate(DiscoverySearchQuery(text: "x", limit: 201)),
+        #expect(
+            validate(DiscoverySearchQuery(text: "x", limit: 201)) ==
             [.limitOutOfRange(min: 1, max: 200, actual: 201)])
     }
 
-    func testMultipleIssuesReportedTogether() {
+    @Test func testMultipleIssuesReportedTogether() {
         let issues = validate(
             DiscoverySearchQuery(
                 text: String(repeating: "a", count: 600), bpmMin: 200, bpmMax: 100, limit: 999))
-        XCTAssertTrue(issues.contains(.textTooLong(limit: 500, actual: 600)))
-        XCTAssertTrue(issues.contains(.bpmReversed(min: 200, max: 100)))
-        XCTAssertTrue(issues.contains(.limitOutOfRange(min: 1, max: 200, actual: 999)))
+        #expect(issues.contains(.textTooLong(limit: 500, actual: 600)))
+        #expect(issues.contains(.bpmReversed(min: 200, max: 100)))
+        #expect(issues.contains(.limitOutOfRange(min: 1, max: 200, actual: 999)))
     }
 
-    func testCodableRoundTrip() throws {
+    @Test func testCodableRoundTrip() throws {
         let q = DiscoverySearchQuery(
             text: "warm pads", positiveRefinements: ["lush"], negativeRefinements: ["vocals"],
             sourceIDs: [1, 2], playlistID: 7, bpmMin: 110, bpmMax: 124, compatibleKey: "9B",
             limit: 25)
         let data = try JSONEncoder().encode(q)
         let back = try JSONDecoder().decode(DiscoverySearchQuery.self, from: data)
-        XCTAssertEqual(q, back)
+        #expect(q == back)
     }
 
-    func testExplicitEmptyScopePreserved() {
+    @Test func testExplicitEmptyScopePreserved() {
         guard case .success(let v) = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "x", sourceIDs: []))
-        else { return XCTFail() }
-        XCTAssertEqual(v.sourceIDs, [])
+        else { return Issue.record() }
+        #expect(v.sourceIDs == [])
     }
 }
 #endif

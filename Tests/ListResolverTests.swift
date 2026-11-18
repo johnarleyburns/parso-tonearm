@@ -1,41 +1,41 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// TF2: list & collection resolution must work; these lock down the member
 /// parsing that previously errored.
-final class ListResolverTests: XCTestCase {
+@Suite struct ListResolverTests {
 
-    func testParsesMembersArrayShape() {
+    @Test func testParsesMembersArrayShape() {
         let json = """
         {"members":[{"identifier":"item-a","title":"A"},{"identifier":"item-b","title":"B"}]}
         """.data(using: .utf8)!
         let members = ListResolver.parseMembers(from: json)
-        XCTAssertEqual(members.map(\.identifier), ["item-a", "item-b"])
-        XCTAssertEqual(members.first?.title, "A")
+        #expect(members.map(\.identifier) == ["item-a", "item-b"])
+        #expect(members.first?.title == "A")
     }
 
-    func testParsesIdsShape() {
+    @Test func testParsesIdsShape() {
         let json = #"{"ids":["one","two","three"]}"#.data(using: .utf8)!
         let members = ListResolver.parseMembers(from: json)
-        XCTAssertEqual(members.map(\.identifier), ["one", "two", "three"])
+        #expect(members.map(\.identifier) == ["one", "two", "three"])
     }
 
-    func testParsesMembersDictionaryShape() {
+    @Test func testParsesMembersDictionaryShape() {
         let json = """
         {"members":{"beta":{"title":"Beta"},"alpha":{"title":"Alpha"}}}
         """.data(using: .utf8)!
         let members = ListResolver.parseMembers(from: json)
         // Dictionary keys are sorted for determinism.
-        XCTAssertEqual(members.map(\.identifier), ["alpha", "beta"])
-        XCTAssertEqual(members.first?.title, "Alpha")
+        #expect(members.map(\.identifier) == ["alpha", "beta"])
+        #expect(members.first?.title == "Alpha")
     }
 
-    func testEmptyOnGarbage() {
-        XCTAssertTrue(ListResolver.parseMembers(from: Data("not json".utf8)).isEmpty)
-        XCTAssertTrue(ListResolver.parseMembers(from: Data("{}".utf8)).isEmpty)
+    @Test func testEmptyOnGarbage() {
+        #expect(ListResolver.parseMembers(from: Data("not json".utf8)).isEmpty)
+        #expect(ListResolver.parseMembers(from: Data("{}".utf8)).isEmpty)
     }
 
-    func testHTMLDetailExtractionDeduplicatesAndFilters() {
+    @Test func testHTMLDetailExtractionDeduplicatesAndFilters() {
         let html = """
         <a href="/details/goldberg-variations">x</a>
         <a href="/details/goldberg-variations">dup</a>
@@ -44,10 +44,10 @@ final class ListResolverTests: XCTestCase {
         <a href="/details/well-tempered-clavier">y</a>
         """
         let members = ListResolver.extractDetailIdentifiers(from: html)
-        XCTAssertEqual(members.map(\.identifier), ["goldberg-variations", "well-tempered-clavier"])
+        #expect(members.map(\.identifier) == ["goldberg-variations", "well-tempered-clavier"])
     }
 
-    func testCollectionPageDecodesAudioMembers() throws {
+    @Test func testCollectionPageDecodesAudioMembers() throws {
         let json = """
         {"items":[
           {"identifier":"aud1","title":"One","mediatype":"audio"},
@@ -56,11 +56,11 @@ final class ListResolverTests: XCTestCase {
         ],"total":3,"cursor":null}
         """.data(using: .utf8)!
         let page = try JSONDecoder().decode(CollectionResolver.Page.self, from: json)
-        XCTAssertEqual(page.total, 3)
-        XCTAssertEqual(page.items?.count, 3)
+        #expect(page.total == 3)
+        #expect(page.items?.count == 3)
     }
 
-    func testParsesCurrentUserListsShape() {
+    @Test func testParsesCurrentUserListsShape() {
         let json = """
         {"success":true,"value":[
           {"id":1,"list_name":"One","members":[{"identifier":"item-a"},{"identifier":"item-b"}]},
@@ -68,6 +68,6 @@ final class ListResolverTests: XCTestCase {
         ]}
         """.data(using: .utf8)!
         let members = ListResolver.parseMembers(from: json)
-        XCTAssertEqual(members.map(\.identifier), ["item-a", "item-b", "item-c"])
+        #expect(members.map(\.identifier) == ["item-a", "item-b", "item-c"])
     }
 }

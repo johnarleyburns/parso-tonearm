@@ -1,23 +1,23 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class FindResultScopePolicyTests: XCTestCase {
-    func testInitialModeIsSongs() {
-        XCTAssertEqual(FindResultScopePolicy.initialMode, .songs)
+@Suite struct FindResultScopePolicyTests {
+    @Test func testInitialModeIsSongs() {
+        #expect(FindResultScopePolicy.initialMode == .songs)
     }
 
-    func testFreshStateStartsOnSongsAndKeepsExplicitChoice() {
+    @Test func testFreshStateStartsOnSongsAndKeepsExplicitChoice() {
         for choice in [LibraryBrowseMode.artists, .albums, .genres] {
             var s = FindResultScopeState()
-            XCTAssertEqual(s.mode, .songs)
+            #expect(s.mode == .songs)
             s.select(choice)
-            XCTAssertEqual(s.mode, choice)
-            XCTAssertEqual(FindResultScopeState().mode, .songs)
+            #expect(s.mode == choice)
+            #expect(FindResultScopeState().mode == .songs)
         }
     }
 
-    func testSongsShowIndividualRowsWhileArtistsGroup() {
+    @Test func testSongsShowIndividualRowsWhileArtistsGroup() {
         let rows = [1, 2].map { id in
             TrackRow(track: Track(id: Int64(id), albumId: 1, sourceId: 1, title: "T\(id)",
                                   trackNo: nil, discNo: nil, durationSec: nil, codec: nil,
@@ -27,52 +27,52 @@ final class FindResultScopePolicyTests: XCTestCase {
                      source: nil, asset: nil)
         }
         let songs = LibraryBrowse.sections(for: .songs, rows: rows).flatMap(\.entries)
-        XCTAssertEqual(songs.map(\.kind), [.song, .song])
-        XCTAssertTrue(songs.allSatisfy { $0.rows.count == 1 })
-        XCTAssertEqual(LibraryBrowse.sections(for: .artists, rows: rows).flatMap(\.entries).count, 1)
+        #expect(songs.map(\.kind) == [.song, .song])
+        #expect(songs.allSatisfy { $0.rows.count == 1 })
+        #expect(LibraryBrowse.sections(for: .artists, rows: rows).flatMap(\.entries).count == 1)
     }
 
-    func testFindViewConsumesPolicyAndExposesSelectedState() throws {
+    @Test func testFindViewConsumesPolicyAndExposesSelectedState() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
-        XCTAssertTrue(s.contains("browseMode: LibraryBrowseMode = FindResultScopePolicy.initialMode"))
-        XCTAssertTrue(s.contains("accessibilityValue(selected ? \"selected\" : \"not selected\")"))
+        #expect(s.contains("browseMode: LibraryBrowseMode = FindResultScopePolicy.initialMode"))
+        #expect(s.contains("accessibilityValue(selected ? \"selected\" : \"not selected\")"))
     }
 
     /// Mood and BPM/Key search results are always flat songs — their own controls select a
     /// mood/BPM/key, not a result shape. Grouping either into albums/artists/genres would
     /// scatter them across unrelated groups, the same problem the standalone Mood tab never had
     /// (it never routes through `LibraryBrowse` grouping at all).
-    func testMoodAndMixModeHideTheScopePickerAndForceSongs() throws {
+    @Test func testMoodAndMixModeHideTheScopePickerAndForceSongs() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
-        XCTAssertTrue(s.contains("if mode == .all {"))
-        XCTAssertTrue(s.contains("if newMode == .sound || newMode == .mix { browseMode = .songs }"))
+        #expect(s.contains("if mode == .all {"))
+        #expect(s.contains("if newMode == .sound || newMode == .mix { browseMode = .songs }"))
     }
 
     /// Genres isn't a useful Find result type; My Music's own Genres browsing is untouched.
-    func testFindExcludesGenresFromItsResultTypeOptions() throws {
+    @Test func testFindExcludesGenresFromItsResultTypeOptions() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
-        XCTAssertTrue(s.contains("LibraryBrowseMode.allCases.filter { $0 != .genres }"))
-        XCTAssertTrue(s.contains("ForEach(findScopeOptions)"),
+        #expect(s.contains("LibraryBrowseMode.allCases.filter { $0 != .genres }"))
+        #expect(s.contains("ForEach(findScopeOptions)"),
                      "findScopePicker must iterate the filtered options, not allCases directly")
     }
 
     /// The old inline Name/Mood/BPM-Key row is gone, replaced by a glass menu in the nav bar.
-    func testModeSelectionMovedToAToolbarGlassMenu() throws {
+    @Test func testModeSelectionMovedToAToolbarGlassMenu() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let find = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                               encoding: .utf8)
-        XCTAssertTrue(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }"))
-        XCTAssertTrue(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
+        #expect(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }"))
+        #expect(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
         let controls = try String(
             contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
             encoding: .utf8)
-        XCTAssertFalse(controls.contains("modeSelector"),
+        #expect(!controls.contains("modeSelector"),
                        "the inline mode row must be fully removed, not just unused")
     }
 }

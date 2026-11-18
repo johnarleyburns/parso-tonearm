@@ -1,48 +1,48 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 /// docs/plans/macos-app-cloud-sync-plan.md §4.3/§6 — the three accept/
 /// reject/requeue outcomes, pure (no CloudKit needed).
-final class DiscoveryEmbeddingSyncTests: XCTestCase {
+@Suite struct DiscoveryEmbeddingSyncTests {
 
-    func testAcceptsWhenVersionMatchesAndNotYetIndexedLocally() {
+    @Test func testAcceptsWhenVersionMatchesAndNotYetIndexedLocally() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 1, incomingPreprocessingVersion: 1, incomingSamplingVersion: 1,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: false)
-        XCTAssertEqual(decision, .accept)
+        #expect(decision == .accept)
     }
 
-    func testRejectsAndKeepsLocalWhenAlreadyIndexedEvenIfVersionMatches() {
+    @Test func testRejectsAndKeepsLocalWhenAlreadyIndexedEvenIfVersionMatches() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 1, incomingPreprocessingVersion: 1, incomingSamplingVersion: 1,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: true)
-        XCTAssertEqual(decision, .rejectKeepLocal)
+        #expect(decision == .rejectKeepLocal)
     }
 
-    func testRejectsAndRequeuesOnModelVersionMismatch() {
+    @Test func testRejectsAndRequeuesOnModelVersionMismatch() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 2, incomingPreprocessingVersion: 1, incomingSamplingVersion: 1,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: false)
-        XCTAssertEqual(decision, .rejectRequeue)
+        #expect(decision == .rejectRequeue)
     }
 
-    func testRejectsAndRequeuesOnPreprocessingVersionMismatch() {
+    @Test func testRejectsAndRequeuesOnPreprocessingVersionMismatch() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 1, incomingPreprocessingVersion: 2, incomingSamplingVersion: 1,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: false)
-        XCTAssertEqual(decision, .rejectRequeue)
+        #expect(decision == .rejectRequeue)
     }
 
-    func testRejectsAndRequeuesOnSamplingVersionMismatch() {
+    @Test func testRejectsAndRequeuesOnSamplingVersionMismatch() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 1, incomingPreprocessingVersion: 1, incomingSamplingVersion: 2,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: false)
-        XCTAssertEqual(decision, .rejectRequeue)
+        #expect(decision == .rejectRequeue)
     }
 
     /// Version mismatch is checked before the already-indexed check —
@@ -50,11 +50,11 @@ final class DiscoveryEmbeddingSyncTests: XCTestCase {
     /// (now-considered-incompatible) local row, since the owner's rule is
     /// "never trust an incompatible vector," not "never touch a track with
     /// any local row."
-    func testVersionMismatchTakesPriorityOverAlreadyIndexed() {
+    @Test func testVersionMismatchTakesPriorityOverAlreadyIndexed() {
         let decision = DiscoveryEmbeddingSyncDecision.decide(
             incomingModelVersion: 2, incomingPreprocessingVersion: 1, incomingSamplingVersion: 1,
             activeModelVersion: 1, activePreprocessingVersion: 1, activeSamplingVersion: 1,
             localEmbeddingExists: true)
-        XCTAssertEqual(decision, .rejectRequeue)
+        #expect(decision == .rejectRequeue)
     }
 }

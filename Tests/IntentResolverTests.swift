@@ -1,111 +1,111 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class IntentResolverTests: XCTestCase {
-    func testPlaylistEmptyLibraryFailsBeforeMatching() {
+@Suite struct IntentResolverTests {
+    @Test func testPlaylistEmptyLibraryFailsBeforeMatching() {
         let resolution = IntentResolver.resolvePlaylist(named: "Road", playlists: [])
 
-        XCTAssertEqual(resolution, .failure(.emptyLibrary(.playlist)))
+        #expect(resolution == .failure(.emptyLibrary(.playlist)))
     }
 
-    func testArtistEmptyLibraryFailsBeforeMatching() {
+    @Test func testArtistEmptyLibraryFailsBeforeMatching() {
         let resolution = IntentResolver.resolveArtist(named: "Bach", artists: [])
 
-        XCTAssertEqual(resolution, .failure(.emptyLibrary(.artist)))
+        #expect(resolution == .failure(.emptyLibrary(.artist)))
     }
 
-    func testPlaylistExactMatchReturnsPlayCommand() {
+    @Test func testPlaylistExactMatchReturnsPlayCommand() {
         let resolution = IntentResolver.resolvePlaylist(named: "Road Trip", playlists: [
             .init(id: 1, title: "Quiet"),
             .init(id: 2, title: "Road Trip")
         ])
 
-        XCTAssertEqual(resolution, .command(.playPlaylist(id: 2, title: "Road Trip")))
+        #expect(resolution == .command(.playPlaylist(id: 2, title: "Road Trip")))
     }
 
-    func testArtistMatchesCaseAndDiacritics() {
+    @Test func testArtistMatchesCaseAndDiacritics() {
         let resolution = IntentResolver.resolveArtist(named: "Beyonce", artists: [
             .init(name: "Solange"),
             .init(name: "Beyoncé")
         ])
 
-        XCTAssertEqual(resolution, .command(.playArtist(name: "Beyoncé")))
+        #expect(resolution == .command(.playArtist(name: "Beyoncé")))
     }
 
-    func testPlaylistNoMatchReturnsFailureWithTrimmedQuery() {
+    @Test func testPlaylistNoMatchReturnsFailureWithTrimmedQuery() {
         let resolution = IntentResolver.resolvePlaylist(named: "  Metal  ", playlists: [
             .init(id: 1, title: "Ambient"),
             .init(id: 2, title: "Piano")
         ])
 
-        XCTAssertEqual(resolution, .failure(.noMatch(kind: .playlist, query: "Metal")))
+        #expect(resolution == .failure(.noMatch(kind: .playlist, query: "Metal")))
     }
 
-    func testDuplicatePlaylistNamesAreAmbiguous() {
+    @Test func testDuplicatePlaylistNamesAreAmbiguous() {
         let resolution = IntentResolver.resolvePlaylist(named: "Road Trip", playlists: [
             .init(id: 1, title: "Road Trip"),
             .init(id: 2, title: "road trip")
         ])
 
-        XCTAssertEqual(
-            resolution,
+        #expect(
+            resolution ==
             .failure(.ambiguous(kind: .playlist, query: "Road Trip", matches: ["Road Trip", "road trip"]))
         )
     }
 
-    func testPartialArtistNameCanBeAmbiguous() {
+    @Test func testPartialArtistNameCanBeAmbiguous() {
         let resolution = IntentResolver.resolveArtist(named: "Bach", artists: [
             .init(name: "Bach Cello Suites"),
             .init(name: "Bach Cantatas"),
             .init(name: "Debussy")
         ])
 
-        XCTAssertEqual(
-            resolution,
+        #expect(
+            resolution ==
             .failure(.ambiguous(kind: .artist, query: "Bach", matches: ["Bach Cello Suites", "Bach Cantatas"]))
         )
     }
 
-    func testEmptyQueryFails() {
+    @Test func testEmptyQueryFails() {
         let resolution = IntentResolver.resolveArtist(named: "   ", artists: [
             .init(name: "Debussy")
         ])
 
-        XCTAssertEqual(resolution, .failure(.emptyParameter(.artist)))
+        #expect(resolution == .failure(.emptyParameter(.artist)))
     }
 
     // MARK: - Song (docs/plans/carplay-voice-search-plan.md §1)
 
-    func testSongEmptyLibraryFailsBeforeMatching() {
+    @Test func testSongEmptyLibraryFailsBeforeMatching() {
         let resolution = IntentResolver.resolveSong(title: "Yesterday", artist: nil, songs: [])
 
-        XCTAssertEqual(resolution, .failure(.emptyLibrary(.song)))
+        #expect(resolution == .failure(.emptyLibrary(.song)))
     }
 
-    func testSongExactTitleMatchReturnsPlayCommand() {
+    @Test func testSongExactTitleMatchReturnsPlayCommand() {
         let resolution = IntentResolver.resolveSong(title: "Hotel California", artist: nil, songs: [
             .init(trackId: 1, title: "Take It Easy", artist: "Eagles"),
             .init(trackId: 2, title: "Hotel California", artist: "Eagles")
         ])
 
-        XCTAssertEqual(resolution, .command(.playSong(trackId: 2, title: "Hotel California", artist: "Eagles")))
+        #expect(resolution == .command(.playSong(trackId: 2, title: "Hotel California", artist: "Eagles")))
     }
 
     /// The exact scenario the plan calls out: the same title recorded by
     /// two different artists. Without narrowing by the spoken artist first,
     /// this is ambiguous; with it, it resolves cleanly.
-    func testSpokenArtistNarrowsAmbiguousTitleBeforeMatching() {
+    @Test func testSpokenArtistNarrowsAmbiguousTitleBeforeMatching() {
         let songs: [IntentResolver.SongCandidate] = [
             .init(trackId: 1, title: "Yesterday", artist: "The Beatles"),
             .init(trackId: 2, title: "Yesterday", artist: "Boyz II Men")
         ]
 
-        XCTAssertEqual(
-            IntentResolver.resolveSong(title: "Yesterday", artist: nil, songs: songs),
+        #expect(
+            IntentResolver.resolveSong(title: "Yesterday", artist: nil, songs: songs) ==
             .failure(.ambiguous(kind: .song, query: "Yesterday", matches: ["Yesterday", "Yesterday"]))
         )
-        XCTAssertEqual(
-            IntentResolver.resolveSong(title: "Yesterday", artist: "Beatles", songs: songs),
+        #expect(
+            IntentResolver.resolveSong(title: "Yesterday", artist: "Beatles", songs: songs) ==
             .command(.playSong(trackId: 1, title: "Yesterday", artist: "The Beatles"))
         )
     }
@@ -113,55 +113,55 @@ final class IntentResolverTests: XCTestCase {
     /// An artist Siri misheard (or that just doesn't match anything) must
     /// not make an otherwise-findable song fail outright — the narrowing
     /// only applies when it actually leaves a candidate.
-    func testUnmatchedSpokenArtistFallsBackToSearchingEverySong() {
+    @Test func testUnmatchedSpokenArtistFallsBackToSearchingEverySong() {
         let resolution = IntentResolver.resolveSong(
             title: "Hotel California",
             artist: "Some Mishearing",
             songs: [.init(trackId: 1, title: "Hotel California", artist: "Eagles")])
 
-        XCTAssertEqual(resolution, .command(.playSong(trackId: 1, title: "Hotel California", artist: "Eagles")))
+        #expect(resolution == .command(.playSong(trackId: 1, title: "Hotel California", artist: "Eagles")))
     }
 
-    func testSongNoMatchReturnsFailure() {
+    @Test func testSongNoMatchReturnsFailure() {
         let resolution = IntentResolver.resolveSong(title: "Nonexistent Track", artist: nil, songs: [
             .init(trackId: 1, title: "Hotel California", artist: "Eagles")
         ])
 
-        XCTAssertEqual(resolution, .failure(.noMatch(kind: .song, query: "Nonexistent Track")))
+        #expect(resolution == .failure(.noMatch(kind: .song, query: "Nonexistent Track")))
     }
 
-    func testResumeAlwaysReturnsCommand() {
-        XCTAssertEqual(IntentResolver.resolveResume(), .command(.resume))
+    @Test func testResumeAlwaysReturnsCommand() {
+        #expect(IntentResolver.resolveResume() == .command(.resume))
     }
 
-    func testAddSourceAcceptsArchiveURL() {
+    @Test func testAddSourceAcceptsArchiveURL() {
         let raw = " https://archive.org/details/foo "
         let resolution = IntentResolver.resolveAddSource(rawURL: raw)
 
-        XCTAssertEqual(resolution, .command(.addSource(rawURL: "https://archive.org/details/foo")))
+        #expect(resolution == .command(.addSource(rawURL: "https://archive.org/details/foo")))
     }
 
-    func testAddSourceRejectsForeignURL() {
+    @Test func testAddSourceRejectsForeignURL() {
         let resolution = IntentResolver.resolveAddSource(rawURL: "https://example.com/details/foo")
 
-        XCTAssertEqual(resolution, .failure(.malformedURL("https://example.com/details/foo")))
+        #expect(resolution == .failure(.malformedURL("https://example.com/details/foo")))
     }
 
-    func testSleepTimerBounds() {
-        XCTAssertEqual(
-            IntentResolver.resolveSleepTimer(minutes: IntentResolver.minimumSleepMinutes),
+    @Test func testSleepTimerBounds() {
+        #expect(
+            IntentResolver.resolveSleepTimer(minutes: IntentResolver.minimumSleepMinutes) ==
             .command(.setSleepTimer(.minutes(IntentResolver.minimumSleepMinutes)))
         )
-        XCTAssertEqual(
-            IntentResolver.resolveSleepTimer(minutes: IntentResolver.maximumSleepMinutes),
+        #expect(
+            IntentResolver.resolveSleepTimer(minutes: IntentResolver.maximumSleepMinutes) ==
             .command(.setSleepTimer(.minutes(IntentResolver.maximumSleepMinutes)))
         )
-        XCTAssertEqual(
-            IntentResolver.resolveSleepTimer(minutes: 0),
+        #expect(
+            IntentResolver.resolveSleepTimer(minutes: 0) ==
             .failure(.invalidSleepTimerMinutes(0))
         )
-        XCTAssertEqual(
-            IntentResolver.resolveSleepTimer(minutes: IntentResolver.maximumSleepMinutes + 1),
+        #expect(
+            IntentResolver.resolveSleepTimer(minutes: IntentResolver.maximumSleepMinutes + 1) ==
             .failure(.invalidSleepTimerMinutes(IntentResolver.maximumSleepMinutes + 1))
         )
     }

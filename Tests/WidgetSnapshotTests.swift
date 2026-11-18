@@ -1,8 +1,9 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class WidgetSnapshotTests: XCTestCase {
-    func testNothingPlayingBuildsEmptySnapshot() {
+extension SharedProductionSingletonTests {
+    @Suite struct WidgetSnapshotTests {
+    @Test func testNothingPlayingBuildsEmptySnapshot() {
         let now = Date(timeIntervalSince1970: 1_000)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -12,13 +13,13 @@ final class WidgetSnapshotTests: XCTestCase {
         )
         let entry = WidgetSnapshotTimeline.entry(for: snapshot, now: now)
 
-        XCTAssertNil(snapshot.nowPlaying)
-        XCTAssertTrue(snapshot.recentlyPlayed.isEmpty)
-        XCTAssertEqual(snapshot.generatedAt, now)
-        XCTAssertEqual(entry.state, .empty)
+        #expect(snapshot.nowPlaying == nil)
+        #expect(snapshot.recentlyPlayed.isEmpty)
+        #expect(snapshot.generatedAt == now)
+        #expect(entry.state == .empty)
     }
 
-    func testArtworkMissingIsExplicitInTrackSnapshot() throws {
+    @Test func testArtworkMissingIsExplicitInTrackSnapshot() throws {
         let now = Date(timeIntervalSince1970: 1_100)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -38,14 +39,14 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let track = try XCTUnwrap(snapshot.nowPlaying?.track)
+        let track = try #require(snapshot.nowPlaying?.track)
 
-        XCTAssertNil(track.artworkID)
-        XCTAssertEqual(track.artworkStatus, .missing)
-        XCTAssertFalse(track.hasArtwork)
+        #expect(track.artworkID == nil)
+        #expect(track.artworkStatus == .missing)
+        #expect(!track.hasArtwork)
     }
 
-    func testVeryLongTitlesAreTrimmedForWidgetDisplay() throws {
+    @Test func testVeryLongTitlesAreTrimmedForWidgetDisplay() throws {
         let now = Date(timeIntervalSince1970: 1_200)
         let longTitle = String(repeating: "A", count: 160)
         let longArtist = String(repeating: "B", count: 140)
@@ -67,16 +68,16 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let track = try XCTUnwrap(snapshot.nowPlaying?.track)
+        let track = try #require(snapshot.nowPlaying?.track)
 
-        XCTAssertLessThanOrEqual(track.title.count, WidgetSnapshotBuilder.maxDisplayCharacters)
-        XCTAssertTrue(track.title.hasSuffix("..."))
-        XCTAssertLessThanOrEqual(track.artist.count, WidgetSnapshotBuilder.maxDisplayCharacters)
-        XCTAssertTrue(track.artist.hasSuffix("..."))
-        XCTAssertEqual(track.artworkStatus, .available)
+        #expect(track.title.count <= WidgetSnapshotBuilder.maxDisplayCharacters)
+        #expect(track.title.hasSuffix("..."))
+        #expect(track.artist.count <= WidgetSnapshotBuilder.maxDisplayCharacters)
+        #expect(track.artist.hasSuffix("..."))
+        #expect(track.artworkStatus == .available)
     }
 
-    func testStaleTimelineEntriesAreClassified() {
+    @Test func testStaleTimelineEntriesAreClassified() {
         let generatedAt = Date(timeIntervalSince1970: 2_000)
         let now = generatedAt.addingTimeInterval(WidgetSnapshotTimeline.staleAfter + 1)
         let snapshot = WidgetSnapshotBuilder.build(
@@ -99,15 +100,15 @@ final class WidgetSnapshotTests: XCTestCase {
 
         let entry = WidgetSnapshotTimeline.entry(for: snapshot, now: now)
 
-        XCTAssertTrue(snapshot.isStale(at: now, staleAfter: WidgetSnapshotTimeline.staleAfter))
-        XCTAssertEqual(entry.state, .stale)
-        XCTAssertGreaterThanOrEqual(
-            entry.nextRefreshDate.timeIntervalSince(now),
-            WidgetSnapshotTimeline.minimumRefreshInterval
+        #expect(snapshot.isStale(at: now, staleAfter: WidgetSnapshotTimeline.staleAfter))
+        #expect(entry.state == .stale)
+        #expect(
+            entry.nextRefreshDate.timeIntervalSince(now)
+            >= WidgetSnapshotTimeline.minimumRefreshInterval
         )
     }
 
-    func testRecentlyPlayedDedupesAndLimitsRows() {
+    @Test func testRecentlyPlayedDedupesAndLimitsRows() {
         let now = Date(timeIntervalSince1970: 1_300)
         let inputs = [
             track(1, "One"),
@@ -125,11 +126,11 @@ final class WidgetSnapshotTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(snapshot.recentlyPlayed.map(\.id), [1, 2, 3, 4, 5])
-        XCTAssertEqual(snapshot.recentlyPlayed.count, WidgetSnapshotBuilder.recentLimit)
+        #expect(snapshot.recentlyPlayed.map(\.id) == [1, 2, 3, 4, 5])
+        #expect(snapshot.recentlyPlayed.count == WidgetSnapshotBuilder.recentLimit)
     }
 
-    func testProgressIsClampedToPlayableBounds() throws {
+    @Test func testProgressIsClampedToPlayableBounds() throws {
         let now = Date(timeIntervalSince1970: 1_400)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -142,14 +143,14 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+        let nowPlaying = try #require(snapshot.nowPlaying)
 
-        XCTAssertEqual(nowPlaying.elapsed, 100)
-        XCTAssertEqual(nowPlaying.duration, 100)
-        XCTAssertEqual(nowPlaying.progress, 1)
+        #expect(nowPlaying.elapsed == 100)
+        #expect(nowPlaying.duration == 100)
+        #expect(nowPlaying.progress == 1)
     }
 
-    func testStartEndDatesDeriveFromElapsedAndDuration() throws {
+    @Test func testStartEndDatesDeriveFromElapsedAndDuration() throws {
         let now = Date(timeIntervalSince1970: 1_000)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -162,13 +163,13 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+        let nowPlaying = try #require(snapshot.nowPlaying)
 
-        XCTAssertEqual(nowPlaying.startDate.timeIntervalSince1970, 1_000 - 30, accuracy: 0.001)
-        XCTAssertEqual(nowPlaying.endDate.timeIntervalSince1970, 1_000 + 90, accuracy: 0.001)
+        #expect(abs(nowPlaying.startDate.timeIntervalSince1970 - (1_000 - 30)) <= 0.001)
+        #expect(abs(nowPlaying.endDate.timeIntervalSince1970 - (1_000 + 90)) <= 0.001)
     }
 
-    func testZeroDurationProducesEqualStartAndEndDates() throws {
+    @Test func testZeroDurationProducesEqualStartAndEndDates() throws {
         let now = Date(timeIntervalSince1970: 1_000)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -188,14 +189,14 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+        let nowPlaying = try #require(snapshot.nowPlaying)
 
-        XCTAssertEqual(nowPlaying.elapsed, 0)
-        XCTAssertEqual(nowPlaying.duration, 0)
-        XCTAssertEqual(nowPlaying.startDate, nowPlaying.endDate)
+        #expect(nowPlaying.elapsed == 0)
+        #expect(nowPlaying.duration == 0)
+        #expect(nowPlaying.startDate == nowPlaying.endDate)
     }
 
-    func testArtworkFilenameIsNilWhenNoFileExistsOnDisk() throws {
+    @Test func testArtworkFilenameIsNilWhenNoFileExistsOnDisk() throws {
         let now = Date(timeIntervalSince1970: 1_500)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -215,13 +216,13 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let track = try XCTUnwrap(snapshot.nowPlaying?.track)
+        let track = try #require(snapshot.nowPlaying?.track)
 
-        XCTAssertNil(track.artworkFilename)
-        XCTAssertEqual(track.artworkStatus, .available)
+        #expect(track.artworkFilename == nil)
+        #expect(track.artworkStatus == .available)
     }
 
-    func testPausedTrackPreservesWidgetProgress() throws {
+    @Test func testPausedTrackPreservesWidgetProgress() throws {
         let now = Date(timeIntervalSince1970: 1_700)
 
         let snapshot = WidgetSnapshotBuilder.build(
@@ -234,16 +235,16 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+        let nowPlaying = try #require(snapshot.nowPlaying)
 
-        XCTAssertFalse(nowPlaying.isPlaying)
-        XCTAssertEqual(nowPlaying.track.title, "Paused Track")
-        XCTAssertEqual(nowPlaying.progress, 0.4, accuracy: 0.001)
-        XCTAssertEqual(nowPlaying.elapsed, 40)
-        XCTAssertEqual(nowPlaying.duration, 100)
+        #expect(!nowPlaying.isPlaying)
+        #expect(nowPlaying.track.title == "Paused Track")
+        #expect(abs(nowPlaying.progress - 0.4) <= 0.001)
+        #expect(nowPlaying.elapsed == 40)
+        #expect(nowPlaying.duration == 100)
     }
 
-    func testStalledSnapshotFreezesAtTruePosition() throws {
+    @Test func testStalledSnapshotFreezesAtTruePosition() throws {
         let now = Date(timeIntervalSince1970: 1_800)
 
         // A stalled/buffering player reports isPlaying=false (isAdvancing) so the
@@ -258,25 +259,25 @@ final class WidgetSnapshotTests: XCTestCase {
             recentlyPlayed: [],
             now: now
         )
-        let nowPlaying = try XCTUnwrap(snapshot.nowPlaying)
+        let nowPlaying = try #require(snapshot.nowPlaying)
 
-        XCTAssertFalse(nowPlaying.isPlaying)
-        XCTAssertEqual(nowPlaying.progress, 0.25, accuracy: 0.001)
+        #expect(!nowPlaying.isPlaying)
+        #expect(abs(nowPlaying.progress - 0.25) <= 0.001)
     }
 
-    func testEmptySnapshotHasNoNowPlayingTrack() {
+    @Test func testEmptySnapshotHasNoNowPlayingTrack() {
         let snapshot = WidgetSnapshot.empty(now: Date(timeIntervalSince1970: 1_900))
 
-        XCTAssertNil(snapshot.nowPlaying)
+        #expect(snapshot.nowPlaying == nil)
     }
 
-    func testPlaybackStateStoreRoundTripsQueueIndexAndTime() throws {
+    @Test func testPlaybackStateStoreRoundTripsQueueIndexAndTime() throws {
         let suiteName = "guru.parso.tonearm.tests.playback-state"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.removePersistentDomain(forName: suiteName)
 
-        XCTAssertNil(PlaybackStateStore.load(defaults: defaults))
+        #expect(PlaybackStateStore.load(defaults: defaults) == nil)
 
         let saved = PlaybackStateSnapshot(
             trackIDs: [10, 20, 30],
@@ -287,15 +288,15 @@ final class WidgetSnapshotTests: XCTestCase {
         )
         PlaybackStateStore.save(saved, defaults: defaults)
 
-        let loaded = try XCTUnwrap(PlaybackStateStore.load(defaults: defaults))
-        XCTAssertEqual(loaded, saved)
-        XCTAssertEqual(loaded.trackIDs, [10, 20, 30])
-        XCTAssertEqual(loaded.currentIndex, 1)
-        XCTAssertEqual(loaded.elapsed, 42.5, accuracy: 0.001)
-        XCTAssertTrue(loaded.isPlaying)
+        let loaded = try #require(PlaybackStateStore.load(defaults: defaults))
+        #expect(loaded == saved)
+        #expect(loaded.trackIDs == [10, 20, 30])
+        #expect(loaded.currentIndex == 1)
+        #expect(abs(loaded.elapsed - 42.5) <= 0.001)
+        #expect(loaded.isPlaying)
 
         PlaybackStateStore.clear(defaults: defaults)
-        XCTAssertNil(PlaybackStateStore.load(defaults: defaults))
+        #expect(PlaybackStateStore.load(defaults: defaults) == nil)
     }
 
     private func track(_ id: Int64, _ title: String) -> WidgetSnapshotBuilder.TrackInput {
@@ -307,5 +308,6 @@ final class WidgetSnapshotTests: XCTestCase {
             duration: 100,
             artworkID: nil
         )
+    }
     }
 }

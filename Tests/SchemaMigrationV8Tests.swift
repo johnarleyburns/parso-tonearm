@@ -1,25 +1,25 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class SchemaMigrationV8Tests: XCTestCase {
+@Suite struct SchemaMigrationV8Tests {
 
-    func testFreshSchemaHasArtistAndMetadataColumns() async throws {
+    @Test func testFreshSchemaHasArtistAndMetadataColumns() async throws {
         let store = try LibraryStore(inMemory: true)
 
         try await store.dbQueue.read { db in
-            XCTAssertTrue(try db.tableExists("artist"))
-            XCTAssertTrue(try db.columns(in: "album").contains { $0.name == "artistId" })
-            XCTAssertTrue(try db.columns(in: "album").contains { $0.name == "albumArtist" })
-            XCTAssertTrue(try db.columns(in: "album").contains { $0.name == "genre" })
-            XCTAssertTrue(try db.columns(in: "track").contains { $0.name == "artistId" })
-            XCTAssertTrue(try db.columns(in: "track").contains { $0.name == "genre" })
-            XCTAssertTrue(try db.columns(in: "track").contains { $0.name == "composer" })
+            #expect(try db.tableExists("artist"))
+            #expect(try db.columns(in: "album").contains { $0.name == "artistId" })
+            #expect(try db.columns(in: "album").contains { $0.name == "albumArtist" })
+            #expect(try db.columns(in: "album").contains { $0.name == "genre" })
+            #expect(try db.columns(in: "track").contains { $0.name == "artistId" })
+            #expect(try db.columns(in: "track").contains { $0.name == "genre" })
+            #expect(try db.columns(in: "track").contains { $0.name == "composer" })
         }
     }
 
-    func testMigratesV7AlbumsIntoDedupedArtistsWithoutDataLoss() throws {
+    @Test func testMigratesV7AlbumsIntoDedupedArtistsWithoutDataLoss() throws {
         let dbQueue = try makeV7Database()
         try seedLegacyRows(dbQueue)
 
@@ -35,15 +35,15 @@ final class SchemaMigrationV8Tests: XCTestCase {
         try dbQueue.read { db in
             let afterAlbums = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM album") ?? 0
             let afterTracks = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") ?? 0
-            XCTAssertEqual(afterAlbums, before.albums)
-            XCTAssertEqual(afterTracks, before.tracks)
+            #expect(afterAlbums == before.albums)
+            #expect(afterTracks == before.tracks)
 
             let artistRows = try Row.fetchAll(
                 db, sql: "SELECT id, name, sortName FROM artist ORDER BY sortName")
             let artistNames = artistRows.map { $0["name"] as String }
-            XCTAssertEqual(Set(artistNames), ["A", "B", "The Beatles", "Various Artists"])
-            XCTAssertEqual(
-                artistRows.first { ($0["name"] as String) == "The Beatles" }?["sortName"], "Beatles"
+            #expect(Set(artistNames) == ["A", "B", "The Beatles", "Various Artists"])
+            #expect(
+                artistRows.first { ($0["name"] as String) == "The Beatles" }?["sortName"] == "Beatles"
             )
 
             let revolverArtistID: Int64? = try Row.fetchOne(
@@ -54,9 +54,9 @@ final class SchemaMigrationV8Tests: XCTestCase {
                 db,
                 sql: "SELECT artistId FROM album WHERE title = 'Abbey Road'"
             )?["artistId"]
-            XCTAssertNotNil(revolverArtistID)
-            XCTAssertEqual(
-                revolverArtistID, abbeyArtistID, "case variants should reuse one artist row")
+            #expect(revolverArtistID != nil)
+            #expect(
+                revolverArtistID == abbeyArtistID, "case variants should reuse one artist row")
 
             let legacyArtist: String? = try Row.fetchOne(
                 db,
@@ -66,8 +66,8 @@ final class SchemaMigrationV8Tests: XCTestCase {
                 db,
                 sql: "SELECT albumArtist FROM album WHERE title = 'Revolver'"
             )?["albumArtist"]
-            XCTAssertEqual(legacyArtist, "The Beatles")
-            XCTAssertEqual(albumArtist, "The Beatles")
+            #expect(legacyArtist == "The Beatles")
+            #expect(albumArtist == "The Beatles")
 
             let brokenAlbumRefs =
                 try Int.fetchOne(
@@ -77,7 +77,7 @@ final class SchemaMigrationV8Tests: XCTestCase {
                         LEFT JOIN album ON album.id = track.albumId
                         WHERE track.albumId IS NOT NULL AND album.id IS NULL
                         """) ?? -1
-            XCTAssertEqual(brokenAlbumRefs, 0)
+            #expect(brokenAlbumRefs == 0)
 
             let brokenArtistRefs =
                 try Int.fetchOne(
@@ -87,7 +87,7 @@ final class SchemaMigrationV8Tests: XCTestCase {
                         LEFT JOIN artist ON artist.id = track.artistId
                         WHERE track.artistId IS NOT NULL AND artist.id IS NULL
                         """) ?? -1
-            XCTAssertEqual(brokenArtistRefs, 0)
+            #expect(brokenArtistRefs == 0)
 
             let knownArtistTracksWithoutArtist =
                 try Int.fetchOne(
@@ -99,7 +99,7 @@ final class SchemaMigrationV8Tests: XCTestCase {
                           AND TRIM(album.artist) <> ''
                           AND track.artistId IS NULL
                         """) ?? -1
-            XCTAssertEqual(knownArtistTracksWithoutArtist, 0)
+            #expect(knownArtistTracksWithoutArtist == 0)
         }
     }
 

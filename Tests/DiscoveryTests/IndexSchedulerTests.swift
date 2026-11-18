@@ -1,5 +1,5 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -65,7 +65,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         continuousNominalSeconds: 120)
 }
 
-final class IndexSchedulerTests: XCTestCase {
+@Suite struct IndexSchedulerTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -90,16 +90,16 @@ final class IndexSchedulerTests: XCTestCase {
         }
     }
 
-    func testIdleWhenNoJobsQueued() async throws {
+    @Test func testIdleWhenNoJobsQueued() async throws {
         let queue = try makeQueue()
         let jobs = IndexJobRepository(writer: queue)
         let scheduler = IndexScheduler(
             jobs: jobs, worker: ScriptedWorker([]), sleeper: { _ in })
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
-        XCTAssertEqual(outcome, .idle)
+        #expect(outcome == .idle)
     }
 
-    func testBlockedWhenUserPausedNeverClaimsAJob() async throws {
+    @Test func testBlockedWhenUserPausedNeverClaimsAJob() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -113,14 +113,14 @@ final class IndexSchedulerTests: XCTestCase {
         let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
 
         let outcome = try await scheduler.tick { paused }
-        XCTAssertEqual(outcome, .blocked(.userPaused))
+        #expect(outcome == .blocked(.userPaused))
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .queued)
+        #expect(job?.state == .queued)
         let calls = await worker.callCount
-        XCTAssertEqual(calls, 0, "paused must never invoke the worker")
+        #expect(calls == 0, "paused must never invoke the worker")
     }
 
-    func testDrivesJobThroughWindowsToCompletion() async throws {
+    @Test func testDrivesJobThroughWindowsToCompletion() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -140,16 +140,16 @@ final class IndexSchedulerTests: XCTestCase {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobCompleted = outcome else {
-            return XCTFail("expected jobCompleted, got \(outcome)")
+            return Issue.record("expected jobCompleted, got \(outcome)")
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .complete)
-        XCTAssertEqual(job?.embeddingStageState, .complete)
-        XCTAssertEqual(job?.musicalAnalysisStageState, .complete)
-        XCTAssertEqual(sleptDelays.get(), [2, 2], "one inter-window delay per completed window")
+        #expect(job?.state == .complete)
+        #expect(job?.embeddingStageState == .complete)
+        #expect(job?.musicalAnalysisStageState == .complete)
+        #expect(sleptDelays.get() == [2, 2], "one inter-window delay per completed window")
     }
 
-    func testEmbeddingSuccessWithFailedMusicalAnalysisStillCompletesTheJob() async throws {
+    @Test func testEmbeddingSuccessWithFailedMusicalAnalysisStillCompletesTheJob() async throws {
         // plan §4: "A musical-analysis failure never blocks embedding-derived
         // search coverage" — the job as a whole still reaches `.complete`.
         let queue = try makeQueue()
@@ -166,14 +166,14 @@ final class IndexSchedulerTests: XCTestCase {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobCompleted = outcome else {
-            return XCTFail("expected jobCompleted, got \(outcome)")
+            return Issue.record("expected jobCompleted, got \(outcome)")
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.musicalAnalysisStageState, .failed)
-        XCTAssertEqual(job?.state, .complete)
+        #expect(job?.musicalAnalysisStageState == .failed)
+        #expect(job?.state == .complete)
     }
 
-    func testTransientFailureSchedulesRetryAndStopsTheTick() async throws {
+    @Test func testTransientFailureSchedulesRetryAndStopsTheTick() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -185,14 +185,14 @@ final class IndexSchedulerTests: XCTestCase {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobFailed = outcome else {
-            return XCTFail("expected jobFailed, got \(outcome)")
+            return Issue.record("expected jobFailed, got \(outcome)")
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .retryScheduled)
-        XCTAssertEqual(job?.attemptCount, 1)
+        #expect(job?.state == .retryScheduled)
+        #expect(job?.attemptCount == 1)
     }
 
-    func testWorkerWaitingReasonPersistsAndStopsTheTick() async throws {
+    @Test func testWorkerWaitingReasonPersistsAndStopsTheTick() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -204,15 +204,15 @@ final class IndexSchedulerTests: XCTestCase {
 
         let beforeJob = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
-        XCTAssertEqual(
-            outcome, .jobWaiting(jobId: beforeJob!.id, reason: .waitingForAsset))
+        #expect(
+            outcome == .jobWaiting(jobId: beforeJob!.id, reason: .waitingForAsset))
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .waitingForAsset)
+        #expect(job?.state == .waitingForAsset)
         // Waiting must not consume a retry attempt (plan §11).
-        XCTAssertEqual(job?.attemptCount, 0)
+        #expect(job?.attemptCount == 0)
     }
 
-    func testThermalDegradingMidRunPreemptsAndReleasesJobToQueuedWithNoPenalty() async throws {
+    @Test func testThermalDegradingMidRunPreemptsAndReleasesJobToQueuedWithNoPenalty() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -234,14 +234,14 @@ final class IndexSchedulerTests: XCTestCase {
         }
 
         guard case .jobPreempted(_, let reason) = outcome else {
-            return XCTFail("expected jobPreempted, got \(outcome)")
+            return Issue.record("expected jobPreempted, got \(outcome)")
         }
-        XCTAssertEqual(reason, .thermalSerious)
+        #expect(reason == .thermalSerious)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         // waitingForCooling is the persisted proxy for thermal gates (no
         // dedicated "preempted" job state exists in the plan's fixed list).
-        XCTAssertEqual(job?.state, .waitingForCooling)
-        XCTAssertEqual(job?.attemptCount, 0, "preemption must not consume a retry attempt")
+        #expect(job?.state == .waitingForCooling)
+        #expect(job?.attemptCount == 0, "preemption must not consume a retry attempt")
     }
 
     /// Superseded by `testPlaybackActiveDoesNotPreemptARunningJob` below.
@@ -260,7 +260,7 @@ final class IndexSchedulerTests: XCTestCase {
     /// `testOnlyOneJobClaimedPerTick`'s doc comment) then repeats forever,
     /// and the test hung indefinitely instead of failing. Caught by an
     /// actual hang during a pre-commit test run, not by review.
-    func testPlaybackActiveDoesNotPreemptARunningJob() async throws {
+    @Test func testPlaybackActiveDoesNotPreemptARunningJob() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -282,16 +282,16 @@ final class IndexSchedulerTests: XCTestCase {
         }
 
         guard case .jobCompleted = outcome else {
-            return XCTFail("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)")
+            return Issue.record("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)")
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .complete)
+        #expect(job?.state == .complete)
     }
 
     /// `IndexScheduler` must compute `isCurrentJobRemoteSparse` itself, once
     /// per claim, from the claimed job's actual selected asset — the
     /// `snapshotProvider` closure has no notion of which job is running.
-    func testRemoteAssetJobIsPreemptedOffWiFiWhenWiFiOnlySettingIsOn() async throws {
+    @Test func testRemoteAssetJobIsPreemptedOffWiFiWhenWiFiOnlySettingIsOn() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let assetId = try await queue.write { db -> Int64 in
@@ -313,19 +313,19 @@ final class IndexSchedulerTests: XCTestCase {
 
         let outcome = try await scheduler.tick { offWiFi }
         guard case .jobPreempted(_, let reason) = outcome else {
-            return XCTFail("expected jobPreempted, got \(outcome)")
+            return Issue.record("expected jobPreempted, got \(outcome)")
         }
-        XCTAssertEqual(reason, .remoteSamplingRequiresWiFi)
+        #expect(reason == .remoteSamplingRequiresWiFi)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .waitingForNetwork)
+        #expect(job?.state == .waitingForNetwork)
         let calls = await worker.callCount
-        XCTAssertEqual(calls, 0, "must preempt before ever invoking the worker")
+        #expect(calls == 0, "must preempt before ever invoking the worker")
     }
 
     /// The same off-Wi-Fi snapshot must NOT preempt a job over a local
     /// asset — `isCurrentJobRemoteSparse` only becomes true for a job whose
     /// selected asset is genuinely `.remote`.
-    func testLocalAssetJobIsUnaffectedByWiFiGate() async throws {
+    @Test func testLocalAssetJobIsUnaffectedByWiFiGate() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
@@ -343,10 +343,10 @@ final class IndexSchedulerTests: XCTestCase {
 
         let outcome = try await scheduler.tick { offWiFi }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        XCTAssertEqual(outcome, .jobCompleted(jobId: job!.id))
+        #expect(outcome == .jobCompleted(jobId: job!.id))
     }
 
-    func testOnlyOneJobClaimedPerTick() async throws {
+    @Test func testOnlyOneJobClaimedPerTick() async throws {
         // plan §6: "Only ONE analysis job executes at a time" — a second
         // enqueued track is untouched by a single tick.
         let queue = try makeQueue()
@@ -378,7 +378,7 @@ final class IndexSchedulerTests: XCTestCase {
         // Whichever one was claimed (createdAt/priority ordering: A first)
         // finished; the other remains queued and untouched.
         let states = Set([jobA?.state, jobB?.state])
-        XCTAssertTrue(states.contains(.queued))
-        XCTAssertTrue(states.contains(.complete) || states.contains(.running))
+        #expect(states.contains(.queued))
+        #expect(states.contains(.complete) || states.contains(.running))
     }
 }

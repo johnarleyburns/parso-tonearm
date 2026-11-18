@@ -1,66 +1,66 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class SiriMediaRequestTests: XCTestCase {
-    func testIdentifierRoundTrips() {
+@Suite struct SiriMediaRequestTests {
+    @Test func testIdentifierRoundTrips() {
         let request = SiriMediaRequest(query: "Hotel California", artist: "Eagles", kind: .song)
-        XCTAssertTrue(request.identifier.hasPrefix(SiriMediaRequest.identifierPrefix))
-        XCTAssertEqual(SiriMediaRequest(identifier: request.identifier), request)
+        #expect(request.identifier.hasPrefix(SiriMediaRequest.identifierPrefix))
+        #expect(SiriMediaRequest(identifier: request.identifier) == request)
     }
 
-    func testForeignIdentifiersAreRejected() {
-        XCTAssertNil(SiriMediaRequest(identifier: "spotify:track:123"))
-        XCTAssertNil(SiriMediaRequest(identifier: SiriMediaRequest.identifierPrefix + "not-base64!"))
+    @Test func testForeignIdentifiersAreRejected() {
+        #expect(SiriMediaRequest(identifier: "spotify:track:123") == nil)
+        #expect(SiriMediaRequest(identifier: SiriMediaRequest.identifierPrefix + "not-base64!") == nil)
     }
 
-    func testWhitespaceIsTrimmedAndEmptyArtistDropped() {
+    @Test func testWhitespaceIsTrimmedAndEmptyArtistDropped() {
         let request = SiriMediaRequest(query: "  Yesterday ", artist: "  ", kind: .song)
-        XCTAssertEqual(request.query, "Yesterday")
-        XCTAssertNil(request.artist)
+        #expect(request.query == "Yesterday")
+        #expect(request.artist == nil)
     }
 
-    func testNothingNamedMeansResume() {
+    @Test func testNothingNamedMeansResume() {
         let request = SiriMediaRequest(query: nil, artist: nil, kind: .unspecified)
-        XCTAssertTrue(request.isResume)
-        XCTAssertEqual(request.attempts, [.resume])
+        #expect(request.isResume)
+        #expect(request.attempts == [.resume])
     }
 
-    func testArtistOnlyRequestPlaysTheArtist() {
+    @Test func testArtistOnlyRequestPlaysTheArtist() {
         let request = SiriMediaRequest(query: nil, artist: "The Beatles", kind: .unspecified)
-        XCTAssertEqual(request.attempts, [.artist("The Beatles")])
-        XCTAssertEqual(request.displayTitle, "The Beatles")
+        #expect(request.attempts == [.artist("The Beatles")])
+        #expect(request.displayTitle == "The Beatles")
     }
 
-    func testClassifiedRequestsTryOnlyTheirKind() {
-        XCTAssertEqual(SiriMediaRequest(query: "Road Trip", artist: nil, kind: .playlist).attempts,
+    @Test func testClassifiedRequestsTryOnlyTheirKind() {
+        #expect(SiriMediaRequest(query: "Road Trip", artist: nil, kind: .playlist).attempts ==
                        [.playlist("Road Trip")])
-        XCTAssertEqual(SiriMediaRequest(query: "Bach", artist: nil, kind: .artist).attempts,
+        #expect(SiriMediaRequest(query: "Bach", artist: nil, kind: .artist).attempts ==
                        [.artist("Bach")])
-        XCTAssertEqual(SiriMediaRequest(query: "Yesterday", artist: "The Beatles", kind: .song).attempts,
+        #expect(SiriMediaRequest(query: "Yesterday", artist: "The Beatles", kind: .song).attempts ==
                        [.song(title: "Yesterday", artist: "The Beatles")])
     }
 
     /// "Play Road Trip on Platterhead": Siri often can't tell a song from a
     /// playlist, so an unclassified request falls through song → artist →
     /// playlist.
-    func testUnclassifiedRequestFallsThroughSongArtistPlaylist() {
+    @Test func testUnclassifiedRequestFallsThroughSongArtistPlaylist() {
         let request = SiriMediaRequest(query: "Road Trip", artist: nil, kind: .unspecified)
-        XCTAssertEqual(request.attempts, [
+        #expect(request.attempts == [
             .song(title: "Road Trip", artist: nil),
             .artist("Road Trip"),
             .playlist("Road Trip")
         ])
     }
 
-    func testDisplayTitleNamesSongAndArtist() {
-        XCTAssertEqual(SiriMediaRequest(query: "Yesterday", artist: "The Beatles", kind: .song).displayTitle,
+    @Test func testDisplayTitleNamesSongAndArtist() {
+        #expect(SiriMediaRequest(query: "Yesterday", artist: "The Beatles", kind: .song).displayTitle ==
                        "Yesterday by The Beatles")
     }
 
-    func testNoMatchFailuresAreClassifiedForFallThrough() {
-        XCTAssertTrue(TonearmIntentError(.noMatch(kind: .song, query: "x")).isNoMatch)
-        XCTAssertTrue(TonearmIntentError(.emptyLibrary(.playlist)).isNoMatch)
-        XCTAssertFalse(TonearmIntentError(.ambiguous(kind: .song, query: "x", matches: ["a", "b"])).isNoMatch)
-        XCTAssertFalse(TonearmIntentError("plain message").isNoMatch)
+    @Test func testNoMatchFailuresAreClassifiedForFallThrough() {
+        #expect(TonearmIntentError(.noMatch(kind: .song, query: "x")).isNoMatch)
+        #expect(TonearmIntentError(.emptyLibrary(.playlist)).isNoMatch)
+        #expect(!TonearmIntentError(.ambiguous(kind: .song, query: "x", matches: ["a", "b"])).isNoMatch)
+        #expect(!TonearmIntentError("plain message").isNoMatch)
     }
 }

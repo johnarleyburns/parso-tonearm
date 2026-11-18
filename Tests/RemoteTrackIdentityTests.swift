@@ -1,34 +1,34 @@
-import XCTest
+import Testing
 import GRDB
 @testable import TonearmCore
 
-final class RemoteTrackIdentityTests: XCTestCase {
+@Suite struct RemoteTrackIdentityTests {
     // MARK: Pure identity rules
-    func testNodeIDIsTrimmedAndSourceNamespaced() throws {
-        let a = try XCTUnwrap(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "  abc "))
-        let b = try XCTUnwrap(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "abc"))
-        let c = try XCTUnwrap(RemoteTrackIdentity.canonical(sourceID: 2, nodeID: "abc"))
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
-        XCTAssertNotEqual(a.key, c.key)
-        XCTAssertNotEqual(a, RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "abd"))
+    @Test func testNodeIDIsTrimmedAndSourceNamespaced() throws {
+        let a = try #require(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "  abc "))
+        let b = try #require(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "abc"))
+        let c = try #require(RemoteTrackIdentity.canonical(sourceID: 2, nodeID: "abc"))
+        #expect(a == b)
+        #expect(a != c)
+        #expect(a.key != c.key)
+        #expect(a != RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "abd"))
     }
 
-    func testMissingOrUnsafeIdentityYieldsNone() {
-        XCTAssertNil(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "  "))
-        XCTAssertNil(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil))
-        XCTAssertNil(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "now-playing-7"))
-        XCTAssertNil(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil, nodePath: "/a/b.mp3"),
+    @Test func testMissingOrUnsafeIdentityYieldsNone() {
+        #expect(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "  ") == nil)
+        #expect(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil) == nil)
+        #expect(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "now-playing-7") == nil)
+        #expect(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil, nodePath: "/a/b.mp3") == nil,
                      "path fallback is opt-in per provider")
-        XCTAssertNil(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil,
-                                                   nodePath: "https://x/y?sig=1", pathIsDurable: true))
+        #expect(RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil,
+                                                   nodePath: "https://x/y?sig=1", pathIsDurable: true) == nil)
     }
 
-    func testPathFallbackIsNormalized() throws {
+    @Test func testPathFallbackIsNormalized() throws {
         let a = RemoteTrackIdentity.canonical(sourceID: 1, nodeID: nil, nodePath: "/Music//a.mp3", pathIsDurable: true)
         let b = RemoteTrackIdentity.canonical(sourceID: 1, nodeID: "", nodePath: "Music/a.mp3/", pathIsDurable: true)
-        XCTAssertNotNil(a)
-        XCTAssertEqual(a, b)
+        #expect(a != nil)
+        #expect(a == b)
     }
 
     // MARK: Upsert
@@ -38,7 +38,7 @@ final class RemoteTrackIdentityTests: XCTestCase {
             let s = try await store.insertSource(Source(id: nil, kind: .dropbox, iaIdentifier: nil, originalURL: nil,
                 title: "S\(n)", addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
                 licenseText: nil, memberCapHit: false))
-            ids.append(try XCTUnwrap(s.id))
+            ids.append(try #require(s.id))
         }
         return ids
     }
@@ -53,32 +53,32 @@ final class RemoteTrackIdentityTests: XCTestCase {
               sizeBytes: 5, unsupportedReason: nil, remoteNodeID: node, remoteNodePath: "p")
     }
 
-    func testRotatedURLReusesOneTrackAndRefreshesLocator() async throws {
+    @Test func testRotatedURLReusesOneTrackAndRefreshesLocator() async throws {
         let store = try LibraryStore(inMemory: true)
         let src = try await seed(store)[0]
         let first = try await store.upsertRemoteTrack(sourceID: src, track: track("T"), asset: asset("n1", "https://a/1"))
         let second = try await store.upsertRemoteTrack(sourceID: src, track: track("T"), asset: asset("n1", "https://a/2?sig=z"))
-        XCTAssertEqual(first.trackID, second.trackID)
-        XCTAssertTrue(first.created)
-        XCTAssertFalse(second.created)
+        #expect(first.trackID == second.trackID)
+        #expect(first.created)
+        #expect(!second.created)
         let rows = try await store.tracks(forSource: src)
-        XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0].asset?.remoteURL, "https://a/2?sig=z")
+        #expect(rows.count == 1)
+        #expect(rows[0].asset?.remoteURL == "https://a/2?sig=z")
         let idRows = try await store.dbQueue.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM remote_track_identity") }
-        XCTAssertEqual(idRows, 1)
+        #expect(idRows == 1)
     }
 
-    func testDistinctIDsSameMetadataAndSameNodeInTwoSourcesStaySeparate() async throws {
+    @Test func testDistinctIDsSameMetadataAndSameNodeInTwoSourcesStaySeparate() async throws {
         let store = try LibraryStore(inMemory: true)
         let srcs = try await seed(store, sources: 2)
         _ = try await store.upsertRemoteTrack(sourceID: srcs[0], track: track("Same"), asset: asset("a", "https://h/x"))
         _ = try await store.upsertRemoteTrack(sourceID: srcs[0], track: track("Same"), asset: asset("b", "https://h/x"))
         _ = try await store.upsertRemoteTrack(sourceID: srcs[1], track: track("Same"), asset: asset("a", "https://h/x"))
         let total = try await store.allTrackRows().count
-        XCTAssertEqual(total, 3)
+        #expect(total == 3)
     }
 
-    func testConcurrentConnectionsCreateExactlyOneTrack() throws {
+    @Test func testConcurrentConnectionsCreateExactlyOneTrack() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let path = dir.appendingPathComponent("db.sqlite").path
@@ -112,20 +112,20 @@ final class RemoteTrackIdentityTests: XCTestCase {
         }
         barrier.signal(); barrier.signal()
         group.wait()
-        XCTAssertEqual(Set(results.value).count, 1)
-        XCTAssertEqual(results.value.count, 2)
+        #expect(Set(results.value).count == 1)
+        #expect(results.value.count == 2)
         // A "recreated process": a fresh connection still enforces the durable constraint.
         let q3 = try DatabaseQueue(path: path, configuration: config)
         try q3.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track"), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity"), 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity") == 1)
         }
         let again = try q3.write { try RemoteTrackUpsert.upsert(db: $0, sourceID: 1, track: track("T"),
                                                                 asset: asset("same", "https://u/9")) }
-        XCTAssertFalse(again.created)
+        #expect(!again.created)
     }
 
-    func testIdentityConflictRollsBackWithoutOrphans() throws {
+    @Test func testIdentityConflictRollsBackWithoutOrphans() throws {
         let q = try DatabaseQueue()
         try Schema.migrator().migrate(q)
         try q.write { db in
@@ -135,10 +135,10 @@ final class RemoteTrackIdentityTests: XCTestCase {
             try db.execute(sql: "INSERT INTO remote_track_identity VALUES (1, 'v1:id:k', 1)")
         }
         let outcome = try q.write { try RemoteTrackUpsert.upsert(db: $0, sourceID: 1, track: track("T"), asset: asset("k", "https://u")) }
-        XCTAssertEqual(outcome.trackID, 1)
+        #expect(outcome.trackID == 1)
         try q.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track"), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM asset WHERE trackId <> 1"), 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM asset WHERE trackId <> 1") == 0)
         }
     }
 
@@ -181,32 +181,32 @@ final class RemoteTrackIdentityTests: XCTestCase {
         return q
     }
 
-    func testMigrationConsolidatesEightDuplicatesPreservingUserState() throws {
+    @Test func testMigrationConsolidatesEightDuplicatesPreservingUserState() throws {
         let q = try seedDuplicates()
         try Schema.migrator().migrate(q)
         try q.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 1 AND id <= 8"), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 2"), 1, "other source untouched")
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE id IN (10, 11)"), 2, "unidentified legacy rows kept")
-            let survivor = try XCTUnwrap(Int64.fetchOne(db, sql: "SELECT trackId FROM remote_track_identity WHERE sourceId = 1"))
-            XCTAssertEqual(survivor, 5, "richest user data wins")
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?", arguments: [survivor]), 1)
-            XCTAssertEqual(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?", arguments: [survivor]), "art2")
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?", arguments: [survivor]), 4)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 1 AND trackId = ?", arguments: [survivor]), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 2 AND trackId = ?", arguments: [survivor]), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cache_entry c JOIN asset a ON a.id = c.assetId WHERE a.trackId = ?", arguments: [survivor]), 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM jump_back_in_dismissal WHERE trackId = ?", arguments: [survivor]), 1)
-            XCTAssertEqual(try String.fetchOne(db, sql: "SELECT remoteURL FROM asset WHERE trackId = ?", arguments: [survivor]), "https://u/8")
-            XCTAssertEqual(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").count, 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 1 AND id <= 8") == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 2") == 1, "other source untouched")
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE id IN (10, 11)") == 2, "unidentified legacy rows kept")
+            let survivor = try #require(Int64.fetchOne(db, sql: "SELECT trackId FROM remote_track_identity WHERE sourceId = 1"))
+            #expect(survivor == 5, "richest user data wins")
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?", arguments: [survivor]) == 1)
+            #expect(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?", arguments: [survivor]) == "art2")
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?", arguments: [survivor]) == 4)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 1 AND trackId = ?", arguments: [survivor]) == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 2 AND trackId = ?", arguments: [survivor]) == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM cache_entry c JOIN asset a ON a.id = c.assetId WHERE a.trackId = ?", arguments: [survivor]) == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM jump_back_in_dismissal WHERE trackId = ?", arguments: [survivor]) == 1)
+            #expect(try String.fetchOne(db, sql: "SELECT remoteURL FROM asset WHERE trackId = ?", arguments: [survivor]) == "https://u/8")
+            #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").count == 0)
         }
         // Rerunning is a no-op.
         let report = try q.write { try RemoteTrackConsolidator.run(db: $0) }
-        XCTAssertEqual(report.groupsMerged, 0)
-        XCTAssertEqual(report.unidentifiedAssets, 2)
+        #expect(report.groupsMerged == 0)
+        #expect(report.unidentifiedAssets == 2)
     }
 
-    func testFailureBeforeLoserDeletionRollsBackWholeGroup() throws {
+    @Test func testFailureBeforeLoserDeletionRollsBackWholeGroup() throws {
         let q = try seedDuplicates()
         try Schema.migrator().migrate(q)
         // Re-create the duplicates post-migration by dropping the identity rows and adding rows.
@@ -218,21 +218,24 @@ final class RemoteTrackIdentityTests: XCTestCase {
             try db.execute(sql: "INSERT INTO favorite (trackId, favoritedAt) VALUES (?, ?)", arguments: [id, Date()])
         }
         let before = try q.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM track") }
-        XCTAssertThrowsError(try q.write { try RemoteTrackConsolidator.run(db: $0, failBeforeDelete: true) })
+        do {
+            _ = try q.write { try RemoteTrackConsolidator.run(db: $0, failBeforeDelete: true) }
+            Issue.record("expected RemoteTrackConsolidator.run(failBeforeDelete: true) to throw")
+        } catch {}
         try q.read { db in
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track"), before)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity"), 0)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite"), 2)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == before)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM remote_track_identity") == 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite") == 2)
         }
     }
 
     /// The production browse → persist route: two independently generated browse rows for one
     /// provider item with distinct temporary URLs resolve to one My Music track.
-    func testIngestRouteWithRotatingURLsKeepsOneTrack() async throws {
+    @Test func testIngestRouteWithRotatingURLsKeepsOneTrack() async throws {
         let store = try LibraryStore(inMemory: true)
         let src = try await seed(store)[0]
         let allSources = try await store.allSources()
-        let source = try XCTUnwrap(allSources.first { $0.id == src })
+        let source = try #require(allSources.first { $0.id == src })
         var seen = Set<Int64>()
         for n in 0..<3 {
             let node = RemoteNode(id: "stable", title: "Song", path: "/Song.mp3", kind: .audio)
@@ -243,10 +246,10 @@ final class RemoteTrackIdentityTests: XCTestCase {
                 source: source, store: store)
             seen.formUnion(result.trackIDs)
         }
-        XCTAssertEqual(seen.count, 1)
+        #expect(seen.count == 1)
         let rows = try await store.allTrackRows()
-        XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0].asset?.remoteURL, "https://cdn/x?sig=2")
+        #expect(rows.count == 1)
+        #expect(rows[0].asset?.remoteURL == "https://cdn/x?sig=2")
     }
 }
 
