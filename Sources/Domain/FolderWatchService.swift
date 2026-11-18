@@ -31,7 +31,7 @@ public actor FolderWatchService {
             }
         }
         if let sources = try? await store.allSources() {
-            for source in sources where source.kind == .local && source.localIsFolder && source.watch {
+            for source in sources where source.kind == .local && source.localIsFolder && (source.watch ?? false) {
                 added += await rescan(sourceId: source.id, bookmark: source.folderBookmark, store: store)
             }
         }
@@ -72,7 +72,7 @@ public actor FolderWatchService {
             }
         }
         if let sources = try? await store.allSources() {
-            for source in sources where source.kind == .local && source.localIsFolder && source.watch {
+            for source in sources where source.kind == .local && source.localIsFolder && (source.watch ?? false) {
                 guard let bookmark = source.folderBookmark,
                       let (folderURL, _) = BookmarkVault.resolve(bookmark) else { continue }
                 let presenter = FolderPresenter(url: folderURL, onChange: onChange)

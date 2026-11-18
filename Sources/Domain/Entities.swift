@@ -67,8 +67,12 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// `Playlist.watch`/`Playlist.folderBookmark`, which `FolderWatchService` already reads for
     /// folders imported before this field existed — both are watched side by side so legacy
     /// watched folders keep working unchanged while new imports (which no longer create a
-    /// playlist at all) use this field instead.
-    public var watch: Bool = false
+    /// playlist at all) use this field instead. Optional (not a plain `Bool`), same as
+    /// `lastBrowsedPath`/`artworkTrackId`/`syncID` above: a non-optional stored property requires
+    /// its column to exist for every Codable-based row decode, which breaks any migration test
+    /// that fetches a `Source` from a schema snapshot older than v52 — `nil` decodes safely from a
+    /// missing column and simply means "not watched."
+    public var watch: Bool? = nil
     /// Security-scoped bookmark for a watched folder import (schema v52). Device-specific — never
     /// synced via CloudKit, same deliberate exclusion `Playlist.folderBookmark` already has.
     public var folderBookmark: Data? = nil
@@ -88,7 +92,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
                 artworkTrackId: Int64? = nil,
                 syncID: String? = nil,
                 lastBrowsedPath: String? = nil,
-                watch: Bool = false,
+                watch: Bool? = nil,
                 folderBookmark: Data? = nil) {
         self.id = id
         self.kind = kind
