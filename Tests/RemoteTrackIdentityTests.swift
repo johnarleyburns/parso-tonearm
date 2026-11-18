@@ -189,7 +189,7 @@ import GRDB
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 1 AND id <= 8") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE sourceId = 2") == 1, "other source untouched")
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track WHERE id IN (10, 11)") == 2, "unidentified legacy rows kept")
-            let survivor = try #require(Int64.fetchOne(db, sql: "SELECT trackId FROM remote_track_identity WHERE sourceId = 1"))
+            let survivor = try #require(try Int64.fetchOne(db, sql: "SELECT trackId FROM remote_track_identity WHERE sourceId = 1"))
             #expect(survivor == 5, "richest user data wins")
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?", arguments: [survivor]) == 1)
             #expect(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?", arguments: [survivor]) == "art2")

@@ -25,7 +25,7 @@ import Testing
             pageCount: 1, tracks: tracks, playlists: [], downloadSelectionOnly: true)
         let encoded = try WatchProtocolEnvelope.fromPhone(kind: .catalogPage, payload: page,
             libraryID: "library", revision: 1)
-        let dictionary = try #require(PropertyListSerialization.propertyList(from: encoded, format: nil) as? [String: Any])
+        let dictionary = try #require(try PropertyListSerialization.propertyList(from: encoded, format: nil) as? [String: Any])
         #expect(dictionary["payloadCompression"] as? String == "lzfse")
         let compressed = try #require(dictionary["payload"] as? Data)
         #expect(compressed.count < (try WatchProtocolEnvelope.encodePayload(page).count))
@@ -35,7 +35,7 @@ import Testing
     @Test func testMinimalTrackMetadataOmitsEmptyAndDerivedFields() throws {
         let track = WatchTrackSummary(trackID: "id", title: "Title")
         let data = try WatchProtocolEnvelope.encodePayload(track)
-        let fields = try #require(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        let fields = try #require(try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
         #expect(Set(fields.keys) == ["trackID", "title"])
         #expect(try PropertyListDecoder().decode(WatchTrackSummary.self, from: data) == track)
     }

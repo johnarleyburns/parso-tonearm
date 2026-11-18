@@ -37,17 +37,17 @@ import GRDB
         let key = BlendCatalogTrack.jamendoKey(trackID: "9999")
         try await store.upsertJamendoCatalogTrack(trackID: "9999", cachedURL: nil)
         try await store.dbQueue.write { db in
-            var row = try #require(BlendCatalogTrack.fetchOne(db, key: key))
+            var row = try #require(try BlendCatalogTrack.fetchOne(db, key: key))
             row.sourceKind = .jamendo
             row.providerTrackID = ""
             try row.update(db)
         }
-        let before = try await store.dbQueue.read { db in try #require(BlendCatalogTrack.fetchOne(db, key: key)) }
+        let before = try await store.dbQueue.read { db in try #require(try BlendCatalogTrack.fetchOne(db, key: key)) }
         #expect(before.audioLocator() == nil, "unrepaired \"\" is still correctly rejected")
 
         try await store.dbQueue.write { db in try LibraryStore.repairEmptyProviderTrackIDs(db) }
 
-        let after = try await store.dbQueue.read { db in try #require(BlendCatalogTrack.fetchOne(db, key: key)) }
+        let after = try await store.dbQueue.read { db in try #require(try BlendCatalogTrack.fetchOne(db, key: key)) }
         #expect(after.providerTrackID == nil, "repaired back to nil, not re-derived here")
         #expect(after.audioLocator() == .jamendo(trackID: "9999", cachedURL: nil, expiry: nil),
                       "nil now falls back to the catalog key's own track ID again")
@@ -56,13 +56,13 @@ import GRDB
         let untouchedKey = BlendCatalogTrack.jamendoKey(trackID: "1111")
         try await store.upsertJamendoCatalogTrack(trackID: "1111", cachedURL: nil)
         try await store.dbQueue.write { db in
-            var row = try #require(BlendCatalogTrack.fetchOne(db, key: untouchedKey))
+            var row = try #require(try BlendCatalogTrack.fetchOne(db, key: untouchedKey))
             row.sourceKind = .jamendo
             row.providerTrackID = "1111"
             try row.update(db)
         }
         try await store.dbQueue.write { db in try LibraryStore.repairEmptyProviderTrackIDs(db) }
-        let untouched = try await store.dbQueue.read { db in try #require(BlendCatalogTrack.fetchOne(db, key: untouchedKey)) }
+        let untouched = try await store.dbQueue.read { db in try #require(try BlendCatalogTrack.fetchOne(db, key: untouchedKey)) }
         #expect(untouched.providerTrackID == "1111")
     }
 
@@ -74,13 +74,13 @@ import GRDB
         let key = BlendCatalogTrack.jamendoKey(trackID: "7777")
         try await store.upsertJamendoCatalogTrack(trackID: "7777", cachedURL: nil)
         try await store.dbQueue.write { db in
-            var row = try #require(BlendCatalogTrack.fetchOne(db, key: key))
+            var row = try #require(try BlendCatalogTrack.fetchOne(db, key: key))
             row.sourceKind = nil          // pre-v38 shape: backfill only touches rows like this
             row.catalogID = "jamendo-"    // the edge case: strips to "", not a real id
             try row.update(db)
         }
         try await store.dbQueue.write { db in try LibraryStore.backfillCatalogSources(db) }
-        let backfilled = try await store.dbQueue.read { db in try #require(BlendCatalogTrack.fetchOne(db, key: key)) }
+        let backfilled = try await store.dbQueue.read { db in try #require(try BlendCatalogTrack.fetchOne(db, key: key)) }
         #expect(backfilled.sourceKind == .jamendo)
         #expect(backfilled.providerTrackID == "7777", "falls back to trackID instead of writing \"\"")
     }

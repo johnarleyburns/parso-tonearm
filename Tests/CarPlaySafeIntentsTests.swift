@@ -17,7 +17,8 @@ import Testing
 
     @Test func testPlaybackIntentsNeverForegroundTheApp() {
         for intent in playbackIntents {
-            #expect(!intent.openAppWhenRun, "\(intent) must run without opening the app")
+            let opensApp = intent.openAppWhenRun
+            #expect(!opensApp, "\(intent) must run without opening the app")
         }
     }
 }

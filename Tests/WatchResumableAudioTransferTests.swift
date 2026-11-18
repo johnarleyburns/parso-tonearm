@@ -319,7 +319,7 @@ import TonearmWatchProtocol
             _ = await fx.receive(await fx.transport.files[index])
             try await sender.ingestManifest(fx.manifest(await fx.assembler.partialDownloads(), at: index + 1))
         }
-        let folder = try #require(FileManager.default.contentsOfDirectory(at: fx.watchDirectory, includingPropertiesForKeys: nil).first)
+        let folder = try #require(try FileManager.default.contentsOfDirectory(at: fx.watchDirectory, includingPropertiesForKeys: nil).first)
         try Data("corrupt".utf8).write(to: folder.appendingPathComponent("0.chunk"))
         let recovered = WatchAudioChunkAssembler(directory: fx.watchDirectory)
         let receipts = await recovered.partialDownloads()

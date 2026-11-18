@@ -31,6 +31,6 @@ import ParsoAudioStreaming
         let cache = makeStore()
         await cache.setContentLength(1000, for: "k")
         let glyph = CacheGlyphState.of(await cache.meta(for: "k"))
-        guard case .filling = glyph else { return Issue.record("expected .filling, got \(glyph)") }
+        guard case .filling = glyph else { Issue.record("expected .filling, got \(glyph)"); return }
     }
 }

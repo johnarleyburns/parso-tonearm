@@ -30,7 +30,7 @@ import Testing
             Issue.record("expected loadableURL(for:) to throw")
         } catch {
             guard case CompiledModelCache.CacheError.compileFailed = error else {
-                return Issue.record("expected .compileFailed, got \(error)")
+                Issue.record("expected .compileFailed, got \(error)"); return
             }
         }
     }

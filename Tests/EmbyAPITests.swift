@@ -14,7 +14,7 @@ import Testing
             client: client
         )
         let body = try #require(request.httpBody)
-        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
+        let object = try #require(try JSONSerialization.jsonObject(with: body) as? [String: String])
 
         #expect(request.httpMethod == "POST")
         #expect(request.url?.path == "/emby/Users/AuthenticateByName")

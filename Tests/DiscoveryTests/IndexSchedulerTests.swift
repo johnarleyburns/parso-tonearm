@@ -141,7 +141,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobCompleted = outcome else {
-            return Issue.record("expected jobCompleted, got \(outcome)")
+            Issue.record("expected jobCompleted, got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .complete)
@@ -167,7 +167,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobCompleted = outcome else {
-            return Issue.record("expected jobCompleted, got \(outcome)")
+            Issue.record("expected jobCompleted, got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.musicalAnalysisStageState == .failed)
@@ -186,7 +186,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobFailed = outcome else {
-            return Issue.record("expected jobFailed, got \(outcome)")
+            Issue.record("expected jobFailed, got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .retryScheduled)
@@ -235,7 +235,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         }
 
         guard case .jobPreempted(_, let reason) = outcome else {
-            return Issue.record("expected jobPreempted, got \(outcome)")
+            Issue.record("expected jobPreempted, got \(outcome)"); return
         }
         #expect(reason == .thermalSerious)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
@@ -283,7 +283,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         }
 
         guard case .jobCompleted = outcome else {
-            return Issue.record("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)")
+            Issue.record("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .complete)
@@ -314,7 +314,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
 
         let outcome = try await scheduler.tick { offWiFi }
         guard case .jobPreempted(_, let reason) = outcome else {
-            return Issue.record("expected jobPreempted, got \(outcome)")
+            Issue.record("expected jobPreempted, got \(outcome)"); return
         }
         #expect(reason == .remoteSamplingRequiresWiFi)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)

@@ -17,7 +17,7 @@ import Testing
     @Test func testDefaultsAreValidAndNormalized() throws {
         let out = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "  gentle   acoustic  guitar \n"))
-        guard case .success(let v) = out else { return Issue.record("expected success") }
+        guard case .success(let v) = out else { Issue.record("expected success"); return }
         #expect(v.text == "gentle acoustic guitar")
         #expect(v.limit == 50)
         #expect(v.bpmRange == nil)
@@ -67,7 +67,7 @@ import Testing
     @Test func testValidKeyCodeParsed() {
         guard case .success(let v) = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "x", compatibleKey: "8A"))
-        else { return Issue.record() }
+        else { Issue.record(); return }
         #expect(v.compatibleKey?.code == "8A")
         #expect(v.hasHardMusicalFilter)
     }
@@ -103,7 +103,7 @@ import Testing
     @Test func testExplicitEmptyScopePreserved() {
         guard case .success(let v) = ValidatedQuery.validate(
             DiscoverySearchQuery(text: "x", sourceIDs: []))
-        else { return Issue.record() }
+        else { Issue.record(); return }
         #expect(v.sourceIDs == [])
     }
 }

@@ -99,7 +99,7 @@ final class MutableTestClock: @unchecked Sendable {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
         guard let claim = try await repo.claimNextJob(leaseDuration: 60) else {
-            return Issue.record("expected a claimable job")
+            Issue.record("expected a claimable job"); return
         }
         #expect(claim.job.state == .running)
 
@@ -111,7 +111,7 @@ final class MutableTestClock: @unchecked Sendable {
         // reclaimable (plan §7: recover after expiration/process death).
         clock.advance(by: 61)
         guard let reclaim = try await repo.claimNextJob(leaseDuration: 60) else {
-            return Issue.record("expected the expired lease to be reclaimable")
+            Issue.record("expected the expired lease to be reclaimable"); return
         }
         #expect(reclaim.job.id == claim.job.id)
         #expect(reclaim.leaseToken != claim.leaseToken)

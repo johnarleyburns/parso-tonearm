@@ -8,7 +8,7 @@ import Testing
     @Test func testDropboxListAndTemporaryLinkRequests() throws {
         let list = try CloudDriveAPI.request(provider: .dropbox, endpoint: .list(containerID: "id:folder"), accessToken: "token")
         let listBodyData = try #require(list.httpBody)
-        let listBody = try #require(JSONSerialization.jsonObject(with: listBodyData) as? [String: Any])
+        let listBody = try #require(try JSONSerialization.jsonObject(with: listBodyData) as? [String: Any])
 
         #expect(list.url?.absoluteString == "https://api.dropboxapi.com/2/files/list_folder")
         #expect(list.httpMethod == "POST")
