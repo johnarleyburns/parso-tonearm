@@ -124,10 +124,14 @@ public struct IngestService {
         let ordered = keepOrder ? files
             : files.sorted { $0.url.lastPathComponent.localizedStandardCompare($1.url.lastPathComponent) == .orderedAscending }
 
+        // Recognizes "already imported" purely by the folder's own Source identity (its resolved
+        // path) — not by whether a playlist exists for it, since new-style folder imports never
+        // create one (real report: "do not add any of the files shown to a playlist
+        // automatically"). This also correctly matches a folder imported before this change
+        // (which does have a playlist) — its existence is simply irrelevant here now.
         let folderKey = FolderImportIdentity.key(for: folderURL)
         if let existing = try await store.folderSource(path: folderKey),
-           let sourceID = existing.id,
-           try await store.folderPlaylist(matchingSourceId: sourceID) != nil {
+           let sourceID = existing.id {
             let existingPaths = try await store.localFilePaths(forSource: sourceID)
             let newURLs = ordered.map(\.url).filter {
                 !existingPaths.contains(FolderImportIdentity.key(for: $0))
@@ -135,33 +139,28 @@ public struct IngestService {
             return await addFiles(newURLs, toSourceId: sourceID, into: store)
         }
 
+        let folderBookmark = BookmarkVault.makeBookmark(for: folderURL)
         var source = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                             title: folderURL.lastPathComponent, addedAt: Date(),
                             lastResolvedAt: nil, followUpdates: false,
                             licenseText: nil, memberCapHit: false,
-                            localIsFolder: true, folderPath: folderKey)
+                            localIsFolder: true, folderPath: folderKey,
+                            watch: watch, folderBookmark: folderBookmark)
         source = try await store.insertSource(source)
         guard let sid = source.id else { throw IngestError.failedToInsertSource }
         var album = Album(id: nil, sourceId: sid, title: folderURL.lastPathComponent,
                           artist: nil, year: nil, artworkId: nil)
         album = try await store.insertAlbum(album)
 
-        let folderBookmark = BookmarkVault.makeBookmark(for: folderURL)
-        var playlist = Playlist(id: nil, title: folderURL.lastPathComponent, kind: .folder,
-                                sourceId: sid,
-                                folderBookmark: folderBookmark, watch: watch)
-        playlist = try await store.insertPlaylist(playlist)
-
         TonearmLog.ingest.debug("Importing \(ordered.count) files from \(folderURL.lastPathComponent, privacy: .public)")
         var summary = IngestSummary()
         for (i, file) in ordered.enumerated() {
+            // No playlist is created or populated here — imported files land only in this
+            // folder's own Source/Album, same as `addFiles(_:into:)` already does for "Add Audio
+            // Files." The user adds tracks to a playlist themselves later, if they choose to.
             let outcome = try await ingestOne(file.url, sourceId: sid, albumId: album.id,
                                               index: i, section: file.relativeSection, store: store)
             summary.record(outcome)
-            if let pid = playlist.id, case .inserted(let trackId) = outcome {
-                try await store.addToPlaylist(playlistId: pid, trackId: trackId,
-                                              sectionTitle: file.relativeSection)
-            }
         }
         TonearmLog.ingest.debug("Folder import complete: \(summary.imported) imported, \(summary.skippedDuplicates) skipped")
         return summary

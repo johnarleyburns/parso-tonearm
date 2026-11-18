@@ -1,14 +1,11 @@
 import XCTest
 
-/// Audit finding: Tonearm's home-view supporter badge already matches `../parso-voxglass`'s
-/// workflow shape (a heart-icon "Supporter" label shown only when the one-time, non-gating
-/// contribution flag is set, with a stable accessibility identifier) — this is a pure
-/// test-coverage gap, not a feature gap. Nothing previously pinned the badge's visibility logic
-/// or identifier, so a future refactor of `ListenView.swift` could silently drop either with
-/// nothing catching it on `swift test`, the only gate that runs on every commit. Source-
-/// inspection (no simulator) matches this repo's established convention — see
-/// `Tests/RootTabNavigationContractTests.swift` and `Tests/FavoriteAndHistoryTransientTrackTests.swift`'s
-/// `FavoriteAndHistoryGuardOrderingTests`.
+/// Real report: the supporter badge rendered as the first element of the Listen tab's scrolling
+/// body (under the large "Listen" title) instead of the integrated top-right glass toolbar
+/// `../parso-voxglass` uses (a `ToolbarItemGroup` next to Settings, no manual glass modifier —
+/// native iOS 26+ toolbar glass renders it). These tests pin the corrected shape via source
+/// inspection (no simulator), matching this repo's established convention — see
+/// `Tests/RootTabNavigationContractTests.swift`.
 final class ListenViewSupporterBadgeTests: XCTestCase {
     private func listenViewSource() throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -39,12 +36,32 @@ final class ListenViewSupporterBadgeTests: XCTestCase {
         XCTAssertEqual(count, 1, "listen.supporterBadge identifier must be present exactly once")
     }
 
-    /// Guards against a regression where the badge (or its height-preserving
-    /// else-branch spacer) becomes unconditional.
-    func testElseBranchDoesNotAlsoShowTheBadge() throws {
+    /// Pins the badge to the real nav-bar toolbar (matching voxglass) instead of the scrolling
+    /// body — a `ToolbarItemGroup(placement: .primaryAction)` alongside Settings.
+    func testBadgeLivesInToolbarNotBody() throws {
         let source = try listenViewSource()
-        let guardLine = try XCTUnwrap(source.range(of: "if support.isSupporter {\n                    supporterBadge"))
-        let elseRange = try XCTUnwrap(source.range(of: "} else {\n                    Spacer()"))
-        XCTAssertLessThan(guardLine.lowerBound, elseRange.lowerBound)
+        let toolbarRange = try XCTUnwrap(source.range(of: ".toolbar {"))
+        let groupRange = try XCTUnwrap(source.range(of: "ToolbarItemGroup(placement: .primaryAction)"))
+        let guardRange = try XCTUnwrap(source.range(of: "if support.isSupporter {\n                    supporterBadge"))
+        XCTAssertLessThan(toolbarRange.lowerBound, groupRange.lowerBound,
+            "the supporter badge's toolbar group must be declared inside a .toolbar { } block")
+        XCTAssertLessThan(groupRange.lowerBound, guardRange.lowerBound,
+            "the isSupporter guard must sit inside the ToolbarItemGroup")
+        XCTAssertTrue(source.contains("settingsButton"),
+            "Settings must be factored into its own view alongside the badge in the same group")
+
+        XCTAssertFalse(source.contains("} else {\n                    Spacer().frame(height: 16)"),
+            "the old body-inline badge/else-spacer branch must be gone")
+    }
+
+    /// No manual glass surface on the badge — native iOS 26+ toolbar glass renders it, matching
+    /// voxglass's badge (which has no explicit glass modifier either).
+    func testBadgeHasNoManualGlassSurface() throws {
+        let source = try listenViewSource()
+        let declRange = try XCTUnwrap(source.range(of: "private var supporterBadge: some View {"))
+        let closeRange = try XCTUnwrap(source.range(of: "\n    }", range: declRange.upperBound..<source.endIndex))
+        let body = source[declRange.upperBound..<closeRange.lowerBound]
+        XCTAssertFalse(body.contains(".glassSurface"),
+            "native toolbar glass replaces the manual glassSurface modifier")
     }
 }

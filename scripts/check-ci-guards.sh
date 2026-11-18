@@ -195,7 +195,7 @@ done
 # ── Watch architecture boundary ────────────────────────────────────────────
 echo "==> Watch architecture boundary"
 watch_ok=1
-WATCH_TARGET=$(sed -n '/^  TonearmWatch:/,/^  WatchUITests:/p' project.yml)
+WATCH_TARGET=$(sed -n '/^  TonearmWatch:/,/^schemes:/p' project.yml)
 for product in TonearmWatchProtocol TonearmWatchCore; do
   if ! printf '%s\n' "$WATCH_TARGET" | grep -q "product: $product"; then
     echo "    TonearmWatch is missing scoped product $product"

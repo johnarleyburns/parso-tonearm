@@ -2,8 +2,11 @@ import Foundation
 
 /// Folder watch: rescans watched folders when the app returns to the
 /// foreground and adds any new audio files to the library without a relaunch.
-/// Builds on the existing `Playlist.watch` + `folderBookmark` fields and the
-/// `IngestService` ingestion path.
+/// Two representations are watched side by side: `Playlist.watch` +
+/// `folderBookmark` (folders imported before folder imports stopped creating a
+/// playlist — real report: "do not add any of the files shown to a playlist
+/// automatically") and `Source.watch` + `Source.folderBookmark` (every import
+/// since). Both feed the same `IngestService` ingestion path.
 public actor FolderWatchService {
     public static let shared = FolderWatchService()
 
@@ -16,26 +19,32 @@ public actor FolderWatchService {
         scanned.filter { !existing.contains($0.standardizedFileURL.path) }
     }
 
-    /// Rescans every watched folder playlist and ingests new files into the same
-    /// source. Returns the number of files added. Safe to call on foreground.
+    /// Rescans every watched folder (legacy playlist-backed and current
+    /// source-backed alike) and ingests new files into the same source.
+    /// Returns the number of files added. Safe to call on foreground.
     @discardableResult
     public func rescanWatchedFolders(store: LibraryStore) async -> Int {
-        guard let playlists = try? await store.allPlaylists() else { return 0 }
         var added = 0
-        for playlist in playlists where playlist.kind == .folder && playlist.watch {
-            added += await rescan(playlist: playlist, store: store)
+        if let playlists = try? await store.allPlaylists() {
+            for playlist in playlists where playlist.kind == .folder && playlist.watch {
+                added += await rescan(sourceId: playlist.sourceId, bookmark: playlist.folderBookmark, store: store)
+            }
+        }
+        if let sources = try? await store.allSources() {
+            for source in sources where source.kind == .local && source.localIsFolder && (source.watch ?? false) {
+                added += await rescan(sourceId: source.id, bookmark: source.folderBookmark, store: store)
+            }
         }
         return added
     }
 
-    private func rescan(playlist: Playlist, store: LibraryStore) async -> Int {
-        guard let bookmark = playlist.folderBookmark,
-              let (folderURL, _) = BookmarkVault.resolve(bookmark) else { return 0 }
+    private func rescan(sourceId: Int64?, bookmark: Data?, store: LibraryStore) async -> Int {
+        guard let bookmark, let (folderURL, _) = BookmarkVault.resolve(bookmark) else { return 0 }
         let accessed = folderURL.startAccessingSecurityScopedResource()
         defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
 
         let scanned = IngestService().scanFolder(folderURL, includeSubfolders: true).map { $0.url }
-        guard let sid = playlist.sourceId else { return 0 }
+        guard let sid = sourceId else { return 0 }
         let existingRows = (try? await store.tracks(forSource: sid)) ?? []
         let existingPaths = Set(existingRows.compactMap { row -> String? in
             guard let urlString = row.asset?.remoteURL, let url = URL(string: urlString) else { return nil }
@@ -48,17 +57,28 @@ public actor FolderWatchService {
         return fresh.count
     }
 
-    /// Installs an `NSFilePresenter` per watched folder so the system notifies us
-    /// of changes while active. Presenters are torn down on `stopPresenting`.
+    /// Installs an `NSFilePresenter` per watched folder (both representations,
+    /// see above) so the system notifies us of changes while active.
+    /// Presenters are torn down on `stopPresenting`.
     public func startPresenting(store: LibraryStore, onChange: @escaping @Sendable () -> Void) async {
         await stopPresenting()
-        guard let playlists = try? await store.allPlaylists() else { return }
-        for playlist in playlists where playlist.kind == .folder && playlist.watch {
-            guard let bookmark = playlist.folderBookmark,
-                  let (folderURL, _) = BookmarkVault.resolve(bookmark) else { continue }
-            let presenter = FolderPresenter(url: folderURL, onChange: onChange)
-            NSFileCoordinator.addFilePresenter(presenter)
-            presenters.append(presenter)
+        if let playlists = try? await store.allPlaylists() {
+            for playlist in playlists where playlist.kind == .folder && playlist.watch {
+                guard let bookmark = playlist.folderBookmark,
+                      let (folderURL, _) = BookmarkVault.resolve(bookmark) else { continue }
+                let presenter = FolderPresenter(url: folderURL, onChange: onChange)
+                NSFileCoordinator.addFilePresenter(presenter)
+                presenters.append(presenter)
+            }
+        }
+        if let sources = try? await store.allSources() {
+            for source in sources where source.kind == .local && source.localIsFolder && (source.watch ?? false) {
+                guard let bookmark = source.folderBookmark,
+                      let (folderURL, _) = BookmarkVault.resolve(bookmark) else { continue }
+                let presenter = FolderPresenter(url: folderURL, onChange: onChange)
+                NSFileCoordinator.addFilePresenter(presenter)
+                presenters.append(presenter)
+            }
         }
     }
 

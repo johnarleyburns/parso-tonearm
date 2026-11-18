@@ -88,9 +88,6 @@ struct RootView: View {
             MyMusicView()
                 .tabItem { Label("My Music", systemImage: "music.note.list") }
                 .tag(AppTab.myMusic)
-            SourcesView()
-                .tabItem { Label("Libraries", systemImage: "externaldrive.connected.to.line.below") }
-                .tag(AppTab.libraries)
             FindView()
                 .tabItem { Label("Find", systemImage: "magnifyingglass") }
                 .tag(AppTab.find)

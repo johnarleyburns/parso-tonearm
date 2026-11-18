@@ -60,6 +60,8 @@ public enum RecordMapping {
         record["licenseText"] = source.licenseText as CKRecordValue?
         record["memberCapHit"] = (source.memberCapHit ? 1 : 0) as CKRecordValue
         record["localIsFolder"] = (source.localIsFolder ? 1 : 0) as CKRecordValue
+        record["watch"] = ((source.watch ?? false) ? 1 : 0) as CKRecordValue
+        // folderBookmark is device-specific — not synced, same as Playlist.folderBookmark below.
         return record
     }
 
@@ -80,7 +82,8 @@ public enum RecordMapping {
             memberCapHit: (record["memberCapHit"] as? Int ?? 0) != 0,
             localIsFolder: (record["localIsFolder"] as? Int ?? 0) != 0,
             artworkTrackId: nil,
-            syncID: syncID)
+            syncID: syncID,
+            watch: (record["watch"] as? Int ?? 0) != 0)
     }
 
     // MARK: - Album

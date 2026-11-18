@@ -637,5 +637,24 @@ extension Schema {
                 try db.execute(sql: "DROP TABLE starter_identity")
             }
         }
+
+        if shouldRegister("v52", upTo: target) {
+            migrator.registerMigration("v52") { db in
+                // Folder imports no longer auto-create/populate a playlist (real report: "do not
+                // add any of the files shown to a playlist automatically"), so "watch this folder"
+                // moves onto Source itself rather than Playlist -- mirrors Playlist's own
+                // watch/folderBookmark column types exactly. Additive only: existing folder
+                // playlists (and FolderWatchService's existing Playlist-based watch loop) are
+                // untouched, so pre-update watched folders keep working unchanged.
+                try db.alter(table: "source") { t in
+                    // Nullable, no default: `Source.watch` is `Bool?` (see its doc comment) so
+                    // every Codable-based row decode from a pre-v52 schema snapshot survives —
+                    // a NOT NULL column would reject that same `nil` on every fresh INSERT that
+                    // doesn't explicitly set `watch`, which is most of them.
+                    t.add(column: "watch", .boolean)
+                    t.add(column: "folderBookmark", .blob)
+                }
+            }
+        }
     }
 }
