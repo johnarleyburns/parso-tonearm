@@ -14,5 +14,5 @@ if ! swift test --filter TonearmProductionRegressionTests 2>&1 | tee "$TONEARM_H
   echo "Production regression FAILED; see $TONEARM_HARNESS_ARTIFACT_DIR" >&2
   exit 1
 fi
-grep -q "Executed [1-9][0-9]* tests, with 0 failures" "$TONEARM_HARNESS_ARTIFACT_DIR/harness.log" \
+grep -qE "Test run with [1-9][0-9]* tests? in [0-9]+ suites? passed" "$TONEARM_HARNESS_ARTIFACT_DIR/harness.log" \
   || { echo "Production regression executed no passing tests" >&2; exit 1; }
