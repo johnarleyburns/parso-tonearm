@@ -5,57 +5,57 @@ import Testing
 @Suite struct URLGrammarTests {
 
     @Test func testItemBare() {
-        #expect(try? URLGrammar.parse("https://archive.org/details/GratefulDead1977").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/details/GratefulDead1977").get()) ==
                        .item(identifier: "GratefulDead1977", filename: nil))
     }
 
     @Test func testItemWithFilename() {
-        #expect(try? URLGrammar.parse("archive.org/details/foo/track01.flac").get() ==
+        #expect((try? URLGrammar.parse("archive.org/details/foo/track01.flac").get()) ==
                        .item(identifier: "foo", filename: "track01.flac"))
     }
 
     @Test func testItemNestedFilename() {
-        #expect(try? URLGrammar.parse("archive.org/details/foo/disc1/track01.flac").get() ==
+        #expect((try? URLGrammar.parse("archive.org/details/foo/disc1/track01.flac").get()) ==
                        .item(identifier: "foo", filename: "disc1/track01.flac"))
     }
 
     @Test func testList() {
-        #expect(try? URLGrammar.parse("https://archive.org/details/@shellac_hound/lists/2841/early-opera").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/details/@shellac_hound/lists/2841/early-opera").get()) ==
                        .list(screenname: "shellac_hound", listId: "2841", slug: "early-opera"))
     }
 
     @Test func testListNoSlug() {
-        #expect(try? URLGrammar.parse("archive.org/details/@user/lists/99").get() ==
+        #expect((try? URLGrammar.parse("archive.org/details/@user/lists/99").get()) ==
                        .list(screenname: "user", listId: "99", slug: nil))
     }
 
     @Test func testListWithEncodedAtSign() {
-        #expect(try? URLGrammar.parse("https://archive.org/details/%40user/lists/99/favorites").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/details/%40user/lists/99/favorites").get()) ==
                        .list(screenname: "user", listId: "99", slug: "favorites"))
     }
 
     @Test func testListsTab() {
-        #expect(try? URLGrammar.parse("https://archive.org/details/@user/lists").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/details/@user/lists").get()) ==
                        .lists(screenname: "user"))
     }
 
     @Test func testFavorites() {
-        #expect(try? URLGrammar.parse("archive.org/details/fav-jsmith").get() ==
+        #expect((try? URLGrammar.parse("archive.org/details/fav-jsmith").get()) ==
                        .favorites(screenname: "jsmith"))
     }
 
     @Test func testEmbedNormalizesToItem() {
-        #expect(try? URLGrammar.parse("https://archive.org/embed/foo?start=10").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/embed/foo?start=10").get()) ==
                        .item(identifier: "foo", filename: nil))
     }
 
     @Test func testTrailingQueryTolerated() {
-        #expect(try? URLGrammar.parse("https://archive.org/details/foo?utm=x&y=1").get() ==
+        #expect((try? URLGrammar.parse("https://archive.org/details/foo?utm=x&y=1").get()) ==
                        .item(identifier: "foo", filename: nil))
     }
 
     @Test func testWwwHostAccepted() {
-        #expect(try? URLGrammar.parse("https://www.archive.org/details/foo").get() ==
+        #expect((try? URLGrammar.parse("https://www.archive.org/details/foo").get()) ==
                        .item(identifier: "foo", filename: nil))
     }
 

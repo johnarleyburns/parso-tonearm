@@ -362,7 +362,7 @@ import Testing
         let reply = await harness.phone.receiveImmediate(try! #require(future))
         let envelope = try? WatchProtocolEnvelope.decode(try #require(reply)).get()
         #expect(envelope?.kind == .error)
-        #expect(try? envelope?.decodePayload(WatchProtocolFault.self).code == .protocolUpgradeRequired)
+        #expect((try? envelope?.decodePayload(WatchProtocolFault.self).code) == .protocolUpgradeRequired)
     }
 
     // MARK: - Immediate requests
@@ -755,7 +755,7 @@ import Testing
             for _ in 0..<8 {
                 group.addTask {
                     await offMainQueue()
-                    #expect(!Thread.isMainThread)
+                    #expect(!isOnMainThread())
                     if let context { await watch.receiveApplicationContext(context) }
                     if let userInfo { await watch.receiveUserInfo(userInfo) }
                 }
@@ -832,6 +832,8 @@ private func offMainQueue() async {
         DispatchQueue.global(qos: .utility).async { continuation.resume() }
     }
 }
+
+private func isOnMainThread() -> Bool { Thread.isMainThread }
 
 extension WatchConnectionReducer.State {
     fileprivate var lastReplyAt: Date? {
