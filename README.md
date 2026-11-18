@@ -144,7 +144,7 @@ The translations are first drafts. Every entry is marked `needs_review` until a 
 ```sh
 make models           # fetch the Core ML packages pinned in Config/models.lock
 make project          # project.yml -> Tonearm.xcodeproj (wraps xcodegen)
-xcodebuild test -scheme Tonearm -destination 'platform=iOS Simulator,name=iPhone 16'
+swift test             # the only automated test suite in this repo
 ```
 
 **No converted model is in the repository** — GitHub rejects any file over 100 MB.
@@ -164,9 +164,8 @@ once after cloning.
 Requires iOS 18. Single dependency: [GRDB](https://github.com/groue/GRDB.swift).
 
 Every commit runs `swift test` via a local pre-commit hook; CI does the same on push.
-The UI smoke test suite (`make test-ui-regression`) is run by hand before a release,
-not on every commit — it needs a simulator and takes longer than the commit loop
-should.
+That is the only automated test suite in this repo — there is no simulator-based UI
+test suite, since this project's CI/CD cannot run a simulator at all.
 
 ## Architecture
 

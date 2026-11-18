@@ -472,16 +472,16 @@ struct AddServerSheet: View {
     }
 
     /// `addXXXServer`/`addCloudDrive`/`addIASource` all end by switching to the My Music tab —
-    /// correct for the global "+" menu flow (`onConnected` is nil there, no stack to push onto),
-    /// but wrong here: it would hide the push below behind a different tab entirely. Stay on
-    /// Libraries so that push is actually visible. Identifies the new source by diffing IDs
-    /// rather than assuming "last in the array" — reload() order isn't a contract worth
-    /// depending on.
+    /// correct for the global "+" menu flow (`onConnected` is nil there, no stack to push onto).
+    /// This path (`onConnected` set) pushes a new source onto whatever stack presented this
+    /// sheet, which since Libraries folded into My Music is always My Music's own stack — stay
+    /// there so the push is actually visible. Identifies the new source by diffing IDs rather
+    /// than assuming "last in the array" — reload() order isn't a contract worth depending on.
     private func notifyConnected(newSinceIDs existingIDs: Set<Int64>) {
         guard let onConnected,
               let newSource = appState.sources.first(where: { $0.id.map { !existingIDs.contains($0) } ?? false })
         else { return }
-        appState.tab = .libraries
+        appState.tab = .myMusic
         onConnected(newSource)
     }
 

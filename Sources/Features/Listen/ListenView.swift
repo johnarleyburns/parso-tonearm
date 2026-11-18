@@ -12,21 +12,13 @@ struct ListenView: View {
     /// Backs the shared `trackDetailSheet` (plan §3.6) — every track tap on
     /// this screen sets this instead of calling `player.play(...)` directly.
     @State private var selectedTrackForDetail: TrackRow?
-    @ScaledMetric(relativeTo: .body) private var collectionContentHeight: CGFloat = 188
+    @ScaledMetric(relativeTo: .body) private var collectionContentHeight: CGFloat = 206
     @State private var showSettings = false
     @State private var showClearRecentConfirm = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if support.isSupporter {
-                    supporterBadge
-                        .padding(.top, 6)
-                        .padding(.bottom, 10)
-                } else {
-                    Spacer().frame(height: 16)
-                }
-
                 cardRow(title: "Jump Back In", rows: appState.recentlyPlayed,
                         emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent",
                         onClear: { showClearRecentConfirm = true })
@@ -35,17 +27,17 @@ struct ListenView: View {
                     .redacted(reason: appState.didLoadLibraryOnce ? [] : .placeholder)
             }
             .padding(.horizontal, 16)
+            .padding(.top, 16)
             .padding(.bottom, 160)
         }
         .navigationTitle("Listen")
         .largeNavigationTitle()
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showSettings = true } label: {
-                    Image(systemName: "gearshape.fill")
+            ToolbarItemGroup(placement: .primaryAction) {
+                if support.isSupporter {
+                    supporterBadge
                 }
-                .accessibilityLabel("Settings")
-                .accessibilityIdentifier("listen.settings")
+                settingsButton
             }
         }
         .foregroundStyle(Palette.ink)
@@ -73,15 +65,24 @@ struct ListenView: View {
     /// Shown only when `SupportDevelopmentStore.isSupporter` is true — the
     /// one, purely cosmetic acknowledgement of the optional "Contribute to
     /// Development" purchase (business decision: nothing in Tonearm is
-    /// gated, so this badge unlocks nothing either).
+    /// gated, so this badge unlocks nothing either). Lives in the real
+    /// nav-bar toolbar next to Settings (matching `../parso-voxglass`'s
+    /// integrated glass toolbar) rather than as inline body content —
+    /// native iOS 26+ toolbar glass renders it, no manual glass modifier
+    /// needed.
     private var supporterBadge: some View {
         Label("Supporter", systemImage: "heart.fill")
             .font(Typography.caption)
             .foregroundStyle(Palette.accent)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .glassSurface(cornerRadius: 12)
             .accessibilityIdentifier("listen.supporterBadge")
+    }
+
+    private var settingsButton: some View {
+        Button { showSettings = true } label: {
+            Image(systemName: "gearshape.fill")
+        }
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("listen.settings")
     }
 
 
@@ -351,7 +352,7 @@ struct RecentCard: View {
                 .frame(width: 132, height: 132)
             Text(row.track.title)
                 .font(Typography.callout)
-                .lineLimit(1)
+                .lineLimit(2)
                 .padding(.top, 7)
             Text(row.artist?.name ?? row.album?.artist ?? (row.asset?.kind == .remote ? PlaybackDisplayPolicy.providerName(for: row.source) : String(localized: "On device")))
                 .font(Typography.caption)

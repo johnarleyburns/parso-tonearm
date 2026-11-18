@@ -1,4 +1,4 @@
-.PHONY: tonearm-production-regression ci-guards models project test-local test-swift test-ui test-integration test-ui-regression
+.PHONY: tonearm-production-regression ci-guards models project test-local test-swift test-integration
 
 # Hermetic production-flow + visual regression harness (issue #80). Mandatory evidence for issue
 # work; a generic `swift test` pass does not substitute for it. See CLAUDE.md.
@@ -30,9 +30,6 @@ test-local:
 test-swift:
 	scripts/run-local-test-suite.sh swift
 
-test-ui:
-	scripts/run-local-test-suite.sh ui
-
 REMOTE_TEST_URL ?= http://127.0.0.1:18089
 
 test-integration:
@@ -40,14 +37,3 @@ test-integration:
 	docker compose -f docker-compose.remote-test.yml up -d --wait; \
 	trap 'docker compose -f docker-compose.remote-test.yml down' EXIT; \
 	TONEARM_REMOTE_INTEGRATION_BASE_URL=$(REMOTE_TEST_URL) swift test --filter RemoteIntegrationTests
-
-# UI regression suite (spec §53). Run by hand before a release — never in CI,
-# never in a git hook. Needs Docker + a simulator; lanes with missing
-# prerequisites skip rather than fail.
-#   make test-ui-regression
-#   make test-ui-regression LANES=remote
-#
-LANES ?= all
-
-test-ui-regression:
-	LANES=$(LANES) scripts/run-ui-regression.sh

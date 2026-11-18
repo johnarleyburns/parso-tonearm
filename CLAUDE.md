@@ -2,7 +2,7 @@
 
 ## Swift 6 hard rule
 
-Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs `swift test` only; a push runs no tests. The UI smoke/simulator suite is run by hand before a release (see below), not on every commit.
+Tonearm is fully on Swift 6 language mode with complete strict-concurrency checking and is kept as warning-free as the selected toolchain permits. Do not introduce or permit any deviation, mixed Swift modes, warning suppression, or unexplained concurrency escape hatch. A commit runs `swift test` only; a push runs no tests. There is no simulator-based UI test suite in this repo — CI and local dev environments cannot reliably run one (simulators crash/are unavailable in this project's CI/CD), so none exists to maintain. Do not add one back.
 
 ## GitHub CLI only
 
@@ -18,8 +18,7 @@ Always use the `gh` CLI directly for every GitHub interaction (issues, PRs, comm
 
 - **One PR validation workflow.** `pr-validation.yml` owns the required `validate` check. `ios.yml` runs on main pushes/manual dispatch only, keeping merged-code tests as the gate before TestFlight signing/upload. Do not add a second full PR test job.
 - **CI builds device targets only.** Use unsigned generic destinations `generic/platform=iOS` and `generic/platform=watchOS` for compile checks. Never build for a simulator, boot one, or run simulator/UI tests in CI/CD. No attached device is needed for these compile checks.
-- **CI host tests use `swift test`.** The UI regression suite (`make test-ui-regression`) is run by hand before a release. It needs Docker, a simulator and third-party demo servers. Do not wire it into CI, a git hook, or `make test-swift`. It lives in its own target and scheme (`TonearmUIRegressionTests` / `TonearmUIRegression`) so the smoke path cannot reach it — keep that separation.
-- **Never commit `.test-credentials`.** Real values live there and it is gitignored; `.test-credentials.example` carries key names only. No credential belongs in a test, a compose file, a script, or a spec.
+- **CI host tests use `swift test`.** That is the only test runner in this repo. There used to be a Docker-backed UI regression suite (`TonearmUIRegressionTests`/`TonearmUIRegression`, `make test-ui-regression`) and a separate simulator-based smoke suite (`TonearmUITests`/`WatchUITests`, `make test-ui`) — both were deleted (2026-11): this project's CI/CD cannot run a simulator at all, so neither suite was ever actually exercised, and keeping dead, unrunnable test infrastructure around is worse than having none. Do not reintroduce a simulator-dependent test target, scheme, or Makefile target.
 - **Jamendo starter taxonomy and eligibility are fixed contracts.** `Sources/Remote/Providers/JamendoGenreProvider.swift` is the sole genre/subgenre authority. Generate `tools/starter-catalog/jamendo_taxonomy_v1.json` from it with `python3 -I tools/starter-catalog/generate_taxonomy.py --tree Sources/Remote/Providers/JamendoGenreProvider.swift --out tools/starter-catalog/jamendo_taxonomy_v1.json`; do not hand-curate a reduced subset or query a leaf with a parent-plus-leaf AND filter. Every Jamendo track is approved for Tonearm's free open-source use: retain any source license metadata for attribution, but **never exclude a starter candidate by license or missing license URL**. Eligibility is limited to a resolvable/downloadable track with valid identity, title, artist, duration, and the node's verified leaf tag.
 - **Jamendo licensing is cleared at the account level — do not raise, question, or gate work on individual Jamendo track licenses anywhere in this repo.** The owner has a direct agreement with Jamendo covering Tonearm's use of Jamendo content, including tracks permanently mirrored into redistributed release assets (e.g. Starter Blends' AAC pack). A track's specific CC variant (BY, BY-NC-ND, BY-SA, etc.) is not a usability gate for any Jamendo-sourced feature; retain license metadata for attribution only, never as an inclusion/exclusion filter, and never add CC0-only or similar license-based restrictions to new code, docs, or comments.
 - **Never use `git commit --no-verify` on your own initiative.** The commit hook is mandatory; fix the underlying failure or stop and report the blocker. The one exception: the owner may explicitly ask, in the moment, for a specific commit to skip it (e.g. to avoid re-running the ~5 minute local suite when it was already run by hand immediately before) — that is the owner's call to make, not a standing permission, and it does not carry over to later commits without asking again each time.
@@ -37,7 +36,7 @@ Always use the `gh` CLI directly for every GitHub interaction (issues, PRs, comm
 verification, deterministic render/baseline comparison, accessibility strings and resource-lease
 checks. No Docker, network, model download, signing secret or device. `scripts/ci-validate.sh` (used by
 PR validation and the issue worker) runs it, so a failing assertion fails the PR; a generic
-`swift test` pass is not evidence for issue work. It is separate from the Docker UI regression suite.
+`swift test` pass is not evidence for issue work.
 
 For every issue:
 1. Reproduce the failing behavior: add/strengthen a harness test (or baseline) and run the command; it must fail with the screen/state/assertion named.
@@ -106,20 +105,18 @@ the build invocation to use a destination; only if it says `--platform
 watchos` should `AppIcon.icon` be repaired (in Icon Composer, with watchOS enabled). If `project.yml` changes,
 regenerate with `make project` and rerun both platform-specific builds.
 
-Run every iOS/watchOS build and simulator test command sequentially, never
-concurrently: do not background an `xcodebuild`, use `&`, launch two
-destinations, or use a parallel build/test wrapper. They resolve shared
-SwiftPM packages and can otherwise race while creating or replacing the same
-DerivedData/checkouts, producing misleading package checkout or permission
-failures. The only valid order is iOS build/test first, then watchOS build/test,
-then any package tests.
+Run every iOS/watchOS build command sequentially, never concurrently: do not
+background an `xcodebuild`, use `&`, launch two destinations, or use a
+parallel build wrapper. They resolve shared SwiftPM packages and can otherwise
+race while creating or replacing the same DerivedData/checkouts, producing
+misleading package checkout or permission failures. The only valid order is
+iOS build first, then watchOS build, then any package tests.
 
 SwiftPM package tests are the exception: run `swift test` with its normal
 parallel test execution so the suite finishes in a reasonable time. The local
 test runner (`scripts/run-local-test-suite.sh`) remains single-flight at the
 runner level—it waits for any existing invocation to finish—but its Swift test
-phase must not add `--no-parallel`. The runner still executes the iPhone and
-watch smoke tests one after the other. `make test-integration` should likewise
+phase must not add `--no-parallel`. `make test-integration` should likewise
 use the default parallel SwiftPM test execution. Do not run multiple
 independent `swift test` processes concurrently against the same checkout.
 

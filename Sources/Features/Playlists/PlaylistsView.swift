@@ -3,19 +3,16 @@ import TonearmCore
 
 struct PlaylistsView: View {
     @EnvironmentObject var appState: AppState
-    private let presentsCreateSheetLocally: Bool
     /// My Music already owns a `NavigationStack` when embedding this view as
     /// a scope — a second nested stack there makes the first push unstable
     /// (same reasoning as `LibraryView.ownsNavigationStack`).
     private let ownsNavigationStack: Bool
-    @State private var showLocalCreate = false
     @State private var playlistToRename: Playlist?
     @State private var playlistToDelete: Playlist?
     @State private var renameTitle = ""
     @State private var pinnedIds: Set<Int64> = PinnedPlaylistsStore.pinnedIds()
 
-    init(presentsCreateSheetLocally: Bool = false, ownsNavigationStack: Bool = true) {
-        self.presentsCreateSheetLocally = presentsCreateSheetLocally
+    init(ownsNavigationStack: Bool = true) {
         self.ownsNavigationStack = ownsNavigationStack
     }
 
@@ -47,23 +44,6 @@ struct PlaylistsView: View {
     @ViewBuilder
     private var content: some View {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(
-                    title: "Playlists",
-                    addAction: {
-                        if presentsCreateSheetLocally { showLocalCreate = true }
-                        else { appState.showCreatePlaylist = true }
-                    },
-                    addAccessibilityIdentifier: "playlists.create")
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 12)
-
-                Text("Your Playlists")
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-                    .kerning(0.6)
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 6)
-
                 List {
                     // NavigationRow already draws its own trailing chevron
                     // for this app's custom row styling — wrapping it
@@ -164,9 +144,6 @@ struct PlaylistsView: View {
                 if value == "ambient" { AmbientPlaylistView() }
             }
             .hiddenNavigationBar(when: ownsNavigationStack)
-            .sheet(isPresented: $showLocalCreate) {
-                CreatePlaylistSheet(isEmbedded: true)
-            }
             .renamePlaylistAlert(
                 playlist: $playlistToRename,
                 title: $renameTitle,

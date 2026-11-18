@@ -121,7 +121,26 @@ struct MyMusicView: View {
             .largeNavigationTitle()
             .rootTabChrome(.myMusic)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                if scope == .playlists {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { appState.showCreatePlaylist = true } label: {
+                            Image(systemName: "plus")
+                                .font(Typography.body).foregroundStyle(Palette.accent)
+                                .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                        }
+                        .accessibilityLabel("Create Playlist")
+                        .accessibilityIdentifier("playlists.create")
+                    }
+                }
+                ToolbarItemGroup(placement: .primaryAction) {
+                    NavigationLink {
+                        SourcesView(ownsNavigationStack: false)
+                    } label: {
+                        Image(systemName: "externaldrive.connected.to.line.below")
+                    }
+                    .accessibilityLabel("Libraries")
+                    .accessibilityIdentifier("mymusic.libraries")
+
                     Button { showIndexStatus = true } label: {
                         indexStatusIcon
                     }

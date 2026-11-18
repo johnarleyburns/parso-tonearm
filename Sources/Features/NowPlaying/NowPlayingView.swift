@@ -311,12 +311,14 @@ struct NowPlayingView: View {
 
     private var transport: some View {
         HStack(spacing: 10) {
-            Button { player.previous() } label: {
-                Image(systemName: "backward.fill").font(Typography.headline)
-                    .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
+            if !player.isAmbient {
+                Button { player.previous() } label: {
+                    Image(systemName: "backward.fill").font(Typography.headline)
+                        .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Previous Track")
+                .accessibilityIdentifier("np.prev")
             }
-            .accessibilityLabel("Previous Track")
-            .accessibilityIdentifier("np.prev")
             Button { player.togglePlayPause() } label: {
                 // Matches the mini player's buffering affordance (PlayerAccessory.swift): without
                 // it, this button looked falsely confident during exactly the window a tap might
@@ -337,68 +339,75 @@ struct NowPlayingView: View {
             .accessibilityIdentifier("np.playpause")
             .accessibilityValue(player.isStalled ? "Buffering" : (player.isPlaying ? "playing" : "paused"))
             .sensoryFeedback(.impact(weight: .light), trigger: player.isPlaying)
-            Button { player.next() } label: {
-                Image(systemName: "forward.fill").font(Typography.headline)
-                    .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
+            if !player.isAmbient {
+                Button { player.next() } label: {
+                    Image(systemName: "forward.fill").font(Typography.headline)
+                        .frame(width: 52, height: 52).background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Next Track")
+                .accessibilityIdentifier("np.next")
+                Button { player.cycleRepeatMode() } label: {
+                    Image(systemName: repeatIcon).font(Typography.headline)
+                        .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Repeat")
+                .accessibilityIdentifier("np.repeat")
+                Button { player.shuffle.toggle() } label: {
+                    Image(systemName: "shuffle").font(Typography.headline)
+                        .foregroundStyle(player.shuffle ? Palette.accent : Palette.inkSecondary)
+                        .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Shuffle")
+                .accessibilityIdentifier("np.shuffle")
             }
-            .accessibilityLabel("Next Track")
-            .accessibilityIdentifier("np.next")
-            Button { player.cycleRepeatMode() } label: {
-                Image(systemName: repeatIcon).font(Typography.headline)
-                    .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
-            }
-            .accessibilityLabel("Repeat")
-            .accessibilityIdentifier("np.repeat")
-            Button { player.shuffle.toggle() } label: {
-                Image(systemName: "shuffle").font(Typography.headline)
-                    .foregroundStyle(player.shuffle ? Palette.accent : Palette.inkSecondary)
-                    .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
-            }
-            .disabled(player.isAmbient)
-            .accessibilityLabel("Shuffle")
-            .accessibilityIdentifier("np.shuffle")
         }
         .foregroundStyle(Palette.ink)
     }
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Button {
-                if let row = player.currentTrack { Task { await appState.toggleFavorite(row) } }
-            } label: {
-                Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
-                    .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Palette.danger : Palette.inkSecondary)
-                    .font(Typography.body).frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .disabled(player.currentTrack == nil)
-            .accessibilityLabel("Favorite")
-            .accessibilityIdentifier("np.favorite")
-            .sensoryFeedback(.success, trigger: appState.favoriteIds)
-            .symbolEffect(.bounce, value: player.currentTrack.map { appState.isFavorite($0) } == true)
+            if !player.isAmbient {
+                Button {
+                    if let row = player.currentTrack { Task { await appState.toggleFavorite(row) } }
+                } label: {
+                    Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
+                        .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Palette.danger : Palette.inkSecondary)
+                        .font(Typography.body).frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .disabled(player.currentTrack == nil)
+                .accessibilityLabel("Favorite")
+                .accessibilityIdentifier("np.favorite")
+                .sensoryFeedback(.success, trigger: appState.favoriteIds)
+                .symbolEffect(.bounce, value: player.currentTrack.map { appState.isFavorite($0) } == true)
 
-            Button { showAddToPlaylist = true } label: {
-                Image(systemName: "text.badge.plus").font(Typography.body)
-                    .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                Button { showAddToPlaylist = true } label: {
+                    Image(systemName: "text.badge.plus").font(Typography.body)
+                        .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                }
+                .disabled(player.currentTrack == nil)
+                .accessibilityLabel("Add to Playlist")
+                .accessibilityIdentifier("np.addToPlaylist")
             }
-            .disabled(player.currentTrack == nil || player.isAmbient)
-            .accessibilityLabel("Add to Playlist")
-            .accessibilityIdentifier("np.addToPlaylist")
 
             AirPlayButton()
                 .frame(width: 44, height: 44)
                 .accessibilityIdentifier("np.airplay")
 
-            phoneDownloadButton(for: player.currentTrack)
-            watchButton(for: player.currentTrack)
+            if !player.isAmbient {
+                phoneDownloadButton(for: player.currentTrack)
+                watchButton(for: player.currentTrack)
+            }
 
             Menu {
                 if !player.isAmbient, player.currentTrack != nil {
                     Button { showPhotoPicker = true } label: { Label("Change Artwork", systemImage: "photo.badge.plus") }
                     if npArtwork != nil { Button(role: .destructive) { showArtworkDeleteAlert = true } label: { Label("Remove Artwork", systemImage: "trash") } }
                 }
-                Button { showEQ = true } label: { Label("Equalizer", systemImage: "slider.vertical.3") }
-                if let row = player.currentTrack, let shareURL = shareURL(for: row) {
+                if !player.isAmbient {
+                    Button { showEQ = true } label: { Label("Equalizer", systemImage: "slider.vertical.3") }
+                }
+                if !player.isAmbient, let row = player.currentTrack, let shareURL = shareURL(for: row) {
                     ShareLink(item: shareURL) { Label("Share Artwork", systemImage: "square.and.arrow.up") }
                 }
                 Button("15 minutes") { startSleepTimer(minutes: 15) }

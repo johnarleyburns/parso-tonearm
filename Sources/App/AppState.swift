@@ -4,15 +4,20 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Four iPhone root tabs — My Music is browsing-only, while Find and Libraries own their
-/// dedicated discovery/search/connection flows. Settings is presented from Listen rather
-/// than occupying a browsing tab. Raw values are explicit and never reused/renumbered:
-/// they're persisted under `lastTabKey`, and `AppTab(rawValue:)` failing closed (restoring
-/// nothing, defaulting to `.listen`) only works if a value nobody holds anymore is never
-/// handed to a different case later. `mood` (2) was removed when the standalone Mood tab
-/// was folded into Find — its gap is deliberately left open, not reused, so a pre-update
-/// install's saved "Mood" selection safely falls back to `.listen` instead of landing on
-/// whatever case happened to claim 2 next. RootView's TabView body order, not this enum's
+/// Three iPhone root tabs — My Music is browsing-only (and is where Libraries is now reached,
+/// via its own toolbar icon), Find owns its dedicated discovery/search flow. Settings is
+/// presented from Listen rather than occupying a browsing tab. Raw values are explicit and
+/// never reused/renumbered: they're persisted under `lastTabKey`, and `AppTab(rawValue:)`
+/// failing closed (restoring nothing, defaulting to `.listen`) only works if a value nobody
+/// holds anymore is never handed to a different case later. `mood` (2) was removed when the
+/// standalone Mood tab was folded into Find — its gap is deliberately left open, not reused, so
+/// a pre-update install's saved "Mood" selection safely falls back to `.listen` instead of
+/// landing on whatever case happened to claim 2 next. `libraries` (4) was folded into My Music
+/// the same way, except the case itself is kept (not left as an open gap like `mood`) because
+/// `SourcesView`'s internal `.rootTabChrome(.libraries, ...)` call still needs *some* `AppTab`
+/// value to compare against even though no tab can select it anymore — the `init`'s explicit
+/// `restored == .libraries ? .myMusic : restored` fallback is what actually keeps a persisted
+/// pre-update selection from landing nowhere. RootView's TabView body order, not this enum's
 /// declaration order, controls visual placement.
 enum AppTab: Int, CaseIterable {
     case listen = 0, myMusic = 1, find = 3, libraries = 4
@@ -166,7 +171,11 @@ final class AppState: ObservableObject {
         if let saved = UserDefaults.standard.object(forKey: Self.lastTabKey) as? Int,
             let restored = AppTab(rawValue: saved)
         {
-            tab = restored
+            // Libraries folded into My Music and no longer has its own tab (see AppTab's own
+            // doc comment on the `mood` case for the same "never reuse, fall back instead"
+            // convention) — a pre-update install's saved Libraries selection lands on My Music,
+            // where Libraries is now reachable, instead of a tab that no longer exists.
+            tab = restored == .libraries ? .myMusic : restored
         }
         musicalInfoObserver = NotificationCenter.default.addObserver(
             forName: .tonearmMusicalMetadataDidChange,
@@ -187,6 +196,7 @@ final class AppState: ObservableObject {
         #endif
         await fixLegacySourceTitles()
         await repairDuplicatePlaylistsOnce()
+        await cleanupLegacyMoodStarterIfNeeded()
         // Before DiscoveryRuntimeController.startAfterBootstrap() (called
         // right after this returns, from TonearmApp) runs its launch
         // reconciliation sweep — these need to be real rows already, so
@@ -204,6 +214,23 @@ final class AppState: ObservableObject {
         await watchRuntime.activate()
         startWatchTransferTick()
         #endif
+    }
+
+    /// Real report: Libraries > On This Device should no longer show "Mood Starter" (#444 removed
+    /// the feature's merge code, but any device that ran an older build still has the leftover
+    /// `Source(title: "Mood Starter", kind: .local)` row — plus its `Album`/`Track`/`Asset`/
+    /// discovery rows — sitting in the local database). `SourcesView.localSources` already hides
+    /// it going forward; this is the one-time cleanup that actually deletes the leftover data so
+    /// it doesn't keep polluting the device. Reuses `deleteSource(_:)` — the exact cascade-delete
+    /// path the "Remove" context-menu action already uses — rather than new SQL.
+    func cleanupLegacyMoodStarterIfNeeded() async {
+        let key = "cleanup.moodStarterRemoved.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        if let source = try? await store.firstSource(title: "Mood Starter", kind: .local) {
+            await deleteSource(source)
+        }
+        UserDefaults.standard.removeObject(forKey: "builtin.starterLibrary.mergedVersion")
+        UserDefaults.standard.set(true, forKey: key)
     }
 
     private func repairDuplicatePlaylistsOnce() async {

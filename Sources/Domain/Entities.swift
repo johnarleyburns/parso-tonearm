@@ -63,6 +63,15 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// root. Already the provider's own permanent item ID for every provider
     /// except WebDAV/SMB (see `RemoteNode.path`), so this is durable.
     public var lastBrowsedPath: String? = nil
+    /// "Watch this folder for new files" (schema v52), for a folder-imported local source. Mirrors
+    /// `Playlist.watch`/`Playlist.folderBookmark`, which `FolderWatchService` already reads for
+    /// folders imported before this field existed — both are watched side by side so legacy
+    /// watched folders keep working unchanged while new imports (which no longer create a
+    /// playlist at all) use this field instead.
+    public var watch: Bool = false
+    /// Security-scoped bookmark for a watched folder import (schema v52). Device-specific — never
+    /// synced via CloudKit, same deliberate exclusion `Playlist.folderBookmark` already has.
+    public var folderBookmark: Data? = nil
 
     public init(id: Int64?,
                 kind: SourceKind,
@@ -78,7 +87,9 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
                 folderPath: String? = nil,
                 artworkTrackId: Int64? = nil,
                 syncID: String? = nil,
-                lastBrowsedPath: String? = nil) {
+                lastBrowsedPath: String? = nil,
+                watch: Bool = false,
+                folderBookmark: Data? = nil) {
         self.id = id
         self.kind = kind
         self.iaIdentifier = iaIdentifier
@@ -94,6 +105,8 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
         self.artworkTrackId = artworkTrackId
         self.syncID = syncID
         self.lastBrowsedPath = lastBrowsedPath
+        self.watch = watch
+        self.folderBookmark = folderBookmark
     }
 
     /// SF Symbol shown over the gradient when no real artwork resolves.

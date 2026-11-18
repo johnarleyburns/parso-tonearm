@@ -70,9 +70,6 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 
-# Local test credentials — never committed. See .test-credentials.example.
-.test-credentials
-
 # Application credentials the owner supplies locally. The Jamendo client id is
 # an *application* credential, so unlike .test-credentials it has to reach a
 # shipped build — it does so through an untracked xcconfig (Config/Secrets.xcconfig)
@@ -98,11 +95,6 @@ Config/stems-odr.yml
 Sources/Features/Ingest/GeneratedOAuthCredentials.swift
 *.local.sh
 .test-results/
-
-# UI regression artifacts. The DJ lane keeps its recorded mix here so a human can
-# listen to it and judge whether the analyzer's thresholds are tuned right (§53.9);
-# it is wiped at the start of every DJ run. Never committed — it is generated audio.
-build/ui-regression/
 
 # Local compose-run artifacts (navidrome config written by a backing-server run).
 # Anchored: an unanchored `data/` would (case-insensitively) swallow the DJ

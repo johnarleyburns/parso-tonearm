@@ -57,8 +57,14 @@ struct SourcesView: View {
         }
     }
 
+    /// "Built-in Sounds" is bundled app content (seeded for Sound Index indexing only, never a
+    /// real user folder — `AppState+BuiltInLibrary.swift`) and "Mood Starter" is a removed
+    /// feature's leftover local-row data on upgraded installs (cleaned up once by
+    /// `AppState.cleanupLegacyMoodStarterIfNeeded()`). Neither belongs in "On This Device."
+    private static let hiddenLocalSourceTitles: Set<String> = ["Built-in Sounds", "Mood Starter"]
+
     private var localSources: [Source] {
-        appState.sources.filter { $0.kind == .local }
+        appState.sources.filter { $0.kind == .local && !Self.hiddenLocalSourceTitles.contains($0.title) }
     }
 
     private func instances(of connector: RemoteConnector) -> [Source] {
@@ -99,23 +105,6 @@ struct SourcesView: View {
                             Divider().overlay(Palette.hairline)
                         }
                     }
-                    Button { appState.pendingImport = .folder } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "plus")
-                                .font(Typography.body).foregroundStyle(Palette.accent)
-                                .frame(width: 42, height: 42)
-                                .glassSurface(cornerRadius: 9)
-                                .accessibilityHidden(true)
-                            Text("Add Local Folder").font(Typography.callout)
-                            Spacer()
-                        }
-                        .padding(.vertical, 9)
-                        .contentShape(Rectangle())
-                        .foregroundStyle(Palette.ink)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("Add Local Folder Row")
-                    .accessibilityLabel("Add Local Folder")
 
                     SectionHeader(title: "Remote")
                         .padding(.top, 18)
