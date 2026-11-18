@@ -107,7 +107,8 @@ final class FolderWatchTests: XCTestCase {
                                              watch: true, into: store)
         let newSource = try await store.firstSource(title: newFolder.lastPathComponent, kind: .local)
         let newSid = try XCTUnwrap(newSource?.id)
-        XCTAssertEqual(try await store.allPlaylists().count, 1, "only the legacy folder has a playlist")
+        let playlistCountAfterNewImport = try await store.allPlaylists().count
+        XCTAssertEqual(playlistCountAfterNewImport, 1, "only the legacy folder has a playlist")
 
         // Drop a new file into each folder, then rescan once.
         try Data(count: 4096).write(to: legacyFolder.appendingPathComponent("legacy-second.flac"))
