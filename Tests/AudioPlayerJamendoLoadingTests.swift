@@ -33,16 +33,12 @@ private final class Spy: @unchecked Sendable {
 
 extension SharedProductionSingletonTests {
     @MainActor
-    /// Quarantined: this suite, along with `AudioPlayerTogglePlayPauseTests`,
-    /// `StallAutoSkipTests`, `CrossfadePrepareTests`, and `CrossfadeTransitionDriveTests`
-    /// (the suites needing a genuine `AVPlayer`), hangs the whole `swift test`
-    /// process on CI — silently, past even this umbrella's 2-minute `.timeLimit`
-    /// safety net — for reasons not yet root-caused from this environment (no
-    /// macOS/Xcode access to attach a debugger or capture a stack trace during
-    /// the hang). Every other suite, including the ~10 files now using
-    /// `AudioPlayer.makeForTesting()`'s fake player engine, runs clean. Re-enable
-    /// once debugged with real macOS access.
-    @Suite(.disabled("CI hang under investigation — real-AVPlayer timing suite; see swift-testing-migration branch history"))
+    /// Re-enabled (2026-11-19) as part of the no-`.serialized`/`.timeLimit`
+    /// experiment on `SharedProductionSingletonTests` — was quarantined after
+    /// appearing to hang CI, but that hang turned out to affect every suite
+    /// nested in the umbrella, not specifically this one. See
+    /// `Tests/SharedProductionSingletonTests.swift`'s doc comment.
+    @Suite
     final class AudioPlayerJamendoLoadingTests {
         private let player = AudioPlayer()
         private let stale = "https://example.test/stale.mp3"

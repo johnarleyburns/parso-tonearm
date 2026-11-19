@@ -8,10 +8,9 @@ import Testing
 /// driven before it was `.readyToPlay`; preparing it must leave it untouched until it has loaded.
 extension SharedProductionSingletonTests {
     @MainActor
-    /// Quarantined — see the fuller explanation on `AudioPlayerJamendoLoadingTests`'s
-    /// `@Suite` declaration: this real-`AVPlayer` suite hangs `swift test` on CI
-    /// for a reason not yet root-caused from this environment.
-    @Suite(.disabled("CI hang under investigation — real-AVPlayer timing suite; see swift-testing-migration branch history"))
+    /// Re-enabled (2026-11-19) — see `AudioPlayerJamendoLoadingTests`'s
+    /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
+    @Suite
     final class CrossfadePrepareTests {
         private let player = AudioPlayer()
         private let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil,

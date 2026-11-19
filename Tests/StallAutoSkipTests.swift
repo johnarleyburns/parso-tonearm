@@ -12,10 +12,9 @@ import Testing
 /// configured timeout elapses.
 extension SharedProductionSingletonTests {
     @MainActor
-    /// Quarantined — see the fuller explanation on `AudioPlayerJamendoLoadingTests`'s
-    /// `@Suite` declaration: this real-`AVPlayer` suite hangs `swift test` on CI
-    /// for a reason not yet root-caused from this environment.
-    @Suite(.disabled("CI hang under investigation — real-AVPlayer timing suite; see swift-testing-migration branch history"))
+    /// Re-enabled (2026-11-19) — see `AudioPlayerJamendoLoadingTests`'s
+    /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
+    @Suite
     final class StallAutoSkipTests {
         private let player = AudioPlayer()
         private let trackSeconds = 2.0
