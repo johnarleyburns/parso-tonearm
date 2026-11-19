@@ -23,6 +23,7 @@ endstep
 
 step "Automation regression tests"
 bash scripts/tests/test-issue-pr-policy.sh
+bash scripts/tests/test-agent-invocation.sh
 bash scripts/tests/test-issue-backlog-order.sh
 bash scripts/tests/test-issue-backlog-author.sh
 bash scripts/tests/test-release-repair-policy.sh
