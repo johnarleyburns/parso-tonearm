@@ -119,7 +119,13 @@ extension AudioPlayer {
         // already loaded and set its own (correct) state. Capture the track this lookup is for
         // and refuse to apply a result once that track is no longer current.
         let trackId = currentTrack?.track.id
-        Task {
+        // `[weak self]`: this fires every 0.5s while advancing and awaits the real `AudioCache`
+        // actor, which can queue behind other instances' calls on a busy runner. An unweakened
+        // capture here would keep `self` (and everything it owns — a real `AVPlayer`,
+        // `NWPathMonitor`, etc.) alive for as long as this task sits queued, even after its test
+        // has otherwise finished and every other reference to this player has gone away.
+        Task { [weak self] in
+            guard let self else { return }
             var state = CacheGlyphState.of(await AudioCache.shared.meta(for: key))
             // "Cached" only if the exact local artifact is playable audio (same predicate as playback).
             if state == .cached, AudioCache.playableCompleteBlobURL(for: remote) == nil { state = .none }
