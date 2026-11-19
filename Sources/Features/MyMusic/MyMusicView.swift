@@ -34,6 +34,11 @@ struct MyMusicView: View {
     /// the sheet owns one model for its whole lifetime.
     @StateObject private var indexStatusModel = IndexStatusModel()
     @State private var showIndexStatus = false
+    /// Real report: "My Music > Libraries is supposed to be a dismissable sheet,
+    /// but there's no way to dismiss it." Libraries is now presented as a sheet
+    /// (with its own navigation stack + explicit Done button) instead of being
+    /// pushed onto My Music's stack.
+    @State private var showLibraries = false
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -133,9 +138,7 @@ struct MyMusicView: View {
                     }
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
-                    NavigationLink {
-                        SourcesView(ownsNavigationStack: false)
-                    } label: {
+                    Button { showLibraries = true } label: {
                         Image(systemName: "externaldrive.connected.to.line.below")
                     }
                     .accessibilityLabel("Libraries")
@@ -164,6 +167,10 @@ struct MyMusicView: View {
         .onDisappear { indexStatusModel.stopPolling() }
         .sheet(isPresented: $showIndexStatus) {
             IndexStatusView(model: indexStatusModel)
+        }
+        .sheet(isPresented: $showLibraries) {
+            SourcesView(ownsNavigationStack: true, showsDoneButton: true)
+                .presentationDragIndicator(.visible)
         }
     }
 

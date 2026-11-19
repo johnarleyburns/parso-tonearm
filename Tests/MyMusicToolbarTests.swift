@@ -44,8 +44,31 @@ final class MyMusicToolbarTests: XCTestCase {
             "the library icon must sit inside the grouped toolbar")
         XCTAssertLessThan(libraryRange.lowerBound, indexRange.lowerBound,
             "library icon must come before the sound-index icon, per the requested order")
-        XCTAssertTrue(myMusic.contains("SourcesView(ownsNavigationStack: false)"),
-            "pressing the library icon must push the same Libraries screen (SourcesView), embedded")
+        XCTAssertTrue(myMusic.contains("showLibraries = true"),
+            "the library icon must open Libraries from a button-driven sheet")
+        XCTAssertTrue(myMusic.contains("SourcesView(ownsNavigationStack: true, showsDoneButton: true)"),
+            "Libraries must be presented as a dismissable sheet with its own stack and Done affordance")
+        XCTAssertTrue(myMusic.contains(".sheet(isPresented: $showLibraries)"),
+            "Libraries is a sheet, not a pushed page (real report: no way to dismiss it)")
+    }
+
+    /// Real reports: (1) Libraries opened as a pushed page with no dismiss
+    /// affordance; (2) tapping an already-configured library flashed
+    /// `SourceDetailView` then popped straight back to the Libraries list.
+    func testLibrariesSheetHasDoneButtonAndRowsPushDetailDirectly() throws {
+        let sources = try source("Sources/Features/Sources/SourcesView.swift")
+        XCTAssertTrue(sources.contains("showsDoneButton: Bool = false"))
+        XCTAssertTrue(sources.contains("doneAction: showsDoneButton ? { dismiss() } : nil"),
+            "the sheet-presented Libraries screen needs its own Done button — its nav bar is hidden")
+        XCTAssertFalse(sources.contains("NavigationLink(value: source)"),
+            "configured-library rows must push SourceDetailView with a destination closure; the "
+                + "value-based link flashed and returned when the destination registration was missing")
+        XCTAssertTrue(sources.contains("NavigationLink {\n                                SourceDetailView(source: source)"),
+            "local library rows open SourceDetailView directly")
+
+        let components = try source("Sources/Features/Components.swift")
+        XCTAssertTrue(components.contains("var doneAction: (() -> Void)? = nil"))
+        XCTAssertTrue(components.contains("Button(\"Done\", action: doneAction)"))
     }
 
     func testRootViewHasExactlyThreeTabs() throws {
