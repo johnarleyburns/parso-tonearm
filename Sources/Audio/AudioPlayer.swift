@@ -170,7 +170,7 @@ public final class AudioPlayer: ObservableObject {
     public var sleepAtEndOfTrack = false
     @Published public internal(set) var sleepTimerEndsAt: Date?
 
-    var player = AVPlayer()
+    var player: any PlayerEngine
     var loopPlayer: AVQueuePlayer?
     var audioLooper: AVPlayerLooper?
     var timeObserver: Any?
@@ -240,9 +240,9 @@ public final class AudioPlayer: ObservableObject {
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?
-    let pathMonitor = NWPathMonitor()
+    let pathMonitor: any NetworkPathMonitoring
     /// Whether the network path is currently usable (for pre-playback preparation gates).
-    public var isNetworkAvailable: Bool { pathMonitor.currentPath.status == .satisfied }
+    public var isNetworkAvailable: Bool { pathMonitor.isAvailable }
     let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
     var sleepTimerTask: Task<Void, Never>?
 
@@ -275,8 +275,12 @@ public final class AudioPlayer: ObservableObject {
     /// Internal, not `private`: visible to `@testable import TonearmCore` so
     /// tests can construct an isolated instance instead of sharing `.shared`.
     /// Not `public` — construction stays confined to this package and its
-    /// tests, not external API.
-    init() {
+    /// tests, not external API. `player`/`pathMonitor` default to the real
+    /// production path; tests that don't need genuine `AVPlayer`/`NWPathMonitor`
+    /// behavior can inject lightweight fakes instead (see `AudioPlayer.makeForTesting()`).
+    init(player: any PlayerEngine = AVPlayer(), pathMonitor: any NetworkPathMonitoring = RealNetworkPathMonitor()) {
+        self.player = player
+        self.pathMonitor = pathMonitor
         addPeriodicObserver()
         observeTimeControlStatus()
         observeNetworkPath()

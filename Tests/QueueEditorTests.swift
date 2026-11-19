@@ -3,121 +3,119 @@ import Testing
 
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite struct QueueEditorTests {
+@MainActor
+@Suite struct QueueEditorTests {
 
-        @Test func testMoveCurrentTrackUpdatesCurrentIndex() {
-            let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
+    @Test func testMoveCurrentTrackUpdatesCurrentIndex() {
+        let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
-            let edited = QueueEditor.move(from: 2, to: 0, in: state)
+        let edited = QueueEditor.move(from: 2, to: 0, in: state)
 
-            #expect(edited.queue == [3, 1, 2, 4])
-            #expect(edited.currentIndex == 0)
-        }
+        #expect(edited.queue == [3, 1, 2, 4])
+        #expect(edited.currentIndex == 0)
+    }
 
-        @Test func testMoveItemFromBelowCurrentToAboveCurrentTracksIndex() {
-            let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
+    @Test func testMoveItemFromBelowCurrentToAboveCurrentTracksIndex() {
+        let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
-            let edited = QueueEditor.move(from: 3, to: 1, in: state)
+        let edited = QueueEditor.move(from: 3, to: 1, in: state)
 
-            #expect(edited.queue == [1, 4, 2, 3])
-            #expect(edited.currentIndex == 3)
-        }
+        #expect(edited.queue == [1, 4, 2, 3])
+        #expect(edited.currentIndex == 3)
+    }
 
-        @Test func testMoveItemFromAboveCurrentToBelowCurrentTracksIndex() {
-            let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
+    @Test func testMoveItemFromAboveCurrentToBelowCurrentTracksIndex() {
+        let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
-            let edited = QueueEditor.move(from: 0, to: 3, in: state)
+        let edited = QueueEditor.move(from: 0, to: 3, in: state)
 
-            #expect(edited.queue == [2, 3, 4, 1])
-            #expect(edited.currentIndex == 1)
-        }
+        #expect(edited.queue == [2, 3, 4, 1])
+        #expect(edited.currentIndex == 1)
+    }
 
-        @Test func testMoveOntoCurrentSlotKeepsCurrentTrackSelected() {
-            let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
+    @Test func testMoveOntoCurrentSlotKeepsCurrentTrackSelected() {
+        let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
-            let edited = QueueEditor.move(from: 0, to: 2, in: state)
+        let edited = QueueEditor.move(from: 0, to: 2, in: state)
 
-            #expect(edited.queue == [2, 3, 1, 4])
-            #expect(edited.currentIndex == 1)
-        }
+        #expect(edited.queue == [2, 3, 1, 4])
+        #expect(edited.currentIndex == 1)
+    }
 
-        @Test func testRemoveCurrentAdvancesToNextTrackWhenPossible() {
-            let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 1)
+    @Test func testRemoveCurrentAdvancesToNextTrackWhenPossible() {
+        let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 1)
 
-            let edited = QueueEditor.remove(at: 1, in: state)
+        let edited = QueueEditor.remove(at: 1, in: state)
 
-            #expect(edited.queue == [1, 3])
-            #expect(edited.currentIndex == 1)
-        }
+        #expect(edited.queue == [1, 3])
+        #expect(edited.currentIndex == 1)
+    }
 
-        @Test func testRemoveCurrentLastTrackFallsBackToPreviousTrack() {
-            let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 2)
+    @Test func testRemoveCurrentLastTrackFallsBackToPreviousTrack() {
+        let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 2)
 
-            let edited = QueueEditor.remove(at: 2, in: state)
+        let edited = QueueEditor.remove(at: 2, in: state)
 
-            #expect(edited.queue == [1, 2])
-            #expect(edited.currentIndex == 1)
-        }
+        #expect(edited.queue == [1, 2])
+        #expect(edited.currentIndex == 1)
+    }
 
-        @Test func testInsertNextIntoEmptyQueueSelectsInsertedTrack() {
-            let state = QueueEditor.State<Int>(queue: [], currentIndex: 7)
+    @Test func testInsertNextIntoEmptyQueueSelectsInsertedTrack() {
+        let state = QueueEditor.State<Int>(queue: [], currentIndex: 7)
 
-            let edited = QueueEditor.insertNext(42, in: state)
+        let edited = QueueEditor.insertNext(42, in: state)
 
-            #expect(edited.queue == [42])
-            #expect(edited.currentIndex == 0)
-        }
+        #expect(edited.queue == [42])
+        #expect(edited.currentIndex == 0)
+    }
 
-        @Test func testAppendIntoEmptyQueueSelectsInsertedTrack() {
-            let state = QueueEditor.State<Int>(queue: [], currentIndex: 3)
+    @Test func testAppendIntoEmptyQueueSelectsInsertedTrack() {
+        let state = QueueEditor.State<Int>(queue: [], currentIndex: 3)
 
-            let edited = QueueEditor.append(42, in: state)
+        let edited = QueueEditor.append(42, in: state)
 
-            #expect(edited.queue == [42])
-            #expect(edited.currentIndex == 0)
-        }
+        #expect(edited.queue == [42])
+        #expect(edited.currentIndex == 0)
+    }
 
-        @Test func testInvalidInputsNormalizeWithoutMutatingQueue() {
-            let state = QueueEditor.State(queue: [1, 2], currentIndex: 99)
+    @Test func testInvalidInputsNormalizeWithoutMutatingQueue() {
+        let state = QueueEditor.State(queue: [1, 2], currentIndex: 99)
 
-            #expect(QueueEditor.move(from: 8, to: 0, in: state) ==
-                           QueueEditor.State(queue: [1, 2], currentIndex: 1))
-            #expect(QueueEditor.remove(at: -1, in: state) ==
-                           QueueEditor.State(queue: [1, 2], currentIndex: 1))
-        }
+        #expect(QueueEditor.move(from: 8, to: 0, in: state) ==
+                       QueueEditor.State(queue: [1, 2], currentIndex: 1))
+        #expect(QueueEditor.remove(at: -1, in: state) ==
+                       QueueEditor.State(queue: [1, 2], currentIndex: 1))
+    }
 
-        @Test func testAudioPlayerQueueEditsDoNotResurrectRemovedTrackWhenShuffleRestores() throws {
-            let player = AudioPlayer()
-            let tracks = (1...8).map { makeTrack($0) }
-            player.play(tracks: tracks, startAt: 2)
-            let currentID = player.currentTrack?.id
+    @Test func testAudioPlayerQueueEditsDoNotResurrectRemovedTrackWhenShuffleRestores() throws {
+        let player = AudioPlayer.makeForTesting()
+        let tracks = (1...8).map { makeTrack($0) }
+        player.play(tracks: tracks, startAt: 2)
+        let currentID = player.currentTrack?.id
 
-            player.shuffle = true
-            let removedID = player.queue.last?.id
-            player.removeFromQueue(at: player.queue.count - 1)
-            player.shuffle = false
+        player.shuffle = true
+        let removedID = player.queue.last?.id
+        player.removeFromQueue(at: player.queue.count - 1)
+        player.shuffle = false
 
-            #expect(player.currentTrack?.id == currentID)
-            #expect(!(player.queue.map(\.id).contains(try #require(removedID))))
-        }
+        #expect(player.currentTrack?.id == currentID)
+        #expect(!(player.queue.map(\.id).contains(try #require(removedID))))
+    }
 
-        private func makeTrack(_ id: Int) -> TrackRow {
-            let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
-                                originalURL: nil, title: "Test Source",
-                                addedAt: Date(), lastResolvedAt: nil,
-                                followUpdates: false, licenseText: nil, memberCapHit: false)
-            let album = Album(id: 1, sourceId: 1, title: "Album", artist: "Artist")
-            let track = Track(id: Int64(id), albumId: 1, sourceId: 1,
-                              title: "Track \(id)", trackNo: id, discNo: nil,
-                              durationSec: 120, codec: "MP3", sampleRate: nil,
-                              bitDepthOrBitrate: nil, sortKey: "\(id)")
-            let asset = Asset(id: Int64(id), trackId: Int64(id), kind: .remote,
-                              bookmark: nil, relPath: nil,
-                              remoteURL: "https://archive.org/track\(id).mp3",
-                              altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
-            return TrackRow(track: track, album: album, source: source, asset: asset)
-        }
+    private func makeTrack(_ id: Int) -> TrackRow {
+        let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
+                            originalURL: nil, title: "Test Source",
+                            addedAt: Date(), lastResolvedAt: nil,
+                            followUpdates: false, licenseText: nil, memberCapHit: false)
+        let album = Album(id: 1, sourceId: 1, title: "Album", artist: "Artist")
+        let track = Track(id: Int64(id), albumId: 1, sourceId: 1,
+                          title: "Track \(id)", trackNo: id, discNo: nil,
+                          durationSec: 120, codec: "MP3", sampleRate: nil,
+                          bitDepthOrBitrate: nil, sortKey: "\(id)")
+        let asset = Asset(id: Int64(id), trackId: Int64(id), kind: .remote,
+                          bookmark: nil, relPath: nil,
+                          remoteURL: "https://archive.org/track\(id).mp3",
+                          altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
+        return TrackRow(track: track, album: album, source: source, asset: asset)
     }
 }

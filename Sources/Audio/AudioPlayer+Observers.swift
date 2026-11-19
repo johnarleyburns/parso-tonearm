@@ -65,7 +65,13 @@ extension AudioPlayer {
     /// audio was actually frozen. Re-subscribed after crossfade swaps
     /// the player instance.
     func observeTimeControlStatus() {
-        timeControlCancellable = player.publisher(for: \.timeControlStatus)
+        // Combine's KVO `.publisher(for:)` needs a concrete `NSObject`-rooted keypath, so it can't
+        // be called through the `any PlayerEngine` existential. Real production and every test that
+        // needs genuine AVPlayer behavior always construct a real `AVPlayer`, so this cast succeeds
+        // for them with no change in behavior; a fake-backed instance has no KVO to observe, and
+        // nothing that uses one depends on this side effect firing.
+        guard let avPlayer = player as? AVPlayer else { return }
+        timeControlCancellable = avPlayer.publisher(for: \.timeControlStatus)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in

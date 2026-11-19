@@ -4,19 +4,23 @@ import Testing
 /// singletons (`AudioPlayer.shared`, `LibraryStore.shared`,
 /// `PlaybackStateFileStore`'s and `PlaybackStateStore`'s static overrides,
 /// `AudioCache.shared`'s real actor), or (b) construct a real `AudioPlayer()`
-/// instance at all — every one carries a real `AVPlayer`, `NWPathMonitor`,
-/// and Combine subscriptions, and CI logs showed that running many of these
-/// concurrently (Swift Testing's default) can make a real local `AVPlayerItem`
-/// never reach `.readyToPlay` and can leave the whole `swift test` process
-/// unable to exit even after every test has already reported a result,
-/// needing a forced kill of an orphaned `swiftpm-testing` process. `.serialized`
-/// here forces every nested suite declared via `extension
-/// SharedProductionSingletonTests { @Suite struct Foo { ... } }` to run one at
-/// a time relative to each other — both for the shared-singleton race this
-/// umbrella originally existed for, and for the real-AVFoundation-resource
-/// contention above. Suites that touch neither must not be nested here —
-/// nesting is what pays the serialization cost, so it is reserved for tests
-/// that actually need it.
+/// (not `AudioPlayer.makeForTesting()`'s fake-backed instance) because the
+/// test genuinely needs real `AVPlayer` timing — crossfade volume ramps, real
+/// stall-timeout behavior, real `.readyToPlay`. Most `AudioPlayer`-touching
+/// suites use `AudioPlayer.makeForTesting()` instead (see
+/// `Tests/FakePlayerEngine.swift`), which carries no real `AVPlayer` or
+/// `NWPathMonitor` at all and so needs none of this: CI logs showed that
+/// running *many real* `AVPlayer`s concurrently (Swift Testing's default)
+/// could make a real local `AVPlayerItem` never reach `.readyToPlay` and
+/// could leave the whole `swift test` process unable to exit even after
+/// every test had already reported a result, needing a forced kill of an
+/// orphaned `swiftpm-testing` process — that risk only applies to the small
+/// set of suites that still need a genuine player. `.serialized` here forces
+/// every nested suite declared via `extension SharedProductionSingletonTests
+/// { @Suite struct Foo { ... } }` to run one at a time relative to each
+/// other. Suites that touch neither a shared singleton nor a real
+/// `AudioPlayer()` must not be nested here — nesting is what pays the
+/// serialization cost, so it is reserved for tests that actually need it.
 ///
 /// `.timeLimit` is unconditionally recursive (`TimeLimitTrait.isRecursive`
 /// is always `true`), so this applies to every nested test the same way
