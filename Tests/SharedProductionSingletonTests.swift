@@ -1,15 +1,22 @@
 import Testing
 
-/// Umbrella suite for tests that read/write real production singletons
-/// (`AudioPlayer.shared`, `LibraryStore.shared`, `PlaybackStateFileStore`'s and
-/// `PlaybackStateStore`'s static overrides). Swift Testing parallelizes across
-/// suites by default; `.serialized` here forces every nested suite declared
-/// via `extension SharedProductionSingletonTests { @Suite struct Foo { ... } }`
-/// to run one at a time relative to each other, matching the serial execution
-/// these tests always had under `swift test` with XCTest. Suites that do not
-/// touch one of those shared singletons must not be nested here — nesting is
-/// what pays the serialization cost, so it is reserved for tests that
-/// actually need it.
+/// Umbrella suite for tests that either (a) read/write real production
+/// singletons (`AudioPlayer.shared`, `LibraryStore.shared`,
+/// `PlaybackStateFileStore`'s and `PlaybackStateStore`'s static overrides,
+/// `AudioCache.shared`'s real actor), or (b) construct a real `AudioPlayer()`
+/// instance at all — every one carries a real `AVPlayer`, `NWPathMonitor`,
+/// and Combine subscriptions, and CI logs showed that running many of these
+/// concurrently (Swift Testing's default) can make a real local `AVPlayerItem`
+/// never reach `.readyToPlay` and can leave the whole `swift test` process
+/// unable to exit even after every test has already reported a result,
+/// needing a forced kill of an orphaned `swiftpm-testing` process. `.serialized`
+/// here forces every nested suite declared via `extension
+/// SharedProductionSingletonTests { @Suite struct Foo { ... } }` to run one at
+/// a time relative to each other — both for the shared-singleton race this
+/// umbrella originally existed for, and for the real-AVFoundation-resource
+/// contention above. Suites that touch neither must not be nested here —
+/// nesting is what pays the serialization cost, so it is reserved for tests
+/// that actually need it.
 ///
 /// `.timeLimit` is unconditionally recursive (`TimeLimitTrait.isRecursive`
 /// is always `true`), so this applies to every nested test the same way
