@@ -282,6 +282,16 @@ public final class AudioPlayer: ObservableObject {
         observeNetworkPath()
     }
 
+    /// `pathMonitor.start(queue:)` keeps its underlying OS-level dispatch source running until
+    /// explicitly cancelled — it is not released just because this object's reference count hits
+    /// zero. Harmless for the single, process-lifetime `.shared` instance, but every test now
+    /// constructs its own `AudioPlayer()`; without this, each one leaks a live path monitor and
+    /// its dedicated queue, and the accumulation across a full test run can leave the test
+    /// process unable to exit cleanly after every test has already reported passed.
+    isolated deinit {
+        pathMonitor.cancel()
+    }
+
     /// Installs the real platform bridge and starts the iOS-only integrations
     /// (audio session, remote commands, route/interruption observation). Called
     /// once at app launch; never called under `swift test`, which keeps the
