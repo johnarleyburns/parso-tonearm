@@ -75,18 +75,22 @@ final class NowPlayingAmbientSimplificationTests: XCTestCase {
     func testTransportKeepsOnlyPlayPauseUnconditional() throws {
         let text = try source()
         let prevRange = try XCTUnwrap(text.range(of: "\"np.prev\""))
-        let nextRange = try XCTUnwrap(text.range(of: "\"np.next\""))
-        _ = try XCTUnwrap(text.range(of: "if !player.isAmbient {", options: .backwards,
-                          range: text.startIndex..<prevRange.lowerBound))
-        let guardClose = try XCTUnwrap(text.range(
-            of: "\n            }\n            Button { player.togglePlayPause()",
-            range: nextRange.upperBound..<text.endIndex))
-        XCTAssertLessThan(prevRange.lowerBound, guardClose.lowerBound)
-        XCTAssertLessThan(nextRange.lowerBound, guardClose.lowerBound,
-                          "prev/next must be hidden for ambient playback")
         let playPause = try XCTUnwrap(text.range(of: "\"np.playpause\""))
-        XCTAssertLessThan(guardClose.lowerBound, playPause.lowerBound,
-                          "play/pause must stay outside the ambient guard")
+        let nextRange = try XCTUnwrap(text.range(of: "\"np.next\""))
+        XCTAssertLessThan(prevRange.lowerBound, playPause.lowerBound)
+        XCTAssertLessThan(playPause.lowerBound, nextRange.lowerBound)
+
+        // prev is inside a leading `if !player.isAmbient` guard that closes
+        // immediately before play/pause; next is inside a trailing guard.
+        let prevGuardClose = try XCTUnwrap(text.range(
+            of: "\n            }\n            Button { player.togglePlayPause()",
+            range: prevRange.upperBound..<playPause.lowerBound))
+        XCTAssertLessThan(prevRange.lowerBound, prevGuardClose.lowerBound)
+        let nextGuard = try XCTUnwrap(text.range(
+            of: "if !player.isAmbient {", options: .backwards,
+            range: playPause.upperBound..<nextRange.lowerBound))
+        XCTAssertLessThan(nextGuard.lowerBound, nextRange.lowerBound,
+                          "next must be hidden for ambient playback")
     }
 
     func testSleepTimerEntriesStay() throws {

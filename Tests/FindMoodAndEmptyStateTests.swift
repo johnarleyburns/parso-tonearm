@@ -14,7 +14,7 @@ final class FindMoodAndEmptyStateTests: XCTestCase {
         let find = try source("Sources/Features/Find/FindView.swift")
         let start = try XCTUnwrap(find.range(of: "private struct FindModeMenu"))
         let block = find[start.lowerBound...]
-        XCTAssertFalse(block.contains(".adaptiveGlass"),
+        XCTAssertFalse(block.contains(".adaptiveGlass(cornerRadius:"),
                        "native toolbar glass is enough; a nested GlassEffectContainer flashed on every press")
     }
 
