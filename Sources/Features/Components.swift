@@ -8,13 +8,25 @@ struct ScreenHeader: View {
     var addAccessibilityIdentifier: String? = nil
     var actionIcon = "plus"
     var actionAccessibilityLabel = "Add"
-    /// Optional explicit dismiss affordance for screens presented as a sheet
-    /// (e.g. My Music > Libraries). Callers that don't pass it are unchanged.
-    var doneAction: (() -> Void)? = nil
+    /// Optional explicit back affordance for screens pushed with the navigation
+    /// bar hidden (e.g. My Music > Libraries). Callers that don't pass it are
+    /// unchanged.
+    var backAction: (() -> Void)? = nil
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
+            if let backAction {
+                Button(action: backAction) {
+                    Image(systemName: "chevron.left")
+                        .font(Typography.body)
+                        .foregroundStyle(Palette.accent)
+                        .frame(width: 33, height: 33)
+                        .glassSurface(cornerRadius: 16.5)
+                }
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("screen.back")
+            }
             Text(title)
                 .font(Typography.title)
                 .kerning(-0.5)
@@ -31,13 +43,6 @@ struct ScreenHeader: View {
                 }
                 .accessibilityLabel(actionAccessibilityLabel)
                 .accessibilityIdentifier(addAccessibilityIdentifier ?? "")
-            }
-            if let doneAction {
-                Button("Done", action: doneAction)
-                    .font(Typography.callout)
-                    .foregroundStyle(Palette.accent)
-                    .padding(.leading, 8)
-                    .accessibilityIdentifier("screen.done")
             }
         }
         .padding(.horizontal, 2)

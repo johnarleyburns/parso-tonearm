@@ -20,9 +20,11 @@ struct UpNextView: View {
                 Spacer()
 
                 if player.queueSource != .none {
-                    Text(player.queueSource.label)
+                    Image(systemName: player.queueSource.icon)
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkSecondary)
+                        .accessibilityLabel(player.queueSource.label)
+                        .accessibilityIdentifier("np.queue.source")
                 }
 
                 keepPlayingToggle
@@ -151,7 +153,7 @@ struct UpNextView: View {
         let title: String = {
             switch kind {
             case .manual: return String(localized: "Added by you")
-            case .context: return String(localized: "Playing from \(player.queueSource.label)")
+            case .context: return String(localized: "Playing from \(player.queueSource.shortLabel)")
             case .keepPlaying: return String(localized: "Keep Playing")
             }
         }()

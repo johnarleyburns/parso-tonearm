@@ -124,19 +124,24 @@ struct LibraryView: View {
                                 // genuinely empty library from a search/filter with no matches.
                                 let isUnfilteredBrowsing = LibraryEmptyStatePolicy.isUnfilteredBrowsing(
                                     searchText: appState.searchText, searchRows: searchRows, filter: filter)
-                                VStack(spacing: 14) {
-                                    EmptyStateView(icon: "music.note",
-                                                   title: isUnfilteredBrowsing ? "Your music is empty" : "No matches",
-                                                   message: isUnfilteredBrowsing
-                                                        ? "Add an archive.org library, remote library, or local folder to fill Music."
-                                                        : "Nothing in Music matches that.")
-                                    if isUnfilteredBrowsing {
+                                if isUnfilteredBrowsing {
+                                    VStack(spacing: 14) {
+                                        EmptyStateView(icon: "music.note",
+                                                       title: "Your music is empty",
+                                                       message: "Add an archive.org library, remote library, or local folder to fill Music.")
                                         AddRemoteLibraryButton(compact: true)
                                             .padding(.horizontal, 2)
                                     }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 6)
+                                } else {
+                                    // Find's standard, glass-style "no results" state
+                                    // (search text can be empty for a Mood/BPM query).
+                                    ContentUnavailableView.search(text: appState.searchText)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.top, 6)
+                                        .accessibilityIdentifier("library.noResults")
                                 }
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 6)
                             } else {
                                 ForEach(renderedSections) { section in
                                     SectionHeader(verbatim: section.indexTitle,

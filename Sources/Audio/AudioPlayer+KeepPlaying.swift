@@ -278,9 +278,23 @@ extension AudioPlayer {
     private func extendWithFallback(reason: KeepPlayingFallbackReason, excluding excluded: Set<Int64>) async {
         let pool = await keepPlayingFallbackPool()
         guard !Task.isCancelled else { return }
-        let candidates = pool.filter { row in
-            guard let id = row.track.id else { return false }
-            return !excluded.contains(id)
+        func usable(_ rows: [TrackRow]) -> [TrackRow] {
+            rows.filter { row in
+                guard let id = row.track.id else { return false }
+                return !excluded.contains(id)
+            }
+        }
+        var candidates = usable(pool)
+        if candidates.isEmpty {
+            // Real report: one Google Drive track with Keep Playing on was a
+            // dead end — that source's persisted rows were just the one
+            // playing track, so the source-scoped pool had nothing left. No
+            // dead air: broaden to the whole library (the exclusion set still
+            // prevents every played/queued track), exactly as the playlist
+            // fallback already does.
+            let all = (try? await LibraryStore.shared.allTrackRows()) ?? []
+            guard !Task.isCancelled else { return }
+            candidates = usable(all)
         }
         let picked = keepPlayingFallbackOrder(candidates)
         finishKeepPlayingExtension(
