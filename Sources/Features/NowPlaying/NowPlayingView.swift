@@ -14,6 +14,10 @@ struct NowPlayingView: View {
     @State private var showEQ = false
     @State private var showArtworkDeleteAlert = false
     @State private var showAddToPlaylist = false
+    /// AirPlay is the one action a SwiftUI `Menu` cannot host directly (the
+    /// system route picker is a `UIView`), so its menu item presents this
+    /// small picker sheet.
+    @State private var showAirPlayPicker = false
     @State private var phoneDownloadTarget: TrackRow?
     @State private var phoneDownloadIsRemoval = false
     @State private var showPhoneDownloadConfirmation = false
@@ -80,7 +84,6 @@ struct NowPlayingView: View {
                     // blend features — removed. See also UpNextView.swift's connector-row removal.
                 }
                 transport.padding(.top, 16)
-                toolbar.padding(.top, 16)
                 UpNextView()
                     .padding(.top, 20)
             }
@@ -96,6 +99,11 @@ struct NowPlayingView: View {
         // specifically to a tap on "<", so a swipe-triggered pop still syncs `showNowPlaying`
         // exactly as before).
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                actionsMenu
+            }
+        }
         .onAppear { LocalPlaybackDiagnostics.shared.record(.nowPlayingAppear, loadID: 0) }
         .onDisappear { LocalPlaybackDiagnostics.shared.record(.nowPlayingDisappear, loadID: 0) }
         .task(id: player.currentTrack?.id) {
@@ -110,6 +118,9 @@ struct NowPlayingView: View {
             ArtworkInvalidation.shared.invalidate()
         }
         .sheet(isPresented: $showEQ) { EQView() }
+        .sheet(isPresented: $showAirPlayPicker) {
+            airPlayPickerSheet
+        }
         .confirmationDialog(phoneDownloadIsRemoval ? "Remove downloaded audio?" : "Download this track?",
                             isPresented: $showPhoneDownloadConfirmation, titleVisibility: .visible) {
             Button(phoneDownloadIsRemoval ? "Remove Download" : "Download",
@@ -346,70 +357,116 @@ struct NowPlayingView: View {
                 }
                 .accessibilityLabel("Next Track")
                 .accessibilityIdentifier("np.next")
-                Button { player.cycleRepeatMode() } label: {
-                    Image(systemName: repeatIcon).font(Typography.headline)
-                        .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
-                }
-                .accessibilityLabel("Repeat")
-                .accessibilityIdentifier("np.repeat")
-                Button { player.shuffle.toggle() } label: {
-                    Image(systemName: "shuffle").font(Typography.headline)
-                        .foregroundStyle(player.shuffle ? Palette.accent : Palette.inkSecondary)
-                        .frame(width: 46, height: 46).background(.ultraThinMaterial, in: Circle())
-                }
-                .accessibilityLabel("Shuffle")
-                .accessibilityIdentifier("np.shuffle")
             }
         }
         .foregroundStyle(Palette.ink)
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 8) {
+    // MARK: - Right-side glass actions menu
+
+    private var isFavorite: Bool {
+        player.currentTrack.map { appState.isFavorite($0) } == true
+    }
+
+    private var repeatTitle: String {
+        switch player.repeatMode {
+        case .off: return String(localized: "Repeat Off")
+        case .all: return String(localized: "Repeat All")
+        case .one: return String(localized: "Repeat One")
+        }
+    }
+
+    private var phoneDownloadTitle: String {
+        guard let row = player.currentTrack else { return String(localized: "Download") }
+        switch appState.phoneDownloadState(for: row) {
+        case .notDownloaded: return String(localized: "Download")
+        case .downloaded: return String(localized: "Remove Download")
+        case .downloading: return String(localized: "Downloading…")
+        }
+    }
+
+    private var phoneDownloadIcon: String {
+        guard let row = player.currentTrack else { return "arrow.down.circle" }
+        switch appState.phoneDownloadState(for: row) {
+        case .downloaded: return "arrow.down.circle.fill"
+        case .notDownloaded, .downloading: return "arrow.down.circle"
+        }
+    }
+
+    private var watchTitle: String {
+        guard let row = player.currentTrack else { return String(localized: "Add to Apple Watch") }
+        switch displayedWatchState(for: row) {
+        case .onWatch: return String(localized: "Remove from Apple Watch")
+        case .transferring: return String(localized: "Sending to Apple Watch…")
+        case .failed: return String(localized: "Retry Apple Watch Transfer")
+        case .notOnWatch: return String(localized: "Add to Apple Watch")
+        }
+    }
+
+    private var sleepTitle: String {
+        player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack
+            ? String(localized: "Sleep Timer On")
+            : String(localized: "Sleep Timer")
+    }
+
+    private var sleepIcon: String {
+        player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz"
+    }
+
+    /// One discoverable place for every secondary action (icons + text), in the
+    /// top-right toolbar. Playback's primary transport stays on the sheet.
+    private var actionsMenu: some View {
+        Menu {
+            Button { dismiss() } label: { Label("Back", systemImage: "chevron.down") }
+                .accessibilityIdentifier("np.back")
+            Divider()
+
             if !player.isAmbient {
-                Button {
-                    if let row = player.currentTrack { Task { await appState.toggleFavorite(row) } }
-                } label: {
-                    Image(systemName: player.currentTrack.map { appState.isFavorite($0) } == true ? "heart.fill" : "heart")
-                        .foregroundStyle(player.currentTrack.map { appState.isFavorite($0) } == true ? Palette.danger : Palette.inkSecondary)
-                        .font(Typography.body).frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: Circle())
+                Button { player.cycleRepeatMode() } label: {
+                    Label(repeatTitle, systemImage: repeatIcon)
+                }
+                .accessibilityIdentifier("np.repeat")
+
+                Button { player.shuffle.toggle() } label: {
+                    Label(player.shuffle ? String(localized: "Shuffle On") : String(localized: "Shuffle"),
+                          systemImage: "shuffle")
+                }
+                .accessibilityIdentifier("np.shuffle")
+
+                Button { toggleFavorite() } label: {
+                    Label(isFavorite ? String(localized: "Remove from Favorites") : String(localized: "Favorite"),
+                          systemImage: isFavorite ? "heart.fill" : "heart")
                 }
                 .disabled(player.currentTrack == nil)
-                .accessibilityLabel("Favorite")
                 .accessibilityIdentifier("np.favorite")
-                .sensoryFeedback(.success, trigger: appState.favoriteIds)
-                .symbolEffect(.bounce, value: player.currentTrack.map { appState.isFavorite($0) } == true)
 
                 Button { showAddToPlaylist = true } label: {
-                    Image(systemName: "text.badge.plus").font(Typography.body)
-                        .frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
+                    Label("Add to Playlist", systemImage: "text.badge.plus")
                 }
                 .disabled(player.currentTrack == nil)
-                .accessibilityLabel("Add to Playlist")
                 .accessibilityIdentifier("np.addToPlaylist")
             }
 
-            AirPlayButton()
-                .frame(width: 44, height: 44)
-                .accessibilityIdentifier("np.airplay")
+            Button { showAirPlayPicker = true } label: {
+                Label("AirPlay", systemImage: "airplayaudio")
+            }
+            .accessibilityIdentifier("np.airplay")
 
             if !player.isAmbient {
-                phoneDownloadButton(for: player.currentTrack)
-                watchButton(for: player.currentTrack)
+                Button { requestPhoneDownload() } label: {
+                    Label(phoneDownloadTitle, systemImage: phoneDownloadIcon)
+                }
+                .disabled(player.currentTrack == nil)
+                .accessibilityIdentifier("np.download")
+
+                Button { requestWatchTransfer() } label: {
+                    Label(watchTitle, systemImage: "applewatch")
+                }
+                .disabled(player.currentTrack == nil)
+                .accessibilityIdentifier("np.watchDownload")
             }
 
             Menu {
-                if !player.isAmbient, player.currentTrack != nil {
-                    Button { showPhotoPicker = true } label: { Label("Change Artwork", systemImage: "photo.badge.plus") }
-                    if npArtwork != nil { Button(role: .destructive) { showArtworkDeleteAlert = true } label: { Label("Remove Artwork", systemImage: "trash") } }
-                }
-                if !player.isAmbient {
-                    Button { showEQ = true } label: { Label("Equalizer", systemImage: "slider.vertical.3") }
-                }
-                if !player.isAmbient, let row = player.currentTrack, let shareURL = shareURL(for: row) {
-                    ShareLink(item: shareURL) { Label("Share Artwork", systemImage: "square.and.arrow.up") }
-                }
                 Button("15 minutes") { startSleepTimer(minutes: 15) }
                 Button("30 minutes") { startSleepTimer(minutes: 30) }
                 Button("45 minutes") { startSleepTimer(minutes: 45) }
@@ -420,113 +477,94 @@ struct NowPlayingView: View {
                     Button("Cancel Timer", role: .destructive) { cancelSleep() }
                 }
             } label: {
-                Image(systemName: player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack ? "moon.zzz.fill" : "moon.zzz")
-                    .font(Typography.body)
-                    .foregroundStyle((player.sleepTimerEndsAt != nil || player.sleepAtEndOfTrack) ? Palette.accent : Palette.inkSecondary)
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: Circle())
+                Label(sleepTitle, systemImage: sleepIcon)
             }
-            .accessibilityLabel("More")
-            .accessibilityIdentifier("np.overflow")
-        }
-    }
+            .accessibilityIdentifier("np.sleep")
 
-    @ViewBuilder
-    private func phoneDownloadButton(for row: TrackRow?) -> some View {
-        let _ = appState.downloadRevision
-        let state = row.map { appState.phoneDownloadState(for: $0) } ?? .notDownloaded
-        Button {
-            switch state {
-            case .notDownloaded:
-                if let row {
-                    phoneDownloadTarget = row
-                    phoneDownloadIsRemoval = false
-                    showPhoneDownloadConfirmation = true
+            if !player.isAmbient, player.currentTrack != nil {
+                Divider()
+                Button { showPhotoPicker = true } label: {
+                    Label("Change Artwork", systemImage: "photo.badge.plus")
                 }
-            case .downloaded:
-                if let row {
-                    phoneDownloadTarget = row
-                    phoneDownloadIsRemoval = true
-                    showPhoneDownloadConfirmation = true
+                if npArtwork != nil {
+                    Button(role: .destructive) { showArtworkDeleteAlert = true } label: {
+                        Label("Remove Artwork", systemImage: "trash")
+                    }
                 }
-            case .downloading:
-                break
+                Button { showEQ = true } label: {
+                    Label("Equalizer", systemImage: "slider.vertical.3")
+                }
+            }
+            if !player.isAmbient, let row = player.currentTrack, let url = shareURL(for: row) {
+                ShareLink(item: url) { Label("Share Artwork", systemImage: "square.and.arrow.up") }
             }
         } label: {
-            downloadGlyph(for: row, fallback: state)
+            Image(systemName: "ellipsis.circle")
+                .font(Typography.body)
+                .foregroundStyle(Palette.ink)
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("np.download")
-        .accessibilityLabel(state == .downloaded ? "Downloaded. Manage download" : "Download track")
-        .disabled(row == nil)
+        .accessibilityLabel("Now Playing Actions")
+        .accessibilityIdentifier("np.actions")
+        .sensoryFeedback(.success, trigger: appState.favoriteIds)
     }
 
-    /// The cache ring. While a download is in flight, re-sample the fraction a couple of times a
-    /// second (via `TimelineView`) so the ring visibly closes — nothing bumps a `@Published` while
-    /// `cachedBytes` grows.
-    @ViewBuilder
-    private func downloadGlyph(for row: TrackRow?, fallback: PhoneDownloadState) -> some View {
-        Group {
-            if case .downloading = fallback, let row {
-                TimelineView(.periodic(from: .now, by: 0.6)) { _ in
-                    CacheGlyph(state: cacheGlyphState(from: appState.phoneDownloadState(for: row)))
-                }
-            } else {
-                Image(systemName: fallback == .downloaded ? "arrow.down.circle.fill" : "arrow.down.circle")
-                    .font(Typography.title)
-                    .foregroundStyle(fallback == .downloaded ? Palette.accent : Palette.inkSecondary)
-            }
+    private var airPlayPickerSheet: some View {
+        VStack(spacing: 16) {
+            Text("AirPlay")
+                .font(Typography.headline)
+            AirPlayButton()
+                .frame(width: 52, height: 52)
+            Text("Tap the AirPlay icon to choose a device.")
+                .font(Typography.caption)
+                .foregroundStyle(Palette.inkSecondary)
+                .multilineTextAlignment(.center)
+            Button("Done") { showAirPlayPicker = false }
+                .font(Typography.callout)
+                .foregroundStyle(Palette.accent)
         }
-        .frame(width: 45, height: 45)
-        .background(.ultraThinMaterial, in: Circle())
-        .contentShape(Circle())
+        .padding(24)
+        .presentationDetents([.height(220)])
+        .accessibilityIdentifier("np.airplayPicker")
     }
 
-    @ViewBuilder
-    private func watchButton(for row: TrackRow?) -> some View {
-        let state = displayedWatchState(for: row)
-        Button {
-            switch state {
-            case .notOnWatch, .failed:
-                if let row {
-                    pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
-                    watchConfirmation = .download
-                    watchConfirmationTarget = row
-                    showWatchConfirmation = true
-                }
-            case .onWatch:
-                if let row {
-                    watchConfirmation = .remove
-                    watchConfirmationTarget = row
-                    showWatchConfirmation = true
-                }
-            case .transferring:
-                break
-            }
-        } label: {
-            watchGlyph(for: row, fallback: state)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("np.watchDownload")
-        .disabled(row == nil)
+    private func toggleFavorite() {
+        guard let row = player.currentTrack else { return }
+        Task { await appState.toggleFavorite(row) }
     }
 
-    /// While a transfer to the watch is in flight, re-sample the sender-side byte fraction a couple
-    /// of times a second so `WatchGlyphView`'s ring closes.
-    @ViewBuilder
-    private func watchGlyph(for row: TrackRow?, fallback: WatchGlyphState) -> some View {
-        Group {
-            if case .transferring = fallback, let row {
-                TimelineView(.periodic(from: .now, by: 0.6)) { _ in
-                    WatchGlyphView(state: displayedWatchState(for: row))
-                }
-            } else {
-                WatchGlyphView(state: fallback)
-            }
+    private func requestPhoneDownload() {
+        guard let row = player.currentTrack else { return }
+        switch appState.phoneDownloadState(for: row) {
+        case .notDownloaded:
+            phoneDownloadTarget = row
+            phoneDownloadIsRemoval = false
+            showPhoneDownloadConfirmation = true
+        case .downloaded:
+            phoneDownloadTarget = row
+            phoneDownloadIsRemoval = true
+            showPhoneDownloadConfirmation = true
+        case .downloading:
+            break
         }
-        .frame(width: 45, height: 45)
-        .background(.ultraThinMaterial, in: Circle())
-        .contentShape(Circle())
+    }
+
+    private func requestWatchTransfer() {
+        guard let row = player.currentTrack else { return }
+        switch displayedWatchState(for: row) {
+        case .notOnWatch, .failed:
+            pendingWatchToastTrackID = PhoneWatchID.track(row.track).rawValue
+            watchConfirmation = .download
+            watchConfirmationTarget = row
+            showWatchConfirmation = true
+        case .onWatch:
+            watchConfirmation = .remove
+            watchConfirmationTarget = row
+            showWatchConfirmation = true
+        case .transferring:
+            break
+        }
     }
 
     private func displayedWatchState(for row: TrackRow?) -> WatchGlyphState {
@@ -536,14 +574,6 @@ struct NowPlayingView: View {
             if let id = watchDownloadDisplayID { return appState.watchGlyphState(forTrackID: id) }
         }
         return appState.watchGlyphState(for: row)
-    }
-
-    private func cacheGlyphState(from state: PhoneDownloadState) -> CacheGlyphState {
-        switch state {
-        case .notDownloaded: return .none
-        case .downloaded: return .cached
-        case .downloading(let progress): return .filling(progress ?? 0.05)
-        }
     }
 
     private func shareURL(for row: TrackRow) -> URL? {

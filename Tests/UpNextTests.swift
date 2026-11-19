@@ -34,6 +34,24 @@ final class UpNextTests: XCTestCase {
         XCTAssertEqual(QueueSource.none.label, "")
     }
 
+    /// The queue header now shows the source icon instead of the
+    /// "From Library: …" text prefix, and the section header uses the bare name.
+    func testQueueSourceIconAndShortLabel() {
+        let src = Source(id: 1, kind: .iaItem, iaIdentifier: "test",
+                         originalURL: nil, title: "Beethoven",
+                         addedAt: Date(), lastResolvedAt: nil,
+                         followUpdates: false, licenseText: nil, memberCapHit: false)
+        let source = QueueSource.source(src)
+        XCTAssertEqual(source.icon, "externaldrive.connected.to.line.below")
+        XCTAssertEqual(source.shortLabel, "Beethoven")
+
+        let playlist = Playlist(id: 1, title: "Test Playlist", kind: .manual,
+                                folderBookmark: nil, watch: false)
+        XCTAssertEqual(QueueSource.playlist(playlist).icon, "music.note.list")
+        XCTAssertEqual(QueueSource.playlist(playlist).shortLabel, "Test Playlist")
+        XCTAssertEqual(QueueSource.library.icon, "music.note")
+    }
+
     // MARK: - Up Next
 
     func testUpNextContents() {

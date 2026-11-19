@@ -318,11 +318,17 @@ private struct MyMusicSoundQuery: View {
         switch model.screen {
         case .results:
             onRows(model.results.map(\.track))
-        case .noMatches:
+        case .noMatches, .zeroIndexed, .modelMissing, .modelDownloadFailed,
+             .validationError, .searchFailed, .emptyLibrary, .emptyScope,
+             .sourceUnavailable, .matchingReferenceUnavailable, .analyzeReference:
+            // Any terminal "the query ran, there is nothing to show" state must
+            // still count as search input. Leaving `soundSearchRows` nil made
+            // Find fall back to "Search your music to see results." forever —
+            // the reported Mood-search dead end.
             onRows([])
         case .idle:
             onRows(nil)
-        default:
+        case .loading, .staleSuppressed:
             break
         }
     }

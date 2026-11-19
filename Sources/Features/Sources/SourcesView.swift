@@ -31,11 +31,11 @@ struct SourcesView: View {
     /// "Music Libraries" — a second nested stack there makes the push
     /// unstable (same reasoning as `LibraryView.ownsNavigationStack`).
     private let ownsNavigationStack: Bool
-    /// True when presented as a sheet (My Music > Libraries): adds an
-    /// explicit Done button to the screen's own header. The nav bar is
-    /// hidden on this screen, so a drag-to-dismiss indicator alone would
-    /// leave no discoverable way out — the real report behind this fix.
-    private let showsDoneButton: Bool
+    /// True when pushed from My Music (Libraries): adds an explicit back
+    /// button to the screen's own header. The nav bar is hidden on this
+    /// screen, so there would otherwise be no way back — the real report
+    /// behind this fix.
+    private let showsBackButton: Bool
     /// Drives the per-provider connect sheet (`AddServerSheet(fixedConnector:)`) — set by tapping
     /// any not-yet-connected row, remote-catalog or Jamendo's "set a key" fallback alike.
     @State private var connectingConnector: RemoteConnector?
@@ -49,9 +49,9 @@ struct SourcesView: View {
     /// dismiss-only behavior, unchanged from before.
     @State private var navigationPath = NavigationPath()
 
-    init(ownsNavigationStack: Bool = true, showsDoneButton: Bool = false) {
+    init(ownsNavigationStack: Bool = true, showsBackButton: Bool = false) {
         self.ownsNavigationStack = ownsNavigationStack
-        self.showsDoneButton = showsDoneButton
+        self.showsBackButton = showsBackButton
     }
 
     var body: some View {
@@ -88,7 +88,7 @@ struct SourcesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     ScreenHeader(title: "Libraries",
-                                 doneAction: showsDoneButton ? { dismiss() } : nil)
+                                 backAction: showsBackButton ? { dismiss() } : nil)
                         .padding(.bottom, 12)
 
                     SectionHeader(title: "On This Device")

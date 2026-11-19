@@ -62,13 +62,16 @@ final class FindResultScopePolicyTests: XCTestCase {
                      "findScopePicker must iterate the filtered options, not allCases directly")
     }
 
-    /// The old inline Name/Mood/BPM-Key row is gone, replaced by a glass menu in the nav bar.
-    func testModeSelectionMovedToAToolbarGlassMenu() throws {
+    /// The old inline Name/Mood/BPM-Key row is gone, replaced by a menu in the nav bar.
+    /// Native iOS 26 toolbar chrome supplies the glass; the manual `.adaptiveGlass`
+    /// nested a second GlassEffectContainer and flashed on every press.
+    func testModeSelectionMovedToAToolbarMenu() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let find = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                               encoding: .utf8)
         XCTAssertTrue(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }"))
-        XCTAssertTrue(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
+        XCTAssertFalse(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"),
+                       "native toolbar glass replaces the manually nested GlassEffectContainer")
         let controls = try String(
             contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
             encoding: .utf8)

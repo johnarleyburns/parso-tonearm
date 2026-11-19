@@ -175,8 +175,11 @@ private struct FindModeMenu: View {
                 .foregroundStyle(Palette.ink)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
+                .contentShape(Rectangle())
         }
-        .adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)
+        // Native iOS 26 toolbar chrome already supplies the glass capsule.
+        // A manual `.adaptiveGlass` here nested a second `GlassEffectContainer`
+        // inside the toolbar and flashed every time the menu was pressed.
         .accessibilityIdentifier("find.mode.menu")
         .accessibilityLabel("Search mode")
         .accessibilityValue(mode.rawValue)

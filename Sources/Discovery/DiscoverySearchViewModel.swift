@@ -76,6 +76,13 @@ public final class DiscoverySearchViewModel: ObservableObject {
     /// ALWAYS return mix-ready results, never silently dropped only once Play is pressed. The
     /// Discover/"Find by sound" screen leaves this false.
     private let requireFullyIndexed: Bool
+    /// Mood's strict pool can legitimately be empty (no track has finished BPM/
+    /// camelot analysis yet). The owner-visible result was "Mood never returns"
+    /// — so when the strict pass finds nothing, retry once without the gate
+    /// rather than leaving Find on a permanent empty state.
+    private let fallbackToBroaderWhenFullyIndexedEmpty: Bool
+    /// Generation whose strict pass already retried broader results.
+    private var broaderFallbackGeneration: Int64?
 
     public init(
         coordinator: DiscoverySearchCoordinator,
@@ -85,7 +92,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
         onAnalyzeTrack: @escaping (Int64) -> Void = { _ in },
         onDownloadModels: @escaping () -> Void = {},
         onOpenIndexStatus: @escaping () -> Void = {},
-        requireFullyIndexed: Bool = false
+        requireFullyIndexed: Bool = false,
+        fallbackToBroaderWhenFullyIndexedEmpty: Bool = false
     ) {
         self.coordinator = coordinator
         self.service = service
@@ -95,6 +103,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
         self.onDownloadModels = onDownloadModels
         self.onOpenIndexStatus = onOpenIndexStatus
         self.requireFullyIndexed = requireFullyIndexed
+        self.fallbackToBroaderWhenFullyIndexedEmpty = fallbackToBroaderWhenFullyIndexedEmpty
     }
 
     // MARK: - Query building
@@ -170,7 +179,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
     }
 
     private func submitToCoordinator(
-        _ query: DiscoverySearchQuery, referenceTrackID: Int64?, gen: Int64
+        _ query: DiscoverySearchQuery, referenceTrackID: Int64?, gen: Int64,
+        requireFullyIndexed: Bool? = nil
     ) {
         Task { [weak self] in
             guard let self else { return }
@@ -179,7 +189,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
                 referenceTrackID: referenceTrackID,
                 matchingReferenceTrackID: self.matchingReferenceTrackID,
                 matchingTracksOnly: self.matchingTracksOnly,
-                requireFullyIndexed: self.requireFullyIndexed) { response in
+                requireFullyIndexed: requireFullyIndexed ?? self.requireFullyIndexed) { response in
                 Task { @MainActor [weak self] in
                     self?.apply(response, gen: gen)
                 }
@@ -231,13 +241,28 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     private func apply(_ response: DiscoverySearchResponse, gen: Int64) {
         guard gen == generation else { return }  // superseded — update nothing
-        lastResponse = response
-        coverage = response.coverage
         if response.state == .cancelled {
             // Defensive: the coordinator normally never delivers this.
+            lastResponse = response
+            coverage = response.coverage
             screen = .staleSuppressed
             return
         }
+        // Mood can legitimately have zero fully-indexed tracks. One broader
+        // retry (same generation, so it still loses to a newer query) keeps
+        // Find from showing an empty state forever.
+        if requireFullyIndexed, fallbackToBroaderWhenFullyIndexedEmpty,
+           broaderFallbackGeneration != gen,
+           response.results.isEmpty,
+           response.state == .noMatches || response.state == .zeroIndexed {
+            broaderFallbackGeneration = gen
+            submitToCoordinator(
+                currentQuery(), referenceTrackID: referenceTrackID, gen: gen,
+                requireFullyIndexed: false)
+            return
+        }
+        lastResponse = response
+        coverage = response.coverage
         results = response.results
         screen = DiscoverySearchPresentation.make(from: response)
     }
