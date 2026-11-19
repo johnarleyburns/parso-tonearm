@@ -34,9 +34,9 @@ private final class Spy: @unchecked Sendable {
 extension SharedProductionSingletonTests {
     @MainActor
     @Suite final class AudioPlayerJamendoLoadingTests {
+        private let player = AudioPlayer()
         private let stale = "https://example.test/stale.mp3"
         private let fresh = URL(string: "https://example.test/fresh.mp3")!
-        private var savedResolver: CatalogPlaybackURLResolver!
 
         /// Every remote URL any test in this file loads. `loadCurrent` consults the real,
         /// persistent `AudioCache` (`~/Library/Caches/Tonearm/StreamCacheV2` in production,
@@ -76,7 +76,6 @@ extension SharedProductionSingletonTests {
 
         init() {
             Self.purgeFixtureCacheEntries()
-            savedResolver = AudioPlayer.shared.catalogPlaybackURLResolver
         }
 
         /// Reproduces the exact contamination that made
@@ -119,18 +118,12 @@ extension SharedProductionSingletonTests {
 
         isolated deinit {
             Self.purgeFixtureCacheEntries()
-            let p = AudioPlayer.shared
-            p.ordinaryBuildItemHook = nil
-            p.catalogPlaybackURLResolver = savedResolver
-            p.clearQueuePlayback()
-            p.queue = []
         }
 
         private func install(gate: Gate? = nil, spy: Spy) throws {
             let store = FakeCatalog()
             store.add(jamendoID: "99123", cached: URL(string: stale))
             let fresh = fresh
-            let player = AudioPlayer.shared
             player.catalogPlaybackURLResolver = CatalogPlaybackURLResolver(
                 lookup: { store.row($0) },
                 resolver: JamendoLocatorResolver(maxTransientAttempts: 1, backoff: { _ in 0 }, sleep: { _ in },
@@ -154,7 +147,6 @@ extension SharedProductionSingletonTests {
 
         /// Installs a queue and loads it without autoplay (keeps the shared library store out of the test).
         private func load(_ rows: [TrackRow]) {
-            let player = AudioPlayer.shared
             player.keepPlayingEnabled = false
             player.queue = rows
             player.index = 0
@@ -183,7 +175,6 @@ extension SharedProductionSingletonTests {
         @Test func testStartingAnAsyncJamendoResolveStopsTheOutgoingItemImmediately() async throws {
             let spy = Spy(), gate = Gate()
             try install(gate: gate, spy: spy)
-            let player = AudioPlayer.shared
             load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3"),
                   jamendo()])
             #expect(player.player.currentItem != nil, "setup: the first track must actually have an item")
@@ -252,7 +243,6 @@ extension SharedProductionSingletonTests {
         @Test func testPreloadNextItemNeverBuildsFromARawJamendoLocator() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.queue = [CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3"),
                             moodStarterJamendo()]
             player.index = 0
@@ -269,7 +259,6 @@ extension SharedProductionSingletonTests {
         @Test func testDropboxRowIsReResolvedThroughFreshenerBeforeItemIsBuilt() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             defer { player.remoteRowFreshener = nil }
             let fresh = fresh
             player.remoteRowFreshener = { row in
@@ -284,7 +273,6 @@ extension SharedProductionSingletonTests {
 
         /// Same raw-locator defect as the preload test above, for the prefetch warm path.
         @Test func testPrefetchNextNeverWarmsARawJamendoLocator() async throws {
-            let player = AudioPlayer.shared
             defer { player.prefetchDepth = 0 }
             var current = CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/current.mp3")
             current.track.id = 301
@@ -305,7 +293,6 @@ extension SharedProductionSingletonTests {
         /// `prefetchNext` read `asset.transientRemoteHeaders`/the stored `remoteURL` straight off the
         /// queue, never through `remoteRowFreshener` the way `loadCurrent` does for the current track.
         @Test func testPrefetchNextFreshensACloudDriveRowBeforeBuildingItsLoader() async throws {
-            let player = AudioPlayer.shared
             defer { player.remoteRowFreshener = nil; player.prefetchDepth = 0 }
             let fresh = fresh
             player.remoteRowFreshener = { row in
@@ -332,7 +319,6 @@ extension SharedProductionSingletonTests {
         /// (`preloadNextItem`/the `finishOrdinaryLoad` branch that reuses it directly, bypassing
         /// `loadCurrent`'s own freshening entirely).
         @Test func testPreloadNextItemFreshensACloudDriveRowBeforeBuildingItem() async throws {
-            let player = AudioPlayer.shared
             defer { player.remoteRowFreshener = nil }
             let fresh = fresh
             player.remoteRowFreshener = { row in
@@ -358,7 +344,6 @@ extension SharedProductionSingletonTests {
         @Test func testStaleResolverCompletionCannotReplaceNewQueueOrResumeStoppedPlayback() async throws {
             let spy = Spy(), gate = Gate()
             try install(gate: gate, spy: spy)
-            let player = AudioPlayer.shared
             load([jamendo()])
             load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3")])
             gate.release()
@@ -378,7 +363,6 @@ extension SharedProductionSingletonTests {
         @Test func testOrdinaryJamendoStaleHTTPFailureRefreshesOnceThenFailsTruthfully() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.networkSkipMessage = nil
             load([jamendo()])
             await settle()
@@ -400,7 +384,6 @@ extension SharedProductionSingletonTests {
         @Test func testStatuslessFailedJamendoItemPublishesTruthfulFailure() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.ordinaryBuildItemHook = { _ in
                 (AVPlayerItem(url: URL(fileURLWithPath: "/nonexistent/tonearm-missing.mp3")), nil)
             }
@@ -417,7 +400,6 @@ extension SharedProductionSingletonTests {
         @Test func testTerminalTransientLoaderFailureDoesNotLeaveFailedItemStranded() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.networkSkipMessage = nil
             load([jamendo()])
             await settle()
@@ -435,7 +417,6 @@ extension SharedProductionSingletonTests {
         @Test func testStaleTerminalLoaderFailureCannotStopReplacementQueue() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             load([jamendo()])
             await settle()
             load([CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3")])
@@ -453,7 +434,6 @@ extension SharedProductionSingletonTests {
             let spy = Spy()
             try install(spy: spy)
             let store = FakeCatalog()
-            let player = AudioPlayer.shared
             // Empty catalog: a catalog lookup would fail this load.
             player.catalogPlaybackURLResolver.lookup = { _ in Issue.record("browse row must not look up catalog"); return nil }
             load([CatalogPlaybackURLResolverTests.row(kind: .jamendoGenre, nodeID: "99123", url: stale, sourceID: nil)])
@@ -473,7 +453,6 @@ extension SharedProductionSingletonTests {
         @Test func testJamendoRowMissingNodeIDFailsAndNeverBuildsRawURLItem() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.networkSkipMessage = nil
             load([CatalogPlaybackURLResolverTests.row(kind: .jamendoGenre, nodeID: nil, url: "https://stale.example")])
             await settle()
@@ -492,7 +471,6 @@ extension SharedProductionSingletonTests {
         @Test func testFailedRemotePlaybackAlwaysStopsAndNeverSilentlyAdvancesTheQueue() async throws {
             let spy = Spy()
             try install(spy: spy)
-            let player = AudioPlayer.shared
             player.networkSkipMessage = nil
             load([jamendo(), CatalogPlaybackURLResolverTests.row(kind: .iaItem, nodeID: nil, url: "https://example.test/ia.mp3")])
             // Emulate the exact condition #387 misread as "an unattended autoplay chain":

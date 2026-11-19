@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite final class ShuffleRepeatTests {
+@MainActor
+@Suite final class ShuffleRepeatTests {
+    private let player = AudioPlayer()
 
     private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                               originalURL: nil, title: "Test Source",
@@ -24,15 +24,9 @@ extension SharedProductionSingletonTests {
         return TrackRow(track: t, album: album, source: src, asset: a)
     }
 
-    isolated deinit {
-        AudioPlayer.shared.shuffle = false
-        AudioPlayer.shared.repeatMode = .off
-    }
-
     // MARK: - Shuffle
 
     @Test func testShuffleReordersQueue() {
-        let player = AudioPlayer.shared
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 0)
         let originalIds = player.queue.map { $0.id }
@@ -47,7 +41,6 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testShufflePreservesCurrentTrack() {
-        let player = AudioPlayer.shared
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 4)
         let currentId = player.currentTrack?.id
@@ -57,7 +50,6 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testShuffleOffRestoresOrder() {
-        let player = AudioPlayer.shared
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 2)
         let originalOrder = tracks.map { $0.id }
@@ -71,7 +63,6 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testShuffleSingleTrackNoChange() {
-        let player = AudioPlayer.shared
         let tracks = [makeTrack(1)]
         player.play(tracks: tracks, startAt: 0)
         let originalIds = player.queue.map { $0.id }
@@ -83,7 +74,6 @@ extension SharedProductionSingletonTests {
     // MARK: - Repeat
 
     @Test func testRepeatModeCycles() {
-        let player = AudioPlayer.shared
         player.repeatMode = .off
         player.cycleRepeatMode()
         #expect(player.repeatMode == .all)
@@ -94,7 +84,6 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testRepeatAllWraps() {
-        let player = AudioPlayer.shared
         player.repeatMode = .all
         let tracks = [makeTrack(1), makeTrack(2), makeTrack(3)]
         player.play(tracks: tracks, startAt: 2)
@@ -103,7 +92,6 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testRepeatOneDoesNotAdvance() {
-        let player = AudioPlayer.shared
         player.repeatMode = .one
         let tracks = [makeTrack(1), makeTrack(2)]
         player.play(tracks: tracks, startAt: 0)
@@ -112,12 +100,10 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testRepeatOffStopsAtEnd() {
-        let player = AudioPlayer.shared
         player.repeatMode = .off
         let tracks = [makeTrack(1), makeTrack(2)]
         player.play(tracks: tracks, startAt: 1)
         player.next()
         #expect(!player.isPlaying)
-    }
     }
 }

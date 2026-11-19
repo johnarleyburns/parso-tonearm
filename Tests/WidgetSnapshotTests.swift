@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @Suite struct WidgetSnapshotTests {
+@Suite struct WidgetSnapshotTests {
     @Test func testNothingPlayingBuildsEmptySnapshot() {
         let now = Date(timeIntervalSince1970: 1_000)
 
@@ -309,6 +308,5 @@ extension SharedProductionSingletonTests {
             duration: 100,
             artworkID: nil
         )
-    }
     }
 }

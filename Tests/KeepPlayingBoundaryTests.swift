@@ -55,6 +55,7 @@ extension SharedProductionSingletonTests {
     /// completions are released through an actor gate, never wall-clock sleeps.
     @MainActor
     @Suite final class KeepPlayingBoundaryTests {
+        private let player = AudioPlayer()
         private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                                  originalURL: nil, title: "Test Source",
                                  addedAt: Date(), lastResolvedAt: nil,
@@ -82,11 +83,10 @@ extension SharedProductionSingletonTests {
         init() async throws {
             PlaybackStateFileStore.fileURLOverride = FileManager.default.temporaryDirectory
                 .appendingPathComponent("tonearm-boundary-\(UUID().uuidString).json")
-            reset(AudioPlayer.shared)
+            reset(player)
         }
 
         isolated deinit {
-            reset(AudioPlayer.shared)
             PlaybackStateFileStore.fileURLOverride = nil
         }
 
@@ -103,7 +103,6 @@ extension SharedProductionSingletonTests {
             let library = (try? await LibraryStore.shared.allTrackRows()) ?? []
             if library.isEmpty { try Test.cancel("Needs a library track to hydrate against") }
             let pick = try #require(library.first?.track.id)
-            let player = AudioPlayer.shared
             let gate = AsyncGate()
             let provider = DeferredKeepPlayingProvider(gate: gate, result: .ready([pick]))
             player.keepPlayingProvider = provider
@@ -122,7 +121,6 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testTerminalEmptyResultBecomesExplicitExhaustedStateWithoutHiddenRetryLoop() async throws {
-            let player = AudioPlayer.shared
             player.keepPlayingProvider = ImmediateKeepPlayingProvider(result: .unavailable)
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)
@@ -140,8 +138,6 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testStaleContinuationCannotResumeReplacementQueueOrDisabledKeepPlaying() async throws {
-            let player = AudioPlayer.shared
-
             // Queue replacement.
             let gate = AsyncGate()
             player.keepPlayingProvider = DeferredKeepPlayingProvider(gate: gate, result: .ready([2]))

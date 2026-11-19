@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite struct RemotePlaybackMetadataTests {
+@MainActor
+@Suite struct RemotePlaybackMetadataTests {
     @Test func testMockProvidersBuildPlayableRowsWithoutDroppingSourceMetadata() async throws {
         for kind in RemoteLibraryAccessPolicy.productSourceKinds {
             let source = Source(
@@ -52,9 +51,10 @@ extension SharedProductionSingletonTests {
                 #expect(row.track.title == "Track.flac")
             }
 
-            AudioPlayer.shared.play(tracks: [row], startAt: 0, source: .source(source))
-            #expect(AudioPlayer.shared.currentTrack?.source?.kind == kind)
-            #expect(AudioPlayer.shared.currentTrack?.asset?.transientRemoteHeaders["X-Test-Provider"] == kind.rawValue)
+            let player = AudioPlayer()
+            player.play(tracks: [row], startAt: 0, source: .source(source))
+            #expect(player.currentTrack?.source?.kind == kind)
+            #expect(player.currentTrack?.asset?.transientRemoteHeaders["X-Test-Provider"] == kind.rawValue)
         }
     }
 
@@ -177,6 +177,5 @@ extension SharedProductionSingletonTests {
         }
 
         func refresh() async throws {}
-    }
     }
 }

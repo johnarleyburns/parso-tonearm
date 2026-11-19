@@ -2,10 +2,9 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    /// Typed queue provenance: listener-next > listener-queued > context > Keep Playing.
-    @MainActor
-    @Suite struct QueueOriginPolicyTests {
+/// Typed queue provenance: listener-next > listener-queued > context > Keep Playing.
+@MainActor
+@Suite struct QueueOriginPolicyTests {
     typealias S = QueueEditor.State<PlaybackQueueEntry>
 
     private func row(_ i: Int) -> TrackRow {
@@ -90,7 +89,7 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testFreshPlayDropsOldProvenance() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         player.keepPlayingEnabled = false
         player.resetRestoreForTesting()
         player.shuffle = false
@@ -105,6 +104,5 @@ extension SharedProductionSingletonTests {
         #expect(player.queue.map(\.id) == [row(3).id, row(4).id])
         #expect(player.keepPlayingAutoAddedTrackIDs.isEmpty)
         player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
-    }
     }
 }

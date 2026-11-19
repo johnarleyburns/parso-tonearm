@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite struct UpNextTests {
+@MainActor
+@Suite struct UpNextTests {
 
     // MARK: - Queue Source
 
@@ -39,7 +38,7 @@ extension SharedProductionSingletonTests {
     // MARK: - Up Next
 
     @Test func testUpNextContents() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test Source",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -69,7 +68,7 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testUpNextEmptyWhenLastTrack() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -89,7 +88,7 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testUpNextAfterPlayResets() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -146,7 +145,7 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         player.play(tracks: libraryRows("Old", 1...5), startAt: 2)
         let results = libraryRows("New", 20...24)
         var messages: [String] = []
@@ -162,12 +161,11 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         player.play(tracks: [], startAt: 0)
         #expect(player.queue.isEmpty)
         var messages: [String] = []
         player.playLibraryResult(libraryRows("New", 20...22), startAt: 0) { messages.append($0) }
         #expect(messages.isEmpty)
-    }
     }
 }

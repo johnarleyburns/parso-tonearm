@@ -272,7 +272,11 @@ public final class AudioPlayer: ObservableObject {
         return Array(queue.dropFirst(index + 1))
     }
 
-    private init() {
+    /// Internal, not `private`: visible to `@testable import TonearmCore` so
+    /// tests can construct an isolated instance instead of sharing `.shared`.
+    /// Not `public` — construction stays confined to this package and its
+    /// tests, not external API.
+    init() {
         addPeriodicObserver()
         observeTimeControlStatus()
         observeNetworkPath()

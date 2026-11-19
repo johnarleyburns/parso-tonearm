@@ -2,22 +2,27 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
+/// Keep Playing (main-library queue continuation, reusing the C01–C09 CLAP
+/// vector index via `KeepPlayingSimilarityProviding`). Two layers:
+///
+/// - `KeepPlayingPicker` is pure (no player, no database) and is exercised
+///   directly — this is where the dedup/no-immediate-repeat/gating
+///   guarantees are actually proven, deterministically.
+/// - The `AudioPlayer` integration tests below drive a freshly-constructed
+///   player with a fake provider to prove the fallback path is honest (never
+///   a silent no-op) and that turning Keep Playing off undoes its unplayed
+///   tail. They still read real ids from `LibraryStore.shared` where needed:
+///   `AudioPlayer`'s own Keep Playing fallback/continuation logic
+///   (`AudioPlayer+KeepPlaying.swift`) resolves tracks through the real
+///   shared `LibraryStore` internally, not through anything these tests
+///   could inject, so hydration only ever succeeds against ids that are
+///   really there. They either check ids fetched live from that store, or
+///   assert on the fallback/flag surface alone, rather than asserting on
+///   fixture ids the real on-disk store doesn't know about.
 extension SharedProductionSingletonTests {
-    /// Keep Playing (main-library queue continuation, reusing the C01–C09 CLAP
-    /// vector index via `KeepPlayingSimilarityProviding`). Two layers:
-    ///
-    /// - `KeepPlayingPicker` is pure (no player, no database) and is exercised
-    ///   directly — this is where the dedup/no-immediate-repeat/gating
-    ///   guarantees are actually proven, deterministically.
-    /// - The `AudioPlayer` integration tests below drive the real singleton with
-    ///   a fake provider to prove the fallback path is honest (never a silent
-    ///   no-op) and that turning Keep Playing off undoes its unplayed tail. They
-    ///   avoid asserting on which *rows* got appended when that would require
-    ///   `LibraryStore.shared` (the real, on-disk library, not a fixture) to
-    ///   contain specific track ids — instead they either check ids fetched live
-    ///   from that store, or assert on the fallback/flag surface alone.
     @MainActor
     @Suite final class KeepPlayingTests {
+        private let player = AudioPlayer()
 
         nonisolated(unsafe) private var playbackStateDirectory: URL?
         nonisolated(unsafe) private var playbackStateSuiteName: String?
@@ -53,13 +58,12 @@ extension SharedProductionSingletonTests {
             playbackStateSuiteName = suiteName
             PlaybackStateStore.defaultsProvider = { defaults }
 
-            Self.resetPlayerForTest(AudioPlayer.shared)
+            Self.resetPlayerForTest(player)
         }
 
         isolated deinit {
             let directory = playbackStateDirectory
             let suiteName = playbackStateSuiteName
-            Self.resetPlayerForTest(AudioPlayer.shared)
             PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
             PlaybackStateFileStore.fileURLOverride = nil
             if let directory {
@@ -218,7 +222,6 @@ extension SharedProductionSingletonTests {
         /// just the single most-recently-played track — and the history must
         /// list the most-recently-played track first.
         @Test func testExclusionSetCoversHistoryAndCurrentQueue() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
 
@@ -238,7 +241,6 @@ extension SharedProductionSingletonTests {
         /// CLAUDE.md "no silent/magic background work": a substituted behavior is
         /// always visible, never silent.
         @Test func testWaitingForModelFallsBackAndRecordsTheReason() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
             player.keepPlayingProvider = FixedProvider(.waitingForModel)
@@ -254,7 +256,6 @@ extension SharedProductionSingletonTests {
         /// fallbacks, but the UI can only tell the user the truth if these stay
         /// separate.
         @Test func testUnavailableFallsBackWithADistinctReasonFromWaitingForModel() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
             player.keepPlayingProvider = FixedProvider(.unavailable)
@@ -270,7 +271,6 @@ extension SharedProductionSingletonTests {
         /// exactly like an explicit `.unavailable` answer — never crash, never a
         /// silent no-op.
         @Test func testNoProviderWiredFallsBackWithoutCrashing() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
             player.keepPlayingProvider = nil
@@ -285,7 +285,6 @@ extension SharedProductionSingletonTests {
         /// Their explicit continuation must be preferred so a one-track Jamendo
         /// play-now action becomes a real queue instead of ending in dead air.
         @Test func testQueueContinuationAppendsRemoteTracksWithoutFallback() async {
-            let player = AudioPlayer.shared
             let continuation = FixedContinuation(rows: [makeTrack(2), makeTrack(3)])
 
             player.keepPlayingEnabled = false
@@ -303,7 +302,6 @@ extension SharedProductionSingletonTests {
         /// An empty `.ready([])` result (provider found literally nothing) must
         /// also fall back rather than silently leaving the queue to run dry.
         @Test func testEmptyReadyResultFallsBack() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
             player.keepPlayingProvider = FixedProvider(.ready([]))
@@ -325,7 +323,6 @@ extension SharedProductionSingletonTests {
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
             player.keepPlayingProvider = FixedProvider(.ready(picks))
@@ -345,7 +342,6 @@ extension SharedProductionSingletonTests {
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             // index 0: tracks 2 and 3 are manually-queued "unplayed" tracks that
             // must survive turning Keep Playing off.
@@ -371,7 +367,6 @@ extension SharedProductionSingletonTests {
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
-            let player = AudioPlayer.shared
             let tracks = (1...2).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 1)  // index 1 (last manual track)
 
@@ -389,7 +384,6 @@ extension SharedProductionSingletonTests {
         // MARK: - Extension only fires near the end of the queue (integration)
 
         @Test func testExtensionDoesNotFireInTheMiddleOfALongQueue() async {
-            let player = AudioPlayer.shared
             let tracks = (1...10).map { makeTrack($0) }
             player.play(tracks: tracks, startAt: 0)
 
@@ -405,7 +399,6 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testRepeatAllNeverExtends() async {
-            let player = AudioPlayer.shared
             let tracks = (1...3).map { makeTrack($0) }
             player.repeatMode = .all
             player.play(tracks: tracks, startAt: 2)  // last track, but repeat-all loops forever
@@ -430,7 +423,6 @@ extension SharedProductionSingletonTests {
             if realIDs.isEmpty { try Test.cancel("Needs at least one track in the shared library to hydrate against") }
             let pick = realIDs[0]
 
-            let player = AudioPlayer.shared
             let tracks = [makeTrack(1)]
             playWithoutAutoExtending(player, tracks: tracks, startAt: 0)  // the one and only track, already "playing"
 
@@ -460,7 +452,6 @@ extension SharedProductionSingletonTests {
         /// (a real "no matches" or empty fallback pool) — must NOT force a
         /// resume into an unchanged, still-exhausted queue.
         @Test func testNextAtEndOfQueueStaysStoppedWhenExtensionFindsNothing() async {
-            let player = AudioPlayer.shared
             let tracks = [makeTrack(1)]
             playWithoutAutoExtending(player, tracks: tracks, startAt: 0)
 
@@ -503,7 +494,6 @@ extension SharedProductionSingletonTests {
                 title: "Keep Playing Fixture \(UUID().uuidString)", trackIds: [firstID])
             let playlistRows = try await store.playlistItems(playlistId: try #require(playlist.id))
 
-            let player = AudioPlayer.shared
             playWithoutAutoExtending(player, tracks: playlistRows, startAt: 0)
             player.queueSource = .playlist(playlist)
             player.keepPlayingProvider = nil
@@ -517,3 +507,4 @@ extension SharedProductionSingletonTests {
         }
     }
 }
+

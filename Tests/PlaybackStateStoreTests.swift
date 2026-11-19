@@ -67,7 +67,7 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
+            let player = AudioPlayer()
             resetForTest(player)
 
             let row = fakeTrackRow(1)
@@ -87,7 +87,7 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
+            let player = AudioPlayer()
             resetForTest(player)
 
             let row = fakeTrackRow(1)
@@ -108,7 +108,7 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
+            let player = AudioPlayer()
             resetForTest(player)
 
             let row = fakeTrackRow(1)

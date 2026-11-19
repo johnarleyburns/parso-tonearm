@@ -3,41 +3,26 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    /// Integration coverage for `AudioPlayer.watchStallProgress`/`replaceItem` actually calling into
-    /// `StallModel` in production, not just `StallModel`'s own pure logic (already covered by
-    /// `Tests/PlaybackResilienceTests.swift`). `evaluateStall`/`markReady` were fully implemented and
-    /// unit-tested but never called in production until now — these tests pin the real wiring:
-    /// `replaceItem` begins a generation and marks it ready, and a track that's never confirmed
-    /// playing (the periodic observer's clock never genuinely advances) gets skipped once the
-    /// configured timeout elapses.
-    @MainActor
-    @Suite final class StallAutoSkipTests {
+/// Integration coverage for `AudioPlayer.watchStallProgress`/`replaceItem` actually calling into
+/// `StallModel` in production, not just `StallModel`'s own pure logic (already covered by
+/// `Tests/PlaybackResilienceTests.swift`). `evaluateStall`/`markReady` were fully implemented and
+/// unit-tested but never called in production until now — these tests pin the real wiring:
+/// `replaceItem` begins a generation and marks it ready, and a track that's never confirmed
+/// playing (the periodic observer's clock never genuinely advances) gets skipped once the
+/// configured timeout elapses.
+@MainActor
+@Suite final class StallAutoSkipTests {
+    private let player = AudioPlayer()
     private let trackSeconds = 2.0
     private var files: [URL] = []
-    private var savedKeepPlayingEnabled = true
 
-    init() async throws {
-        savedKeepPlayingEnabled = AudioPlayer.shared.keepPlayingEnabled
+    init() {
         // Deterministic "nowhere to skip to" path: with this on, a single-track queue could try
         // to extend itself via the real LibraryStore instead of just pausing.
-        AudioPlayer.shared.keepPlayingEnabled = false
-        // The player is a shared singleton: drop any stall watch or skip streak a previous test
-        // (or an in-flight load) left behind so skip counts here are deterministic.
-        AudioPlayer.shared.stallWatchTask?.cancel()
-        AudioPlayer.shared.stallWatchTask = nil
-        AudioPlayer.shared.stallModel = StallModel()
+        player.keepPlayingEnabled = false
     }
 
     isolated deinit {
-        let player = AudioPlayer.shared
-        player.stallWatchTask?.cancel()
-        player.player.pause()
-        player.player.replaceCurrentItem(with: nil)
-        player.queue = []
-        player.index = 0
-        player.isPlaying = false
-        player.keepPlayingEnabled = savedKeepPlayingEnabled
         for file in files { try? FileManager.default.removeItem(at: file) }
     }
 
@@ -45,7 +30,6 @@ extension SharedProductionSingletonTests {
     /// pauses, which is still an unambiguous, directly-observable signal that the stall watch
     /// fired and acted, without needing a second real asset to resolve.
     @Test func testNeverConfirmedTrackIsSkippedAfterTheStallTimeoutAndPausesWithNowhereToGo() throws {
-        let player = AudioPlayer.shared
         let savedTimeout = player.stallEvaluationTimeout
         defer { player.stallEvaluationTimeout = savedTimeout }
         player.stallEvaluationTimeout = .milliseconds(80)
@@ -69,7 +53,6 @@ extension SharedProductionSingletonTests {
     /// The counterpart: a track that becomes ready and is never watched at all when it wasn't
     /// an autoplay load (the user loaded it paused) — nothing should happen at the timeout.
     @Test func testManuallyPausedLoadIsNeverWatchedForStalling() throws {
-        let player = AudioPlayer.shared
         let savedTimeout = player.stallEvaluationTimeout
         defer { player.stallEvaluationTimeout = savedTimeout }
         player.stallEvaluationTimeout = .milliseconds(80)
@@ -92,7 +75,6 @@ extension SharedProductionSingletonTests {
     /// Issue #271: a remote (non-file) stream gets the longer remote window, so a slow-starting
     /// cloud-drive/Jamendo track is not declared stalled and paused after the local-file window.
     @Test func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() throws {
-        let player = AudioPlayer.shared
         let savedLocal = player.stallEvaluationTimeout
         let savedRemote = player.remoteStallEvaluationTimeout
         defer {
@@ -121,7 +103,6 @@ extension SharedProductionSingletonTests {
     /// synchronously the instant the new item attaches, not leave the stale value on screen
     /// until the next tick corrects it.
     @Test func testReplaceItemResetsCurrentTimeImmediatelyRatherThanLingeringOnTheOutgoingTracksPosition() throws {
-        let player = AudioPlayer.shared
         let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
         player.currentTime = 1234 // simulate being deep into the track this one is replacing
         player.replaceItem(item, autoplay: false)
@@ -173,6 +154,5 @@ extension SharedProductionSingletonTests {
         try file.write(from: buffer)
         files.append(url)
         return url
-    }
     }
 }

@@ -3,9 +3,8 @@ import Testing
 
 @testable import TonearmCore
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite struct QueueEditorTests {
+@MainActor
+@Suite struct QueueEditorTests {
 
     @Test func testMoveCurrentTrackUpdatesCurrentIndex() {
         let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
@@ -89,7 +88,7 @@ extension SharedProductionSingletonTests {
     }
 
     @Test func testAudioPlayerQueueEditsDoNotResurrectRemovedTrackWhenShuffleRestores() throws {
-        let player = AudioPlayer.shared
+        let player = AudioPlayer()
         let tracks = (1...8).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 2)
         let currentID = player.currentTrack?.id
@@ -118,6 +117,5 @@ extension SharedProductionSingletonTests {
                           remoteURL: "https://archive.org/track\(id).mp3",
                           altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
         return TrackRow(track: track, album: album, source: source, asset: asset)
-    }
     }
 }

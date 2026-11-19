@@ -12,157 +12,149 @@ private final class Counter: @unchecked Sendable {
     func stop() { lock.withLock { _stops += 1 } }
 }
 
-extension SharedProductionSingletonTests {
-    @MainActor
-    @Suite struct LocalAssetResolverTests {
-        private let fileURL = URL(fileURLWithPath: "/tmp/tonearm-test-local.m4a")
+@MainActor
+@Suite struct LocalAssetResolverTests {
+    private let fileURL = URL(fileURLWithPath: "/tmp/tonearm-test-local.m4a")
 
-        private func asset(bookmark: Data? = Data([1]), relPath: String? = nil, kind: AssetKind = .localRef) -> Asset {
-            Asset(id: 1, trackId: 1, kind: kind, bookmark: bookmark, relPath: relPath, remoteURL: nil,
-                  altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
+    private func asset(bookmark: Data? = Data([1]), relPath: String? = nil, kind: AssetKind = .localRef) -> Asset {
+        Asset(id: 1, trackId: 1, kind: kind, bookmark: bookmark, relPath: relPath, remoteURL: nil,
+              altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
+    }
+
+    private func resolver(_ c: Counter, resolves: Bool = true, grants: Bool = true, exists: Bool = true,
+                          stale: Bool = false) -> LocalAssetResolver {
+        let url = fileURL
+        return LocalAssetResolver(
+            resolveBookmark: { _ in resolves ? (url, stale) : nil },
+            startAccess: { _ in if grants { c.start() }; return grants },
+            stopAccess: { _ in c.stop() },
+            fileExists: { _ in exists },
+            managedBase: { URL(fileURLWithPath: "/tmp/tonearm-managed") })
+    }
+
+    @Test func testBookmarkLeaseAcquiresOnceAndReleasesOnce() throws {
+        let c = Counter()
+        var resolved: ResolvedLocalAsset? = try resolver(c).resolve(asset())
+        #expect(c.starts == 1)
+        #expect(c.stops == 0)
+        resolved?.lease?.release()
+        resolved?.lease?.release()
+        resolved = nil
+        #expect(c.stops == 1)
+    }
+
+    @Test func testLeaseReleasedWhenDisposed() throws {
+        let c = Counter()
+        var resolved: ResolvedLocalAsset? = try resolver(c).resolve(asset())
+        #expect(resolved != nil)
+        resolved = nil
+        #expect(c.stops == 1)
+    }
+
+    @Test func testDeniedAccessThrowsAndNeverStops() {
+        let c = Counter()
+        do {
+            _ = try resolver(c, grants: false).resolve(asset())
+            Issue.record("expected resolve to throw")
+        } catch {
+            #expect(error as? LocalMediaFailure == .accessDenied)
         }
+        #expect(c.stops == 0)
+    }
 
-        private func resolver(_ c: Counter, resolves: Bool = true, grants: Bool = true, exists: Bool = true,
-                              stale: Bool = false) -> LocalAssetResolver {
-            let url = fileURL
-            return LocalAssetResolver(
-                resolveBookmark: { _ in resolves ? (url, stale) : nil },
-                startAccess: { _ in if grants { c.start() }; return grants },
-                stopAccess: { _ in c.stop() },
-                fileExists: { _ in exists },
-                managedBase: { URL(fileURLWithPath: "/tmp/tonearm-managed") })
+    @Test func testUnresolvableBookmarkIsRecoverableFailure() {
+        let c = Counter()
+        do {
+            _ = try resolver(c, resolves: false).resolve(asset())
+            Issue.record("expected resolve to throw")
+        } catch {
+            #expect(error as? LocalMediaFailure == .bookmarkUnresolvable)
         }
+        #expect(c.starts == 0)
+    }
 
-        @Test func testBookmarkLeaseAcquiresOnceAndReleasesOnce() throws {
-            let c = Counter()
-            var resolved: ResolvedLocalAsset? = try resolver(c).resolve(asset())
-            #expect(c.starts == 1)
-            #expect(c.stops == 0)
-            resolved?.lease?.release()
-            resolved?.lease?.release()
-            resolved = nil
-            #expect(c.stops == 1)
+    @Test func testMissingFileReleasesScope() {
+        let c = Counter()
+        do {
+            _ = try resolver(c, exists: false).resolve(asset())
+            Issue.record("expected resolve to throw")
+        } catch {
+            #expect(error as? LocalMediaFailure == .fileMissing)
         }
+        #expect(c.starts == 1)
+        #expect(c.stops == 1)
+    }
 
-        @Test func testLeaseReleasedWhenDisposed() throws {
-            let c = Counter()
-            var resolved: ResolvedLocalAsset? = try resolver(c).resolve(asset())
-            #expect(resolved != nil)
-            resolved = nil
-            #expect(c.stops == 1)
-        }
+    @Test func testStaleBookmarkIsRecorded() throws {
+        let c = Counter()
+        #expect(try resolver(c, stale: true).resolve(asset()).bookmarkWasStale)
+    }
 
-        @Test func testDeniedAccessThrowsAndNeverStops() {
-            let c = Counter()
-            do {
-                _ = try resolver(c, grants: false).resolve(asset())
-                Issue.record("expected resolve to throw")
-            } catch {
-                #expect(error as? LocalMediaFailure == .accessDenied)
-            }
-            #expect(c.stops == 0)
-        }
+    @Test func testRelPathNeedsNoLease() throws {
+        let c = Counter()
+        let resolved = try resolver(c).resolve(asset(bookmark: nil, relPath: "a.m4a", kind: .managedCopy))
+        #expect(resolved.backing == .relPath)
+        #expect(resolved.lease == nil)
+        #expect(c.starts == 0)
+    }
 
-        @Test func testUnresolvableBookmarkIsRecoverableFailure() {
-            let c = Counter()
-            do {
-                _ = try resolver(c, resolves: false).resolve(asset())
-                Issue.record("expected resolve to throw")
-            } catch {
-                #expect(error as? LocalMediaFailure == .bookmarkUnresolvable)
-            }
-            #expect(c.starts == 0)
-        }
+    // MARK: Player ownership
 
-        @Test func testMissingFileReleasesScope() {
-            let c = Counter()
-            do {
-                _ = try resolver(c, exists: false).resolve(asset())
-                Issue.record("expected resolve to throw")
-            } catch {
-                #expect(error as? LocalMediaFailure == .fileMissing)
-            }
-            #expect(c.starts == 1)
-            #expect(c.stops == 1)
-        }
+    @Test func testReplacingAndClearingReleaseCurrentAndPreloadedLeases() {
+        let c = Counter()
+        let player = AudioPlayer()
+        player.localResolver = resolver(c)
 
-        @Test func testStaleBookmarkIsRecorded() throws {
-            let c = Counter()
-            #expect(try resolver(c, stale: true).resolve(asset()).bookmarkWasStale)
-        }
+        player.preloadedNextItem = player.buildItem(for: asset())?.item
+        player.replaceItem(player.buildItem(for: asset())!.item, autoplay: false)
+        #expect(c.starts == 2)
+        #expect(c.stops == 0)
 
-        @Test func testRelPathNeedsNoLease() throws {
-            let c = Counter()
-            let resolved = try resolver(c).resolve(asset(bookmark: nil, relPath: "a.m4a", kind: .managedCopy))
-            #expect(resolved.backing == .relPath)
-            #expect(resolved.lease == nil)
-            #expect(c.starts == 0)
-        }
+        // Invalidated preload releases its own lease, and only its own.
+        player.dropPreloadedNext()
+        #expect(c.stops == 1)
 
-        // MARK: Player ownership
+        // Clearing the queue releases the active item's lease.
+        player.clearQueuePlayback()
+        #expect(c.stops == 2)
+    }
 
-        @Test func testReplacingAndClearingReleaseCurrentAndPreloadedLeases() {
-            let c = Counter()
-            let player = AudioPlayer.shared
-            let saved = player.localResolver
-            defer { player.localResolver = saved }
-            player.localResolver = resolver(c)
+    private func drain() { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
 
-            player.preloadedNextItem = player.buildItem(for: asset())?.item
-            player.replaceItem(player.buildItem(for: asset())!.item, autoplay: false)
-            #expect(c.starts == 2)
-            #expect(c.stops == 0)
+    @Test func testLocalFailureSetsMessageAndDoesNotBuildItem() {
+        let c = Counter()
+        let player = AudioPlayer()
+        player.localResolver = resolver(c, grants: false)
+        #expect(player.buildItem(for: asset()) == nil)
+        #expect(player.lastLocalFailure == .accessDenied)
+        player.failLocalPlayback(.accessDenied)
+        #expect(player.networkSkipMessage == LocalMediaFailure.accessDenied.userMessage)
+        #expect(!player.isPlaying)
+    }
 
-            // Invalidated preload releases its own lease, and only its own.
-            player.dropPreloadedNext()
-            #expect(c.stops == 1)
+    @Test func testRemoteItemDoesNotUseLocalResolver() {
+        let c = Counter()
+        let player = AudioPlayer()
+        player.localResolver = resolver(c)
+        let remote = Asset(id: 2, trackId: 2, kind: .remote, bookmark: nil, relPath: nil,
+                           remoteURL: "https://example.invalid/a.mp3", altRemoteURL: nil,
+                           sizeBytes: nil, unsupportedReason: nil)
+        let built = player.buildItem(for: remote)
+        #expect(built != nil)
+        #expect(!(built!.item is LocalPlayerItem))
+        #expect(c.starts == 0)
+    }
 
-            // Clearing the queue releases the active item's lease.
-            player.clearQueuePlayback()
-            #expect(c.stops == 2)
-        }
-
-        private func drain() { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
-
-        @Test func testLocalFailureSetsMessageAndDoesNotBuildItem() {
-            let c = Counter()
-            let player = AudioPlayer.shared
-            let saved = player.localResolver
-            defer { player.localResolver = saved; player.lastLocalFailure = nil }
-            player.localResolver = resolver(c, grants: false)
-            #expect(player.buildItem(for: asset()) == nil)
-            #expect(player.lastLocalFailure == .accessDenied)
-            player.failLocalPlayback(.accessDenied)
-            #expect(player.networkSkipMessage == LocalMediaFailure.accessDenied.userMessage)
-            #expect(!player.isPlaying)
-        }
-
-        @Test func testRemoteItemDoesNotUseLocalResolver() {
-            let c = Counter()
-            let player = AudioPlayer.shared
-            let saved = player.localResolver
-            defer { player.localResolver = saved }
-            player.localResolver = resolver(c)
-            let remote = Asset(id: 2, trackId: 2, kind: .remote, bookmark: nil, relPath: nil,
-                               remoteURL: "https://example.invalid/a.mp3", altRemoteURL: nil,
-                               sizeBytes: nil, unsupportedReason: nil)
-            let built = player.buildItem(for: remote)
-            #expect(built != nil)
-            #expect(!(built!.item is LocalPlayerItem))
-            #expect(c.starts == 0)
-        }
-
-        @Test func testInvalidFixtureReportsFailedStatus() async throws {
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: dir) }
-            let url = dir.appendingPathComponent("bad.m4a")
-            try Data("not audio".utf8).write(to: url)
-            let item = LocalPlayerItem(url: url, lease: nil, backing: .relPath)
-            let player = AVPlayer(playerItem: item)
-            for _ in 0..<100 where item.status == .unknown { try await Task.sleep(for: .milliseconds(50)) }
-            #expect(item.status == .failed)
-            _ = player
-        }
+    @Test func testInvalidFixtureReportsFailedStatus() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("bad.m4a")
+        try Data("not audio".utf8).write(to: url)
+        let item = LocalPlayerItem(url: url, lease: nil, backing: .relPath)
+        let player = AVPlayer(playerItem: item)
+        for _ in 0..<100 where item.status == .unknown { try await Task.sleep(for: .milliseconds(50)) }
+        #expect(item.status == .failed)
+        _ = player
     }
 }

@@ -24,6 +24,8 @@ extension SharedProductionSingletonTests {
 
     @MainActor
     @Suite final class KeepPlayingMandatoryMatchTests {
+        private let player = AudioPlayer()
+
         private final class ScriptedProvider: KeepPlayingSimilarityProviding, @unchecked Sendable {
             let strict: KeepPlayingLookup
             let broader: KeepPlayingLookup
@@ -62,7 +64,6 @@ extension SharedProductionSingletonTests {
         }
 
         private func start(provider: ScriptedProvider?, mix: KeepPlayingMixProviding? = nil) -> AudioPlayer {
-            let player = AudioPlayer.shared
             player.keepPlayingEnabled = false
             player.play(tracks: (1...3).map(makeTrack), startAt: 2)
             player.keepPlayingEnabled = true
@@ -82,11 +83,6 @@ extension SharedProductionSingletonTests {
             let ids = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
             if ids.count < 2 { try Test.cancel("Needs library tracks to hydrate against") }
             return Array(ids.prefix(2))
-        }
-
-        isolated deinit {
-            AudioPlayer.shared.keepPlayingMixProvider = nil
-            AudioPlayer.shared.keepPlayingProvider = nil
         }
 
         @Test func testMixSequenceSkipsClapProvider() async throws {

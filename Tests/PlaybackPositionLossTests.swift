@@ -28,6 +28,7 @@ final class SpyingUserDefaults: UserDefaults {
 extension SharedProductionSingletonTests {
     @MainActor
     @Suite final class PlaybackPositionLossTests {
+        private let player = AudioPlayer()
 
         // XCTest's synchronous teardown hook is nonisolated even though this test case is main-actor
         // isolated. XCTest invokes setup/tests/teardown serially for one instance, so this small piece
@@ -50,11 +51,6 @@ extension SharedProductionSingletonTests {
             for name in suites {
                 UserDefaults().removePersistentDomain(forName: name)
             }
-            let player = AudioPlayer.shared
-            if !player.queue.isEmpty {
-                player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
-            }
-            player.resetRestoreForTesting()
         }
 
         private func resetPlayer(_ player: AudioPlayer) {
@@ -140,7 +136,6 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
             resetPlayer(player)
             let row = TrackRow(
                 track: Track(id: 9, albumId: nil, sourceId: 1,
@@ -170,7 +165,6 @@ extension SharedProductionSingletonTests {
         @Test func testPlaybackCheckpointIsWrittenOnBackgroundEvenWhenPaused() throws {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
-            let player = AudioPlayer.shared
             resetPlayer(player)
             player.persistor = PlaybackPositionPersistor()
             player.queue = [TrackRow(
@@ -191,13 +185,13 @@ extension SharedProductionSingletonTests {
         @Test func testResumeOnEmptyQueuePreservesSnapshot() throws {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
-            resetPlayer(AudioPlayer.shared)
+            resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
                 trackIDs: [1, 2, 3], currentIndex: 1, elapsed: 30,
                 isPlaying: false, savedAt: Date()), defaults: suite)
 
-            AudioPlayer.shared.resumePlayback()
+            player.resumePlayback()
 
             let snap = PlaybackStateStore.load(defaults: suite)
             #expect(snap != nil, "snapshot must survive resume on empty queue")
@@ -206,13 +200,13 @@ extension SharedProductionSingletonTests {
         @Test func testPauseOnEmptyQueuePreservesSnapshot() throws {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
-            resetPlayer(AudioPlayer.shared)
+            resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
                 trackIDs: [1, 2, 3], currentIndex: 1, elapsed: 30,
                 isPlaying: false, savedAt: Date()), defaults: suite)
 
-            AudioPlayer.shared.pausePlayback()
+            player.pausePlayback()
 
             let snap = PlaybackStateStore.load(defaults: suite)
             #expect(snap != nil, "snapshot must survive pause on empty queue")
@@ -221,13 +215,13 @@ extension SharedProductionSingletonTests {
         @Test func testTogglePlayPauseOnEmptyQueuePreservesSnapshot() throws {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
-            resetPlayer(AudioPlayer.shared)
+            resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
                 trackIDs: [1, 2, 3], currentIndex: 1, elapsed: 30,
                 isPlaying: false, savedAt: Date()), defaults: suite)
 
-            AudioPlayer.shared.togglePlayPause()
+            player.togglePlayPause()
 
             let snap = PlaybackStateStore.load(defaults: suite)
             #expect(snap != nil, "snapshot must survive toggle on empty queue")
@@ -246,7 +240,6 @@ extension SharedProductionSingletonTests {
             defer { spySuite.removePersistentDomain(forName: spySuite.suiteName) }
             PlaybackStateStore.defaultsProvider = { spySuite }
 
-            let player = AudioPlayer.shared
             resetPlayer(player)
 
             let seed = PlaybackStateSnapshot(
@@ -275,7 +268,6 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
             resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
@@ -351,7 +343,6 @@ extension SharedProductionSingletonTests {
             let suite = try ephemeralSuite()
             PlaybackStateStore.defaultsProvider = { suite }
 
-            let player = AudioPlayer.shared
             resetPlayer(player)
 
             let row = TrackRow(
