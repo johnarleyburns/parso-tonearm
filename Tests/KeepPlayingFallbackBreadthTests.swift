@@ -25,10 +25,10 @@ final class KeepPlayingFallbackBreadthTests: XCTestCase {
 
     /// Queue header: an icon replaces the "From Library:" text prefix.
     func testQueueHeaderUsesSourceIconAndShortSectionLabel() throws {
-        let source = try source("Sources/Audio/AudioPlayer+QueueSource.swift")
-        XCTAssertTrue(source.contains("public var icon: String"))
-        XCTAssertTrue(source.contains("public var shortLabel: String"))
-        XCTAssertTrue(source.contains("case .source: return \"externaldrive.connected.to.line.below\""))
+        let queueSource = try source("Sources/Audio/AudioPlayer+QueueSource.swift")
+        XCTAssertTrue(queueSource.contains("public var icon: String"))
+        XCTAssertTrue(queueSource.contains("public var shortLabel: String"))
+        XCTAssertTrue(queueSource.contains("case .source: return \"externaldrive.connected.to.line.below\""))
 
         let upNext = try source("Sources/Features/NowPlaying/UpNextView.swift")
         XCTAssertFalse(upNext.contains("Text(player.queueSource.label)"),
