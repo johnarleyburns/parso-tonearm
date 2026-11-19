@@ -17,7 +17,13 @@ protocol NetworkPathMonitoring: AnyObject {
 /// Wraps the real `NWPathMonitor` production has always used. `pathUpdateHandler`
 /// still fires off whatever queue `start(queue:)` was given, exactly as today —
 /// `AudioPlayer`'s own `observeNetworkPath()` does the `@MainActor` hop.
-final class RealNetworkPathMonitor: NetworkPathMonitoring {
+///
+/// `@unchecked Sendable`: `pathUpdateHandler` is set exactly once, synchronously,
+/// by `AudioPlayer.init()` before `start(queue:)` is ever called — the same
+/// single-assignment-before-start lifecycle the real `NWPathMonitor.pathUpdateHandler`
+/// itself already has. The real monitor's background-queue callback only ever reads
+/// it after that one assignment has completed, never concurrently with another write.
+final class RealNetworkPathMonitor: NetworkPathMonitoring, @unchecked Sendable {
     private let monitor = NWPathMonitor()
 
     var isAvailable: Bool { monitor.currentPath.status == .satisfied }

@@ -23,7 +23,7 @@ protocol PlayerEngine: AnyObject {
     func seek(to time: CMTime)
     @discardableResult func seek(to time: CMTime, toleranceBefore: CMTime, toleranceAfter: CMTime) async -> Bool
     func currentTime() -> CMTime
-    func addPeriodicTimeObserver(forInterval interval: CMTime, queue: DispatchQueue?, using block: @escaping (CMTime) -> Void) -> Any
+    func addPeriodicTimeObserver(forInterval interval: CMTime, queue: DispatchQueue?, using block: @escaping @Sendable (CMTime) -> Void) -> Any
     func removeTimeObserver(_ observer: Any)
 }
 

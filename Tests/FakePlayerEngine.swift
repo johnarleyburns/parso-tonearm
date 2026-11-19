@@ -36,7 +36,7 @@ final class FakePlayerEngine: PlayerEngine {
     func currentTime() -> CMTime { .zero }
 
     func addPeriodicTimeObserver(
-        forInterval interval: CMTime, queue: DispatchQueue?, using block: @escaping (CMTime) -> Void
+        forInterval interval: CMTime, queue: DispatchQueue?, using block: @escaping @Sendable (CMTime) -> Void
     ) -> Any {
         // Never fires: nothing constructed with this fake depends on periodic-tick-driven
         // side effects (they set AudioPlayer's own state directly instead).
