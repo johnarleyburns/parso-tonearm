@@ -134,7 +134,7 @@ struct MyMusicView: View {
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
                     NavigationLink {
-                        SourcesView(ownsNavigationStack: false)
+                        SourcesView(ownsNavigationStack: false, showsBackButton: true)
                     } label: {
                         Image(systemName: "externaldrive.connected.to.line.below")
                     }

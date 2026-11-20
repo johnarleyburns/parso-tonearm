@@ -440,7 +440,8 @@ final class DiscoveryRuntimeController {
             },
             onDownloadModels: {},
             onOpenIndexStatus: {},
-            requireFullyIndexed: requireFullyIndexed)
+            requireFullyIndexed: requireFullyIndexed,
+            fallbackToBroaderWhenFullyIndexedEmpty: requireFullyIndexed)
     }
 
     /// "Analyze this track" for a stale/missing reference embedding (plan §9)

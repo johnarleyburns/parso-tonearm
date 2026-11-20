@@ -2,10 +2,9 @@ import Foundation
 import Testing
 
 /// Real report: Ambient's Now Playing should be highly simplified — only play/pause, AirPlay,
-/// and the sleep timer, with everything else hidden (Queue stays, already correct). NowPlaying
-/// is one shared screen for all playback (no per-playlist variant), so this reuses the existing
-/// `player.isAmbient` gate already used to hide the scrubber and disable shuffle/add-to-playlist,
-/// rather than forking the view. Source inspection (no simulator), matching this repo's
+/// and the sleep timer, with everything else hidden (Queue stays, already correct). The secondary
+/// actions now live in one top-right glass actions menu; ambient must still show only AirPlay and
+/// the sleep submenu from that menu. Source inspection (no simulator), matching this repo's
 /// established convention.
 @Suite struct NowPlayingAmbientSimplificationTests {
     private func source() throws -> String {
@@ -15,81 +14,97 @@ import Testing
             encoding: .utf8)
     }
 
-    /// The identifier's declaration must be preceded (nearer than any other identifier's own
-    /// opening brace) by an `if !player.isAmbient {` whose matching close comes after it. Since
-    /// plain string search can't brace-match, approximate by requiring the nearest preceding
-    /// `if !player.isAmbient {` and the nearest preceding unrelated top-level identifier both
-    /// land in the expected order relative to a known "definitely inside the guard" anchor.
-    private func isPrecededByNotAmbientGuard(_ identifier: String, in text: String) throws -> Bool {
-        let idRange = try #require(text.range(of: "\"\(identifier)\""), "missing \(identifier)")
-        guard let guardRange = text.range(of: "if !player.isAmbient {", options: .backwards,
-                                          range: text.startIndex..<idRange.lowerBound) else { return false }
-        // No unguarded top-level `}` at column matching the HStack/Menu body between guard and id —
-        // good enough signal: the guard must be the *closest* preceding one, i.e. no identifier of
-        // a DIFFERENT, unguarded control sits between the guard and this identifier other than ones
-        // we expect inside the same guard. We just confirm ordering; exact brace matching is
-        // covered by `swift build` succeeding.
-        _ = guardRange
-        return true
+    private func actionsMenuBlock(_ text: String) throws -> Substring {
+        let start = try #require(text.range(of: "private var actionsMenu: some View"))
+        let end = try #require(text.range(of: "private var airPlayPickerSheet",
+                                            range: start.upperBound..<text.endIndex))
+        return text[start.lowerBound..<end.lowerBound]
+    }
+
+    @Test func testActionsMenuLivesInTheRightToolbarNotTheBody() throws {
+        let text = try source()
+        #expect(text.contains(".toolbar {\n            ToolbarItem(placement: .topBarTrailing) {\n                actionsMenu"),
+                "the actions must sit in a right-side toolbar item")
+        #expect(!text.contains("toolbar.padding(.top, 16)"),
+                "the old inline action row must be gone")
+    }
+
+    @Test func testActionsMenuContainsEveryRequestedAction() throws {
+        let block = try actionsMenuBlock(try source())
+        for identifier in [
+            "np.back", "np.repeat", "np.shuffle", "np.favorite", "np.addToPlaylist",
+            "np.airplay", "np.download", "np.watchDownload", "np.sleep"
+        ] {
+            #expect(block.contains("\"\(identifier)\""), "missing \(identifier) in the actions menu")
+        }
+        #expect(block.contains("Label(\"AirPlay\", systemImage: \"airplayaudio\")"))
+    }
+
+    /// The track-only actions sit inside `if !player.isAmbient` guards; AirPlay and
+    /// the sleep submenu do not.
+    @Test func testAmbientHidesTrackActionsButKeepsAirPlayAndSleep() throws {
+        let block = try actionsMenuBlock(try source())
+        let firstGuard = try #require(block.range(of: "if !player.isAmbient {"))
+        let firstGuardClose = try #require(block.range(
+            of: "\n            }\n\n            Button { showAirPlayPicker = true }",
+            range: firstGuard.upperBound..<block.endIndex))
+        let firstGuarded = block[firstGuard.lowerBound..<firstGuardClose.lowerBound]
+        for identifier in ["np.repeat", "np.shuffle", "np.favorite", "np.addToPlaylist"] {
+            #expect(firstGuarded.contains("\"\(identifier)\""),
+                    "\(identifier) must be hidden for ambient playback")
+        }
+
+        let secondGuard = try #require(block.range(
+            of: "if !player.isAmbient {",
+            range: firstGuardClose.upperBound..<block.endIndex))
+        let secondGuardClose = try #require(block.range(
+            of: "\n            }\n\n            Menu {",
+            range: secondGuard.upperBound..<block.endIndex))
+        let secondGuarded = block[secondGuard.lowerBound..<secondGuardClose.lowerBound]
+        for identifier in ["np.download", "np.watchDownload"] {
+            #expect(secondGuarded.contains("\"\(identifier)\""),
+                    "\(identifier) must be hidden for ambient playback")
+        }
+
+        let unconditional = block[firstGuardClose.lowerBound..<secondGuard.lowerBound]
+        #expect(unconditional.contains("\"np.airplay\""),
+                "AirPlay must remain available for ambient playback")
+        #expect(block.contains("Label(sleepTitle, systemImage: sleepIcon)"),
+                "sleep timer must remain available for ambient playback")
     }
 
     @Test func testTransportKeepsOnlyPlayPauseUnconditional() throws {
         let text = try source()
-        for identifier in ["np.prev", "np.next", "np.repeat", "np.shuffle"] {
-            let gated = try isPrecededByNotAmbientGuard(identifier, in: text)
-            #expect(gated, "\(identifier) must be hidden for ambient playback")
-        }
-        let playPauseRange = try #require(text.range(of: "\"np.playpause\""))
-        let prevIdRange = try #require(text.range(of: "\"np.prev\""))
-        // np.prev's own `if !player.isAmbient {` guard, and its matching close, must both land
-        // before np.playpause — i.e. play/pause sits outside (after) that guard block, not inside it.
-        let prevGuardClose = try #require(text.range(of: "\n            }\n            Button { player.togglePlayPause()"))
-        #expect(prevIdRange.lowerBound < prevGuardClose.lowerBound)
-        #expect(prevGuardClose.lowerBound < playPauseRange.lowerBound)
+        let prevRange = try #require(text.range(of: "\"np.prev\""))
+        let playPause = try #require(text.range(of: "\"np.playpause\""))
+        let nextRange = try #require(text.range(of: "\"np.next\""))
+        #expect(prevRange.lowerBound < playPause.lowerBound)
+        #expect(playPause.lowerBound < nextRange.lowerBound)
+
+        // prev is inside a leading `if !player.isAmbient` guard that closes
+        // immediately before play/pause; next is inside a trailing guard.
+        let prevGuardClose = try #require(text.range(
+            of: "\n            }\n            Button { player.togglePlayPause()",
+            range: prevRange.upperBound..<playPause.lowerBound))
+        #expect(prevRange.lowerBound < prevGuardClose.lowerBound)
+        let nextGuard = try #require(text.range(
+            of: "if !player.isAmbient {", options: .backwards,
+            range: playPause.upperBound..<nextRange.lowerBound))
+        #expect(nextGuard.lowerBound < nextRange.lowerBound,
+                "next must be hidden for ambient playback")
     }
 
-    @Test func testToolbarKeepsOnlyAirPlayUnconditional() throws {
-        let text = try source()
-        for identifier in ["np.favorite", "np.addToPlaylist"] {
-            let gated = try isPrecededByNotAmbientGuard(identifier, in: text)
-            #expect(gated, "\(identifier) must be hidden for ambient playback")
-        }
-        #expect(text.contains("if !player.isAmbient {\n                phoneDownloadButton(for: player.currentTrack)\n                watchButton(for: player.currentTrack)\n            }"),
-            "download/watch buttons must be hidden for ambient playback")
-        #expect(!text.contains("if !player.isAmbient {\n                AirPlayButton"),
-            "AirPlayButton must remain unconditional for ambient playback")
-        let airplayRange = try #require(text.range(of: "AirPlayButton()"))
-        let favoriteRange = try #require(text.range(of: "\"np.favorite\""))
-        #expect(favoriteRange.lowerBound < airplayRange.lowerBound,
-            "favorite's guard must close before AirPlayButton")
-    }
-
-    /// The overflow "moon" menu's artwork-edit items are already gated; Equalizer and Share
-    /// Artwork must join them so only the sleep-timer entries remain for ambient playback.
-    @Test func testOverflowMenuHidesEqualizerAndShareForAmbient() throws {
-        let text = try source()
-        #expect(text.contains("if !player.isAmbient {\n                    Button { showEQ = true } label: { Label(\"Equalizer\", systemImage: \"slider.vertical.3\") }\n                }"),
-            "Equalizer must be hidden for ambient playback")
-        #expect(text.contains("if !player.isAmbient, let row = player.currentTrack, let shareURL = shareURL(for: row) {"),
-            "Share Artwork must be hidden for ambient playback")
-    }
-
-    @Test func testSleepTimerEntriesStayUnconditional() throws {
+    @Test func testSleepTimerEntriesStay() throws {
         let text = try source()
         for label in ["\"15 minutes\"", "\"30 minutes\"", "\"45 minutes\"", "\"1 hour\"", "\"End of track\""] {
             #expect(text.contains("Button(\(label))"), "sleep timer entry \(label) must still exist")
         }
-        let eqRange = try #require(text.range(of: "Label(\"Equalizer\""))
-        let sleepRange = try #require(text.range(of: "Button(\"15 minutes\")"))
-        #expect(eqRange.lowerBound < sleepRange.lowerBound,
-            "sleep timer entries sit after (outside) the Equalizer's own isAmbient guard")
     }
 
-    /// Queue is already correct per the request — confirm it isn't touched by this change.
     @Test func testQueueStaysUnconditional() throws {
         let text = try source()
         #expect(!text.contains("if !player.isAmbient {\n                UpNextView"),
-            "UpNextView (Queue) must remain unconditional")
+                "UpNextView (Queue) must remain unconditional")
         #expect(text.contains("UpNextView()"))
     }
 }

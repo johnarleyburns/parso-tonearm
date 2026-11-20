@@ -71,10 +71,18 @@ struct ListenView: View {
     /// native iOS 26+ toolbar glass renders it, no manual glass modifier
     /// needed.
     private var supporterBadge: some View {
-        Label("Supporter", systemImage: "heart.fill")
-            .font(Typography.caption)
-            .foregroundStyle(Palette.accent)
-            .accessibilityIdentifier("listen.supporterBadge")
+        // An HStack, not `Label`: a `Label` placed in a navigation-bar
+        // toolbar collapses to its icon, so the heart rendered but the word
+        // "Supporter" never did. Voxglass spells the badge out the same way.
+        HStack(spacing: 4) {
+            Image(systemName: "heart.fill")
+            Text("Supporter")
+        }
+        .font(Typography.caption)
+        .foregroundStyle(Palette.accent)
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("listen.supporterBadge")
     }
 
     private var settingsButton: some View {

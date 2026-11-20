@@ -28,7 +28,7 @@ import Testing
         #expect(myMusic.contains("if scope == .playlists {"))
         let scopeGuardRange = try #require(myMusic.range(of: "if scope == .playlists {"))
         let topLeadingRange = try #require(myMusic.range(of: "ToolbarItem(placement: .topBarLeading)",
-                                                            range: scopeGuardRange.lowerBound..<myMusic.endIndex))
+                                                           range: scopeGuardRange.lowerBound..<myMusic.endIndex))
         #expect(scopeGuardRange.lowerBound < topLeadingRange.lowerBound)
         #expect(myMusic.contains("\"playlists.create\""),
             "reuses the same identifier the old inline header row had")
@@ -45,8 +45,30 @@ import Testing
             "the library icon must sit inside the grouped toolbar")
         #expect(libraryRange.lowerBound < indexRange.lowerBound,
             "library icon must come before the sound-index icon, per the requested order")
-        #expect(myMusic.contains("SourcesView(ownsNavigationStack: false)"),
-            "pressing the library icon must push the same Libraries screen (SourcesView), embedded")
+        #expect(myMusic.contains("SourcesView(ownsNavigationStack: false, showsBackButton: true)"),
+            "the library icon must push the same Libraries screen, with its own header back button")
+        #expect(!myMusic.contains(".sheet(isPresented: $showLibraries)"),
+            "Libraries is navigation with a back affordance, not a sheet")
+    }
+
+    /// Real reports: (1) Libraries opened as a pushed page with no way back
+    /// because its navigation bar is hidden; (2) tapping an already-configured
+    /// library flashed `SourceDetailView` then popped straight back.
+    @Test func testLibrariesPushUsesHeaderBackAndRowsPushDetailDirectly() throws {
+        let sources = try source("Sources/Features/Sources/SourcesView.swift")
+        #expect(sources.contains("showsBackButton: Bool = false"))
+        #expect(sources.contains("backAction: showsBackButton ? { dismiss() } : nil"),
+            "the pushed Libraries screen needs its own header back button — its nav bar is hidden")
+        #expect(!sources.contains("NavigationLink(value: source)"),
+            "configured-library rows must push SourceDetailView with a destination closure; the "
+                + "value-based link flashed and returned when the destination registration was missing")
+        #expect(sources.contains("NavigationLink {\n                                SourceDetailView(source: source)"),
+            "local library rows open SourceDetailView directly")
+
+        let components = try source("Sources/Features/Components.swift")
+        #expect(components.contains("var backAction: (() -> Void)? = nil"))
+        #expect(components.contains("Image(systemName: \"chevron.left\")"))
+        #expect(components.contains("\"screen.back\""))
     }
 
     @Test func testRootViewHasExactlyThreeTabs() throws {

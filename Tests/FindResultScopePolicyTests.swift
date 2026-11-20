@@ -60,20 +60,23 @@ import Testing
                            encoding: .utf8)
         #expect(s.contains("LibraryBrowseMode.allCases.filter { $0 != .genres }"))
         #expect(s.contains("ForEach(findScopeOptions)"),
-                     "findScopePicker must iterate the filtered options, not allCases directly")
+                "findScopePicker must iterate the filtered options, not allCases directly")
     }
 
-    /// The old inline Name/Mood/BPM-Key row is gone, replaced by a glass menu in the nav bar.
-    @Test func testModeSelectionMovedToAToolbarGlassMenu() throws {
+    /// The old inline Name/Mood/BPM-Key row is gone, replaced by a menu in the nav bar.
+    /// Native iOS 26 toolbar chrome supplies the glass; the manual `.adaptiveGlass`
+    /// nested a second GlassEffectContainer and flashed on every press.
+    @Test func testModeSelectionMovedToAToolbarMenu() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let find = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                               encoding: .utf8)
         #expect(find.contains(".toolbar { ToolbarItem(placement: .topBarTrailing) { FindModeMenu(mode: $mode) } }"))
-        #expect(find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"))
+        #expect(!find.contains(".adaptiveGlass(cornerRadius: Metrics.glassCornerRadius)"),
+                "native toolbar glass replaces the manually nested GlassEffectContainer")
         let controls = try String(
             contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
             encoding: .utf8)
         #expect(!controls.contains("modeSelector"),
-                       "the inline mode row must be fully removed, not just unused")
+                "the inline mode row must be fully removed, not just unused")
     }
 }
