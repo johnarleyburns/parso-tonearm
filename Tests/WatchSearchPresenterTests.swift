@@ -93,16 +93,6 @@ private final class Counter: @unchecked Sendable {
         if !predicate(presenter.phase) { Issue.record("presenter condition not met in time") }
     }
 
-    /// Polls non-presenter state (the injected backend's own counters).
-    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if condition() { return }
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-        Issue.record("condition not met in time")
-    }
-
     @Test func testStartsOnRecents() {
         let presenter = makePresenter(mode: .connected, recents: .init(["ambient", "piano"]))
         #expect(presenter.phase == .recent(["ambient", "piano"]))
@@ -140,24 +130,24 @@ private final class Counter: @unchecked Sendable {
     }
 
     @Test func testSupersededReplyDoesNotRepaint() async {
-        let slowStarted = Counter()
-        let slowFinished = Counter()
+        let slowStarted = Waiter()
+        let slowFinished = Waiter()
         let presenter = makePresenter(mode: .connected, connected: { q, gen in
             if q == "slow" {
-                slowStarted.bump()
+                slowStarted.signal()
                 try? await Task.sleep(for: .milliseconds(80))
-                slowFinished.bump()
+                slowFinished.signal()
                 return .superseded
             }
             return .results(WatchSearchResponse(generation: gen, query: q, rows: [row("fresh")]))
         })
         presenter.query = "slow"
-        await waitUntil { slowStarted.count == 1 }
+        await slowStarted.wait()
         presenter.query = "fresh"
         await waitForPhase(presenter) { $0 == .results([row("fresh")]) }
         // Wait for the superseded reply to actually arrive, then assert it did
         // not repaint over the newer query.
-        await waitUntil { slowFinished.count == 1 }
+        await slowFinished.wait()
         #expect(presenter.phase == .results([row("fresh")]),
                        "a late superseded reply must not overwrite the newer query's results")
     }

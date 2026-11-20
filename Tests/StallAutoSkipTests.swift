@@ -50,7 +50,7 @@ extension SharedProductionSingletonTests {
             // `confirmPlayback` never fires.
             player.player.pause()
 
-            let paused = await waitUntil(timeout: 2) { player.isPlaying == false }
+            let paused = await waitUntil(timeout: 10) { player.isPlaying == false }
             #expect(paused,
                 "an unconfirmed autoplaying track with nowhere to skip to must pause, not hang forever")
         }

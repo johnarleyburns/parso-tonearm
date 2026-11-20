@@ -113,7 +113,7 @@ private final class BlockingSource: @unchecked Sendable {
         let src = BlockingSource(); src.block = false; src.failNext = true
         // A long cooldown makes the debounce assertion independent of how long
         // the parallel test runner takes to schedule the second call.
-        let c = make(src, cooldown: .seconds(5))
+        let c = make(src, timeout: .seconds(30), cooldown: .seconds(30))
         _ = await c.load()
         let debounced = await c.load()
         #expect(debounced.state == .retryingSoon)
