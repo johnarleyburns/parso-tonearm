@@ -39,7 +39,11 @@ private func envelope(_ ids: [String]) -> String {
 }
 
 @MainActor
-@Suite struct JamendoAPITests {
+/// Serialized because `URLProtocol` registration is process-wide and
+/// `JamendoStubProtocol` records each request in static storage shared by every
+/// test in this suite; concurrent async tests would otherwise see each other's
+/// requests and responses.
+@Suite(.serialized) struct JamendoAPITests {
     private func makeAPI() -> JamendoAPI {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [JamendoStubProtocol.self]

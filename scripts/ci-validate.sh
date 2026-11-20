@@ -66,17 +66,27 @@ rm -f "$TEST_LOG"
 set +e
 swift test --skip TonearmProductionRegressionTests >"$TEST_LOG" 2>&1 &
 TEST_PID=$!
-( sleep 720; kill -TERM "$TEST_PID" 2>/dev/null ) &
+( sleep 600; kill -TERM "$TEST_PID" 2>/dev/null ) &
 WATCHDOG_PID=$!
 wait "$TEST_PID"
 TEST_STATUS=$?
 kill "$WATCHDOG_PID" 2>/dev/null
 wait "$WATCHDOG_PID" 2>/dev/null
 if [ "$TEST_STATUS" -ne 0 ]; then
-  echo "swift test failed or timed out (status $TEST_STATUS); last 400 lines:"
-  tail -400 "$TEST_LOG"
+  echo "swift test failed or timed out (status $TEST_STATUS)."
+  # Sample any still-running test bundle before killing it: this is what
+  # identifies a hung test instead of another blind timeout.
+  for pid in $(pgrep -f "TonearmCoreTests.xctest" 2>/dev/null || true) \
+             $(pgrep -f "TonearmDiscoveryTests.xctest" 2>/dev/null || true); do
+    echo "=== stack sample of hung test process $pid ==="
+    sample "$pid" 3 -file "/tmp/tonearm-sample-$pid.txt" 2>/dev/null || true
+    sed -n '1,220p' "/tmp/tonearm-sample-$pid.txt" 2>/dev/null || true
+  done
+  echo "=== last 4000 log lines ==="
+  tail -4000 "$TEST_LOG"
   pkill -TERM -P "$TEST_PID" 2>/dev/null || true
   pkill -f "TonearmCoreTests.xctest" 2>/dev/null || true
+  pkill -f "TonearmDiscoveryTests.xctest" 2>/dev/null || true
   pkill -f "swiftpm-testing" 2>/dev/null || true
 fi
 set -e
