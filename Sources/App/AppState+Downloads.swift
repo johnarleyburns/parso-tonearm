@@ -330,7 +330,7 @@ extension AppState {
                                     iaIdentifier: String?,
                                     credential: Data,
                                     credentialAccount: (Int64) -> String) async throws {
-        var source = Source(
+        let candidate = Source(
             id: nil,
             kind: kind,
             iaIdentifier: iaIdentifier,
@@ -342,12 +342,27 @@ extension AppState {
             licenseText: nil,
             memberCapHit: false
         )
-        source = try await store.insertSource(source)
+        // Re-adding the same account/endpoint must reuse its Source: track
+        // identity is namespaced by source id, so a second Source row makes
+        // every file ingest again under a new identity (duplicate Favorites /
+        // Jump Back In entries).
+        let existing = RemoteSourceIdentity.existingSource(
+            in: (try? await store.allSources()) ?? [],
+            kind: kind, iaIdentifier: iaIdentifier, originalURL: originalURL)
+        let source: Source
+        let isNew: Bool
+        if let existing {
+            source = existing
+            isNew = false
+        } else {
+            source = try await store.insertSource(candidate)
+            isNew = true
+        }
         guard let sourceID = source.id else { return }
         do {
             try CredentialStore().save(credential, account: credentialAccount(sourceID))
         } catch {
-            try? await store.deleteSource(id: sourceID)
+            if isNew { try? await store.deleteSource(id: sourceID) }
             throw error
         }
         await reload()

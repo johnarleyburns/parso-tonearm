@@ -74,4 +74,33 @@ import Testing
         let sources = try await store.allSources().filter { $0.title == "Local Files" && $0.kind == .local }
         #expect(sources.count == 1, "repeated imports must reuse the single 'Local Files' source, not duplicate it")
     }
+
+    /// Real report: adding one file, then later adding the folder that contains
+    /// the same file, duplicated it. Both paths already call the size+duration
+    /// duplicate check; this pins the cross-path behavior with a real audio
+    /// fixture (already-in-library bytes at a second path).
+    @Test func testSameFileImportedFromASinglePathAndThenAFolderIsSkipped() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try #require(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ingest-dup-\(UUID().uuidString)", isDirectory: true)
+        let firstPath = root.appendingPathComponent("single-copy.wav")
+        let folder = root.appendingPathComponent("folder", isDirectory: true)
+        let secondPath = folder.appendingPathComponent("folder-copy.wav")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.copyItem(at: source, to: firstPath)
+        try FileManager.default.copyItem(at: source, to: secondPath)
+
+        let first = await IngestService().addFiles([firstPath], into: store)
+        #expect(first.imported == 1)
+
+        let second = try await IngestService().addFolder(
+            folder, includeSubfolders: false, keepOrder: true, watch: false, into: store)
+        #expect(second.imported == 0, "the same bytes at a second path must not be added twice")
+        #expect(second.skippedDuplicates == 1)
+
+        let allTracks = try await store.allTrackRows()
+        #expect(allTracks.count == 1)
+    }
 }
