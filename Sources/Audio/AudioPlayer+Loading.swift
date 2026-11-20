@@ -597,7 +597,7 @@ extension AudioPlayer {
     }
 
     private func buildAndStorePreloadedItem(row: TrackRow, asset: Asset) {
-        guard let built = buildItem(for: asset) else { return }
+        guard let built = ordinaryBuildItemHook?(asset) ?? buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
         applyEQ(to: built.item, row: row)
         preloadedNextItem = built.item

@@ -150,6 +150,9 @@ public final class AudioPlayer: ObservableObject {
 
     public var streamOnCellular = true
     public var prefetchDepth = 2
+    /// Test seam: record the prefetched URL without creating a real
+    /// `CachingResourceLoader`/URLSession. Production keeps this `true`.
+    var prefetchLoaderEnabled = true
     public var preferFLAC = false
     public var replayGainMode: ReplayGain.Mode = .track
     public var replayGainPreampDB: Double = 0

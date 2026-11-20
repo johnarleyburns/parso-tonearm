@@ -139,7 +139,7 @@ extension AudioPlayer {
             preloadedNextTrackId = nil
             preloadedNextLoader = nil
         } else {
-            built = buildItem(for: asset)
+            built = ordinaryBuildItemHook?(asset) ?? buildItem(for: asset)
         }
 
         guard let built else { return false }
