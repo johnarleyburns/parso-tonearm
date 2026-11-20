@@ -19,14 +19,19 @@ public enum RemoteSourceIdentity {
         let account = normalizedAccount(iaIdentifier)
         let url = normalizedURL(originalURL)
 
-        if let account {
-            return sources.first {
-                $0.kind == kind && normalizedAccount($0.iaIdentifier) == account
-            }
-        }
+        // A server endpoint is the primary key when present; the account label
+        // is a second discriminator (two WebDAV/Jellyfin servers can share a
+        // username/user id). OAuth cloud drives have no endpoint, so their
+        // account label is the key.
         if let url {
             return sources.first {
                 $0.kind == kind && normalizedURL($0.originalURL) == url
+                    && (account == nil || normalizedAccount($0.iaIdentifier) == account)
+            }
+        }
+        if let account {
+            return sources.first {
+                $0.kind == kind && normalizedAccount($0.iaIdentifier) == account
             }
         }
         return nil

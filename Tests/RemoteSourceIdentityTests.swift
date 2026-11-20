@@ -44,6 +44,20 @@ import Testing
             iaIdentifier: nil, originalURL: "https://music.example.com/dav")?.id == 7)
     }
 
+    @Test func testSameEndpointWithDifferentUsernameDoesNotMatch() {
+        let existing = source(kind: .webDAV, account: "alice", url: "https://music.example.com/dav")
+        #expect(RemoteSourceIdentity.existingSource(
+            in: [existing], kind: .webDAV,
+            iaIdentifier: "bob", originalURL: "https://music.example.com/dav") == nil)
+    }
+
+    @Test func testSameAccountOnADifferentEndpointDoesNotMatch() {
+        let existing = source(kind: .jellyfin, account: "user-1", url: "https://one.example.com")
+        #expect(RemoteSourceIdentity.existingSource(
+            in: [existing], kind: .jellyfin,
+            iaIdentifier: "user-1", originalURL: "https://two.example.com") == nil)
+    }
+
     @Test func testRawTokenWithNoAccountOrEndpointIsNeverGuessed() {
         let existing = source(account: nil, url: nil)
         #expect(RemoteSourceIdentity.existingSource(
