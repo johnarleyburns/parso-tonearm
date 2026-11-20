@@ -28,12 +28,12 @@ private final class Counter: @unchecked Sendable {
                                                 onWatchOnly: false)
         })
         presenter.query = "Home Cooking"
-        await waitUntil { presenter.phase == .offlineNoResults }
+        await waitForPhase(presenter) { $0 == .offlineNoResults }
         #expect(presenter.phase == .offlineNoResults)
         try await repository.upsertTrack(.init(trackID: "home", title: "Home Cooking I"))
         presenter.refresh()
-        await waitUntil {
-            if case .offlineResults = presenter.phase { return true }
+        await waitForPhase(presenter) {
+            if case .offlineResults = $0 { return true }
             return false
         }
         guard case .offlineResults(let rows) = presenter.phase else {
@@ -56,15 +56,51 @@ private final class Counter: @unchecked Sendable {
             debounce: .zero, sleep: { _ in })
     }
 
-    /// Polls the presenter instead of assuming a fixed 50 ms is enough while
-    /// 1,600 other tests compete for the machine.
+    private final class Waiter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var done = false
+        func wait() async {
+            await withCheckedContinuation { c in
+                lock.lock()
+                if done { lock.unlock(); c.resume() } else { continuation = c; lock.unlock() }
+            }
+        }
+        func signal() {
+            lock.lock()
+            if done { lock.unlock(); return }
+            done = true
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume()
+        }
+    }
+
+    /// Waits on the presenter's own phase-change signal instead of polling from
+    /// a busy loop; a watchdog still bounds a genuine failure.
+    private func waitForPhase(
+        _ presenter: WatchSearchPresenter,
+        _ predicate: @escaping (WatchSearchPresenter.Phase) -> Bool
+    ) async {
+        if predicate(presenter.phase) { return }
+        let waiter = Waiter()
+        presenter.phaseDidChange = { phase in if predicate(phase) { waiter.signal() } }
+        let watchdog = Task { try? await Task.sleep(for: .seconds(10)); waiter.signal() }
+        await waiter.wait()
+        watchdog.cancel()
+        presenter.phaseDidChange = nil
+        if !predicate(presenter.phase) { Issue.record("presenter condition not met in time") }
+    }
+
+    /// Polls non-presenter state (the injected backend's own counters).
     private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if condition() { return }
-            try? await Task.sleep(for: .milliseconds(20))
+            try? await Task.sleep(for: .milliseconds(50))
         }
-        Issue.record("presenter condition not met in time")
+        Issue.record("condition not met in time")
     }
 
     @Test func testStartsOnRecents() {
@@ -75,7 +111,7 @@ private final class Counter: @unchecked Sendable {
     @Test func testShortQueryIsTooShortWhileTyping() async {
         let presenter = makePresenter(mode: .connected)
         presenter.query = "a"
-        await waitUntil { presenter.phase == .tooShort }
+        await waitForPhase(presenter) { $0 == .tooShort }
         #expect(presenter.phase == .tooShort)
     }
 
@@ -87,11 +123,11 @@ private final class Counter: @unchecked Sendable {
                                                 rows: q == "empty" ? [] : [row("t1")]))
         })
         presenter.query = "piano"
-        await waitUntil { presenter.phase == .results([row("t1")]) }
+        await waitForPhase(presenter) { $0 == .results([row("t1")]) }
         #expect(presenter.phase == .results([row("t1")]))
 
         presenter.query = "empty"
-        await waitUntil { presenter.phase == .noResults }
+        await waitForPhase(presenter) { $0 == .noResults }
         #expect(presenter.phase == .noResults)
         #expect(calls.count == 2)
     }
@@ -99,7 +135,7 @@ private final class Counter: @unchecked Sendable {
     @Test func testConnectedFaultBecomesUnreachable() async {
         let presenter = makePresenter(mode: .connected, connected: { _, _ in .failed(.init(code: .phoneUnavailable)) })
         presenter.query = "piano"
-        await waitUntil { presenter.phase == .unreachable(fallback: []) }
+        await waitForPhase(presenter) { $0 == .unreachable(fallback: []) }
         #expect(presenter.phase == .unreachable(fallback: []))
     }
 
@@ -118,7 +154,7 @@ private final class Counter: @unchecked Sendable {
         presenter.query = "slow"
         await waitUntil { slowStarted.count == 1 }
         presenter.query = "fresh"
-        await waitUntil { presenter.phase == .results([row("fresh")]) }
+        await waitForPhase(presenter) { $0 == .results([row("fresh")]) }
         // Wait for the superseded reply to actually arrive, then assert it did
         // not repaint over the newer query.
         await waitUntil { slowFinished.count == 1 }
@@ -129,11 +165,11 @@ private final class Counter: @unchecked Sendable {
     @Test func testOfflineModeUsesLocalSearch() async {
         let presenter = makePresenter(mode: .offline, offline: { q in q == "rain" ? [row("local1")] : [] })
         presenter.query = "rain"
-        await waitUntil { presenter.phase == .offlineResults([row("local1")]) }
+        await waitForPhase(presenter) { $0 == .offlineResults([row("local1")]) }
         #expect(presenter.phase == .offlineResults([row("local1")]))
 
         presenter.query = "nothing"
-        await waitUntil { presenter.phase == .offlineNoResults }
+        await waitForPhase(presenter) { $0 == .offlineNoResults }
         #expect(presenter.phase == .offlineNoResults)
     }
 
@@ -141,7 +177,7 @@ private final class Counter: @unchecked Sendable {
         let recents = WatchInMemoryRecentSearchStore()
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] }, recents: recents)
         presenter.submit("jazz")
-        await waitUntil { presenter.phase == .offlineResults([row("x")]) }
+        await waitForPhase(presenter) { $0 == .offlineResults([row("x")]) }
         #expect(recents.load() == ["jazz"])
         #expect(presenter.phase == .offlineResults([row("x")]))
     }
@@ -152,12 +188,12 @@ private final class Counter: @unchecked Sendable {
             connected: { _, _ in .failed(.init(code: .phoneUnavailable)) },
             offline: { _ in [row("localhit")] })
         presenter.query = "piano"
-        await waitUntil { presenter.phase == .unreachable(fallback: [row("localhit")]) }
+        await waitForPhase(presenter) { $0 == .unreachable(fallback: [row("localhit")]) }
         #expect(presenter.phase == .unreachable(fallback: [row("localhit")]),
                        "a phone fault falls back to the watch's downloads and says so")
 
         presenter.setMode(.offline)
-        await waitUntil { presenter.phase == .offlineResults([row("localhit")]) }
+        await waitForPhase(presenter) { $0 == .offlineResults([row("localhit")]) }
         #expect(presenter.phase == .offlineResults([row("localhit")]))
     }
 
@@ -165,9 +201,9 @@ private final class Counter: @unchecked Sendable {
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] },
                                       recents: .init(["old"]))
         presenter.query = "abc"
-        await waitUntil { presenter.phase == .offlineResults([row("x")]) }
+        await waitForPhase(presenter) { $0 == .offlineResults([row("x")]) }
         presenter.query = ""
-        await waitUntil { presenter.phase == .recent(["old"]) }
+        await waitForPhase(presenter) { $0 == .recent(["old"]) }
         #expect(presenter.phase == .recent(["old"]))
     }
 }
