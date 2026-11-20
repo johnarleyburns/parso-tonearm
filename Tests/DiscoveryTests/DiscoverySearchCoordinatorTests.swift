@@ -2,14 +2,14 @@
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
 /// Plan §9 input-side contract: debounce, generation guard, cancellation of a
 /// superseded query.
-final class DiscoverySearchCoordinatorTests: XCTestCase {
+@Suite struct DiscoverySearchCoordinatorTests {
     private func makeService() async throws -> (SearchService, URL) {
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("coord-\(UUID().uuidString).bin")
@@ -30,7 +30,7 @@ final class DiscoverySearchCoordinatorTests: XCTestCase {
             cacheURL)
     }
 
-    func testOnlyTheNewestSubmissionDelivers() async throws {
+    @Test func testOnlyTheNewestSubmissionDelivers() async throws {
         let (service, cacheURL) = try await makeService()
         defer { try? FileManager.default.removeItem(at: cacheURL) }
         let coordinator = DiscoverySearchCoordinator(
@@ -42,12 +42,19 @@ final class DiscoverySearchCoordinatorTests: XCTestCase {
                 delivered.record(response)
             }
         }
-        try await Task.sleep(for: .milliseconds(400))
-        XCTAssertEqual(delivered.count, 1, "only the final submission should deliver")
-        XCTAssertEqual(delivered.last?.state, .ready)
+        // Wait for the final delivery instead of assuming the search finishes
+        // in a fixed 400 ms under a parallel test runner, then give any
+        // superseded submissions a bounded chance to (incorrectly) land.
+        let deadline = Date().addingTimeInterval(10)
+        while delivered.count == 0 && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(delivered.count == 1, "only the final submission should deliver")
+        #expect(delivered.last?.state == .ready)
     }
 
-    func testCancelPendingSuppressesDelivery() async throws {
+    @Test func testCancelPendingSuppressesDelivery() async throws {
         let (service, cacheURL) = try await makeService()
         defer { try? FileManager.default.removeItem(at: cacheURL) }
         let coordinator = DiscoverySearchCoordinator(
@@ -57,7 +64,7 @@ final class DiscoverySearchCoordinatorTests: XCTestCase {
         await coordinator.submit(DiscoverySearchQuery(text: "q")) { r in delivered.record(r) }
         await coordinator.cancelPending()
         try await Task.sleep(for: .milliseconds(300))
-        XCTAssertEqual(delivered.count, 0)
+        #expect(delivered.count == 0)
     }
 }
 

@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 import TonearmWatchProtocol
 @testable import TonearmWatchCore
 
@@ -6,55 +6,55 @@ import TonearmWatchProtocol
 /// connection/sync banner lived instead as a full-width, multi-line `Section` at the very top of
 /// the list, pushing Now Playing below the fold. This policy is the pure title/tone mapping that
 /// drives the chip that replaces it.
-final class WatchHomeStatusPolicyTests: XCTestCase {
-    func testConnectedAndIdleIsGood() {
+@Suite struct WatchHomeStatusPolicyTests {
+    @Test func testConnectedAndIdleIsGood() {
         let status = WatchHomeStatusPolicy.status(banner: .connected, isSyncing: false, syncResult: nil)
-        XCTAssertEqual(status.tone, .good)
-        XCTAssertEqual(status.title, "iPhone connected")
+        #expect(status.tone == .good)
+        #expect(status.title == "iPhone connected")
     }
 
-    func testConnectedAndSyncingIsGood() {
+    @Test func testConnectedAndSyncingIsGood() {
         let status = WatchHomeStatusPolicy.status(banner: .connected, isSyncing: true, syncResult: nil)
-        XCTAssertEqual(status.tone, .good)
-        XCTAssertEqual(status.title, "Syncing with iPhone…")
+        #expect(status.tone == .good)
+        #expect(status.title == "Syncing with iPhone…")
     }
 
-    func testConnectedWithAConfirmedPastResultStaysGood() {
+    @Test func testConnectedWithAConfirmedPastResultStaysGood() {
         let status = WatchHomeStatusPolicy.status(banner: .connected, isSyncing: false, syncResult: .confirmed)
-        XCTAssertEqual(status.tone, .good)
-        XCTAssertEqual(status.title, "iPhone connected")
+        #expect(status.tone == .good)
+        #expect(status.title == "iPhone connected")
     }
 
-    func testConnectedWithAFailedPastResultIsAWarningNotAFailure() {
+    @Test func testConnectedWithAFailedPastResultIsAWarningNotAFailure() {
         let status = WatchHomeStatusPolicy.status(
             banner: .connected, isSyncing: false, syncResult: .failed(.phoneUnavailable))
-        XCTAssertEqual(status.tone, .warning, "the link itself is fine — only the metadata sync failed")
-        XCTAssertEqual(status.title, WatchMetadataSyncResult.failed(.phoneUnavailable).displayMessage)
+        #expect(status.tone == .warning, "the link itself is fine — only the metadata sync failed")
+        #expect(status.title == WatchMetadataSyncResult.failed(.phoneUnavailable).displayMessage)
     }
 
-    func testTemporarilyUnavailableIsAWarning() {
+    @Test func testTemporarilyUnavailableIsAWarning() {
         let status = WatchHomeStatusPolicy.status(banner: .temporarilyUnavailable, isSyncing: false, syncResult: nil)
-        XCTAssertEqual(status.tone, .warning)
+        #expect(status.tone == .warning)
     }
 
-    func testUnavailableIsAFailure() {
+    @Test func testUnavailableIsAFailure() {
         let status = WatchHomeStatusPolicy.status(banner: .unavailable, isSyncing: false, syncResult: nil)
-        XCTAssertEqual(status.tone, .failure)
-        XCTAssertEqual(status.title, "iPhone not connected")
+        #expect(status.tone == .failure)
+        #expect(status.title == "iPhone not connected")
     }
 
-    func testIncompatibleIsAFailureWithItsOwnMessage() {
+    @Test func testIncompatibleIsAFailureWithItsOwnMessage() {
         let status = WatchHomeStatusPolicy.status(banner: .incompatible, isSyncing: false, syncResult: nil)
-        XCTAssertEqual(status.tone, .failure)
-        XCTAssertEqual(status.title, "Update Platterhead on iPhone")
+        #expect(status.tone == .failure)
+        #expect(status.title == "Update Platterhead on iPhone")
     }
 
     /// `.incompatible`/`.unavailable` must win over a stale `isSyncing`/`syncResult` from before the
     /// banner changed — the live reachability banner is always the truth (WatchConnectionChrome's
     /// own doc comment), never overridden by an older sync receipt.
-    func testUnavailableWinsOverAStaleSyncingFlag() {
+    @Test func testUnavailableWinsOverAStaleSyncingFlag() {
         let status = WatchHomeStatusPolicy.status(banner: .unavailable, isSyncing: true, syncResult: .confirmed)
-        XCTAssertEqual(status.tone, .failure)
-        XCTAssertEqual(status.title, "iPhone not connected")
+        #expect(status.tone == .failure)
+        #expect(status.title == "iPhone not connected")
     }
 }

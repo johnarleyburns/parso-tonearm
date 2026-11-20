@@ -147,7 +147,7 @@ extension AudioPlayer {
             // under the URL it was cached with instead of re-resolving (a re-signed URL is a
             // different cache key and would needlessly stream a file already on disk).
             if let cachedString = asset.remoteURL, let cachedURL = URL(string: cachedString),
-               AudioCache.playableCompleteBlobURL(for: cachedURL) != nil {
+               cachedPlaybackURL(cachedURL) != nil {
                 finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
                 return
             }
@@ -390,7 +390,7 @@ extension AudioPlayer {
             // play it directly and provide AVFoundation the format hint it cannot infer
             // from the extensionless cache filename.  This also makes cached playback
             // independent of Jamendo's current signed URL response.
-            if let cachedURL = AudioCache.playableCompleteBlobURL(for: remote) {
+            if let cachedURL = cachedPlaybackURL(remote) {
                 var cachedOptions = assetOptions
                 if cachedOptions[AVURLAssetOverrideMIMETypeKey] == nil,
                    let prefix = AudioFileSniffer.readPrefix(of: cachedURL),
@@ -525,7 +525,7 @@ extension AudioPlayer {
               let remote = URL(string: urlString) else {
             return asset.kind != .remote
         }
-        return AudioCache.playableCompleteBlobURL(for: remote) != nil
+        return cachedPlaybackURL(remote) != nil
     }
 
     func skipCurrentForWiFiOnly(row: TrackRow) {
@@ -597,7 +597,7 @@ extension AudioPlayer {
     }
 
     private func buildAndStorePreloadedItem(row: TrackRow, asset: Asset) {
-        guard let built = buildItem(for: asset) else { return }
+        guard let built = ordinaryBuildItemHook?(asset) ?? buildItem(for: asset) else { return }
         built.item.preferredForwardBufferDuration = 120
         applyEQ(to: built.item, row: row)
         preloadedNextItem = built.item
@@ -650,11 +650,7 @@ extension AudioPlayer {
         // real underlying error if AVFoundation ever reports one, which
         // print-based debugging of this exact bug has never captured yet.
         let trackTitle = currentTrack?.track.title ?? "?"
-        itemStatusCancellable = item.publisher(for: \.status)
-            // KVO fires on an AVFoundation queue; this closure is main-actor isolated
-            // (Swift 6), so it must be delivered on the main queue or the runtime traps.
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak item] status in
+        itemStatusCancellable = player.observeItemStatus(item) { [weak self, weak item] status in
                 if let self, status == .failed, let item, self.player.currentItem === item,
                    self.ordinaryJamendoLoad != nil {
                     self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: Self.httpStatus(of: item))
@@ -761,7 +757,7 @@ extension AudioPlayer {
                     // playing — would strand playback silently: nothing watches it for a stall.
                     // Fall back to the ordinary load path instead, which installs the full
                     // observer set from a clean start.
-                    if self.crossfadePlayer?.currentItem?.status == .readyToPlay {
+                    if self.crossfadePlayer?.isReady == true {
                         self.finishCrossfade(to: nextIndex, row: self.queue[nextIndex])
                     } else {
                         self.cancelCrossfade(resetVolume: true)

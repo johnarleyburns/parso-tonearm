@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 import ParsoAudioStreaming
 @testable import TonearmCore
 
@@ -9,7 +10,10 @@ import ParsoAudioStreaming
 /// `SparseCacheStoreTests` in parso-audio-engine; here we assert Tonearm's
 /// wiring: its key identity, provider auth headers, the Opus→CAF derived
 /// artifact, and pinned-download eviction protection.
-final class StreamingCacheTests: XCTestCase {
+/// Serialized because `URLProtocol` registration is process-wide and
+/// `RangeStub`'s blob/offline/requestCount/lastHeaders live in static storage
+/// shared by every test here; concurrent tests reset each other's stub.
+@Suite(.serialized) struct StreamingCacheTests {
 
     // MARK: - URLProtocol range stub
 
@@ -93,25 +97,25 @@ final class StreamingCacheTests: XCTestCase {
             if await c() { return }
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTFail("condition not met in time")
+        Issue.record("condition not met in time")
     }
 
     // MARK: - Key identity
 
-    func testCacheURLPreservesPath() {
+    @Test func testCacheURLPreservesPath() {
         let remote = URL(string: "https://archive.org/download/foo/track.mp3")!
         let cached = RemoteAudioURL.cacheURL(for: remote, scheme: AudioCache.scheme)
-        XCTAssertEqual(cached.scheme, "tonearm-cache")
-        XCTAssertEqual(cached.path, remote.path)
+        #expect(cached.scheme == "tonearm-cache")
+        #expect(cached.path == remote.path)
     }
 
-    func testCacheKeyIsStableAndKeepsTheTrailingSeparator() {
+    @Test func testCacheKeyIsStableAndKeepsTheTrailingSeparator() {
         // Tonearm's historical key: <64 hex>-<ext>, always with the "-" even when
         // there is no extension.
         let mp3 = AudioCache.key(for: URL(string: "https://archive.org/download/item/track.mp3")!)
-        XCTAssertEqual(mp3, "995d3f45ace3a63922472923d0a45497240725186f0aea72ca31d99e9a2e9818-mp3")
+        #expect(mp3 == "995d3f45ace3a63922472923d0a45497240725186f0aea72ca31d99e9a2e9818-mp3")
         let noExt = AudioCache.key(for: URL(string: "https://archive.org/download/item/track")!)
-        XCTAssertTrue(noExt.hasSuffix("-"))
+        #expect(noExt.hasSuffix("-"))
     }
 
     // MARK: - Embedded-artwork fallback for remote providers with no artwork of their own
@@ -119,12 +123,12 @@ final class StreamingCacheTests: XCTestCase {
     // straight from an already-complete local cache file, never a fresh network round trip
     // just to peek at tags.
 
-    func testCachedFileURLForRemoteEmbeddedArtworkIsNilUntilTheBlobIsComplete() async throws {
+    @Test func testCachedFileURLForRemoteEmbeddedArtworkIsNilUntilTheBlobIsComplete() async throws {
         let store = makeStore()
         let remote = URL(string: "https://example.com/track.mp3")!
         let key = AudioCache.key(for: remote)
 
-        XCTAssertNil(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout),
+        #expect(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout) == nil,
             "nothing has been cached for this URL yet")
 
         let blob = store.layout.blobURL(for: key)
@@ -133,23 +137,23 @@ final class StreamingCacheTests: XCTestCase {
         try bytes.write(to: blob)
         await store.adoptCompleteFile(byteCount: Int64(bytes.count), for: key, durable: true)
 
-        XCTAssertEqual(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout), blob)
+        #expect(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout) == blob)
     }
 
-    func testCachedFileURLForRemoteEmbeddedArtworkIsNilForAnIncompleteEntry() async throws {
+    @Test func testCachedFileURLForRemoteEmbeddedArtworkIsNilForAnIncompleteEntry() async throws {
         let store = makeStore()
         let remote = URL(string: "https://example.com/partial.mp3")!
         let key = AudioCache.key(for: remote)
         await store.setContentLength(8192, for: key)
         await store.recordWrite(range: 0..<100, for: key)   // far short of the declared total
 
-        XCTAssertNil(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout),
+        #expect(AudioCache.cachedFileURL(forRemoteEmbeddedArtwork: remote, layout: store.layout) == nil,
             "an in-progress stream must never be sniffed for embedded tags")
     }
 
     // MARK: - Serve / replay offline (old manual smoke)
 
-    func testStreamedTrackReplaysFromCacheWithNetworkGone() async throws {
+    @Test func testStreamedTrackReplaysFromCacheWithNetworkGone() async throws {
         RangeStub.reset(blob: Data((0..<8192).map { UInt8($0 & 0xff) }))
         let store = makeStore()
         let url = URL(string: "https://archive.org/download/item/track.flac")!
@@ -162,11 +166,11 @@ final class StreamingCacheTests: XCTestCase {
         RangeStub.offline = true
         let after = RangeStub.requestCount
         let cached = await store.cachedContiguousBytes(for: l.cacheKey, from: 0)
-        XCTAssertEqual(cached, 8192)
-        XCTAssertEqual(RangeStub.requestCount, after)
+        #expect(cached == 8192)
+        #expect(RangeStub.requestCount == after)
     }
 
-    func testProviderAuthHeadersRideEveryRequest() async throws {
+    @Test func testProviderAuthHeadersRideEveryRequest() async throws {
         RangeStub.reset(blob: Data(repeating: 0xEE, count: 4096))
         let store = makeStore()
         let l = try loader(store, url: URL(string: "https://jellyfin.example/audio/1/stream.flac")!,
@@ -175,13 +179,13 @@ final class StreamingCacheTests: XCTestCase {
         await poll { await store.rangeMap(for: l.cacheKey).contiguousBytes(from: 0) >= 4096 }
         l.shutdown()
 
-        XCTAssertGreaterThan(RangeStub.requestCount, 0)
-        XCTAssertEqual(RangeStub.lastHeaders["Authorization"], "MediaBrowser Token=\"abc123\"")
+        #expect(RangeStub.requestCount > 0)
+        #expect(RangeStub.lastHeaders["Authorization"] == "MediaBrowser Token=\"abc123\"")
     }
 
     // MARK: - Opus → CAF derived artifact
 
-    func testOpusCAFDerivedArtifactCountsTowardTheCacheTotal() async throws {
+    @Test func testOpusCAFDerivedArtifactCountsTowardTheCacheTotal() async throws {
         let store = makeStore()
         let opusURL = URL(string: "https://archive.org/download/item/track.opus")!
         let key = AudioCache.key(for: opusURL)
@@ -195,16 +199,16 @@ final class StreamingCacheTests: XCTestCase {
         await store.recordDerivedBytes(400, name: AudioCache.cafArtifactName, for: key)
 
         let stored = await store.totalCachedBytes()
-        XCTAssertEqual(stored, 1400)   // blob + CAF sibling
+        #expect(stored == 1400)   // blob + CAF sibling
         // The CAF path is stable and lands in the key's derived directory.
-        XCTAssertEqual(cafURL.lastPathComponent, "opus.caf")
-        XCTAssertEqual(cafURL.deletingLastPathComponent().lastPathComponent, key)
-        XCTAssertEqual(AudioCache.cafURL(forRemoteOpus: opusURL).lastPathComponent, "opus.caf")
+        #expect(cafURL.lastPathComponent == "opus.caf")
+        #expect(cafURL.deletingLastPathComponent().lastPathComponent == key)
+        #expect(AudioCache.cafURL(forRemoteOpus: opusURL).lastPathComponent == "opus.caf")
     }
 
     // MARK: - Pinned-download eviction protection
 
-    func testPinnedDownloadSurvivesAnOverBudgetEviction() async {
+    @Test func testPinnedDownloadSurvivesAnOverBudgetEviction() async {
         let store = makeStore(limit: 10_000)
         await store.adoptCompleteFile(byteCount: 500, for: "pinned-flac", durable: true)
 
@@ -216,18 +220,18 @@ final class StreamingCacheTests: XCTestCase {
 
         let hasPinned = await store.contains("pinned-flac")
         let hasStream = await store.contains("stream-flac")
-        XCTAssertTrue(hasPinned)
-        XCTAssertFalse(hasStream)
+        #expect(hasPinned)
+        #expect(!hasStream)
     }
 
-    func testPlayingKeyIsProtectedFromEviction() async {
+    @Test func testPlayingKeyIsProtectedFromEviction() async {
         let store = makeStore(limit: 1000)
         await store.setContentLength(2000, for: "now-playing")
         await store.setProtectedKeys(["now-playing"])
         await store.recordWrite(range: 0..<2000, for: "now-playing")   // over budget, but protected
 
         let stillThere = await store.contains("now-playing")
-        XCTAssertTrue(stillThere)
+        #expect(stillThere)
     }
 
     // MARK: - Remove from Phone must actually delete, not just unpin
@@ -240,32 +244,32 @@ final class StreamingCacheTests: XCTestCase {
     /// that mode `setDurable(false, for:)` is documented ("nothing to move — just flip the
     /// flag") to leave the blob and `meta.complete` completely untouched. Pins why
     /// `AppState.removeDownloadFromPhone` calling only `setDurable(false, for:)` can never work.
-    func testSetDurableFalseAloneDoesNotRemoveACompleteEntryInSingleTierMode() async {
+    @Test func testSetDurableFalseAloneDoesNotRemoveACompleteEntryInSingleTierMode() async {
         let store = makeStore()
         await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
         let before = await store.contains("track-key")
-        XCTAssertTrue(before)
+        #expect(before)
 
         await store.setDurable(false, for: "track-key")
 
         let meta = await store.meta(for: "track-key")
-        XCTAssertEqual(meta?.complete, true, "single-tier setDurable(false) must not clear completeness")
+        #expect(meta?.complete == true, "single-tier setDurable(false) must not clear completeness")
         let after = await store.contains("track-key")
-        XCTAssertTrue(after, "single-tier setDurable(false) must not remove the entry")
+        #expect(after, "single-tier setDurable(false) must not remove the entry")
     }
 
     /// The actual fix: `remove(keys:)` is the one API that deletes the entry outright, which is
     /// what `AppState.removeDownloadFromPhone` must call instead.
-    func testRemoveKeysActuallyDeletesACompleteDurableEntryInSingleTierMode() async {
+    @Test func testRemoveKeysActuallyDeletesACompleteDurableEntryInSingleTierMode() async {
         let store = makeStore()
         await store.adoptCompleteFile(byteCount: 500, for: "track-key", durable: true)
         let before = await store.contains("track-key")
-        XCTAssertTrue(before)
+        #expect(before)
 
         await store.remove(keys: ["track-key"])
 
         let after = await store.contains("track-key")
-        XCTAssertFalse(after)
+        #expect(!after)
     }
 
     /// Source-inspection pin (established pattern: see
@@ -273,18 +277,18 @@ final class StreamingCacheTests: XCTestCase {
     /// for exercising an `AppState` call site that needs a live singleton/provider isn't
     /// practical) — asserts the real call site actually calls the deleting API, not the
     /// single-tier-inert `setDurable(false, for:)`.
-    func testRemoveDownloadFromPhoneCallsRemoveNotJustSetDurableFalse() throws {
+    @Test func testRemoveDownloadFromPhoneCallsRemoveNotJustSetDurableFalse() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(
             contentsOf: root.appendingPathComponent("Sources/App/AppState+Downloads.swift"),
             encoding: .utf8)
-        let function = try XCTUnwrap(source.range(of: "func removeDownloadFromPhone(rows: [TrackRow]) async {"))
+        let function = try #require(source.range(of: "func removeDownloadFromPhone(rows: [TrackRow]) async {"))
         let body = source[function.upperBound...]
-        let closingBrace = try XCTUnwrap(body.range(of: "\n    }\n"))
+        let closingBrace = try #require(body.range(of: "\n    }\n"))
         let functionBody = body[..<closingBrace.lowerBound]
-        XCTAssertTrue(functionBody.contains("AudioCache.shared.remove(keys:"),
+        #expect(functionBody.contains("AudioCache.shared.remove(keys:"),
             "removeDownloadFromPhone must call remove(keys:) to actually delete the cached entry")
-        XCTAssertFalse(functionBody.contains("AudioCache.shared.setDurable(false"),
+        #expect(!functionBody.contains("AudioCache.shared.setDurable(false"),
             "setDurable(false, for:) is a no-op in Tonearm's single-tier cache and must not be used to remove a download")
     }
 }

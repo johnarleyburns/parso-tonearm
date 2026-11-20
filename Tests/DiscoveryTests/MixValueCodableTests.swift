@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class MixValueCodableTests: XCTestCase {
-    func testMixValuesRoundTrip() throws {
+@Suite struct MixValueCodableTests {
+    @Test func testMixValuesRoundTrip() throws {
         let candidate = MixCandidate(trackID: 1, bpm: 124, camelot: "8A", energy: 0.7,
                                      artist: "Artist", albumID: 2, duration: 180,
                                      embedding: [0.1, 0.2])
@@ -39,10 +40,9 @@ final class MixValueCodableTests: XCTestCase {
     }
 
     private func assertRoundTrip<T: Codable & Equatable>(_ value: T,
-                                                          file: StaticString = #filePath,
-                                                          line: UInt = #line) throws {
+                                                          sourceLocation: SourceLocation = #_sourceLocation) throws {
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(T.self, from: data)
-        XCTAssertEqual(decoded, value, file: file, line: line)
+        #expect(decoded == value, sourceLocation: sourceLocation)
     }
 }

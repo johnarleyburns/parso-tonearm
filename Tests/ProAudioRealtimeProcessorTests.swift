@@ -1,5 +1,6 @@
 #if !os(watchOS)
-import XCTest
+import Foundation
+import Testing
 import AVFoundation
 import ParsoAudioPlayback
 @testable import TonearmCore
@@ -7,7 +8,7 @@ import ParsoAudioPlayback
 /// Phase 4 (audio-engine unification): the Pro Audio chain now runs behind the
 /// shared `EQTapInstaller` via `ProAudioRealtimeProcessor`. These prove the
 /// processor matches the offline kernel and picks up a published kernel swap.
-final class ProAudioRealtimeProcessorTests: XCTestCase {
+@Suite struct ProAudioRealtimeProcessorTests {
 
     private func stereoBuffer(frames: Int, sampleRate: Double = 48_000) -> AVAudioPCMBuffer {
         let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate,
@@ -29,7 +30,7 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
                        settings: .default, replayGain: replayGain, sampleRate: 48_000)
     }
 
-    func testTransparentKernelPassesThrough() throws {
+    @Test func testTransparentKernelPassesThrough() throws {
         let processor = ProAudioRealtimeProcessor(kernel: kernel(eqGains: Array(repeating: 0, count: 10)))
         let buffer = stereoBuffer(frames: 2048)
         let original = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: 2048))
@@ -39,11 +40,11 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
                                   frameCount: 2048)
 
         for i in 0..<2048 {
-            XCTAssertEqual(buffer.floatChannelData![0][i], original[i], accuracy: 1e-6)
+            #expect(abs((buffer.floatChannelData![0][i]) - (original[i])) <= 1e-6)
         }
     }
 
-    func testActiveKernelChangesTheSignalLikeTheOfflineMath() throws {
+    @Test func testActiveKernelChangesTheSignalLikeTheOfflineMath() throws {
         var offline = kernel(eqGains: [6, 0, 0, 0, 0, 0, 0, 0, 0, -6])
         let buffer = stereoBuffer(frames: 4096)
         let inputL = Array(UnsafeBufferPointer(start: buffer.floatChannelData![0], count: 4096))
@@ -59,11 +60,11 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
         for i in 0..<4096 {
             maxDelta = max(maxDelta, abs(Double(buffer.floatChannelData![0][i]) - expected[i].0))
         }
-        XCTAssertGreaterThan(maxDelta, 0, "an active EQ must change the signal")
-        XCTAssertLessThan(maxDelta, 1e-4, "realtime path must match the offline kernel")
+        #expect(maxDelta > 0, "an active EQ must change the signal")
+        #expect(maxDelta < 1e-4, "realtime path must match the offline kernel")
     }
 
-    func testPublishedKernelIsAdoptedOnNextProcess() throws {
+    @Test func testPublishedKernelIsAdoptedOnNextProcess() throws {
         let processor = ProAudioRealtimeProcessor(kernel: kernel(eqGains: Array(repeating: 0, count: 10)))
         processor.prepareRealtime()
 
@@ -71,7 +72,7 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
         let b1 = stereoBuffer(frames: 1024)
         let o1 = Array(UnsafeBufferPointer(start: b1.floatChannelData![0], count: 1024))
         processor.processRealtime(AudioBufferListPointer(b1.mutableAudioBufferList), frameCount: 1024)
-        XCTAssertEqual(b1.floatChannelData![0][512], o1[512], accuracy: 1e-6)
+        #expect(abs((b1.floatChannelData![0][512]) - (o1[512])) <= 1e-6)
 
         // Publish an active kernel; the next process cycle must adopt it.
         processor.publish(kernel(eqGains: [10, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
@@ -81,7 +82,7 @@ final class ProAudioRealtimeProcessorTests: XCTestCase {
 
         var changed = false
         for i in 0..<1024 where abs(b2.floatChannelData![0][i] - o2[i]) > 1e-5 { changed = true; break }
-        XCTAssertTrue(changed, "the published active kernel must take effect")
+        #expect(changed, "the published active kernel must take effect")
     }
 }
 #endif

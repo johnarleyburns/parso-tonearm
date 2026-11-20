@@ -1,38 +1,38 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class StringSimilarityTests: XCTestCase {
+@Suite struct StringSimilarityTests {
 
-    func testNormalizeFoldsDiacriticsAndPunctuation() {
-        XCTAssertEqual(StringSimilarity.normalize("Bodzín!"), "bodzin")
-        XCTAssertEqual(StringSimilarity.normalize("El Búho"), "el buho")
-        XCTAssertEqual(StringSimilarity.normalize("A.C.-D.C."), "a c d c")
+    @Test func testNormalizeFoldsDiacriticsAndPunctuation() {
+        #expect(StringSimilarity.normalize("Bodzín!") == "bodzin")
+        #expect(StringSimilarity.normalize("El Búho") == "el buho")
+        #expect(StringSimilarity.normalize("A.C.-D.C.") == "a c d c")
     }
 
-    func testRatioIdenticalAndDifferent() {
-        XCTAssertEqual(StringSimilarity.ratio("Solomun", "solomun"), 1.0, accuracy: 0.0001)
-        XCTAssertGreaterThan(StringSimilarity.ratio("Bodzin", "Bodzín"), 0.99)
-        XCTAssertLessThan(StringSimilarity.ratio("Solomun", "Skrillex"), 0.5)
+    @Test func testRatioIdenticalAndDifferent() {
+        #expect(abs(StringSimilarity.ratio("Solomun", "solomun") - 1.0) <= 0.0001)
+        #expect(StringSimilarity.ratio("Bodzin", "Bodzín") > 0.99)
+        #expect(StringSimilarity.ratio("Solomun", "Skrillex") < 0.5)
     }
 
-    func testTokensContainedRequiresAllNeedleTokens() {
-        XCTAssertTrue(StringSimilarity.tokensContained(needle: "Solomun",
+    @Test func testTokensContainedRequiresAllNeedleTokens() {
+        #expect(StringSimilarity.tokensContained(needle: "Solomun",
                                                        in: "Skrillex & Solomun"))
-        XCTAssertTrue(StringSimilarity.tokensContained(needle: "Stephan Bodzin",
+        #expect(StringSimilarity.tokensContained(needle: "Stephan Bodzin",
                                                        in: "Stephan Bodzin"))
-        XCTAssertFalse(StringSimilarity.tokensContained(needle: "Stephan Bodzin",
+        #expect(!StringSimilarity.tokensContained(needle: "Stephan Bodzin",
                                                         in: "Solomun"))
     }
 
-    func testTokensContainedRejectsShortNoise() {
+    @Test func testTokensContainedRejectsShortNoise() {
         // Single short token that doesn't appear -> not contained.
-        XCTAssertFalse(StringSimilarity.tokensContained(needle: "workout rocky",
+        #expect(!StringSimilarity.tokensContained(needle: "workout rocky",
                                                         in: "Normani"))
     }
 
-    func testTokenOverlapFraction() {
-        XCTAssertEqual(StringSimilarity.tokenOverlap(needle: "workout rocky motivation",
-                                                     haystack: "Motivation"),
-                       1.0 / 3.0, accuracy: 0.01)
+    @Test func testTokenOverlapFraction() {
+        #expect(
+            abs(StringSimilarity.tokenOverlap(needle: "workout rocky motivation",
+                                                     haystack: "Motivation") - (1.0 / 3.0)) <= 0.01)
     }
 }

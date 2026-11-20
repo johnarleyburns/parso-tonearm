@@ -1,9 +1,9 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class BiquadTests: XCTestCase {
-    func testCoefficientVectorsAgainstKnownCookbookReferences() {
+@Suite struct BiquadTests {
+    @Test func testCoefficientVectorsAgainstKnownCookbookReferences() {
         let cases: [(BiquadFilterType, Double, Double, Double, [Double])] = [
             (.peaking, 1_000, 6, 1, [
                 1.043953086990, -1.895320723937, 0.867722284760,
@@ -42,7 +42,7 @@ final class BiquadTests: XCTestCase {
         }
     }
 
-    func testExtremeQAndNearNyquistStayFiniteAndStable() {
+    @Test func testExtremeQAndNearNyquistStayFiniteAndStable() {
         for type in BiquadFilterType.allCases {
             for q in [0.05, 100.0] {
                 let coefficients = BiquadCoefficients.make(
@@ -51,13 +51,13 @@ final class BiquadTests: XCTestCase {
                     gainDB: type.usesGain ? 6 : 0,
                     q: q,
                     sampleRate: 48_000)
-                XCTAssertTrue(coefficients.vector.allSatisfy(\.isFinite), "\(type.rawValue) q \(q)")
-                XCTAssertTrue(coefficients.isStable, "\(type.rawValue) q \(q)")
+                #expect(coefficients.vector.allSatisfy { $0.isFinite }, "\(type.rawValue) q \(q)")
+                #expect(coefficients.isStable, "\(type.rawValue) q \(q)")
             }
         }
     }
 
-    func testGainFiltersAtZeroDBAreExactlyUnity() {
+    @Test func testGainFiltersAtZeroDBAreExactlyUnity() {
         for type in [BiquadFilterType.peaking, .lowShelf, .highShelf] {
             let coefficients = BiquadCoefficients.make(
                 type: type,
@@ -65,12 +65,12 @@ final class BiquadTests: XCTestCase {
                 gainDB: 0,
                 q: 1,
                 sampleRate: 48_000)
-            XCTAssertEqual(coefficients, .identity, type.rawValue)
-            XCTAssertEqual(coefficients.magnitude(at: 1_000, sampleRate: 48_000), 1, accuracy: 1e-12)
+            #expect(coefficients == .identity, "\(type.rawValue)")
+            #expect(abs(coefficients.magnitude(at: 1_000, sampleRate: 48_000) - 1) <= 1e-12)
         }
     }
 
-    func testParametricCascadeTransparencyAndRuntimeBiquadBridge() {
+    @Test func testParametricCascadeTransparencyAndRuntimeBiquadBridge() {
         let transparent = ParametricEQCascade(
             bands: [
                 ParametricEQBand(type: .peaking, frequency: 1_000, gainDB: 0, q: 1),
@@ -78,61 +78,61 @@ final class BiquadTests: XCTestCase {
                 ParametricEQBand(type: .notch, frequency: 60, q: 10, isEnabled: false),
             ],
             sampleRate: 48_000)
-        XCTAssertTrue(transparent.isTransparent)
-        XCTAssertTrue(transparent.isStable)
+        #expect(transparent.isTransparent)
+        #expect(transparent.isStable)
 
         let active = ParametricEQCascade(
             bands: [ParametricEQBand(type: .peaking, frequency: 1_000, gainDB: 3, q: 1)],
             sampleRate: 48_000)
-        XCTAssertFalse(active.isTransparent)
-        XCTAssertTrue(active.isStable)
+        #expect(!active.isTransparent)
+        #expect(active.isStable)
         let runtime = Biquad(coefficients: active.coefficients[0])
-        XCTAssertEqual(runtime.coefficients, active.coefficients[0])
+        #expect(runtime.coefficients == active.coefficients[0])
     }
 
-    func testCrossfeedMatrixIsSymmetricAndIdentityCanStayBitPerfect() {
+    @Test func testCrossfeedMatrixIsSymmetricAndIdentityCanStayBitPerfect() {
         let identity = CrossfeedMatrix.identity
-        XCTAssertTrue(identity.isTransparent)
-        XCTAssertEqual(identity.apply(left: 1, right: -1).left, 1)
-        XCTAssertEqual(identity.apply(left: 1, right: -1).right, -1)
+        #expect(identity.isTransparent)
+        #expect(identity.apply(left: 1, right: -1).left == 1)
+        #expect(identity.apply(left: 1, right: -1).right == -1)
 
         let matrix = CrossfeedMatrix.symmetric(crossfeedDB: -6)
         let mixed = matrix.apply(left: 1, right: 0)
-        XCTAssertEqual(matrix.leftToRight, matrix.rightToLeft, accuracy: 1e-12)
-        XCTAssertEqual(matrix.leftToLeft, matrix.rightToRight, accuracy: 1e-12)
-        XCTAssertEqual(mixed.left, matrix.leftToLeft, accuracy: 1e-12)
-        XCTAssertEqual(mixed.right, matrix.leftToRight, accuracy: 1e-12)
-        XCTAssertFalse(matrix.isTransparent)
+        #expect(abs(matrix.leftToRight - matrix.rightToLeft) <= 1e-12)
+        #expect(abs(matrix.leftToLeft - matrix.rightToRight) <= 1e-12)
+        #expect(abs(mixed.left - matrix.leftToLeft) <= 1e-12)
+        #expect(abs(mixed.right - matrix.leftToRight) <= 1e-12)
+        #expect(!matrix.isTransparent)
     }
 
-    func testConvolutionSetupNormalizesLimitsAndReportsLatency() {
+    @Test func testConvolutionSetupNormalizesLimitsAndReportsLatency() {
         let empty = ConvolutionPlan.make(
             impulseResponse: [],
             maxTaps: 16,
             blockSize: 0,
             normalize: true)
-        XCTAssertEqual(empty, .identity)
-        XCTAssertTrue(empty.isTransparent)
+        #expect(empty == .identity)
+        #expect(empty.isTransparent)
 
         let plan = ConvolutionPlan.make(
             impulseResponse: [2, 0.5, .nan, -1, .infinity, 0],
             maxTaps: 3,
             blockSize: 0,
             normalize: true)
-        XCTAssertEqual(plan.taps, [1, 0.25, -0.5])
-        XCTAssertEqual(plan.blockSize, 1)
-        XCTAssertEqual(plan.latencyFrames, 1)
-        XCTAssertFalse(plan.isTransparent)
+        #expect(plan.taps == [1, 0.25, -0.5])
+        #expect(plan.blockSize == 1)
+        #expect(plan.latencyFrames == 1)
+        #expect(!plan.isTransparent)
 
         let identity = ConvolutionPlan.make(
             impulseResponse: [1, 0, 0],
             maxTaps: 3,
             blockSize: 128,
             normalize: false)
-        XCTAssertTrue(identity.isTransparent)
+        #expect(identity.isTransparent)
     }
 
-    func testBitPerfectOutputRequiresTransparentProcessingAndMatchedRate() {
+    @Test func testBitPerfectOutputRequiresTransparentProcessingAndMatchedRate() {
         let transparentEQ = ParametricEQCascade(bands: [], sampleRate: 48_000)
         let activeEQ = ParametricEQCascade(
             bands: [ParametricEQBand(type: .peaking, frequency: 1_000, gainDB: 1, q: 1)],
@@ -145,8 +145,8 @@ final class BiquadTests: XCTestCase {
             crossfeed: .identity,
             convolution: .identity,
             replayGainEnabled: false)
-        XCTAssertTrue(clean.canUseBitPerfect)
-        XCTAssertEqual(clean.blockers, [])
+        #expect(clean.canUseBitPerfect)
+        #expect(clean.blockers == [])
 
         let blocked = BitPerfectOutputPlan(
             requested: true,
@@ -159,8 +159,8 @@ final class BiquadTests: XCTestCase {
                 blockSize: 128,
                 normalize: false),
             replayGainEnabled: true)
-        XCTAssertFalse(blocked.canUseBitPerfect)
-        XCTAssertEqual(blocked.blockers, [
+        #expect(!blocked.canUseBitPerfect)
+        #expect(blocked.blockers == [
             .sampleRateMismatch,
             .parametricEQ,
             .crossfeed,
@@ -172,12 +172,11 @@ final class BiquadTests: XCTestCase {
     private func assertCoefficients(_ coefficients: BiquadCoefficients,
                                     _ expected: [Double],
                                     _ label: String,
-                                    file: StaticString = #filePath,
-                                    line: UInt = #line) {
+                                    sourceLocation: SourceLocation = #_sourceLocation) {
         let actual = coefficients.vector
-        XCTAssertEqual(actual.count, expected.count, file: file, line: line)
+        #expect(actual.count == expected.count, sourceLocation: sourceLocation)
         for (index, pair) in zip(actual, expected).enumerated() {
-            XCTAssertEqual(pair.0, pair.1, accuracy: 1e-9, "\(label)[\(index)]", file: file, line: line)
+            #expect(abs(pair.0 - pair.1) <= 1e-9, "\(label)[\(index)]", sourceLocation: sourceLocation)
         }
     }
 }

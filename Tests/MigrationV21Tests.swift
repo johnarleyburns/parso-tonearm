@@ -1,9 +1,10 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class MigrationV21Tests: XCTestCase {
-    func testV21AddsAlbumAndSourceCustomArtworkTablesWithoutLosingExistingData() throws {
+@Suite struct MigrationV21Tests {
+    @Test func testV21AddsAlbumAndSourceCustomArtworkTablesWithoutLosingExistingData() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v20").migrate(queue)
 
@@ -28,25 +29,25 @@ final class MigrationV21Tests: XCTestCase {
         // Migrate to head (v21).
         try Schema.migrator().migrate(queue)
 
-        try queue.read { db in
+        try queue.read { db throws in
             // Existing v5 track-level table/data is untouched.
-            XCTAssertEqual(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?",
-                                               arguments: [trackId]), "existing-artwork")
+            #expect(try String.fetchOne(db, sql: "SELECT artworkId FROM custom_artwork WHERE trackId = ?",
+                                               arguments: [trackId]) == "existing-artwork")
 
             // New tables exist with the expected columns.
             let albumColumns = try db.columns(in: "custom_artwork_album").map(\.name)
-            XCTAssertTrue(albumColumns.contains("albumId"))
-            XCTAssertTrue(albumColumns.contains("artworkId"))
-            XCTAssertTrue(albumColumns.contains("syncID"))
+            #expect(albumColumns.contains("albumId"))
+            #expect(albumColumns.contains("artworkId"))
+            #expect(albumColumns.contains("syncID"))
 
             let sourceColumns = try db.columns(in: "custom_artwork_source").map(\.name)
-            XCTAssertTrue(sourceColumns.contains("sourceId"))
-            XCTAssertTrue(sourceColumns.contains("artworkId"))
-            XCTAssertTrue(sourceColumns.contains("syncID"))
+            #expect(sourceColumns.contains("sourceId"))
+            #expect(sourceColumns.contains("artworkId"))
+            #expect(sourceColumns.contains("syncID"))
         }
     }
 
-    func testMigratingTwiceIsIdempotent() throws {
+    @Test func testMigratingTwiceIsIdempotent() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
         // Migrating again against an already-current database must not throw.

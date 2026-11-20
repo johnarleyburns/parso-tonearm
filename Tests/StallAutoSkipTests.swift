@@ -1,5 +1,6 @@
 import AVFoundation
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// Integration coverage for `AudioPlayer.watchStallProgress`/`replaceItem` actually calling into
@@ -9,169 +10,155 @@ import XCTest
 /// `replaceItem` begins a generation and marks it ready, and a track that's never confirmed
 /// playing (the periodic observer's clock never genuinely advances) gets skipped once the
 /// configured timeout elapses.
-@MainActor
-final class StallAutoSkipTests: XCTestCase {
-    private let trackSeconds = 2.0
-    private var files: [URL] = []
-    private var savedKeepPlayingEnabled = true
+extension SharedProductionSingletonTests {
+    @MainActor
+    /// Re-enabled (2026-11-19) — see `AudioPlayerJamendoLoadingTests`'s
+    /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
+    @Suite
+    final class StallAutoSkipTests {
+        private let player = AudioPlayer.makeForTesting()
+        private let trackSeconds = 2.0
+        private var files: [URL] = []
 
-    override func setUp() async throws {
-        try await super.setUp()
-        savedKeepPlayingEnabled = AudioPlayer.shared.keepPlayingEnabled
-        // Deterministic "nowhere to skip to" path: with this on, a single-track queue could try
-        // to extend itself via the real LibraryStore instead of just pausing.
-        AudioPlayer.shared.keepPlayingEnabled = false
-        // The player is a shared singleton: drop any stall watch or skip streak a previous test
-        // (or an in-flight load) left behind so skip counts here are deterministic.
-        AudioPlayer.shared.stallWatchTask?.cancel()
-        AudioPlayer.shared.stallWatchTask = nil
-        AudioPlayer.shared.stallModel = StallModel()
-    }
-
-    override func tearDown() async throws {
-        let player = AudioPlayer.shared
-        player.stallWatchTask?.cancel()
-        player.player.pause()
-        player.player.replaceCurrentItem(with: nil)
-        player.queue = []
-        player.index = 0
-        player.isPlaying = false
-        player.keepPlayingEnabled = savedKeepPlayingEnabled
-        for file in files { try? FileManager.default.removeItem(at: file) }
-        try await super.tearDown()
-    }
-
-    /// A single-track queue with nowhere to skip to: `next()` on an unconfirmed track just
-    /// pauses, which is still an unambiguous, directly-observable signal that the stall watch
-    /// fired and acted, without needing a second real asset to resolve.
-    func testNeverConfirmedTrackIsSkippedAfterTheStallTimeoutAndPausesWithNowhereToGo() throws {
-        let player = AudioPlayer.shared
-        let savedTimeout = player.stallEvaluationTimeout
-        defer { player.stallEvaluationTimeout = savedTimeout }
-        player.stallEvaluationTimeout = .milliseconds(80)
-
-        player.repeatMode = .off
-        player.queue = [row(1)]
-        player.index = 0
-
-        let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
-        player.player.automaticallyWaitsToMinimizeStalling = false
-        player.isPlaying = true
-        player.replaceItem(item, autoplay: true)
-        // Deliberately never confirmed: the real player never actually plays, so the periodic
-        // time observer's clock never advances and `confirmPlayback` never fires.
-        player.player.pause()
-
-        XCTAssertTrue(waitUntil(timeout: 2) { player.isPlaying == false },
-            "an unconfirmed autoplaying track with nowhere to skip to must pause, not hang forever")
-    }
-
-    /// The counterpart: a track that becomes ready and is never watched at all when it wasn't
-    /// an autoplay load (the user loaded it paused) — nothing should happen at the timeout.
-    func testManuallyPausedLoadIsNeverWatchedForStalling() throws {
-        let player = AudioPlayer.shared
-        let savedTimeout = player.stallEvaluationTimeout
-        defer { player.stallEvaluationTimeout = savedTimeout }
-        player.stallEvaluationTimeout = .milliseconds(80)
-
-        player.repeatMode = .off
-        player.queue = [row(1)]
-        player.index = 0
-
-        let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
-        player.isPlaying = false
-        player.replaceItem(item, autoplay: false)
-
-        XCTAssertNil(player.stallWatchTask, "a non-autoplaying load must never even start a stall watch")
-
-        // Give the (never-started) watch a chance to have fired if it mistakenly started anyway.
-        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-        XCTAssertFalse(player.isPlaying, "a manually-paused load must stay exactly as the caller left it")
-    }
-
-    /// Issue #271: a remote (non-file) stream gets the longer remote window, so a slow-starting
-    /// cloud-drive/Jamendo track is not declared stalled and paused after the local-file window.
-    func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() throws {
-        let player = AudioPlayer.shared
-        let savedLocal = player.stallEvaluationTimeout
-        let savedRemote = player.remoteStallEvaluationTimeout
-        defer {
-            player.stallEvaluationTimeout = savedLocal
-            player.remoteStallEvaluationTimeout = savedRemote
+        init() {
+            // Deterministic "nowhere to skip to" path: with this on, a single-track queue could try
+            // to extend itself via the real LibraryStore instead of just pausing.
+            player.keepPlayingEnabled = false
         }
-        player.stallEvaluationTimeout = .milliseconds(80)
-        player.remoteStallEvaluationTimeout = .seconds(30)
 
-        player.repeatMode = .off
-        player.queue = [row(1)]
-        player.index = 0
-
-        let item = AVPlayerItem(url: URL(string: "https://example.invalid/slow.mp3")!)
-        player.isPlaying = true
-        player.replaceItem(item, autoplay: true)
-
-        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
-        XCTAssertEqual(player.stallModel.consecutiveSkips, 0,
-            "a remote load must not be evaluated as stalled by the short local-file window")
-    }
-
-    /// Real report: skipping forward/back briefly showed the OUTGOING track's elapsed time and
-    /// progress-slider position under the new track's title. `currentTime` is only otherwise
-    /// updated by the periodic time observer, up to 0.5s later — `replaceItem` must reset it
-    /// synchronously the instant the new item attaches, not leave the stale value on screen
-    /// until the next tick corrects it.
-    func testReplaceItemResetsCurrentTimeImmediatelyRatherThanLingeringOnTheOutgoingTracksPosition() throws {
-        let player = AudioPlayer.shared
-        let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
-        player.currentTime = 1234 // simulate being deep into the track this one is replacing
-        player.replaceItem(item, autoplay: false)
-        XCTAssertEqual(player.currentTime, 0)
-    }
-
-    // NOTE: a planned fix+test here (reacting immediately to a confirmed remote `.failed`
-    // AVPlayerItem status instead of waiting out the full stall timeout) was reverted entirely —
-    // both the new test AND the production `.failed`-status branch in `AudioPlayer+Loading.swift`
-    // — after it destabilized `testManuallyPausedLoadIsNeverWatchedForStalling` in CI across
-    // three separate attempts (the new test alone; then with the production code's self-
-    // cancellation removed from the timeout path too), with no reproduction possible in this
-    // sandbox (no simulator). Revisit with real simulator access rather than guessing blind again.
-
-    // MARK: - Helpers
-
-    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition() {
-            if Date() > deadline { return false }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        isolated deinit {
+            for file in files { try? FileManager.default.removeItem(at: file) }
         }
-        return true
-    }
 
-    private func row(_ id: Int64) -> TrackRow {
-        let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil, title: "Test",
-                            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
-                            licenseText: nil, memberCapHit: false)
-        let track = Track(id: id, albumId: id, sourceId: 1, title: "Track \(id)", trackNo: nil, discNo: nil,
-                          durationSec: trackSeconds, codec: "MP3", sampleRate: nil,
-                          bitDepthOrBitrate: nil, sortKey: "\(id)")
-        let asset = Asset(id: id, trackId: id, kind: .remote, bookmark: nil, relPath: nil,
-                          remoteURL: "https://example.invalid/track-\(id).mp3",
-                          altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
-        return TrackRow(track: track, album: Album(id: id, sourceId: 1, title: "Album \(id)", artist: nil),
-                        source: source, asset: asset)
-    }
+        /// A single-track queue with nowhere to skip to: `next()` on an unconfirmed track just
+        /// pauses, which is still an unambiguous, directly-observable signal that the stall watch
+        /// fired and acted, without needing a second real asset to resolve.
+        @Test func testNeverConfirmedTrackIsSkippedAfterTheStallTimeoutAndPausesWithNowhereToGo() async throws {
+            let savedTimeout = player.stallEvaluationTimeout
+            defer { player.stallEvaluationTimeout = savedTimeout }
+            player.stallEvaluationTimeout = .milliseconds(80)
 
-    /// A short silent audio file AVFoundation loads locally (no network in tests).
-    private func audioFile(seconds: Double) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("stall-\(UUID().uuidString).caf")
-        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2))
-        let file = try AVAudioFile(forWriting: url, settings: format.settings)
-        let frames = AVAudioFrameCount(seconds * 44_100)
-        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
-        buffer.frameLength = frames
-        try file.write(from: buffer)
-        files.append(url)
-        return url
+            player.repeatMode = .off
+            player.queue = [row(1)]
+            player.index = 0
+
+            let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
+            player.player.automaticallyWaitsToMinimizeStalling = false
+            player.isPlaying = true
+            player.replaceItem(item, autoplay: true)
+            // Deliberately never confirmed: the fake never advances its clock, so
+            // `confirmPlayback` never fires.
+            player.player.pause()
+
+            let paused = await waitUntil(timeout: 10) { player.isPlaying == false }
+            #expect(paused,
+                "an unconfirmed autoplaying track with nowhere to skip to must pause, not hang forever")
+        }
+
+        /// The counterpart: a track that becomes ready and is never watched at all when it wasn't
+        /// an autoplay load (the user loaded it paused) — nothing should happen at the timeout.
+        @Test func testManuallyPausedLoadIsNeverWatchedForStalling() async throws {
+            let savedTimeout = player.stallEvaluationTimeout
+            defer { player.stallEvaluationTimeout = savedTimeout }
+            player.stallEvaluationTimeout = .milliseconds(80)
+
+            player.repeatMode = .off
+            player.queue = [row(1)]
+            player.index = 0
+
+            let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
+            player.isPlaying = false
+            player.replaceItem(item, autoplay: false)
+
+            #expect(player.stallWatchTask == nil, "a non-autoplaying load must never even start a stall watch")
+
+            // Give the (never-started) watch a chance to have fired if it mistakenly started anyway.
+            try await Task.sleep(for: .milliseconds(300))
+            #expect(!player.isPlaying, "a manually-paused load must stay exactly as the caller left it")
+        }
+
+        /// Issue #271: a remote (non-file) stream gets the longer remote window, so a slow-starting
+        /// cloud-drive/Jamendo track is not declared stalled and paused after the local-file window.
+        @Test func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() async throws {
+            let savedLocal = player.stallEvaluationTimeout
+            let savedRemote = player.remoteStallEvaluationTimeout
+            defer {
+                player.stallEvaluationTimeout = savedLocal
+                player.remoteStallEvaluationTimeout = savedRemote
+            }
+            player.stallEvaluationTimeout = .milliseconds(80)
+            player.remoteStallEvaluationTimeout = .seconds(30)
+
+            player.repeatMode = .off
+            player.queue = [row(1)]
+            player.index = 0
+
+            let item = AVPlayerItem(url: URL(string: "https://example.invalid/slow.mp3")!)
+            player.isPlaying = true
+            player.replaceItem(item, autoplay: true)
+
+            try await Task.sleep(for: .milliseconds(500))
+            #expect(player.stallModel.consecutiveSkips == 0,
+                "a remote load must not be evaluated as stalled by the short local-file window")
+        }
+
+        /// Real report: skipping forward/back briefly showed the OUTGOING track's elapsed time and
+        /// progress-slider position under the new track's title. `currentTime` is only otherwise
+        /// updated by the periodic time observer, up to 0.5s later — `replaceItem` must reset it
+        /// synchronously the instant the new item attaches, not leave the stale value on screen
+        /// until the next tick corrects it.
+        @Test func testReplaceItemResetsCurrentTimeImmediatelyRatherThanLingeringOnTheOutgoingTracksPosition() throws {
+            let item = AVPlayerItem(url: try audioFile(seconds: trackSeconds))
+            player.currentTime = 1234 // simulate being deep into the track this one is replacing
+            player.replaceItem(item, autoplay: false)
+            #expect(player.currentTime == 0)
+        }
+
+        // NOTE: a planned fix+test here (reacting immediately to a confirmed remote `.failed`
+        // AVPlayerItem status instead of waiting out the full stall timeout) was reverted entirely —
+        // both the new test AND the production `.failed`-status branch in `AudioPlayer+Loading.swift`
+        // — after it destabilized `testManuallyPausedLoadIsNeverWatchedForStalling` in CI across
+        // three separate attempts (the new test alone; then with the production code's self-
+        // cancellation removed from the timeout path too), with no reproduction possible in this
+        // sandbox (no simulator). Revisit with real simulator access rather than guessing blind again.
+
+        // MARK: - Helpers
+
+        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            while !condition() {
+                if Date() > deadline { return false }
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            return true
+        }
+
+        private func row(_ id: Int64) -> TrackRow {
+            let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil, title: "Test",
+                                addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+                                licenseText: nil, memberCapHit: false)
+            let track = Track(id: id, albumId: id, sourceId: 1, title: "Track \(id)", trackNo: nil, discNo: nil,
+                              durationSec: trackSeconds, codec: "MP3", sampleRate: nil,
+                              bitDepthOrBitrate: nil, sortKey: "\(id)")
+            let asset = Asset(id: id, trackId: id, kind: .remote, bookmark: nil, relPath: nil,
+                              remoteURL: "https://example.invalid/track-\(id).mp3",
+                              altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
+            return TrackRow(track: track, album: Album(id: id, sourceId: 1, title: "Album \(id)", artist: nil),
+                            source: source, asset: asset)
+        }
+
+        /// A short silent audio file AVFoundation loads locally (no network in tests).
+        private func audioFile(seconds: Double) throws -> URL {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("stall-\(UUID().uuidString).caf")
+            let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2))
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            let frames = AVAudioFrameCount(seconds * 44_100)
+            let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+            buffer.frameLength = frames
+            try file.write(from: buffer)
+            files.append(url)
+            return url
+        }
     }
 }

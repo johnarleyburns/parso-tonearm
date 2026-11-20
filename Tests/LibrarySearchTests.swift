@@ -1,11 +1,12 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class LibrarySearchTests: XCTestCase {
+@Suite struct LibrarySearchTests {
 
-    func testSearchMatchesTitleArtistAlbumGenreAndFilename() async throws {
+    @Test func testSearchMatchesTitleArtistAlbumGenreAndFilename() async throws {
         let store = try LibraryStore(inMemory: true)
         let trackID = try await seedSearchFixture(into: store)
 
@@ -16,37 +17,37 @@ final class LibrarySearchTests: XCTestCase {
         let albumGenreMatches = try await store.search("Soul").map(\.id)
         let filenameMatches = try await store.search("Hidden Filename").map(\.id)
 
-        XCTAssertEqual(titleMatches, [trackID])
-        XCTAssertEqual(artistMatches, [trackID])
-        XCTAssertEqual(albumMatches, [trackID])
-        XCTAssertEqual(trackGenreMatches, [trackID])
-        XCTAssertEqual(albumGenreMatches, [trackID])
-        XCTAssertEqual(filenameMatches, [trackID])
+        #expect(titleMatches == [trackID])
+        #expect(artistMatches == [trackID])
+        #expect(albumMatches == [trackID])
+        #expect(trackGenreMatches == [trackID])
+        #expect(albumGenreMatches == [trackID])
+        #expect(filenameMatches == [trackID])
     }
 
-    func testSearchRejectsEmptyAndPunctuationOnlyQueries() async throws {
+    @Test func testSearchRejectsEmptyAndPunctuationOnlyQueries() async throws {
         let store = try LibraryStore(inMemory: true)
         _ = try await seedSearchFixture(into: store)
 
         let emptyMatches = try await store.search("").map(\.id)
         let punctuationMatches = try await store.search("*** \" :").map(\.id)
 
-        XCTAssertEqual(emptyMatches, [])
-        XCTAssertEqual(punctuationMatches, [])
+        #expect(emptyMatches == [])
+        #expect(punctuationMatches == [])
     }
 
-    func testMigrationV9RebuildsExistingFTSRowsAcrossJoinedMetadata() throws {
+    @Test func testMigrationV9RebuildsExistingFTSRowsAcrossJoinedMetadata() throws {
         let dbQueue = try makeV8Database()
         try seedV8SearchRows(dbQueue)
 
         try Schema.migrator().migrate(dbQueue)
 
-        try dbQueue.read { db in
-            XCTAssertEqual(try matchedTrackIDs(db, expression: "\"Sinn\"*"), [1])
-            XCTAssertEqual(try matchedTrackIDs(db, expression: "\"Nina\"*"), [1])
-            XCTAssertEqual(try matchedTrackIDs(db, expression: "\"Pastel\"*"), [1])
-            XCTAssertEqual(try matchedTrackIDs(db, expression: "\"Soul\"*"), [1])
-            XCTAssertEqual(try matchedTrackIDs(db, expression: "\"Migrated\"* \"File\"*"), [1])
+        try dbQueue.read { db throws in
+            #expect(try matchedTrackIDs(db, expression: "\"Sinn\"*") == [1])
+            #expect(try matchedTrackIDs(db, expression: "\"Nina\"*") == [1])
+            #expect(try matchedTrackIDs(db, expression: "\"Pastel\"*") == [1])
+            #expect(try matchedTrackIDs(db, expression: "\"Soul\"*") == [1])
+            #expect(try matchedTrackIDs(db, expression: "\"Migrated\"* \"File\"*") == [1])
         }
     }
 
@@ -55,21 +56,21 @@ final class LibrarySearchTests: XCTestCase {
             Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                    title: "Fixture", addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false))
-        let sourceID = try XCTUnwrap(source.id)
+        let sourceID = try #require(source.id)
         let artist = try await store.insertArtist(
             Artist(id: nil, name: "Nina Simone", sortName: "Nina Simone", syncID: UUID().uuidString))
-        let artistID = try XCTUnwrap(artist.id)
+        let artistID = try #require(artist.id)
         let album = try await store.insertAlbum(
             Album(id: nil, sourceId: sourceID, title: "Pastel Blues", artist: "Nina Simone",
                   artistId: artistID, albumArtist: "Nina Simone", genre: "Soul",
                   year: 1965, artworkId: nil))
-        let albumID = try XCTUnwrap(album.id)
+        let albumID = try #require(album.id)
         let track = try await store.insertTrack(
             Track(id: nil, albumId: albumID, sourceId: sourceID, title: "Sinnerman",
                   trackNo: 1, discNo: 1, durationSec: 620,
                   codec: "FLAC", sampleRate: 44_100, bitDepthOrBitrate: "16-bit",
                   sortKey: "0001", genre: "Jazz", composer: nil, artistId: artistID))
-        let trackID = try XCTUnwrap(track.id)
+        let trackID = try #require(track.id)
         _ = try await store.insertAsset(
             Asset(id: nil, trackId: trackID, kind: .localRef, bookmark: nil,
                   relPath: nil, remoteURL: "file:///Music/Hidden%20Filename.flac",

@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 private final class Counter: @unchecked Sendable {
@@ -8,7 +9,7 @@ private final class Counter: @unchecked Sendable {
     var value: Int { lock.lock(); defer { lock.unlock() }; return n }
 }
 
-final class AudioLocatorTests: XCTestCase {
+@Suite struct AudioLocatorTests {
     private let fresh = URL(string: "https://example.test/fresh.mp3")!
     private let stale = URL(string: "https://example.test/stale.mp3")!
 
@@ -21,24 +22,24 @@ final class AudioLocatorTests: XCTestCase {
         })
     }
 
-    func testValidCachedURLIsUsedWithoutRefresh() async throws {
+    @Test func testValidCachedURLIsUsedWithoutRefresh() async throws {
         let r = Counter()
         let url = try await resolver(refreshes: r).open(
             .jamendo(trackID: "1", cachedURL: stale, expiry: Date().addingTimeInterval(60))) { $0 }
-        XCTAssertEqual(url, stale)
-        XCTAssertEqual(r.value, 0)
+        #expect(url == stale)
+        #expect(r.value == 0)
     }
 
-    func testMissingOrExpiredLocatorResolvesFromIdentity() async throws {
+    @Test func testMissingOrExpiredLocatorResolvesFromIdentity() async throws {
         let r = Counter()
         let a = try await resolver(refreshes: r).open(.jamendo(trackID: "1", cachedURL: nil, expiry: nil)) { $0 }
         let b = try await resolver(refreshes: r).open(
             .jamendo(trackID: "1", cachedURL: stale, expiry: Date().addingTimeInterval(-1))) { $0 }
-        XCTAssertEqual([a, b], [fresh, fresh])
-        XCTAssertEqual(r.value, 2)
+        #expect([a, b] == [fresh, fresh])
+        #expect(r.value == 2)
     }
 
-    func testUnauthorizedRefreshesExactlyOnceThenRetries() async throws {
+    @Test func testUnauthorizedRefreshesExactlyOnceThenRetries() async throws {
         let r = Counter()
         let opens = Counter()
         let url = try await resolver(refreshes: r).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { [stale] u in
@@ -46,73 +47,73 @@ final class AudioLocatorTests: XCTestCase {
             if u == stale { throw JamendoLocatorFailure.expiredOrInvalid }
             return u
         }
-        XCTAssertEqual(url, fresh)
-        XCTAssertEqual(r.value, 1)
-        XCTAssertEqual(opens.value, 2)
+        #expect(url == fresh)
+        #expect(r.value == 1)
+        #expect(opens.value == 2)
     }
 
-    func testStillInvalidAfterRefreshFailsWithoutSecondRefresh() async {
+    @Test func testStillInvalidAfterRefreshFailsWithoutSecondRefresh() async {
         let r = Counter()
         do {
             _ = try await resolver(refreshes: r).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { _ -> URL in
                 throw JamendoLocatorFailure.expiredOrInvalid
             }
-            XCTFail()
-        } catch { XCTAssertEqual(error as? JamendoResolveError, .refreshFailed) }
-        XCTAssertEqual(r.value, 1)
+            Issue.record("expected open to throw")
+        } catch { #expect(error as? JamendoResolveError == .refreshFailed) }
+        #expect(r.value == 1)
     }
 
-    func testRefreshFailureIsTruthful() async {
+    @Test func testRefreshFailureIsTruthful() async {
         let r = Counter()
         do {
             _ = try await resolver(refreshes: r, fail: true).open(.jamendo(trackID: "1", cachedURL: nil, expiry: nil)) { $0 }
-            XCTFail()
-        } catch { XCTAssertEqual(error as? JamendoResolveError, .refreshFailed) }
+            Issue.record("expected open to throw")
+        } catch { #expect(error as? JamendoResolveError == .refreshFailed) }
     }
 
-    func testTransientRetriesAreBoundedAndDoNotRefresh() async {
+    @Test func testTransientRetriesAreBoundedAndDoNotRefresh() async {
         let r = Counter(), opens = Counter(), sleeps = Counter()
         do {
             _ = try await resolver(refreshes: r, sleeps: sleeps).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { _ -> URL in
                 _ = opens.next(); throw JamendoLocatorFailure.transient
             }
-            XCTFail()
-        } catch { XCTAssertEqual(error as? JamendoResolveError, .transientExhausted) }
-        XCTAssertEqual(opens.value, 3)
-        XCTAssertEqual(sleeps.value, 2)
-        XCTAssertEqual(r.value, 0)
+            Issue.record("expected open to throw")
+        } catch { #expect(error as? JamendoResolveError == .transientExhausted) }
+        #expect(opens.value == 3)
+        #expect(sleeps.value == 2)
+        #expect(r.value == 0)
     }
 
-    func testTransientThenSuccess() async throws {
+    @Test func testTransientThenSuccess() async throws {
         let opens = Counter()
         let url = try await resolver(refreshes: Counter()).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { u in
             if opens.next() == 1 { throw JamendoLocatorFailure.transient }
             return u
         }
-        XCTAssertEqual(url, stale)
+        #expect(url == stale)
     }
 
-    func testPermanentFailureStopsImmediately() async {
+    @Test func testPermanentFailureStopsImmediately() async {
         let r = Counter(), opens = Counter()
         do {
             _ = try await resolver(refreshes: r).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { _ -> URL in
                 _ = opens.next(); throw JamendoLocatorFailure.permanent
             }
-            XCTFail()
-        } catch { XCTAssertEqual(error as? JamendoResolveError, .permanent) }
-        XCTAssertEqual(opens.value, 1)
-        XCTAssertEqual(r.value, 0)
+            Issue.record("expected open to throw")
+        } catch { #expect(error as? JamendoResolveError == .permanent) }
+        #expect(opens.value == 1)
+        #expect(r.value == 0)
     }
 
-    func testCancellationPropagates() async {
+    @Test func testCancellationPropagates() async {
         let opens = Counter()
         do {
             _ = try await resolver(refreshes: Counter()).open(.jamendo(trackID: "1", cachedURL: stale, expiry: nil)) { _ -> URL in
                 _ = opens.next(); throw CancellationError()
             }
-            XCTFail()
-        } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(opens.value, 1)
+            Issue.record("expected open to throw")
+        } catch { #expect(error is CancellationError) }
+        #expect(opens.value == 1)
     }
 
     // MARK: - refreshOnly / identity-resolve transient retry
@@ -129,7 +130,7 @@ final class AudioLocatorTests: XCTestCase {
     // failed the whole play attempt instead of being absorbed the same way a transient streaming
     // failure already is.
 
-    func testRefreshOnlyRetriesATransientFailureBeforeGivingUp() async throws {
+    @Test func testRefreshOnlyRetriesATransientFailureBeforeGivingUp() async throws {
         let attempts = Counter()
         let sleeps = Counter()
         let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 },
@@ -139,12 +140,12 @@ final class AudioLocatorTests: XCTestCase {
             return (fresh, nil)
         })
         let result = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
-        XCTAssertEqual(result.url, fresh)
-        XCTAssertEqual(attempts.value, 3)
-        XCTAssertEqual(sleeps.value, 2)
+        #expect(result.url == fresh)
+        #expect(attempts.value == 3)
+        #expect(sleeps.value == 2)
     }
 
-    func testRefreshOnlyGivesUpAfterExhaustingTransientAttempts() async {
+    @Test func testRefreshOnlyGivesUpAfterExhaustingTransientAttempts() async {
         let attempts = Counter()
         let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
                                               refresh: { _ in
@@ -153,14 +154,14 @@ final class AudioLocatorTests: XCTestCase {
         })
         do {
             _ = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
-            XCTFail("must give up, not retry forever")
+            Issue.record("must give up, not retry forever")
         } catch {
-            XCTAssertEqual(error as? JamendoResolveError, .refreshFailed)
+            #expect(error as? JamendoResolveError == .refreshFailed)
         }
-        XCTAssertEqual(attempts.value, 3)
+        #expect(attempts.value == 3)
     }
 
-    func testRefreshOnlyPropagatesCancellationWithoutRetrying() async {
+    @Test func testRefreshOnlyPropagatesCancellationWithoutRetrying() async {
         let attempts = Counter()
         let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
                                               refresh: { _ in
@@ -169,14 +170,14 @@ final class AudioLocatorTests: XCTestCase {
         })
         do {
             _ = try await resolver.refreshOnly(.jamendo(trackID: "1", cachedURL: nil, expiry: nil))
-            XCTFail()
+            Issue.record("expected refreshOnly to throw")
         } catch {
-            XCTAssertTrue(error is CancellationError)
+            #expect(error is CancellationError)
         }
-        XCTAssertEqual(attempts.value, 1)
+        #expect(attempts.value == 1)
     }
 
-    func testOpenRetriesTheInitialIdentityResolveOnTransientFailure() async throws {
+    @Test func testOpenRetriesTheInitialIdentityResolveOnTransientFailure() async throws {
         let attempts = Counter()
         let resolver = JamendoLocatorResolver(maxTransientAttempts: 3, backoff: { _ in 0 }, sleep: { _ in },
                                               refresh: { [fresh] _ in
@@ -185,7 +186,7 @@ final class AudioLocatorTests: XCTestCase {
             return (fresh, nil)
         })
         let url = try await resolver.open(.jamendo(trackID: "1", cachedURL: nil, expiry: nil)) { $0 }
-        XCTAssertEqual(url, fresh)
-        XCTAssertEqual(attempts.value, 2)
+        #expect(url == fresh)
+        #expect(attempts.value == 2)
     }
 }

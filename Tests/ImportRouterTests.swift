@@ -1,38 +1,39 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class ImportRouterTests: XCTestCase {
+@Suite final class ImportRouterTests {
 
     private var tempDir: URL!
 
-    override func setUpWithError() throws {
+    init() throws {
         tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ImportRouterTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     }
 
-    override func tearDownWithError() throws {
+    deinit {
         try? FileManager.default.removeItem(at: tempDir)
         tempDir = nil
     }
 
-    func testDirectoryRoutesToFolder() throws {
+    @Test func testDirectoryRoutesToFolder() throws {
         let dir = tempDir.appendingPathComponent("MyFolder", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
-        XCTAssertEqual(ImportRouter.route([dir]), .folder(dir))
+        #expect(ImportRouter.route([dir]) == .folder(dir))
     }
 
-    func testAudioFilesRouteToFiles() throws {
+    @Test func testAudioFilesRouteToFiles() throws {
         let a = tempDir.appendingPathComponent("a.mp3")
         let b = tempDir.appendingPathComponent("b.flac")
         try Data("a".utf8).write(to: a)
         try Data("b".utf8).write(to: b)
 
-        XCTAssertEqual(ImportRouter.route([a, b]), .files([a, b]))
+        #expect(ImportRouter.route([a, b]) == .files([a, b]))
     }
 
-    func testEmptyRoutesToNil() {
-        XCTAssertNil(ImportRouter.route([]))
+    @Test func testEmptyRoutesToNil() {
+        #expect(ImportRouter.route([]) == nil)
     }
 }

@@ -1,8 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-@MainActor
-final class PlaybackPositionModelTests: XCTestCase {
+extension SharedProductionSingletonTests {
+    @MainActor
+    @Suite struct PlaybackPositionModelTests {
 
     struct RNG {
         private var state: UInt64
@@ -21,7 +23,7 @@ final class PlaybackPositionModelTests: XCTestCase {
         case tick, pause, resume, seek, nextTrack, previousTrack, background, kill, uninstall
     }
 
-    func testInvariantsOverRuns() async throws {
+    @Test func testInvariantsOverRuns() async throws {
         for run in 0..<50 {
             let seed: UInt64 = 42 + UInt64(run)
             try await runOne(seed: seed)
@@ -30,7 +32,8 @@ final class PlaybackPositionModelTests: XCTestCase {
 
     private func runOne(seed: UInt64) async throws {
         let fakeCloud = FakePlaybackCloudBackend()
-        let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
+        let stateStore = InMemoryPlaybackStatePersistence()
+        let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud, stateStore: stateStore)
         let rng = RNG(seed: seed)
         let ids: [Int64] = [1, 2, 3, 4, 5]
         let syncs: [String] = ["s1", "s2", "s3", "s4", "s5"]
@@ -72,16 +75,16 @@ final class PlaybackPositionModelTests: XCTestCase {
                 isPlaying: isPlaying, savedAt: Date())
             persistor.save(candidate: snap, reason: reason)
 
-            let durable = PlaybackStateFileStore.load()
+            let durable = stateStore.load()
             if let d = durable, d.trackIDs == ids, d.currentIndex == index {
                 if reason == .tick || reason == .background {
                     let reg = lastDurableElapsed - d.elapsed
-                    XCTAssertLessThanOrEqual(reg, 1.0,
+                    #expect(reg <= 1.0,
                         "G3: tick/bg regression ≤1 s, seed=\(seed)")
                 }
                 switch event {
                 case .pause, .resume, .seek, .nextTrack, .previousTrack:
-                    XCTAssertEqual(d.elapsed, elapsed, accuracy: 0.01,
+                    #expect(abs(d.elapsed - elapsed) <= 0.01,
                         "G1: exact, seed=\(seed)")
                 default: break
                 }
@@ -90,10 +93,7 @@ final class PlaybackPositionModelTests: XCTestCase {
 
             if event == .uninstall {
                 fakeCloud.save(snap)
-                PlaybackStateStore.clear()
-                if let url = PlaybackStateFileStore.fileURL() {
-                    try? FileManager.default.removeItem(at: url)
-                }
+                stateStore.clear()
             }
         }
 
@@ -103,5 +103,6 @@ final class PlaybackPositionModelTests: XCTestCase {
         // G6 is tested thoroughly in testSnapshotSurvivesReinstall; here we just
         // verify the model runs don't crash and basic invariants hold.
         _ = cloudSnap
+    }
     }
 }

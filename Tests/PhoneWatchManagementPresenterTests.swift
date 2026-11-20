@@ -1,79 +1,79 @@
 import Foundation
-import XCTest
+import Testing
 import TonearmWatchProtocol
 @testable import TonearmCore
 
 /// Watch rearchitecture Phase 8 — the pure Settings › Apple Watch projection (§9 P1–P5).
-final class PhoneWatchManagementPresenterTests: XCTestCase {
+@Suite struct PhoneWatchManagementPresenterTests {
     typealias P = PhoneWatchManagementPresenter
 
     private let t0 = Date(timeIntervalSince1970: 100_000)
 
-    func testOnMyWatchMirrorIncludesOnlyInstalledOrSelectedTracksAndNeverChecksSubmittedAudio() {
+    @Test func testOnMyWatchMirrorIncludesOnlyInstalledOrSelectedTracksAndNeverChecksSubmittedAudio() {
         let snapshot = P.snapshot(pairing: .pairedNotReachable,
             roots: [root("r", tracks: ["sending", "submitted", "queued"])],
             jobs: [job("sending", roots: ["r"], state: .sent), job("submitted", roots: ["r"], state: .sent)],
             manifestEntries: [entry("installed-orphan")], watchManifest: nil, now: t0,
             transferFractions: ["sending": 0.5, "submitted": 1],
             trackTitles: ["installed-orphan": "Installed", "sending": "Sending", "submitted": "Submitted", "queued": "Queued"])
-        XCTAssertEqual(Set(snapshot.watchTracks.map(\.id)), ["installed-orphan", "sending", "submitted", "queued"])
-        XCTAssertEqual(snapshot.watchTracks.filter(\.isInstalled).map(\.id), ["installed-orphan"])
-        XCTAssertEqual(snapshot.watchTracks.first { $0.id == "sending" }?.activity?.fractionComplete, 0.5)
-        XCTAssertEqual(snapshot.watchTracks.first { $0.id == "submitted" }?.activity?.stage, .awaitingInstallation)
+        #expect(Set(snapshot.watchTracks.map(\.id)) == ["installed-orphan", "sending", "submitted", "queued"])
+        #expect(snapshot.watchTracks.filter(\.isInstalled).map(\.id) == ["installed-orphan"])
+        #expect(snapshot.watchTracks.first { $0.id == "sending" }?.activity?.fractionComplete == 0.5)
+        #expect(snapshot.watchTracks.first { $0.id == "submitted" }?.activity?.stage == .awaitingInstallation)
     }
 
-    func testPlaylistMembersUseLibraryTitlesInsteadOfGUIDs() {
+    @Test func testPlaylistMembersUseLibraryTitlesInsteadOfGUIDs() {
         let id = "C9FBC56A-1F9B-4775-ABF7-BF92F7374A63"
         let snapshot = P.snapshot(pairing: .pairedNotReachable,
             roots: [root("home", title: "Home Cooking", tracks: [id])],
             jobs: [job(id, roots: ["home"], state: .sent)], manifestEntries: [],
             watchManifest: nil, now: t0, trackTitles: [id: "Home Cooking III"])
-        XCTAssertEqual(snapshot.activity.first?.title, "Home Cooking III")
+        #expect(snapshot.activity.first?.title == "Home Cooking III")
     }
 
-    func testChunkProgressShowsSavedCheckpointAndNotWaitingForWholeFileInstallation() {
+    @Test func testChunkProgressShowsSavedCheckpointAndNotWaitingForWholeFileInstallation() {
         let receipt = WatchPartialAudioDownload(trackID: "fred", assetSHA256: String(repeating: "a", count: 64),
             totalBytes: 100 * 1_048_576, chunkBytes: 1_048_576, receivedChunkIndexes: Array(0..<50))
         let snapshot = P.snapshot(pairing: .pairedNotReachable,
             roots: [root("r", tracks: ["fred"])], jobs: [job("fred", roots: ["r"], state: .sent)],
             manifestEntries: [], watchManifest: nil, now: t0,
             chunkProgress: ["fred": .init(checkpoint: receipt, stage: .awaitingChunkConfirmation)])
-        XCTAssertEqual(snapshot.activity.first?.stage, .awaitingChunkConfirmation)
-        XCTAssertEqual(snapshot.activity.first?.fractionComplete, 0.5)
-        XCTAssertEqual(snapshot.activity.first?.receivedChunkCount, 50)
-        XCTAssertEqual(snapshot.activity.first?.totalChunkCount, 100)
-        XCTAssertEqual(snapshot.storage?.installedBytes, 0)
-        XCTAssertEqual(snapshot.storage?.trackCount, 0)
+        #expect(snapshot.activity.first?.stage == .awaitingChunkConfirmation)
+        #expect(snapshot.activity.first?.fractionComplete == 0.5)
+        #expect(snapshot.activity.first?.receivedChunkCount == 50)
+        #expect(snapshot.activity.first?.totalChunkCount == 100)
+        #expect(snapshot.storage?.installedBytes == 0)
+        #expect(snapshot.storage?.trackCount == 0)
     }
 
-    func testSentJobsUseRealSystemProgressInsteadOfAlwaysWaitingForInstallation() {
+    @Test func testSentJobsUseRealSystemProgressInsteadOfAlwaysWaitingForInstallation() {
         let roots = [root("r", tracks: ["fred"])]
         let jobs = [job("fred", roots: ["r"], state: .sent, bytes: 174_000_000)]
         for (fraction, stage) in [(0.0, P.ActivityStage.waitingForDelivery),
                                   (0.08, .transferring), (1.0, .awaitingInstallation)] {
             let snapshot = P.snapshot(pairing: .pairedNotReachable, roots: roots, jobs: jobs,
                 manifestEntries: [], watchManifest: nil, now: t0, transferFractions: ["fred": fraction])
-            XCTAssertEqual(snapshot.activity.first?.stage, stage)
-            XCTAssertEqual(snapshot.activity.first?.fractionComplete, fraction)
-            XCTAssertEqual(snapshot.activity.first?.expectedBytes, 174_000_000)
-            XCTAssertFalse(snapshot.activity.first?.canRetry ?? true, "Active Apple transfers must not prompt for premature retries")
-            XCTAssertEqual(snapshot.storage?.trackCount, 0)
+            #expect(snapshot.activity.first?.stage == stage)
+            #expect(snapshot.activity.first?.fractionComplete == fraction)
+            #expect(snapshot.activity.first?.expectedBytes == 174_000_000)
+            #expect(!(snapshot.activity.first?.canRetry ?? true), "Active Apple transfers must not prompt for premature retries")
+            #expect(snapshot.storage?.trackCount == 0)
         }
     }
 
-    func testSyncReceiptsAndSystemStorageAreSeparateFromInstalledMusic() {
+    @Test func testSyncReceiptsAndSystemStorageAreSeparateFromInstalledMusic() {
         let history = P.SyncHistory(lastWatchReportAt: t0, lastCatalogSentAt: t0,
             lastCatalogReceivedAt: t0.addingTimeInterval(-5))
         let snapshot = P.snapshot(pairing: .pairedNotReachable, roots: [], jobs: [], manifestEntries: [],
             watchManifest: .init(manifestID: "m", readyTrackIDs: [], installedBytes: 0,
                 capacityBytes: 1000, freeBytes: 680), now: t0, syncHistory: history)
-        XCTAssertEqual(snapshot.storage?.usedFraction, 0.32)
-        XCTAssertEqual(snapshot.storage?.installedBytes, 0)
-        XCTAssertEqual(snapshot.storage?.trackCount, 0)
-        XCTAssertEqual(snapshot.syncHistory, history)
-        XCTAssertNil(snapshot.syncHistory.lastAudioInstalledAt)
+        #expect(snapshot.storage?.usedFraction == 0.32)
+        #expect(snapshot.storage?.installedBytes == 0)
+        #expect(snapshot.storage?.trackCount == 0)
+        #expect(snapshot.syncHistory == history)
+        #expect(snapshot.syncHistory.lastAudioInstalledAt == nil)
         let restored = try? JSONDecoder().decode(P.SyncHistory.self, from: JSONEncoder().encode(history))
-        XCTAssertEqual(restored, history, "Receipt history must survive app relaunch without becoming a success claim")
+        #expect(restored == history, "Receipt history must survive app relaunch without becoming a success claim")
     }
 
     private func root(_ id: String, kind: WatchRootKind = .playlist, title: String = "",
@@ -97,52 +97,52 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
 
     // MARK: pairing / storage
 
-    func testUnpairedHasNoStorageCard() {
+    @Test func testUnpairedHasNoStorageCard() {
         let snap = P.snapshot(pairing: .notPaired, roots: [], jobs: [], manifestEntries: [],
                               watchManifest: nil, now: t0)
-        XCTAssertNil(snap.storage)
-        XCTAssertTrue(snap.isEmpty)
+        #expect(snap.storage == nil)
+        #expect(snap.isEmpty)
     }
 
-    func testStorageUsesWatchReportedCapacityAndFreeBytes() {
+    @Test func testStorageUsesWatchReportedCapacityAndFreeBytes() {
         let payload = WatchManifestPayload(manifestID: "m", readyTrackIDs: [WatchTrackID("a")],
                                            installedBytes: 300, capacityBytes: 1_000, freeBytes: 400)
         let snap = P.snapshot(pairing: .connected(since: t0.addingTimeInterval(-5)),
                               roots: [root("r", tracks: ["a"])],
                               jobs: [], manifestEntries: [entry("a", bytes: 300)],
                               watchManifest: payload, now: t0)
-        let storage = try? XCTUnwrap(snap.storage)
-        XCTAssertEqual(storage?.installedBytes, 300)
-        XCTAssertEqual(storage?.capacityBytes, 1_000)
-        XCTAssertEqual(storage?.trackCount, 1)
-        XCTAssertEqual(storage?.usedFraction ?? 0, 0.6, accuracy: 0.0001)
-        XCTAssertNil(storage?.spaceShortfall)
-        XCTAssertEqual(snap.connectedForSeconds ?? 0, 5, accuracy: 0.01)
+        let storage = try? #require(snap.storage)
+        #expect(storage?.installedBytes == 300)
+        #expect(storage?.capacityBytes == 1_000)
+        #expect(storage?.trackCount == 1)
+        #expect(abs((storage?.usedFraction ?? 0) - (0.6)) <= 0.0001)
+        #expect(storage?.spaceShortfall == nil)
+        #expect(abs((snap.connectedForSeconds ?? 0) - (5)) <= 0.01)
     }
 
-    func testUnknownCapacityLeavesUsedFractionNil() {
+    @Test func testUnknownCapacityLeavesUsedFractionNil() {
         let payload = WatchManifestPayload(manifestID: "m", readyTrackIDs: [], installedBytes: 100)
         let snap = P.snapshot(pairing: .pairedNotReachable, roots: [], jobs: [],
                               manifestEntries: [], watchManifest: payload, now: t0)
-        XCTAssertNil(snap.storage?.usedFraction)
-        XCTAssertFalse(snap.storage?.hasReportedCapacity ?? true)
+        #expect(snap.storage?.usedFraction == nil)
+        #expect(!(snap.storage?.hasReportedCapacity ?? true))
     }
 
-    func testSpaceShortfallWhenRemainingExceedsFree() {
+    @Test func testSpaceShortfallWhenRemainingExceedsFree() {
         let payload = WatchManifestPayload(manifestID: "m", readyTrackIDs: [], installedBytes: 0,
                                            capacityBytes: 5_000_000_000, freeBytes: 10_000_000)
         let snap = P.snapshot(pairing: .connected(since: nil),
                               roots: [root("r", tracks: ["a"])],
                               jobs: [job("a", roots: ["r"], state: .queued, bytes: 640_000_000)],
                               manifestEntries: [], watchManifest: payload, now: t0)
-        let shortfall = try? XCTUnwrap(snap.storage?.spaceShortfall)
-        XCTAssertEqual(shortfall?.requiredBytes, 640_000_000)
-        XCTAssertEqual(shortfall?.freeBytes, 10_000_000)
+        let shortfall = try? #require(snap.storage?.spaceShortfall)
+        #expect(shortfall?.requiredBytes == 640_000_000)
+        #expect(shortfall?.freeBytes == 10_000_000)
     }
 
     // MARK: activity
 
-    func testActivityOrdersTransferringBeforeWaitingBeforeFailed() {
+    @Test func testActivityOrdersTransferringBeforeWaitingBeforeFailed() {
         let jobs = [
             job("c", roots: ["r"], state: .failed, failure: .transient, message: "Network error"),
             job("b", roots: ["r"], state: .waitingForWiFi),
@@ -150,38 +150,37 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         ]
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a", "b", "c"])],
                               jobs: jobs, manifestEntries: [], watchManifest: nil, now: t0)
-        XCTAssertEqual(snap.activity.map(\.stage),
-                       [.transferring, .waitingForWiFi, .failed])
-        XCTAssertEqual(snap.activity.last?.failureMessage, "Network error")
-        XCTAssertTrue(snap.activity.last?.canRetry ?? false)
-        XCTAssertFalse(snap.activity.last?.canCancel ?? true)
+        #expect(snap.activity.map(\.stage) == [.transferring, .waitingForWiFi, .failed])
+        #expect(snap.activity.last?.failureMessage == "Network error")
+        #expect(snap.activity.last?.canRetry ?? false)
+        #expect(!(snap.activity.last?.canCancel ?? true))
     }
 
-    func testActivityStageIsPausedWhenEveryRootPaused() {
+    @Test func testActivityStageIsPausedWhenEveryRootPaused() {
         let snap = P.snapshot(pairing: .connected(since: t0),
                               roots: [root("r", tracks: ["a"], paused: true)],
                               jobs: [job("a", roots: ["r"], state: .queued)],
                               manifestEntries: [], watchManifest: nil, now: t0)
-        XCTAssertEqual(snap.activity.first?.stage, .paused)
+        #expect(snap.activity.first?.stage == .paused)
     }
 
-    func testUnconfirmedSentJobsRemainActivityAndCancelledJobsAreHidden() {
+    @Test func testUnconfirmedSentJobsRemainActivityAndCancelledJobsAreHidden() {
         let jobs = [job("a", roots: ["r"], state: .sent), job("b", roots: ["r"], state: .cancelled)]
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a", "b"])],
                               jobs: jobs, manifestEntries: [], watchManifest: nil, now: t0)
-        XCTAssertEqual(snap.activity.map(\.trackID), ["a"])
-        XCTAssertEqual(snap.activity.first?.stage, .awaitingInstallation)
-        XCTAssertEqual(snap.banner?.activeCount, 1)
-        XCTAssertEqual(snap.collections.first?.readyCount, 0)
-        XCTAssertFalse(snap.collections.first?.isFullyReady ?? true)
+        #expect(snap.activity.map(\.trackID) == ["a"])
+        #expect(snap.activity.first?.stage == .awaitingInstallation)
+        #expect(snap.banner?.activeCount == 1)
+        #expect(snap.collections.first?.readyCount == 0)
+        #expect(!(snap.collections.first?.isFullyReady ?? true))
         let confirmed = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a"])],
             jobs: [jobs[0]], manifestEntries: [entry("a")], watchManifest: nil, now: t0)
-        XCTAssertTrue(confirmed.activity.isEmpty)
+        #expect(confirmed.activity.isEmpty)
     }
 
     // MARK: collections
 
-    func testCollectionCountsBucketByState() {
+    @Test func testCollectionCountsBucketByState() {
         let root = root("pl", kind: .playlist, title: "Deep Focus", tracks: ["a", "b", "c", "d"])
         let jobs = [
             job("b", roots: ["pl"], state: .waitingForWiFi),
@@ -190,25 +189,25 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         ]
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root], jobs: jobs,
                               manifestEntries: [entry("a")], watchManifest: nil, now: t0)
-        let row = try? XCTUnwrap(snap.collections.first)
-        XCTAssertEqual(row?.kind, .playlist)
-        XCTAssertEqual(row?.readyCount, 1)
-        XCTAssertEqual(row?.waitingForWiFiCount, 1)
-        XCTAssertEqual(row?.unavailableCount, 1)
-        XCTAssertEqual(row?.failedCount, 1)
-        XCTAssertTrue(row?.isPartial ?? false)
+        let row = try? #require(snap.collections.first)
+        #expect(row?.kind == .playlist)
+        #expect(row?.readyCount == 1)
+        #expect(row?.waitingForWiFiCount == 1)
+        #expect(row?.unavailableCount == 1)
+        #expect(row?.failedCount == 1)
+        #expect(row?.isPartial ?? false)
     }
 
     // MARK: banner
 
-    func testBannerNilWithNoActiveOrFailed() {
+    @Test func testBannerNilWithNoActiveOrFailed() {
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a"])],
                               jobs: [job("a", roots: ["r"], state: .sent)],
                               manifestEntries: [entry("a")], watchManifest: nil, now: t0)
-        XCTAssertNil(snap.banner)
+        #expect(snap.banner == nil)
     }
 
-    func testBannerCountsActiveAndFailedAndFlagsFailure() {
+    @Test func testBannerCountsActiveAndFailedAndFlagsFailure() {
         let jobs = [
             job("a", roots: ["r"], state: .transferring),
             job("b", roots: ["r"], state: .queued),
@@ -216,46 +215,46 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
         ]
         let snap = P.snapshot(pairing: .connected(since: t0), roots: [root("r", tracks: ["a", "b", "c"])],
                               jobs: jobs, manifestEntries: [], watchManifest: nil, now: t0)
-        XCTAssertEqual(snap.banner?.activeCount, 2)
-        XCTAssertEqual(snap.banner?.failedCount, 1)
-        XCTAssertTrue(snap.banner?.hasFailure ?? false)
+        #expect(snap.banner?.activeCount == 2)
+        #expect(snap.banner?.failedCount == 1)
+        #expect(snap.banner?.hasFailure ?? false)
     }
 
     // MARK: failure badge (My Music "On My Watch")
 
-    func testFailureBadgeMessageNilWithNoFailures() {
-        XCTAssertNil(P.failureBadgeMessage(failedCount: 0))
+    @Test func testFailureBadgeMessageNilWithNoFailures() {
+        #expect(P.failureBadgeMessage(failedCount: 0) == nil)
     }
 
-    func testFailureBadgeMessageDescribesTheFailureCount() {
-        XCTAssertEqual(P.failureBadgeMessage(failedCount: 1), "1 downloads failed")
-        XCTAssertEqual(P.failureBadgeMessage(failedCount: 3), "3 downloads failed")
+    @Test func testFailureBadgeMessageDescribesTheFailureCount() {
+        #expect(P.failureBadgeMessage(failedCount: 1) == "1 downloads failed")
+        #expect(P.failureBadgeMessage(failedCount: 3) == "3 downloads failed")
     }
 
     // MARK: reference-aware removal
 
-    func testRemovingRootReleasesOnlyUnsharedInstalledTracks() {
+    @Test func testRemovingRootReleasesOnlyUnsharedInstalledTracks() {
         let roots = [
             root("a", kind: .playlist, tracks: ["t1", "t2", "t3"]),
             root("b", kind: .playlist, tracks: ["t2"]),
         ]
         let released = P.tracksReleasedByRemoving(rootID: "a", roots: roots,
                                                   installed: ["t1", "t2", "t3"])
-        XCTAssertEqual(released.released.sorted(), ["t1", "t3"])
-        XCTAssertEqual(released.retainedShared, ["t2"])
+        #expect(released.released.sorted() == ["t1", "t3"])
+        #expect(released.retainedShared == ["t2"])
     }
 
-    func testPausedOtherRootDoesNotRetainSharedTrack() {
+    @Test func testPausedOtherRootDoesNotRetainSharedTrack() {
         let roots = [
             root("a", kind: .playlist, tracks: ["t1", "t2"]),
             root("b", kind: .playlist, tracks: ["t2"], paused: true),
         ]
         let released = P.tracksReleasedByRemoving(rootID: "a", roots: roots, installed: ["t1", "t2"])
-        XCTAssertEqual(released.released.sorted(), ["t1", "t2"])
-        XCTAssertTrue(released.retainedShared.isEmpty)
+        #expect(released.released.sorted() == ["t1", "t2"])
+        #expect(released.retainedShared.isEmpty)
     }
 
-    func testCollectionDetailReportsReferenceCountsAndReason() {
+    @Test func testCollectionDetailReportsReferenceCountsAndReason() {
         let roots = [
             root("a", kind: .playlist, title: "A", tracks: ["t1", "t2", "t3"]),
             root("b", kind: .playlist, title: "B", tracks: ["t2"]),
@@ -264,48 +263,48 @@ final class PhoneWatchManagementPresenterTests: XCTestCase {
             job("t3", roots: ["a"], state: .failed, failure: .fileUnsupported,
                 bytes: 0, message: "Unsupported format"),
         ]
-        let detail = try? XCTUnwrap(
+        let detail = try? #require(
             P.collectionDetail(rootID: "a", roots: roots, jobs: jobs,
                                manifestEntries: [entry("t1"), entry("t2")]))
-        XCTAssertEqual(detail?.readyCount, 2)
-        XCTAssertEqual(detail?.unavailableCount, 1)
-        XCTAssertEqual(detail?.unavailableReason, "Unsupported format")
-        XCTAssertEqual(detail?.releasedTrackCount, 1)         // t1 only
-        XCTAssertEqual(detail?.retainedSharedTrackCount, 1)   // t2 kept for root b
-        XCTAssertTrue(detail?.autoSyncs ?? false)
+        #expect(detail?.readyCount == 2)
+        #expect(detail?.unavailableCount == 1)
+        #expect(detail?.unavailableReason == "Unsupported format")
+        #expect(detail?.releasedTrackCount == 1)         // t1 only
+        #expect(detail?.retainedSharedTrackCount == 1)   // t2 kept for root b
+        #expect(detail?.autoSyncs ?? false)
     }
 
-    func testTrackRootDetailDoesNotAutoSync() {
+    @Test func testTrackRootDetailDoesNotAutoSync() {
         let detail = P.collectionDetail(rootID: "tr", roots: [root("tr", kind: .track, tracks: ["x"])],
                                         jobs: [], manifestEntries: [])
-        XCTAssertEqual(detail?.autoSyncs, false)
-        XCTAssertEqual(detail?.kind, .track)
+        #expect(detail?.autoSyncs == false)
+        #expect(detail?.kind == .track)
     }
 }
 
-final class WatchTransferEstimateTests: XCTestCase {
-    func testEstimateUsesAAC128NotOriginalFileSize() {
+@Suite struct WatchTransferEstimateTests {
+    @Test func testEstimateUsesAAC128NotOriginalFileSize() {
         // 4-minute FLAC (~40 MB) -> 240 s * 128 kbps / 8 = 3.84 MB
         let bytes = PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: 240, sourceBytes: 40_000_000)
-        XCTAssertEqual(bytes, 3_840_000)
+        #expect(bytes == 3_840_000)
     }
 
-    func testEstimateNeverExceedsSmallerSourceAndFallsBackWithoutDuration() {
-        XCTAssertEqual(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: 240, sourceBytes: 1_000_000), 1_000_000)
-        XCTAssertEqual(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: nil, sourceBytes: 5), 5)
+    @Test func testEstimateNeverExceedsSmallerSourceAndFallsBackWithoutDuration() {
+        #expect(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: 240, sourceBytes: 1_000_000) == 1_000_000)
+        #expect(PhoneWatchAudioPreparation.estimatedWatchBytes(durationSec: nil, sourceBytes: 5) == 5)
     }
 }
 
-final class WatchHeaderCardSourceTests: XCTestCase {
-    func testHeaderCardReadsUsedAndAvailableFields() throws {
+@Suite struct WatchHeaderCardSourceTests {
+    @Test func testHeaderCardReadsUsedAndAvailableFields() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let source = try String(contentsOf: root.appendingPathComponent(
             "Sources/Features/Settings/WatchSettingsView.swift"), encoding: .utf8)
-        let start = try XCTUnwrap(source.range(of: "headerCard"))
-        let end = try XCTUnwrap(source.range(of: "private func shortfallCard"))
+        let start = try #require(source.range(of: "headerCard"))
+        let end = try #require(source.range(of: "private func shortfallCard"))
         let body = String(source[start.lowerBound..<end.lowerBound])
         for field in ["storage.capacityBytes", "storage.freeBytes", "storage.usedFraction"] {
-            XCTAssertTrue(body.contains(field), "headerCard must render \(field)")
+            #expect(body.contains(field), "headerCard must render \(field)")
         }
     }
 }

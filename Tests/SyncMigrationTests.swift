@@ -1,28 +1,29 @@
-import XCTest
+import Foundation
+import Testing
 import GRDB
 @testable import TonearmCore
 
 /// C7 — schema `v7` adds a UUID `syncID` to every synced table and backfills
 /// existing rows so cross-device identity is stable. Also adds `needsReimport`
 /// to `asset`. Verified against a fresh in-memory store (all migrations run).
-final class SyncMigrationTests: XCTestCase {
+@Suite struct SyncMigrationTests {
 
-    func testSyncIDColumnsExistOnSyncedTables() async throws {
+    @Test func testSyncIDColumnsExistOnSyncedTables() async throws {
         let store = try LibraryStore(inMemory: true)
         let tables = ["source", "album", "track", "asset", "playlist",
                       "playlist_item", "favorite", "play_history", "custom_artwork"]
         try await store.dbQueue.read { db in
             for table in tables {
                 let columns = try db.columns(in: table)
-                XCTAssertTrue(columns.contains { $0.name == "syncID" },
+                #expect(columns.contains { $0.name == "syncID" },
                               "\(table) must have a syncID column after v7")
             }
             let assetColumns = try db.columns(in: "asset")
-            XCTAssertTrue(assetColumns.contains { $0.name == "needsReimport" })
+            #expect(assetColumns.contains { $0.name == "needsReimport" })
         }
     }
 
-    func testBackfillAssignsSyncIDToExistingRows() async throws {
+    @Test func testBackfillAssignsSyncIDToExistingRows() async throws {
         let store = try LibraryStore(inMemory: true)
         // Insert a source without setting syncID; store auto-generates on insert?
         // v7 backfill covers rows created before the column existed. Simulate by
@@ -33,15 +34,15 @@ final class SyncMigrationTests: XCTestCase {
                    title: "Src", addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false,
                    localIsFolder: false, artworkTrackId: nil, syncID: UUID().uuidString))
-        let sid = try XCTUnwrap(source.id)
+        let sid = try #require(source.id)
         let readSyncID = try await store.syncID(table: "source", id: sid)
-        XCTAssertNotNil(readSyncID)
+        #expect(readSyncID != nil)
         // Round-trip syncID → localID.
-        let backID = try await store.localID(table: "source", syncID: try XCTUnwrap(readSyncID))
-        XCTAssertEqual(backID, sid)
+        let backID = try await store.localID(table: "source", syncID: try #require(readSyncID))
+        #expect(backID == sid)
     }
 
-    func testSyncIDUniqueIndexRejectsDuplicates() async throws {
+    @Test func testSyncIDUniqueIndexRejectsDuplicates() async throws {
         let store = try LibraryStore(inMemory: true)
         let dup = UUID().uuidString
         _ = try await store.insertSource(
@@ -55,7 +56,7 @@ final class SyncMigrationTests: XCTestCase {
                        title: "B", addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
                        licenseText: nil, memberCapHit: false, localIsFolder: false,
                        artworkTrackId: nil, syncID: dup))
-            XCTFail("duplicate syncID should violate the unique index")
+            Issue.record("duplicate syncID should violate the unique index")
         } catch {
             // expected
         }
@@ -67,7 +68,7 @@ final class SyncMigrationTests: XCTestCase {
     /// migrated tables and crashed via `swift_unexpectedError` during
     /// `LibraryStore.shared` init. This drives a real v6 → v7 migration over
     /// seeded rows in all synced tables.
-    func testV7BackfillPreservesRowsAndAssignsSyncIDs() throws {
+    @Test func testV7BackfillPreservesRowsAndAssignsSyncIDs() throws {
         let syncedTables = ["source", "album", "track", "asset", "playlist",
                             "playlist_item", "favorite", "play_history", "custom_artwork"]
 
@@ -80,29 +81,30 @@ final class SyncMigrationTests: XCTestCase {
             }
         }
         for table in syncedTables {
-            XCTAssertGreaterThan(before[table] ?? 0, 0, "\(table) should be seeded pre-v7")
+            #expect((before[table] ?? 0) > 0, "\(table) should be seeded pre-v7")
         }
 
-        XCTAssertNoThrow(try Schema.migrator().migrate(dbQueue),
-                         "v7 syncID backfill must not trap on migrated rows")
+        #expect(throws: Never.self, "v7 syncID backfill must not trap on migrated rows") {
+            try Schema.migrator().migrate(dbQueue)
+        }
 
         try dbQueue.read { db in
             for table in syncedTables {
                 let after = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") ?? -1
-                XCTAssertEqual(after, before[table], "\(table) row count must be preserved")
+                #expect(after == before[table], "\(table) row count must be preserved")
 
                 let missing = try Int.fetchOne(
                     db,
                     sql: "SELECT COUNT(*) FROM \(table) WHERE syncID IS NULL OR syncID = ''") ?? -1
-                XCTAssertEqual(missing, 0, "\(table) must have a non-empty syncID on every row")
+                #expect(missing == 0, "\(table) must have a non-empty syncID on every row")
 
                 let distinct = try Int.fetchOne(
                     db, sql: "SELECT COUNT(DISTINCT syncID) FROM \(table)") ?? -1
-                XCTAssertEqual(distinct, after, "\(table) syncIDs must be unique")
+                #expect(distinct == after, "\(table) syncIDs must be unique")
             }
 
             let assetColumns = try db.columns(in: "asset")
-            XCTAssertTrue(assetColumns.contains { $0.name == "needsReimport" })
+            #expect(assetColumns.contains { $0.name == "needsReimport" })
         }
     }
 

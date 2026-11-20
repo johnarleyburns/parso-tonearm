@@ -1,5 +1,6 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// v46: `track.indexed` — a single flag set TRUE only once both `discovery_embedding` (CLAP) and
@@ -7,7 +8,7 @@ import XCTest
 /// those two commits were (and, pre-fix, still are at the SQL layer) two separate transactions —
 /// `BoundedIndexWorker.commitAnalysis`'s doc comment documents exactly this. Real bug fix: Mood
 /// search could return a track with a CLAP embedding but no BPM/key to mix-match against.
-final class MigrationV46Tests: XCTestCase {
+@Suite struct MigrationV46Tests {
     private func makeQueue() throws -> DatabaseQueue {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v45").migrate(queue)
@@ -71,7 +72,7 @@ final class MigrationV46Tests: XCTestCase {
             ])
     }
 
-    func testV46AddsTheIndexedColumnDefaultingToFalse() throws {
+    @Test func testV46AddsTheIndexedColumnDefaultingToFalse() throws {
         let queue = try makeQueue()
         var trackId: Int64 = 0
         try queue.write { db in
@@ -81,13 +82,13 @@ final class MigrationV46Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
         try queue.read { db in
             let columns = Set(try db.columns(in: "track").map(\.name))
-            XCTAssertTrue(columns.contains("indexed"))
+            #expect(columns.contains("indexed"))
             let row = try Row.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
-            XCTAssertEqual(row?["indexed"] as Int?, 0, "an existing row must default to false, not true")
+            #expect(row?["indexed"] as Int? == 0, "an existing row must default to false, not true")
         }
     }
 
-    func testMigratingTwiceIsIdempotent() throws {
+    @Test func testMigratingTwiceIsIdempotent() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
         try Schema.migrator().migrate(queue)
@@ -96,7 +97,7 @@ final class MigrationV46Tests: XCTestCase {
     /// The common, already-correct case: a track whose embedding AND analysis both already
     /// exist (however the old, non-atomic code got there) is retroactively marked indexed
     /// instantly, with no re-processing.
-    func testBackfillMarksAlreadyFullyAnalyzedTracksIndexed() throws {
+    @Test func testBackfillMarksAlreadyFullyAnalyzedTracksIndexed() throws {
         let queue = try makeQueue()
         var trackId: Int64 = 0
         try queue.write { db in
@@ -111,7 +112,7 @@ final class MigrationV46Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
         try queue.read { db in
             let row = try Row.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
-            XCTAssertEqual(row?["indexed"] as Int?, 1)
+            #expect(row?["indexed"] as Int? == 1)
         }
     }
 
@@ -119,7 +120,7 @@ final class MigrationV46Tests: XCTestCase {
     /// terminal-complete on both stages, but the track is missing one of the two tables (exactly
     /// the pre-fix race). It must be reset to a fresh, re-triable state rather than staying stuck
     /// `isComplete` forever with no data to show for it.
-    func testInconsistentCompleteJobMissingAnalysisIsRequeued() throws {
+    @Test func testInconsistentCompleteJobMissingAnalysisIsRequeued() throws {
         let queue = try makeQueue()
         var trackId: Int64 = 0
         try queue.write { db in
@@ -134,21 +135,21 @@ final class MigrationV46Tests: XCTestCase {
         try Schema.migrator().migrate(queue)
         try queue.read { db in
             let trackRow = try Row.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
-            XCTAssertEqual(trackRow?["indexed"] as Int?, 0, "must not be marked indexed without both tables")
+            #expect(trackRow?["indexed"] as Int? == 0, "must not be marked indexed without both tables")
             let jobRow = try Row.fetchOne(
                 db, sql: "SELECT state, embeddingStageState, musicalAnalysisStageState, attemptCount FROM discovery_index_job WHERE trackId = ?",
                 arguments: [trackId])
-            XCTAssertEqual(jobRow?["state"] as String?, "queued", "must be reset to retry, not left stuck complete")
-            XCTAssertEqual(jobRow?["embeddingStageState"] as String?, "pending")
-            XCTAssertEqual(jobRow?["musicalAnalysisStageState"] as String?, "pending")
-            XCTAssertEqual(jobRow?["attemptCount"] as Int?, 0)
+            #expect(jobRow?["state"] as String? == "queued", "must be reset to retry, not left stuck complete")
+            #expect(jobRow?["embeddingStageState"] as String? == "pending")
+            #expect(jobRow?["musicalAnalysisStageState"] as String? == "pending")
+            #expect(jobRow?["attemptCount"] as Int? == 0)
         }
     }
 
     /// A job still genuinely in progress (not yet terminal on both stages) must be left
     /// completely untouched -- the migration only repairs already-"complete" inconsistencies,
     /// never interferes with real in-flight work.
-    func testInProgressJobIsNotTouchedByBackfill() throws {
+    @Test func testInProgressJobIsNotTouchedByBackfill() throws {
         let queue = try makeQueue()
         var trackId: Int64 = 0
         try queue.write { db in
@@ -164,7 +165,7 @@ final class MigrationV46Tests: XCTestCase {
             let jobRow = try Row.fetchOne(
                 db, sql: "SELECT embeddingStageState FROM discovery_index_job WHERE trackId = ?",
                 arguments: [trackId])
-            XCTAssertEqual(jobRow?["embeddingStageState"] as String?, "complete",
+            #expect(jobRow?["embeddingStageState"] as String? == "complete",
                 "a genuinely in-progress job's completed embedding stage must not be reset")
         }
     }
@@ -175,7 +176,7 @@ final class MigrationV46Tests: XCTestCase {
     /// non-optional property throws "column not found" rather than falling back to the property's
     /// Swift default. `Track.init(row:)` (`Records.swift`) must decode such a row without
     /// throwing, same as every test and call site did before this column ever existed.
-    func testFetchingTrackAgainstPreV46SchemaDoesNotThrow() throws {
+    @Test func testFetchingTrackAgainstPreV46SchemaDoesNotThrow() throws {
         let queue = try makeQueue()
         try queue.write { db in
             let sourceId = try self.insertSource(db)
@@ -183,8 +184,8 @@ final class MigrationV46Tests: XCTestCase {
         }
         try queue.read { db in
             let tracks = try Track.fetchAll(db, sql: "SELECT * FROM track")
-            XCTAssertEqual(tracks.count, 1)
-            XCTAssertEqual(tracks.first?.indexed, false, "a pre-v46 row has no column to read -- defaults to false")
+            #expect(tracks.count == 1)
+            #expect(tracks.first?.indexed == false, "a pre-v46 row has no column to read -- defaults to false")
         }
     }
 }

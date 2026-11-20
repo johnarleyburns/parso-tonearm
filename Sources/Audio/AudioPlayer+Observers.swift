@@ -39,7 +39,7 @@ extension AudioPlayer {
                     }
                     let target = pending.seconds
                     let pos = time.seconds
-                    if self.player.currentItem?.status == .readyToPlay,
+                    if self.player.isItemReady(self.player.currentItem),
                        abs(pos - target) > 2 {
                         // Re-issue the seek
                         let cmTime = CMTime(seconds: target, preferredTimescale: 600)
@@ -65,7 +65,13 @@ extension AudioPlayer {
     /// audio was actually frozen. Re-subscribed after crossfade swaps
     /// the player instance.
     func observeTimeControlStatus() {
-        timeControlCancellable = player.publisher(for: \.timeControlStatus)
+        // Combine's KVO `.publisher(for:)` needs a concrete `NSObject`-rooted keypath, so it can't
+        // be called through the `any PlayerEngine` existential. Real production and every test that
+        // needs genuine AVPlayer behavior always construct a real `AVPlayer`, so this cast succeeds
+        // for them with no change in behavior; a fake-backed instance has no KVO to observe, and
+        // nothing that uses one depends on this side effect firing.
+        guard let avPlayer = player as? AVPlayer else { return }
+        timeControlCancellable = avPlayer.publisher(for: \.timeControlStatus)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 Task { @MainActor [weak self] in
@@ -119,7 +125,13 @@ extension AudioPlayer {
         // already loaded and set its own (correct) state. Capture the track this lookup is for
         // and refuse to apply a result once that track is no longer current.
         let trackId = currentTrack?.track.id
-        Task {
+        // `[weak self]`: this fires every 0.5s while advancing and awaits the real `AudioCache`
+        // actor, which can queue behind other instances' calls on a busy runner. An unweakened
+        // capture here would keep `self` (and everything it owns — a real `AVPlayer`,
+        // `NWPathMonitor`, etc.) alive for as long as this task sits queued, even after its test
+        // has otherwise finished and every other reference to this player has gone away.
+        Task { [weak self] in
+            guard let self else { return }
             var state = CacheGlyphState.of(await AudioCache.shared.meta(for: key))
             // "Cached" only if the exact local artifact is playable audio (same predicate as playback).
             if state == .cached, AudioCache.playableCompleteBlobURL(for: remote) == nil { state = .none }

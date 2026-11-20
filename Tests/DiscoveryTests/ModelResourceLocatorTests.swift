@@ -1,5 +1,6 @@
 #if !os(watchOS)
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmDiscovery
 
@@ -7,12 +8,20 @@ import XCTest
 /// resolver must return real URLs when the converted package + bundled mel
 /// filterbank are present and `.unavailable` when they are not — never a
 /// fabricated embedding path.
-final class ModelResourceLocatorTests: XCTestCase {
+@Suite struct ModelResourceLocatorTests {
+    // NOTE(swift-testing-migration): the original XCTest helper registered
+    // `addTeardownBlock { try? FileManager.default.removeItem(at: dir) }` here, which XCTest
+    // runs after the whole test method finishes, no matter which function requested it. Swift
+    // Testing has no per-test teardown-block registry, and a `defer` placed inside this helper
+    // would fire when this helper function returns (deleting the directory before the caller
+    // ever uses it) — not an equivalent translation. Each call site below now does
+    // `let dir = try makeTempDir(); defer { try? FileManager.default.removeItem(at: dir) }`
+    // immediately after calling this helper, which reproduces the original "clean up after this
+    // test" behavior at the correct (test-function) scope.
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
         return dir
     }
 
@@ -27,63 +36,69 @@ final class ModelResourceLocatorTests: XCTestCase {
     /// Issue #201: both compiled CLAP packages resolve from a main-bundle-style
     /// fixture (compiled `.mlmodelc` preferred over raw `.mlpackage`), with no
     /// On-Demand Resource request involved.
-    func testResolvesBothCompiledCLAPPackagesFromBundleStyleFixture() throws {
+    @Test func testResolvesBothCompiledCLAPPackagesFromBundleStyleFixture() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         for name in ["CLAPAudioEncoder", "CLAPTextEncoder"] {
             try makeDir(dir.appendingPathComponent("\(name).mlmodelc"))
             try makeDir(dir.appendingPathComponent("\(name).mlpackage"))
         }
-        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let bundle = try #require(Bundle(url: dir))
         let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: bundle).resolve()
-        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlmodelc")
-        XCTAssertEqual(resolved.textEncoderURL?.lastPathComponent, "CLAPTextEncoder.mlmodelc")
+        #expect(resolved.audioEncoderURL?.lastPathComponent == "CLAPAudioEncoder.mlmodelc")
+        #expect(resolved.textEncoderURL?.lastPathComponent == "CLAPTextEncoder.mlmodelc")
     }
 
     /// Issue #201: a missing package is honest unavailability, not an acquisition.
-    func testMissingCLAPPackagesResolveUnavailable() throws {
+    @Test func testMissingCLAPPackagesResolveUnavailable() throws {
         let dir = try makeTempDir()
-        let bundle = try XCTUnwrap(Bundle(url: dir))
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bundle = try #require(Bundle(url: dir))
         let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: bundle).resolve()
-        XCTAssertNil(resolved.audioEncoderURL)
-        XCTAssertNil(resolved.textEncoderURL)
+        #expect(resolved.audioEncoderURL == nil)
+        #expect(resolved.textEncoderURL == nil)
     }
 
-    func testResolvesBothWhenPresent() throws {
+    @Test func testResolvesBothWhenPresent() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
         try touch(dir.appendingPathComponent("mel_filterbank_slaney_64.bin"))
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertEqual(
-            resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlpackage")
-        XCTAssertEqual(
-            resolved.melFilterBankURL?.lastPathComponent, "mel_filterbank_slaney_64.bin")
+        #expect(
+            resolved.audioEncoderURL?.lastPathComponent == "CLAPAudioEncoder.mlpackage")
+        #expect(
+            resolved.melFilterBankURL?.lastPathComponent == "mel_filterbank_slaney_64.bin")
     }
 
-    func testUnavailableWhenAbsent() throws {
+    @Test func testUnavailableWhenAbsent() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertNil(resolved.audioEncoderURL)
-        XCTAssertNil(resolved.melFilterBankURL)
+        #expect(resolved.audioEncoderURL == nil)
+        #expect(resolved.melFilterBankURL == nil)
     }
 
-    func testPrefersCompiledMlmodelcOverMlpackage() throws {
+    @Test func testPrefersCompiledMlmodelcOverMlpackage() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlmodelc"))
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
         try touch(dir.appendingPathComponent("mel_filterbank_slaney_64.bin"))
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertEqual(
-            resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlmodelc")
+        #expect(
+            resolved.audioEncoderURL?.lastPathComponent == "CLAPAudioEncoder.mlmodelc")
     }
 
-    func testFindsFilterbankInNestedCLAPSubdirectory() throws {
+    @Test func testFindsFilterbankInNestedCLAPSubdirectory() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
         let clap = dir.appendingPathComponent("CLAP", isDirectory: true)
         try makeDir(clap)
@@ -91,28 +106,30 @@ final class ModelResourceLocatorTests: XCTestCase {
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertEqual(
-            resolved.melFilterBankURL?.lastPathComponent, "mel_filterbank_slaney_64.bin")
-        XCTAssertTrue(resolved.melFilterBankURL?.path.contains("/CLAP/") ?? false)
+        #expect(
+            resolved.melFilterBankURL?.lastPathComponent == "mel_filterbank_slaney_64.bin")
+        #expect(resolved.melFilterBankURL?.path.contains("/CLAP/") ?? false)
     }
 
     // MARK: - Text encoder (session 10)
 
-    func testResolvesTextTripletWhenPresent() throws {
+    @Test func testResolvesTextTripletWhenPresent() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPTextEncoder.mlpackage"))
         try touch(dir.appendingPathComponent("vocab.json"))
         try touch(dir.appendingPathComponent("merges.txt"))
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertEqual(resolved.textEncoderURL?.lastPathComponent, "CLAPTextEncoder.mlpackage")
-        XCTAssertEqual(resolved.tokenizerVocabURL?.lastPathComponent, "vocab.json")
-        XCTAssertEqual(resolved.tokenizerMergesURL?.lastPathComponent, "merges.txt")
+        #expect(resolved.textEncoderURL?.lastPathComponent == "CLAPTextEncoder.mlpackage")
+        #expect(resolved.tokenizerVocabURL?.lastPathComponent == "vocab.json")
+        #expect(resolved.tokenizerMergesURL?.lastPathComponent == "merges.txt")
     }
 
-    func testPrefersCompiledTextMlmodelcAndFindsSidecarsInNestedCLAP() throws {
+    @Test func testPrefersCompiledTextMlmodelcAndFindsSidecarsInNestedCLAP() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPTextEncoder.mlmodelc"))
         try makeDir(dir.appendingPathComponent("CLAPTextEncoder.mlpackage"))
         let clap = dir.appendingPathComponent("CLAP", isDirectory: true)
@@ -122,41 +139,43 @@ final class ModelResourceLocatorTests: XCTestCase {
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
 
-        XCTAssertEqual(resolved.textEncoderURL?.lastPathComponent, "CLAPTextEncoder.mlmodelc")
-        XCTAssertTrue(resolved.tokenizerVocabURL?.path.contains("/CLAP/") ?? false)
-        XCTAssertTrue(resolved.tokenizerMergesURL?.path.contains("/CLAP/") ?? false)
+        #expect(resolved.textEncoderURL?.lastPathComponent == "CLAPTextEncoder.mlmodelc")
+        #expect(resolved.tokenizerVocabURL?.path.contains("/CLAP/") ?? false)
+        #expect(resolved.tokenizerMergesURL?.path.contains("/CLAP/") ?? false)
     }
 
     /// Text encoder present but a tokenizer sidecar missing: `ModelManager`
     /// must refuse with `.resourcesUnavailable` rather than fabricate.
-    func testMissingTokenizerSidecarIsUnavailableToModelManager() async throws {
+    @Test func testMissingTokenizerSidecarIsUnavailableToModelManager() async throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPTextEncoder.mlpackage"))
         try touch(dir.appendingPathComponent("vocab.json"))
         // merges.txt intentionally absent
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
-        XCTAssertNotNil(resolved.textEncoderURL)
-        XCTAssertNil(resolved.tokenizerMergesURL)
+        #expect(resolved.textEncoderURL != nil)
+        #expect(resolved.tokenizerMergesURL == nil)
 
         let manager = ModelManager(resourceProvider: { resolved })
         let available = await manager.isTextModelResourceAvailable()
-        XCTAssertFalse(available)
+        #expect(!available)
         do {
             _ = try await manager.textEncoder(context: .foreground)
-            XCTFail("expected .resourcesUnavailable with no merges.txt")
+            Issue.record("expected .resourcesUnavailable with no merges.txt")
         } catch ModelManager.ModelManagerError.resourcesUnavailable {
             // expected
         }
     }
 
-    func testTextEncoderUnavailableWhenNothingResolves() async throws {
+    @Test func testTextEncoderUnavailableWhenNothingResolves() async throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let manager = ModelManager(
             resourceProvider: { ModelResourceLocator(searchDirectories: [dir]).resolve() })
         do {
             _ = try await manager.textEncoder(context: .foreground)
-            XCTFail("expected .resourcesUnavailable")
+            Issue.record("expected .resourcesUnavailable")
         } catch ModelManager.ModelManagerError.resourcesUnavailable {}
     }
 
@@ -176,46 +195,49 @@ final class ModelResourceLocatorTests: XCTestCase {
     /// actually knows where that content lives — this proves the locator
     /// now uses it, and that it works, for a folder-type compiled resource
     /// name (`CLAPAudioEncoder.mlmodelc`).
-    func testResolvesFolderResourceViaBundleAPI() throws {
+    @Test func testResolvesFolderResourceViaBundleAPI() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlmodelc"))
         try touch(dir.appendingPathComponent("mel_filterbank_slaney_64.bin"))
-        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let bundle = try #require(Bundle(url: dir))
 
         // No searchDirectories at all — if this resolves, it can only be
         // because the bundle-API path found it, not the FileManager fallback.
         let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
 
-        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlmodelc")
-        XCTAssertEqual(resolved.melFilterBankURL?.lastPathComponent, "mel_filterbank_slaney_64.bin")
+        #expect(resolved.audioEncoderURL?.lastPathComponent == "CLAPAudioEncoder.mlmodelc")
+        #expect(resolved.melFilterBankURL?.lastPathComponent == "mel_filterbank_slaney_64.bin")
     }
 
     /// A tokenizer sidecar (no meaningful "extension" beyond its real file
     /// extension, e.g. `vocab.json`) must also resolve through the bundle
     /// API, not just folder-type `.mlmodelc` resources.
-    func testResolvesFileResourceWithExtensionViaBundleAPI() throws {
+    @Test func testResolvesFileResourceWithExtensionViaBundleAPI() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try touch(dir.appendingPathComponent("vocab.json"))
-        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let bundle = try #require(Bundle(url: dir))
 
         let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
 
-        XCTAssertEqual(resolved.tokenizerVocabURL?.lastPathComponent, "vocab.json")
+        #expect(resolved.tokenizerVocabURL?.lastPathComponent == "vocab.json")
     }
 
     /// Content nested under a subdirectory (mirrors `Resources/CLAP/` in
     /// some bundle layouts) must resolve via `Bundle.url(forResource:
     /// withExtension:subdirectory:)`, not just at the bundle root.
-    func testResolvesNestedSubdirectoryResourceViaBundleAPI() throws {
+    @Test func testResolvesNestedSubdirectoryResourceViaBundleAPI() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let clap = dir.appendingPathComponent("CLAP", isDirectory: true)
         try makeDir(clap)
         try touch(clap.appendingPathComponent("merges.txt"))
-        let bundle = try XCTUnwrap(Bundle(url: dir))
+        let bundle = try #require(Bundle(url: dir))
 
         let resolved = ModelResourceLocator(searchDirectories: [], bundle: bundle).resolve()
 
-        XCTAssertEqual(resolved.tokenizerMergesURL?.lastPathComponent, "merges.txt")
+        #expect(resolved.tokenizerMergesURL?.lastPathComponent == "merges.txt")
     }
 
     /// The bundle-API path is tried FIRST, but a plain filesystem
@@ -223,31 +245,33 @@ final class ModelResourceLocatorTests: XCTestCase {
     /// supplied at all — the dev-checkout/test scenario every other test
     /// in this file already covers, now re-confirmed unchanged by this
     /// fix's `if let bundle` guard.
-    func testFallsBackToFileManagerWhenNoBundleSupplied() throws {
+    @Test func testFallsBackToFileManagerWhenNoBundleSupplied() throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
 
         let resolved = ModelResourceLocator(searchDirectories: [dir], bundle: nil).resolve()
 
-        XCTAssertEqual(resolved.audioEncoderURL?.lastPathComponent, "CLAPAudioEncoder.mlpackage")
+        #expect(resolved.audioEncoderURL?.lastPathComponent == "CLAPAudioEncoder.mlpackage")
     }
 
-    func testMissingFilterbankIsUnavailableToModelManager() async throws {
+    @Test func testMissingFilterbankIsUnavailableToModelManager() async throws {
         let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try makeDir(dir.appendingPathComponent("CLAPAudioEncoder.mlpackage"))
 
         let resolved = ModelResourceLocator(searchDirectories: [dir]).resolve()
-        XCTAssertNotNil(resolved.audioEncoderURL)
-        XCTAssertNil(resolved.melFilterBankURL)
+        #expect(resolved.audioEncoderURL != nil)
+        #expect(resolved.melFilterBankURL == nil)
 
         let manager = ModelManager(resourceProvider: { resolved })
         let available = await manager.isModelResourceAvailable()
         // Both artefacts are required, so the cheap availability check is false.
-        XCTAssertFalse(available)
+        #expect(!available)
         // And actually loading the encoder must refuse rather than fabricate.
         do {
             _ = try await manager.audioEncoder(context: .foreground)
-            XCTFail("expected .resourcesUnavailable with no mel filterbank")
+            Issue.record("expected .resourcesUnavailable with no mel filterbank")
         } catch ModelManager.ModelManagerError.resourcesUnavailable {
             // expected
         }

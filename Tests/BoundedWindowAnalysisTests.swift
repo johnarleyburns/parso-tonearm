@@ -1,7 +1,8 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class BoundedWindowAnalysisTests: XCTestCase {
+@Suite struct BoundedWindowAnalysisTests {
     /// Synthetic click track generated lazily; never materialises the whole file.
     private final class Click: RangeAudioSource, @unchecked Sendable {
         let sampleRate: Double, channelCount = 2, totalFrames: Int64
@@ -28,76 +29,76 @@ final class BoundedWindowAnalysisTests: XCTestCase {
         }
     }
 
-    func testShortFixtureUsable() {
+    @Test func testShortFixtureUsable() {
         let r = BoundedWindowAnalyzer().analyze(source: Click(seconds: 40), fingerprint: "a")
-        XCTAssertTrue([.usableBeatPlacement, .usablePhrasePlacement].contains(r.outcome))
-        XCTAssertEqual(r.entry?.bpm ?? 0, 120, accuracy: 3)
+        #expect([.usableBeatPlacement, .usablePhrasePlacement].contains(r.outcome))
+        #expect(abs((r.entry?.bpm ?? 0) - 120) <= 3)
     }
 
-    func testLongTrackSameMemoryBoundAndDirectTailSeek() {
+    @Test func testLongTrackSameMemoryBoundAndDirectTailSeek() {
         let short = Click(seconds: 300), long = Click(seconds: 3 * 3600)
         let a = BoundedWindowAnalyzer(), s = a.analyze(source: short, fingerprint: "s")
         let l = a.analyze(source: long, fingerprint: "l")
-        XCTAssertEqual(s.peakBytes, l.peakBytes, accuracy: s.peakBytes / 4)
-        XCTAssertLessThanOrEqual(l.peakBytes, a.budget.maxBytes)
-        XCTAssertEqual(l.decodedFrames, Int64(2 * 30 * 44_100))
+        #expect(abs(s.peakBytes - l.peakBytes) <= s.peakBytes / 4)
+        #expect(l.peakBytes <= a.budget.maxBytes)
+        #expect(l.decodedFrames == Int64(2 * 30 * 44_100))
         let tailStart = long.totalFrames - Int64(30 * 44_100)
-        XCTAssertEqual(long.requests.map(\.0).filter { $0 >= Int64(30 * 44_100) && $0 < tailStart }.count, 0)
-        XCTAssertEqual(long.requests.last!.0 + Int64(long.requests.last!.1), long.totalFrames)
-        XCTAssertLessThan(l.coverage, 0.01)
-        XCTAssertFalse(l.claimsFullTrackStructure); XCTAssertFalse(l.claimsInteriorDoubleDrop)
+        #expect(long.requests.map(\.0).filter { $0 >= Int64(30 * 44_100) && $0 < tailStart }.count == 0)
+        #expect(long.requests.last!.0 + Int64(long.requests.last!.1) == long.totalFrames)
+        #expect(l.coverage < 0.01)
+        #expect(!l.claimsFullTrackStructure); #expect(!l.claimsInteriorDoubleDrop)
     }
 
-    func testResamplerChunkJoinsMatchOneShot() {
+    @Test func testResamplerChunkJoinsMatchOneShot() {
         let x = (0..<10_001).map { Float(sin(Double($0) * 0.01)) }
         var one = StreamingResampler(from: 44_100, to: 11_025)
         let whole = one.process(x)
         var chunked = StreamingResampler(from: 44_100, to: 11_025)
         var parts: [Float] = []
         for s in stride(from: 0, to: x.count, by: 777) { parts += chunked.process(Array(x[s..<min(s + 777, x.count)])) }
-        XCTAssertEqual(parts.count, whole.count)
-        for (p, w) in zip(parts, whole) { XCTAssertEqual(p, w, accuracy: 1e-5) }
+        #expect(parts.count == whole.count)
+        for (p, w) in zip(parts, whole) { #expect(abs(p - w) <= 1e-5) }
     }
 
-    func testSilenceIsInsufficient() {
+    @Test func testSilenceIsInsufficient() {
         let r = BoundedWindowAnalyzer().analyze(source: Click(seconds: 100, silent: true), fingerprint: "z")
-        XCTAssertEqual(r.outcome, .insufficientConfidence)
-        XCTAssertEqual(r.confidence, 0)
+        #expect(r.outcome == .insufficientConfidence)
+        #expect(r.confidence == 0)
     }
 
-    func testUnsupportedRangeAccessNeverDecodes() {
+    @Test func testUnsupportedRangeAccessNeverDecodes() {
         let c = Click(seconds: 100, range: false)
         let r = BoundedWindowAnalyzer().analyze(source: c, fingerprint: "u")
-        XCTAssertEqual(r.outcome, .unsupportedRangeAccess)
-        XCTAssertTrue(c.requests.isEmpty)
+        #expect(r.outcome == .unsupportedRangeAccess)
+        #expect(c.requests.isEmpty)
     }
 
-    func testCancellationPreventsLaterChunks() {
+    @Test func testCancellationPreventsLaterChunks() {
         let c = Click(seconds: 600)
         let n = NSLock(); nonisolated(unsafe) var seen = 0
         let r = BoundedWindowAnalyzer().analyze(source: c, fingerprint: "c") {
             n.withLock { seen += 1; return seen > 2 }
         }
-        XCTAssertEqual(r.outcome, .cancelled)
-        XCTAssertLessThanOrEqual(c.requests.count, 2)
+        #expect(r.outcome == .cancelled)
+        #expect(c.requests.count <= 2)
     }
 
-    func testBudgetsDefer() {
+    @Test func testBudgetsDefer() {
         var b = WindowAnalysisBudget(); b.maxDecodedFrames = 100_000
         let r = BoundedWindowAnalyzer(budget: b).analyze(source: Click(seconds: 600), fingerprint: "d")
-        XCTAssertEqual(r.outcome, .deferred)
-        XCTAssertLessThanOrEqual(r.decodedFrames, 100_000)
+        #expect(r.outcome == .deferred)
+        #expect(r.decodedFrames <= 100_000)
     }
 
-    func testCacheKeyedByFingerprintAndVersion() {
+    @Test func testCacheKeyedByFingerprintAndVersion() {
         let cache = BoundedAnalysisCache(), c = Click(seconds: 100)
         let a = BoundedWindowAnalyzer()
         _ = a.analyze(source: c, fingerprint: "f", cache: cache)
         let n = c.requests.count
         let hit = a.analyze(source: c, fingerprint: "f", cache: cache)
-        XCTAssertEqual(c.requests.count, n); XCTAssertEqual(hit.decodedFrames, 0)
-        XCTAssertNil(cache.record(fingerprint: "f", version: 999))
+        #expect(c.requests.count == n); #expect(hit.decodedFrames == 0)
+        #expect(cache.record(fingerprint: "f", version: 999) == nil)
         _ = a.analyze(source: c, fingerprint: "g", cache: cache)
-        XCTAssertGreaterThan(c.requests.count, n)
+        #expect(c.requests.count > n)
     }
 }

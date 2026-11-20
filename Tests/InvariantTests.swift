@@ -1,73 +1,74 @@
-import XCTest
+import Foundation
+import Testing
 import ParsoAudioStreaming
 @testable import TonearmCore
 
-final class InvariantTests: XCTestCase {
+@Suite struct InvariantTests {
 
     // Invariant #3: URL layer allowlist — only archive.org hosts.
-    func testHostAllowlist() {
-        XCTAssertTrue(IAClient.isAllowedHost("archive.org"))
-        XCTAssertTrue(IAClient.isAllowedHost("www.archive.org"))
-        XCTAssertTrue(IAClient.isAllowedHost("ia800304.us.archive.org"))
-        XCTAssertFalse(IAClient.isAllowedHost("example.com"))
-        XCTAssertFalse(IAClient.isAllowedHost("archive.org.evil.com"))
-        XCTAssertFalse(IAClient.isAllowedHost("web.archive.org.hax.io"))
+    @Test func testHostAllowlist() {
+        #expect(IAClient.isAllowedHost("archive.org"))
+        #expect(IAClient.isAllowedHost("www.archive.org"))
+        #expect(IAClient.isAllowedHost("ia800304.us.archive.org"))
+        #expect(!IAClient.isAllowedHost("example.com"))
+        #expect(!IAClient.isAllowedHost("archive.org.evil.com"))
+        #expect(!IAClient.isAllowedHost("web.archive.org.hax.io"))
     }
 }
 
-final class ByteRangeMapTests: XCTestCase {
+@Suite struct ByteRangeMapTests {
 
-    func testInsertAndContiguous() {
+    @Test func testInsertAndContiguous() {
         var map = ByteRangeMap()
         map.insert(0..<100)
-        XCTAssertEqual(map.contiguousBytes(from: 0), 100)
-        XCTAssertEqual(map.totalBytes(), 100)
+        #expect(map.contiguousBytes(from: 0) == 100)
+        #expect(map.totalBytes() == 100)
     }
 
-    func testMergeAdjacent() {
+    @Test func testMergeAdjacent() {
         var map = ByteRangeMap()
         map.insert(0..<100)
         map.insert(100..<200)
-        XCTAssertEqual(map.ranges.count, 1)
-        XCTAssertEqual(map.contiguousBytes(from: 0), 200)
+        #expect(map.ranges.count == 1)
+        #expect(map.contiguousBytes(from: 0) == 200)
     }
 
-    func testMergeOverlapping() {
+    @Test func testMergeOverlapping() {
         var map = ByteRangeMap()
         map.insert(0..<100)
         map.insert(50..<150)
-        XCTAssertEqual(map.ranges.count, 1)
-        XCTAssertEqual(map.totalBytes(), 150)
+        #expect(map.ranges.count == 1)
+        #expect(map.totalBytes() == 150)
     }
 
-    func testDisjoint() {
+    @Test func testDisjoint() {
         var map = ByteRangeMap()
         map.insert(0..<100)
         map.insert(200..<300)
-        XCTAssertEqual(map.ranges.count, 2)
-        XCTAssertEqual(map.contiguousBytes(from: 0), 100)
-        XCTAssertEqual(map.contiguousBytes(from: 150), 0)
+        #expect(map.ranges.count == 2)
+        #expect(map.contiguousBytes(from: 0) == 100)
+        #expect(map.contiguousBytes(from: 150) == 0)
     }
 
-    func testCoversFull() {
+    @Test func testCoversFull() {
         var map = ByteRangeMap()
         map.insert(0..<500)
-        XCTAssertTrue(map.covers(total: 500))
-        XCTAssertFalse(map.covers(total: 600))
+        #expect(map.covers(total: 500))
+        #expect(!map.covers(total: 600))
     }
 
-    func testCodableRoundTrip() {
+    @Test func testCodableRoundTrip() {
         var map = ByteRangeMap()
         map.insert(0..<100)
         map.insert(200..<250)
         let restored = ByteRangeMap(data: map.encoded())
-        XCTAssertEqual(map, restored)
+        #expect(map == restored)
     }
 }
 
-final class FileSelectionTests: XCTestCase {
+@Suite struct FileSelectionTests {
 
-    func testPrefersFLACOverMP3() {
+    @Test func testPrefersFLACOverMP3() {
         let files = [
             IAFile(name: "track01.mp3", format: "VBR MP3", source: "derivative",
                    original: "track01.flac", length: "212", size: "5000000",
@@ -78,11 +79,11 @@ final class FileSelectionTests: XCTestCase {
         ]
         let tracks = FileSelectionPolicy(preferFLAC: true)
             .selectTracks(files: files, identifier: "x", itemArtist: "Bach")
-        XCTAssertEqual(tracks.count, 1)
-        XCTAssertEqual(tracks.first?.codec, "FLAC")
+        #expect(tracks.count == 1)
+        #expect(tracks.first?.codec == "FLAC")
     }
 
-    func testSkipsSpectrogramsAndSamples() {
+    @Test func testSkipsSpectrogramsAndSamples() {
         let files = [
             IAFile(name: "track01_sample.mp3", format: "MP3", source: nil, original: nil,
                    length: "30", size: "1000", title: nil, track: nil, album: nil, artist: nil, bitrate: nil, height: nil),
@@ -93,6 +94,6 @@ final class FileSelectionTests: XCTestCase {
         ]
         let tracks = FileSelectionPolicy(preferFLAC: true)
             .selectTracks(files: files, identifier: "x", itemArtist: nil)
-        XCTAssertEqual(tracks.count, 1)
+        #expect(tracks.count == 1)
     }
 }

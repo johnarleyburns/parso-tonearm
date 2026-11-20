@@ -1,9 +1,9 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class LibrarySearchPolicyTests: XCTestCase {
-    func testWhitespaceDoesNotStartDatabaseSearch() {
-        XCTAssertFalse(LibrarySearchPolicy.shouldSearch("  \n\t"))
-        XCTAssertTrue(LibrarySearchPolicy.shouldSearch("ambient"))
+@Suite struct LibrarySearchPolicyTests {
+    @Test func testWhitespaceDoesNotStartDatabaseSearch() {
+        #expect(!LibrarySearchPolicy.shouldSearch("  \n\t"))
+        #expect(LibrarySearchPolicy.shouldSearch("ambient"))
     }
 }

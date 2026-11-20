@@ -116,6 +116,12 @@ public struct IngestService {
     @discardableResult
     public func addFolder(_ folderURL: URL, includeSubfolders: Bool, keepOrder: Bool,
                           watch: Bool, into store: LibraryStore) async throws -> IngestSummary {
+        // Keep the folder's document access alive for the actual ingest, not
+        // just for `scanFolder`'s enumeration: otherwise each file's size and
+        // duration can be unreadable, silently disabling duplicate detection
+        // for a folder that contains a file already added individually.
+        let accessed = folderURL.startAccessingSecurityScopedResource()
+        defer { if accessed { folderURL.stopAccessingSecurityScopedResource() } }
         let files = scanFolder(folderURL, includeSubfolders: includeSubfolders)
         guard !files.isEmpty else {
             TonearmLog.ingest.debug("No audio files found in \(folderURL.lastPathComponent, privacy: .public)")
@@ -206,6 +212,13 @@ public struct IngestService {
 
     private func ingestOne(_ url: URL, sourceId: Int64, albumId: Int64?, index: Int,
                            section: String?, store: LibraryStore) async throws -> IngestOutcome {
+        // Hold document access for the WHOLE ingest. `extractMetadata` opens and
+        // closes its own scope, so reading `fileSize` after it returned used to
+        // fail for document-picker URLs — leaving `sizeBytes` nil and silently
+        // bypassing the size+duration duplicate check below. That is the
+        // "add a file, then add the folder containing it" duplicate path.
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
         let bookmark = BookmarkVault.makeBookmark(for: url)
         let meta = await extractMetadata(url)
         let ext = url.pathExtension.lowercased()

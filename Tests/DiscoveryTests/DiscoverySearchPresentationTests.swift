@@ -1,6 +1,6 @@
 #if !os(watchOS)
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -9,7 +9,7 @@ import XCTest
 /// `DiscoverySearchResponse` → `DiscoverySearchScreenState` mapping and the
 /// score-detail component list (plan §10.1 / §9: "Map every distinct response
 /// state to distinct UI").
-final class DiscoverySearchPresentationTests: XCTestCase {
+@Suite struct DiscoverySearchPresentationTests {
 
     private func response(
         mode: DiscoverySearchMode,
@@ -42,134 +42,134 @@ final class DiscoverySearchPresentationTests: XCTestCase {
 
     // MARK: - Every response state maps to a distinct screen state
 
-    func testReadySemanticIsSemanticResults() {
+    @Test func testReadySemanticIsSemanticResults() {
         let s = DiscoverySearchPresentation.make(
             from: response(mode: .semantic, state: .ready, results: [result()]))
-        XCTAssertEqual(s, .results(kind: .semantic, count: 1, stillIndexing: false))
-        XCTAssertTrue(s.hasResults)
+        #expect(s == .results(kind: .semantic, count: 1, stillIndexing: false))
+        #expect(s.hasResults)
     }
 
-    func testReadyFilterOnlyIsFilterOnlyResults() {
+    @Test func testReadyFilterOnlyIsFilterOnlyResults() {
         let s = DiscoverySearchPresentation.make(
             from: response(mode: .filterOnly, state: .ready, results: [result(), result(id: 2)]))
-        XCTAssertEqual(s, .results(kind: .filterOnly, count: 2, stillIndexing: false))
+        #expect(s == .results(kind: .filterOnly, count: 2, stillIndexing: false))
     }
 
-    func testReadyMetadataBrowseIsBrowseResults() {
+    @Test func testReadyMetadataBrowseIsBrowseResults() {
         let s = DiscoverySearchPresentation.make(
             from: response(mode: .metadataBrowse, state: .ready, results: [result()]))
-        XCTAssertEqual(s, .results(kind: .metadataBrowse, count: 1, stillIndexing: false))
-        XCTAssertFalse(DiscoverySearchResultKind.metadataBrowse.showsSemanticScore)
-        XCTAssertTrue(DiscoverySearchResultKind.semantic.showsSemanticScore)
+        #expect(s == .results(kind: .metadataBrowse, count: 1, stillIndexing: false))
+        #expect(!DiscoverySearchResultKind.metadataBrowse.showsSemanticScore)
+        #expect(DiscoverySearchResultKind.semantic.showsSemanticScore)
     }
 
-    func testReadyWithIndexingInProgressCoverageFlagsStillIndexing() {
+    @Test func testReadyWithIndexingInProgressCoverageFlagsStillIndexing() {
         let s = DiscoverySearchPresentation.make(
             from: response(
                 mode: .semantic, state: .ready, results: [result()],
                 coverage: coverage(.indexingInProgress)))
-        XCTAssertEqual(s, .results(kind: .semantic, count: 1, stillIndexing: true))
+        #expect(s == .results(kind: .semantic, count: 1, stillIndexing: true))
     }
 
-    func testNoMatchesCarriesKind() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .filterOnly, state: .noMatches)),
+    @Test func testNoMatchesCarriesKind() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .filterOnly, state: .noMatches)) ==
             .noMatches(kind: .filterOnly))
     }
 
-    func testValidationErrorCarriesIssues() {
+    @Test func testValidationErrorCarriesIssues() {
         let issues: [QueryValidationIssue] = [.bpmReversed(min: 140, max: 120), .invalidKeyCode("ZZ")]
-        XCTAssertEqual(
+        #expect(
             DiscoverySearchPresentation.make(
-                from: response(mode: .semantic, state: .validationFailed(issues))),
+                from: response(mode: .semantic, state: .validationFailed(issues))) ==
             .validationError(issues))
     }
 
-    func testEmptyLibraryEmptyScopeSourceUnavailableAreDistinct() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .emptyLibrary)),
+    @Test func testEmptyLibraryEmptyScopeSourceUnavailableAreDistinct() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .emptyLibrary)) ==
             .emptyLibrary)
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .emptyScope)),
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .emptyScope)) ==
             .emptyScope)
-        XCTAssertEqual(
+        #expect(
             DiscoverySearchPresentation.make(
-                from: response(mode: .semantic, state: .sourceUnavailable)),
+                from: response(mode: .semantic, state: .sourceUnavailable)) ==
             .sourceUnavailable)
     }
 
-    func testZeroIndexedIsItsOwnState() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .zeroIndexed)),
+    @Test func testZeroIndexedIsItsOwnState() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .zeroIndexed)) ==
             .zeroIndexed)
     }
 
-    func testModelMissingAndDownloadFailedAreDistinct() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .modelMissing)),
+    @Test func testModelMissingAndDownloadFailedAreDistinct() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .modelMissing)) ==
             .modelMissing)
-        XCTAssertEqual(
+        #expect(
             DiscoverySearchPresentation.make(
-                from: response(mode: .semantic, state: .modelDownloadFailed)),
+                from: response(mode: .semantic, state: .modelDownloadFailed)) ==
             .modelDownloadFailed)
     }
 
-    func testUnindexedReferenceBecomesAnalyzeWithTheReferenceID() {
+    @Test func testUnindexedReferenceBecomesAnalyzeWithTheReferenceID() {
         let s = DiscoverySearchPresentation.make(
             from: response(mode: .similar(referenceTrackID: 77), state: .unindexedReference))
-        XCTAssertEqual(s, .analyzeReference(trackID: 77))
+        #expect(s == .analyzeReference(trackID: 77))
     }
 
-    func testMatchingReferenceUnavailableHasItsOwnState() {
-        XCTAssertEqual(
+    @Test func testMatchingReferenceUnavailableHasItsOwnState() {
+        #expect(
             DiscoverySearchPresentation.make(
-                from: response(mode: .semantic, state: .matchingReferenceUnavailable)),
+                from: response(mode: .semantic, state: .matchingReferenceUnavailable)) ==
             .matchingReferenceUnavailable)
     }
 
-    func testSearchFailedIsRetryableFailureNotNoMatches() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .searchFailed)),
+    @Test func testSearchFailedIsRetryableFailureNotNoMatches() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .searchFailed)) ==
             .searchFailed)
     }
 
-    func testCancelledBecomesStaleSuppressed() {
-        XCTAssertEqual(
-            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .cancelled)),
+    @Test func testCancelledBecomesStaleSuppressed() {
+        #expect(
+            DiscoverySearchPresentation.make(from: response(mode: .semantic, state: .cancelled)) ==
             .staleSuppressed)
     }
 
-    func testIndexingInProgressTerminalStateMapsToPartialResults() {
+    @Test func testIndexingInProgressTerminalStateMapsToPartialResults() {
         let s = DiscoverySearchPresentation.make(
             from: response(mode: .semantic, state: .indexingInProgress))
-        XCTAssertEqual(s, .results(kind: .semantic, count: 0, stillIndexing: true))
+        #expect(s == .results(kind: .semantic, count: 0, stillIndexing: true))
     }
 
     // MARK: - Score-detail components
 
-    func testScoreComponentsListRawSimilarityAndAllFitComponents() {
+    @Test func testScoreComponentsListRawSimilarityAndAllFitComponents() {
         let comps = RankBreakdownDisplay.components(for: result())
         let labels = comps.map(\.label)
-        XCTAssertEqual(labels, ["similarity", "tempo fit", "key fit", "energy fit", "phrase fit", "match score"])
-        XCTAssertEqual(comps.first { $0.label == "similarity" }?.formattedValue, "0.42")
-        XCTAssertEqual(comps.first { $0.label == "key fit" }?.formattedValue, "0.90")
+        #expect(labels == ["similarity", "tempo fit", "key fit", "energy fit", "phrase fit", "match score"])
+        #expect(comps.first { $0.label == "similarity" }?.formattedValue == "0.42")
+        #expect(comps.first { $0.label == "key fit" }?.formattedValue == "0.90")
         // Never a percent / "confident" phrasing.
         for c in comps {
-            XCTAssertFalse(c.formattedValue.contains("%"))
+            #expect(!c.formattedValue.contains("%"))
         }
     }
 
-    func testScoreComponentsEmptyForFilterOnlyRow() {
+    @Test func testScoreComponentsEmptyForFilterOnlyRow() {
         let track = Track(
             id: 5, albumId: nil, sourceId: 1, title: "t", trackNo: nil, discNo: nil,
             durationSec: 1, codec: "wav", sampleRate: 44_100, bitDepthOrBitrate: nil, sortKey: "t")
         let row = DiscoverySearchResult(
             track: TrackRow(track: track, album: nil, source: nil, asset: nil),
             similarity: nil, finalScore: nil, breakdown: nil)
-        XCTAssertTrue(RankBreakdownDisplay.components(for: row).isEmpty)
+        #expect(RankBreakdownDisplay.components(for: row).isEmpty)
     }
 
-    func testScoreComponentsToleratesNonFiniteValues() {
+    @Test func testScoreComponentsToleratesNonFiniteValues() {
         let track = Track(
             id: 6, albumId: nil, sourceId: 1, title: "t", trackNo: nil, discNo: nil,
             durationSec: 1, codec: "wav", sampleRate: 44_100, bitDepthOrBitrate: nil, sortKey: "t")
@@ -180,7 +180,7 @@ final class DiscoverySearchPresentationTests: XCTestCase {
             breakdown: RankBreakdown(
                 semantic: .nan, bpm: .nan, key: .nan, energy: .nan, phrase: .nan, fused: .infinity))
         for c in RankBreakdownDisplay.components(for: row) {
-            XCTAssertTrue(c.value.isFinite)
+            #expect(c.value.isFinite)
         }
     }
 }

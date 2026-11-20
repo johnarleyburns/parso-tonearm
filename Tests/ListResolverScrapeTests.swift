@@ -1,48 +1,49 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class ListResolverScrapeTests: XCTestCase {
+@Suite struct ListResolverScrapeTests {
 
-    func testParseMembersShapeA() {
+    @Test func testParseMembersShapeA() {
         let json = """
         {"members":[{"identifier":"item1","title":"Title 1"},{"identifier":"item2","title":"Title 2"}]}
         """
         let data = Data(json.utf8)
         let result = ListResolver.parseMembers(from: data)
-        XCTAssertEqual(result.count, 2)
-        XCTAssertEqual(result[0].identifier, "item1")
-        XCTAssertEqual(result[0].title, "Title 1")
-        XCTAssertEqual(result[1].identifier, "item2")
+        #expect(result.count == 2)
+        #expect(result[0].identifier == "item1")
+        #expect(result[0].title == "Title 1")
+        #expect(result[1].identifier == "item2")
     }
 
-    func testParseMembersShapeB() {
+    @Test func testParseMembersShapeB() {
         let json = """
         {"ids":["item_a","item_b","item_c"]}
         """
         let data = Data(json.utf8)
         let result = ListResolver.parseMembers(from: data)
-        XCTAssertEqual(result.count, 3)
-        XCTAssertEqual(result.map(\.identifier), ["item_a", "item_b", "item_c"])
+        #expect(result.count == 3)
+        #expect(result.map(\.identifier) == ["item_a", "item_b", "item_c"])
     }
 
-    func testParseMembersShapeC() {
+    @Test func testParseMembersShapeC() {
         let json = """
         {"members":{"item_x":{"title":"X Title"},"item_y":{"title":"Y Title"}}}
         """
         let data = Data(json.utf8)
         let result = ListResolver.parseMembers(from: data)
-        XCTAssertEqual(result.count, 2)
-        XCTAssertTrue(result.contains(where: { $0.identifier == "item_x" && $0.title == "X Title" }))
-        XCTAssertTrue(result.contains(where: { $0.identifier == "item_y" && $0.title == "Y Title" }))
+        #expect(result.count == 2)
+        #expect(result.contains(where: { $0.identifier == "item_x" && $0.title == "X Title" }))
+        #expect(result.contains(where: { $0.identifier == "item_y" && $0.title == "Y Title" }))
     }
 
-    func testParseMembersEmptyJSON() {
+    @Test func testParseMembersEmptyJSON() {
         let data = Data("{}".utf8)
         let result = ListResolver.parseMembers(from: data)
-        XCTAssertTrue(result.isEmpty)
+        #expect(result.isEmpty)
     }
 
-    func testExtractDetailIdentifiers() {
+    @Test func testExtractDetailIdentifiers() {
         let html = """
         <a href="/details/some_item">link1</a>
         <a href="/details/another_item">link2</a>
@@ -50,41 +51,41 @@ final class ListResolverScrapeTests: XCTestCase {
         """
         let result = ListResolver.extractDetailIdentifiers(from: html)
         let ids = result.map(\.identifier)
-        XCTAssertTrue(ids.contains("some_item"))
-        XCTAssertTrue(ids.contains("another_item"))
-        XCTAssertTrue(ids.contains("item_with-dots_1"))
+        #expect(ids.contains("some_item"))
+        #expect(ids.contains("another_item"))
+        #expect(ids.contains("item_with-dots_1"))
     }
 
-    func testExtractDetailIdentifiersExcludesUserPrefix() {
+    @Test func testExtractDetailIdentifiersExcludesUserPrefix() {
         let html = """
         <a href="/details/some_item">good</a>
         <a href="/details/@johndoe/lists/2">bad</a>
         """
         let result = ListResolver.extractDetailIdentifiers(from: html)
         let ids = result.map(\.identifier)
-        XCTAssertTrue(ids.contains("some_item"))
-        XCTAssertFalse(ids.contains("@johndoe/lists/2"))
+        #expect(ids.contains("some_item"))
+        #expect(!ids.contains("@johndoe/lists/2"))
     }
 
-    func testExtractDetailIdentifiersExcludesFavPrefix() {
+    @Test func testExtractDetailIdentifiersExcludesFavPrefix() {
         let html = """
         <a href="/details/some_item">good</a>
         <a href="/details/fav-jsmith">bad</a>
         """
         let result = ListResolver.extractDetailIdentifiers(from: html)
         let ids = result.map(\.identifier)
-        XCTAssertTrue(ids.contains("some_item"))
-        XCTAssertFalse(ids.contains("fav-jsmith"))
+        #expect(ids.contains("some_item"))
+        #expect(!ids.contains("fav-jsmith"))
     }
 
-    func testParseUsersListResponse() {
+    @Test func testParseUsersListResponse() {
         let json = """
         {"success":true,"value":{"list_name":"Test","members":[{"identifier":"item-a"},{"identifier":"item-b"}]}}
         """
         let data = Data(json.utf8)
         let result = ListResolver.parseMembers(from: data)
-        XCTAssertEqual(result.count, 2)
-        XCTAssertEqual(result[0].identifier, "item-a")
-        XCTAssertEqual(result[1].identifier, "item-b")
+        #expect(result.count == 2)
+        #expect(result[0].identifier == "item-a")
+        #expect(result[1].identifier == "item-b")
     }
 }

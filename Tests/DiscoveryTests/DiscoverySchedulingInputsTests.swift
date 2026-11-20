@@ -1,11 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmDiscovery
 
 /// The raw-platform-inputs → `DiscoverySchedulingSnapshot` mapping
 /// (IMPLEMENT_CLAP_PLAN.md §6: battery/thermal/power must be REAL, never
 /// fabricated — an unreadable value is *unknown*, never assumed healthy).
-final class DiscoverySchedulingInputsTests: XCTestCase {
+@Suite struct DiscoverySchedulingInputsTests {
     private func inputs(
         thermalState: DiscoveryThermalState = .nominal,
         rawBatteryLevel: Double = 0.8,
@@ -28,53 +29,53 @@ final class DiscoverySchedulingInputsTests: XCTestCase {
             now: now)
     }
 
-    func testUnreadableBatteryBecomesNilNotHealthy() {
+    @Test func testUnreadableBatteryBecomesNilNotHealthy() {
         let snap = DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: -1))
-        XCTAssertNil(snap.batteryLevel)
+        #expect(snap.batteryLevel == nil)
     }
 
-    func testNonFiniteBatteryBecomesNil() {
+    @Test func testNonFiniteBatteryBecomesNil() {
         let snap = DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: .nan))
-        XCTAssertNil(snap.batteryLevel)
+        #expect(snap.batteryLevel == nil)
     }
 
-    func testReadableBatteryPassesThroughClamped() {
-        XCTAssertEqual(DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: 0.42)).batteryLevel, 0.42)
-        XCTAssertEqual(DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: 1.5)).batteryLevel, 1.0)
+    @Test func testReadableBatteryPassesThroughClamped() {
+        #expect(DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: 0.42)).batteryLevel == 0.42)
+        #expect(DiscoverySchedulingSnapshot.from(inputs(rawBatteryLevel: 1.5)).batteryLevel == 1.0)
     }
 
-    func testContinuousNominalSecondsDerivedFromTimestamp() {
+    @Test func testContinuousNominalSecondsDerivedFromTimestamp() {
         let now = Date(timeIntervalSince1970: 1_000)
         let snap = DiscoverySchedulingSnapshot.from(
             inputs(thermalState: .nominal, nominalSince: now.addingTimeInterval(-75), now: now))
-        XCTAssertEqual(snap.continuousNominalSeconds, 75, accuracy: 0.001)
+        #expect(abs(snap.continuousNominalSeconds - 75) <= 0.001)
     }
 
-    func testContinuousNominalSecondsIsZeroWhenNotNominal() {
+    @Test func testContinuousNominalSecondsIsZeroWhenNotNominal() {
         let now = Date(timeIntervalSince1970: 1_000)
         let snap = DiscoverySchedulingSnapshot.from(
             inputs(thermalState: .fair, nominalSince: nil, now: now))
-        XCTAssertEqual(snap.continuousNominalSeconds, 0)
+        #expect(snap.continuousNominalSeconds == 0)
     }
 
-    func testContinuousNominalSecondsIsZeroWithNoTimestampEvenIfNominal() {
+    @Test func testContinuousNominalSecondsIsZeroWithNoTimestampEvenIfNominal() {
         let snap = DiscoverySchedulingSnapshot.from(inputs(thermalState: .nominal, nominalSince: nil))
-        XCTAssertEqual(snap.continuousNominalSeconds, 0)
+        #expect(snap.continuousNominalSeconds == 0)
     }
 
     /// End-to-end: a freshly-charging device with a cool thermal history is
     /// allowed to index; an unknown battery while unplugged is not (plan §6).
-    func testMappedSnapshotDrivesPolicyConsistently() {
+    @Test func testMappedSnapshotDrivesPolicyConsistently() {
         let now = Date(timeIntervalSince1970: 10_000)
         let ok = DiscoverySchedulingSnapshot.from(
             inputs(rawBatteryLevel: 0.9, isCharging: true,
                    nominalSince: now.addingTimeInterval(-120), now: now))
-        XCTAssertEqual(IndexPolicy.decide(ok), .proceed(interWindowDelaySeconds: 2))
+        #expect(IndexPolicy.decide(ok) == .proceed(interWindowDelaySeconds: 2))
 
         let unknownUnplugged = DiscoverySchedulingSnapshot.from(
             inputs(rawBatteryLevel: -1, isCharging: false,
                    nominalSince: now.addingTimeInterval(-120), now: now))
-        XCTAssertEqual(IndexPolicy.decide(unknownUnplugged),
-                       .blocked(reason: .lowBatteryOrLowPowerMode))
+        #expect(IndexPolicy.decide(unknownUnplugged)
+                       == .blocked(reason: .lowBatteryOrLowPowerMode))
     }
 }

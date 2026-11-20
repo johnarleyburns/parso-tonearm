@@ -1,55 +1,65 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// T2.1 — Ogg demux + OpusHead parsing over real fixtures.
-final class OggPageReaderTests: XCTestCase {
+@Suite struct OggPageReaderTests {
 
-    func testParsesMonoHeaderAndReassemblesPackets() throws {
+    @Test func testParsesMonoHeaderAndReassemblesPackets() throws {
         let stream = try OggPageReader.parse(Fixtures.data("tone_mono", ext: "opus"))
-        XCTAssertEqual(stream.head.channelCount, 1)
+        #expect(stream.head.channelCount == 1)
         // libopus default pre-skip is nonzero (guards the start click).
-        XCTAssertGreaterThan(stream.head.preSkip, 0)
-        XCTAssertEqual(stream.head.inputSampleRate, 48000)
+        #expect(stream.head.preSkip > 0)
+        #expect(stream.head.inputSampleRate == 48000)
         // Multi-page reassembly: many audio packets across several pages.
-        XCTAssertGreaterThan(stream.audioPackets.count, 50)
+        #expect(stream.audioPackets.count > 50)
     }
 
-    func testParsesStereoHeader() throws {
+    @Test func testParsesStereoHeader() throws {
         let stream = try OggPageReader.parse(Fixtures.data("tone_stereo", ext: "opus"))
-        XCTAssertEqual(stream.head.channelCount, 2)
-        XCTAssertGreaterThan(stream.audioPackets.count, 40)
+        #expect(stream.head.channelCount == 2)
+        #expect(stream.audioPackets.count > 40)
     }
 
-    func testGranuleAndDecodedCountConsistent() throws {
+    @Test func testGranuleAndDecodedCountConsistent() throws {
         let stream = try OggPageReader.parse(Fixtures.data("tone_mono", ext: "opus"))
         // Decoded samples (sum of per-packet frame counts) should be >= the final
         // granule (which excludes trailing padding but includes pre-skip).
-        XCTAssertGreaterThanOrEqual(stream.decodedSampleCount, stream.finalGranule)
-        XCTAssertGreaterThan(stream.finalGranule, 0)
+        #expect(stream.decodedSampleCount >= stream.finalGranule)
+        #expect(stream.finalGranule > 0)
     }
 
-    func testRejectsChainedStream() {
-        XCTAssertThrowsError(try OggPageReader.parse(Fixtures.data("chained", ext: "opus"))) { error in
-            XCTAssertEqual(error as? OggOpusError, .chainedStream)
+    @Test func testRejectsChainedStream() {
+        do {
+            _ = try OggPageReader.parse(Fixtures.data("chained", ext: "opus"))
+            Issue.record("expected parse of a chained stream to throw")
+        } catch {
+            #expect(error as? OggOpusError == .chainedStream)
         }
     }
 
-    func testRejectsNonOgg() {
-        XCTAssertThrowsError(try OggPageReader.parse(Fixtures.data("corrupt_notogg", ext: "opus"))) { error in
-            XCTAssertEqual(error as? OggOpusError, .notOgg)
+    @Test func testRejectsNonOgg() {
+        do {
+            _ = try OggPageReader.parse(Fixtures.data("corrupt_notogg", ext: "opus"))
+            Issue.record("expected parse of a non-Ogg stream to throw")
+        } catch {
+            #expect(error as? OggOpusError == .notOgg)
         }
     }
 
-    func testRejectsTruncatedStream() {
-        XCTAssertThrowsError(try OggPageReader.parse(Fixtures.data("corrupt_truncated", ext: "opus")))
+    @Test func testRejectsTruncatedStream() {
+        do {
+            _ = try OggPageReader.parse(Fixtures.data("corrupt_truncated", ext: "opus"))
+            Issue.record("expected parse of a truncated stream to throw")
+        } catch {}
     }
 
     // MARK: - Packet duration (TOC parsing)
 
-    func testPacketSampleCountForCELT20ms() {
+    @Test func testPacketSampleCountForCELT20ms() {
         // config 15 (Hybrid FB 20ms) code 0 → 960 samples at 48 kHz.
         let toc = UInt8((15 << 3) | 0)
         let packet = Data([toc, 0x00, 0x00])
-        XCTAssertEqual(OggPageReader.packetSampleCount(packet), 960)
+        #expect(OggPageReader.packetSampleCount(packet) == 960)
     }
 }

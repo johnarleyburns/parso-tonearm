@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// Keep Playing (main-library queue continuation, reusing the C01–C09 CLAP
@@ -7,517 +8,478 @@ import XCTest
 /// - `KeepPlayingPicker` is pure (no player, no database) and is exercised
 ///   directly — this is where the dedup/no-immediate-repeat/gating
 ///   guarantees are actually proven, deterministically.
-/// - The `AudioPlayer` integration tests below drive the real singleton with
-///   a fake provider to prove the fallback path is honest (never a silent
-///   no-op) and that turning Keep Playing off undoes its unplayed tail. They
-///   avoid asserting on which *rows* got appended when that would require
-///   `LibraryStore.shared` (the real, on-disk library, not a fixture) to
-///   contain specific track ids — instead they either check ids fetched live
-///   from that store, or assert on the fallback/flag surface alone.
-@MainActor
-final class KeepPlayingTests: XCTestCase {
+/// - The `AudioPlayer` integration tests below drive a freshly-constructed
+///   player with a fake provider to prove the fallback path is honest (never
+///   a silent no-op) and that turning Keep Playing off undoes its unplayed
+///   tail. They still read real ids from `LibraryStore.shared` where needed:
+///   `AudioPlayer`'s own Keep Playing fallback/continuation logic
+///   (`AudioPlayer+KeepPlaying.swift`) resolves tracks through the real
+///   shared `LibraryStore` internally, not through anything these tests
+///   could inject, so hydration only ever succeeds against ids that are
+///   really there. They either check ids fetched live from that store, or
+///   assert on the fallback/flag surface alone, rather than asserting on
+///   fixture ids the real on-disk store doesn't know about.
+extension SharedProductionSingletonTests {
+    @MainActor
+    @Suite final class KeepPlayingTests {
+        private let player = AudioPlayer.makeForTesting()
 
-    nonisolated(unsafe) private var playbackStateDirectory: URL?
-    nonisolated(unsafe) private var playbackStateSuiteName: String?
+        private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
+                                  originalURL: nil, title: "Test Source",
+                                  addedAt: Date(), lastResolvedAt: nil,
+                                  followUpdates: false, licenseText: nil, memberCapHit: false)
+        private lazy var album = Album(id: 1, sourceId: 1, title: "Album", artist: "Artist")
 
-    private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
-                              originalURL: nil, title: "Test Source",
-                              addedAt: Date(), lastResolvedAt: nil,
-                              followUpdates: false, licenseText: nil, memberCapHit: false)
-    private lazy var album = Album(id: 1, sourceId: 1, title: "Album", artist: "Artist")
-
-    private func makeTrack(_ i: Int) -> TrackRow {
-        let t = Track(id: Int64(i), albumId: 1, sourceId: 1,
-                      title: "Track \(i)", trackNo: i, discNo: nil,
-                      durationSec: 120, codec: "MP3", sampleRate: nil,
-                      bitDepthOrBitrate: nil, sortKey: "\(i)")
-        let a = Asset(id: Int64(i), trackId: Int64(i), kind: .remote,
-                      bookmark: nil, relPath: nil,
-                      remoteURL: "https://archive.org/track\(i).mp3",
-                      altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
-        return TrackRow(track: t, album: album, source: src, asset: a)
-    }
-
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tonearm-keep-playing-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        playbackStateDirectory = directory
-        PlaybackStateFileStore.fileURLOverride = directory.appendingPathComponent("playback-state.v2.json")
-
-        let suiteName = "test.keep-playing.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-        playbackStateSuiteName = suiteName
-        PlaybackStateStore.defaultsProvider = { defaults }
-
-        MainActor.assumeIsolated {
-            Self.resetPlayerForTest(AudioPlayer.shared)
+        private func makeTrack(_ i: Int) -> TrackRow {
+            let t = Track(id: Int64(i), albumId: 1, sourceId: 1,
+                          title: "Track \(i)", trackNo: i, discNo: nil,
+                          durationSec: 120, codec: "MP3", sampleRate: nil,
+                          bitDepthOrBitrate: nil, sortKey: "\(i)")
+            let a = Asset(id: Int64(i), trackId: Int64(i), kind: .remote,
+                          bookmark: nil, relPath: nil,
+                          remoteURL: "https://archive.org/track\(i).mp3",
+                          altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
+            return TrackRow(track: t, album: album, source: src, asset: a)
         }
-    }
 
-    nonisolated override func tearDown() {
-        let directory = playbackStateDirectory
-        let suiteName = playbackStateSuiteName
-        MainActor.assumeIsolated {
-            Self.resetPlayerForTest(AudioPlayer.shared)
-            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
-            PlaybackStateFileStore.fileURLOverride = nil
-            if let directory {
-                try? FileManager.default.removeItem(at: directory)
+        init() throws {
+            player.persistor = PlaybackPositionPersistor(
+                stateStore: InMemoryPlaybackStatePersistence())
+            Self.resetPlayerForTest(player)
+        }
+
+        private static func resetPlayerForTest(_ player: AudioPlayer) {
+            player.keepPlayingEnabled = false
+            player.keepPlayingProvider = nil
+            player.keepPlayingExtensionTask?.cancel()
+            player.resetRestoreForTesting()
+            if !player.queue.isEmpty {
+                player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
+            }
+            player.keepPlayingFallbackOrder = { $0 }
+            player.repeatMode = .off
+            player.shuffle = false
+            player.keepPlayingEnabled = true
+        }
+
+        // MARK: - KeepPlayingPicker (pure) — dedup / no-immediate-repeat
+
+        /// Reproduces the exact failure mode the spec calls out: a provider that
+        /// (incorrectly, or just redundantly) returns the just-played track and a
+        /// duplicate of another pick must never see those survive the filter.
+        @Test func testDedupedCandidatesDropsExcludedAndDuplicateIDs() {
+            // History + live queue contain 1, 2, 3 (3 is the just-played track);
+            // the provider echoes 3 back, plus a duplicate of 10.
+            let result = KeepPlayingPicker.dedupedCandidates([3, 10, 10, 11], excluding: [1, 2, 3])
+            #expect(result == [10, 11])
+        }
+
+        @Test func testDedupedCandidatesPreservesOrder() {
+            let result = KeepPlayingPicker.dedupedCandidates([30, 10, 20], excluding: [])
+            #expect(result == [30, 10, 20], "best-match-first order must survive filtering")
+        }
+
+        @Test func testDedupedCandidatesWithNothingLeftIsEmptyNotCrashing() {
+            #expect(KeepPlayingPicker.dedupedCandidates([1, 2], excluding: [1, 2]) == [])
+        }
+
+        // MARK: - KeepPlayingPicker (pure) — gating
+
+        @Test func testShouldAttemptExtensionFiresOnLastOrSecondToLastTrack() {
+            #expect(KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
+            #expect(KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 3, index: 1, lastAttemptedIndex: nil, extensionInFlight: false))
+        }
+
+        @Test func testKeepPlayingEndCanRetryAfterAnEmptyExtension() {
+            #expect(KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 1, index: 0, lastAttemptedIndex: nil, extensionInFlight: false))
+        }
+
+        @Test func testShouldAttemptExtensionDoesNotFireInTheMiddleOfALongQueue() {
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 10, index: 3, lastAttemptedIndex: nil, extensionInFlight: false))
+        }
+
+        @Test func testShouldAttemptExtensionRespectsTheEnabledToggle() {
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: false, isAmbient: false, repeatMode: .off,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
+        }
+
+        @Test func testShouldAttemptExtensionNeverFiresForAmbientOrLoopingRepeatModes() {
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: true, repeatMode: .off,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .all,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false),
+                "repeat-all already loops the queue forever")
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .one,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false),
+                "repeat-one never advances past the current track")
+        }
+
+        @Test func testShouldAttemptExtensionDoesNotDoubleFireForTheSamePosition() {
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 3, index: 2, lastAttemptedIndex: 2, extensionInFlight: false))
+            #expect(!KeepPlayingPicker.shouldAttemptExtension(
+                enabled: true, isAmbient: false, repeatMode: .off,
+                queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: true))
+        }
+
+        // MARK: - Fakes for the AudioPlayer integration tests
+
+        /// Always answers a fixed result regardless of what it's asked to
+        /// exclude — the exclusion/dedup guarantee is `AudioPlayer`'s job (see
+        /// `KeepPlayingPicker` above), this fake exists to drive the fallback and
+        /// state-surfacing paths.
+        @MainActor
+        private final class FixedProvider: KeepPlayingSimilarityProviding {
+            let result: KeepPlayingLookup
+            private(set) var lastRecentlyPlayed: [Int64] = []
+            private(set) var lastExcluding: Set<Int64> = []
+            private(set) var callCount = 0
+
+            init(_ result: KeepPlayingLookup) { self.result = result }
+
+            func continuationTrackIDs(
+                after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
+            ) async -> KeepPlayingLookup {
+                callCount += 1
+                lastRecentlyPlayed = recentlyPlayed
+                lastExcluding = excluding
+                return result
             }
         }
-        if let suiteName {
-            UserDefaults().removePersistentDomain(forName: suiteName)
+
+        @MainActor
+        private final class FixedContinuation: QueueContinuationSource {
+            let rows: [TrackRow]
+            private(set) var callCount = 0
+
+            init(rows: [TrackRow]) { self.rows = rows }
+
+            func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow] {
+                callCount += 1
+                return Array(rows.filter { row in
+                    guard let id = row.track.id else { return false }
+                    return !excluding.contains(id)
+                }.prefix(limit))
+            }
         }
-        playbackStateDirectory = nil
-        playbackStateSuiteName = nil
-        super.tearDown()
-    }
 
-    private static func resetPlayerForTest(_ player: AudioPlayer) {
-        player.keepPlayingEnabled = false
-        player.keepPlayingProvider = nil
-        player.keepPlayingExtensionTask?.cancel()
-        player.resetRestoreForTesting()
-        if !player.queue.isEmpty {
-            player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count))
+        /// `play(tracks:startAt:)` itself can trigger `maybeExtendKeepPlayingQueue`
+        /// synchronously (fire-and-forget `Task`) when it lands on the last/
+        /// second-to-last track — disabling Keep Playing for the call keeps that
+        /// automatic attempt from racing the test's own explicit
+        /// `extendKeepPlayingQueueForTesting()` call.
+        private func playWithoutAutoExtending(_ player: AudioPlayer, tracks: [TrackRow], startAt: Int) {
+            player.keepPlayingEnabled = false
+            player.play(tracks: tracks, startAt: startAt)
+            player.keepPlayingEnabled = true
         }
-        player.keepPlayingFallbackOrder = { $0 }
-        player.repeatMode = .off
-        player.shuffle = false
-        player.keepPlayingEnabled = true
-    }
 
-    // MARK: - KeepPlayingPicker (pure) — dedup / no-immediate-repeat
+        // MARK: - The exclusion set handed to the provider
 
-    /// Reproduces the exact failure mode the spec calls out: a provider that
-    /// (incorrectly, or just redundantly) returns the just-played track and a
-    /// duplicate of another pick must never see those survive the filter.
-    func testDedupedCandidatesDropsExcludedAndDuplicateIDs() {
-        // History + live queue contain 1, 2, 3 (3 is the just-played track);
-        // the provider echoes 3 back, plus a duplicate of 10.
-        let result = KeepPlayingPicker.dedupedCandidates([3, 10, 10, 11], excluding: [1, 2, 3])
-        XCTAssertEqual(result, [10, 11])
-    }
+        /// The exclusion set handed to the provider must cover both the whole
+        /// play history and every track still sitting in the live queue — not
+        /// just the single most-recently-played track — and the history must
+        /// list the most-recently-played track first.
+        @Test func testExclusionSetCoversHistoryAndCurrentQueue() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
 
-    func testDedupedCandidatesPreservesOrder() {
-        let result = KeepPlayingPicker.dedupedCandidates([30, 10, 20], excluding: [])
-        XCTAssertEqual(result, [30, 10, 20], "best-match-first order must survive filtering")
-    }
+            let provider = FixedProvider(.ready([100]))
+            player.keepPlayingProvider = provider
 
-    func testDedupedCandidatesWithNothingLeftIsEmptyNotCrashing() {
-        XCTAssertEqual(KeepPlayingPicker.dedupedCandidates([1, 2], excluding: [1, 2]), [])
-    }
+            await player.extendKeepPlayingQueueForTesting()
 
-    // MARK: - KeepPlayingPicker (pure) — gating
-
-    func testShouldAttemptExtensionFiresOnLastOrSecondToLastTrack() {
-        XCTAssertTrue(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
-        XCTAssertTrue(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 3, index: 1, lastAttemptedIndex: nil, extensionInFlight: false))
-    }
-
-    func testKeepPlayingEndCanRetryAfterAnEmptyExtension() {
-        XCTAssertTrue(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 1, index: 0, lastAttemptedIndex: nil, extensionInFlight: false))
-    }
-
-    func testShouldAttemptExtensionDoesNotFireInTheMiddleOfALongQueue() {
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 10, index: 3, lastAttemptedIndex: nil, extensionInFlight: false))
-    }
-
-    func testShouldAttemptExtensionRespectsTheEnabledToggle() {
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: false, isAmbient: false, repeatMode: .off,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
-    }
-
-    func testShouldAttemptExtensionNeverFiresForAmbientOrLoopingRepeatModes() {
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: true, repeatMode: .off,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false))
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .all,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false),
-            "repeat-all already loops the queue forever")
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .one,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: false),
-            "repeat-one never advances past the current track")
-    }
-
-    func testShouldAttemptExtensionDoesNotDoubleFireForTheSamePosition() {
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 3, index: 2, lastAttemptedIndex: 2, extensionInFlight: false))
-        XCTAssertFalse(KeepPlayingPicker.shouldAttemptExtension(
-            enabled: true, isAmbient: false, repeatMode: .off,
-            queueCount: 3, index: 2, lastAttemptedIndex: nil, extensionInFlight: true))
-    }
-
-    // MARK: - Fakes for the AudioPlayer integration tests
-
-    /// Always answers a fixed result regardless of what it's asked to
-    /// exclude — the exclusion/dedup guarantee is `AudioPlayer`'s job (see
-    /// `KeepPlayingPicker` above), this fake exists to drive the fallback and
-    /// state-surfacing paths.
-    @MainActor
-    private final class FixedProvider: KeepPlayingSimilarityProviding {
-        let result: KeepPlayingLookup
-        private(set) var lastRecentlyPlayed: [Int64] = []
-        private(set) var lastExcluding: Set<Int64> = []
-        private(set) var callCount = 0
-
-        init(_ result: KeepPlayingLookup) { self.result = result }
-
-        func continuationTrackIDs(
-            after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
-        ) async -> KeepPlayingLookup {
-            callCount += 1
-            lastRecentlyPlayed = recentlyPlayed
-            lastExcluding = excluding
-            return result
+            #expect(provider.lastExcluding.isSuperset(of: [1, 2, 3]))
+            #expect(provider.lastRecentlyPlayed.first == 3, "most-recently-played track leads the list")
         }
-    }
 
-    @MainActor
-    private final class FixedContinuation: QueueContinuationSource {
-        let rows: [TrackRow]
-        private(set) var callCount = 0
+        // MARK: - Fallback when the model/index isn't available
 
-        init(rows: [TrackRow]) { self.rows = rows }
+        /// `.waitingForModel` must never be treated as "nothing to do" — Keep
+        /// Playing falls back to a shuffle-continue and records *why*, per
+        /// CLAUDE.md "no silent/magic background work": a substituted behavior is
+        /// always visible, never silent.
+        @Test func testWaitingForModelFallsBackAndRecordsTheReason() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            player.keepPlayingProvider = FixedProvider(.waitingForModel)
 
-        func nextTracks(excluding: Set<Int64>, limit: Int) async -> [TrackRow] {
-            callCount += 1
-            return Array(rows.filter { row in
-                guard let id = row.track.id else { return false }
-                return !excluding.contains(id)
-            }.prefix(limit))
+            await player.extendKeepPlayingQueueForTesting()
+
+            #expect(player.keepPlayingLastExtensionWasFallback)
+            #expect(player.keepPlayingFallbackReason == .waitingForModel)
         }
-    }
 
-    /// `play(tracks:startAt:)` itself can trigger `maybeExtendKeepPlayingQueue`
-    /// synchronously (fire-and-forget `Task`) when it lands on the last/
-    /// second-to-last track — disabling Keep Playing for the call keeps that
-    /// automatic attempt from racing the test's own explicit
-    /// `extendKeepPlayingQueueForTesting()` call.
-    private func playWithoutAutoExtending(_ player: AudioPlayer, tracks: [TrackRow], startAt: Int) {
-        player.keepPlayingEnabled = false
-        player.play(tracks: tracks, startAt: startAt)
-        player.keepPlayingEnabled = true
-    }
+        /// A model that's available but genuinely has no candidates is a
+        /// different, distinct reason from "still downloading" — both are
+        /// fallbacks, but the UI can only tell the user the truth if these stay
+        /// separate.
+        @Test func testUnavailableFallsBackWithADistinctReasonFromWaitingForModel() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            player.keepPlayingProvider = FixedProvider(.unavailable)
 
-    // MARK: - The exclusion set handed to the provider
+            await player.extendKeepPlayingQueueForTesting()
 
-    /// The exclusion set handed to the provider must cover both the whole
-    /// play history and every track still sitting in the live queue — not
-    /// just the single most-recently-played track — and the history must
-    /// list the most-recently-played track first.
-    func testExclusionSetCoversHistoryAndCurrentQueue() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            #expect(player.keepPlayingLastExtensionWasFallback)
+            #expect(player.keepPlayingFallbackReason == .unavailable)
+        }
 
-        let provider = FixedProvider(.ready([100]))
-        player.keepPlayingProvider = provider
+        /// No provider wired at all (the state under `swift test`, and on first
+        /// launch before the app finishes assembling Discovery) must behave
+        /// exactly like an explicit `.unavailable` answer — never crash, never a
+        /// silent no-op.
+        @Test func testNoProviderWiredFallsBackWithoutCrashing() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            player.keepPlayingProvider = nil
 
-        await player.extendKeepPlayingQueueForTesting()
+            await player.extendKeepPlayingQueueForTesting()
 
-        XCTAssertTrue(provider.lastExcluding.isSuperset(of: [1, 2, 3]))
-        XCTAssertEqual(provider.lastRecentlyPlayed.first, 3, "most-recently-played track leads the list")
-    }
+            #expect(player.keepPlayingLastExtensionWasFallback)
+            #expect(player.keepPlayingFallbackReason == .unavailable)
+        }
 
-    // MARK: - Fallback when the model/index isn't available
+        /// Remote browse queues have no persisted source id to use as a fallback.
+        /// Their explicit continuation must be preferred so a one-track Jamendo
+        /// play-now action becomes a real queue instead of ending in dead air.
+        @Test func testQueueContinuationAppendsRemoteTracksWithoutFallback() async {
+            let continuation = FixedContinuation(rows: [makeTrack(2), makeTrack(3)])
 
-    /// `.waitingForModel` must never be treated as "nothing to do" — Keep
-    /// Playing falls back to a shuffle-continue and records *why*, per
-    /// CLAUDE.md "no silent/magic background work": a substituted behavior is
-    /// always visible, never silent.
-    func testWaitingForModelFallsBackAndRecordsTheReason() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-        player.keepPlayingProvider = FixedProvider(.waitingForModel)
+            player.keepPlayingEnabled = false
+            player.play(tracks: [makeTrack(1)], startAt: 0,
+                        source: .continuation(continuation))
+            player.keepPlayingEnabled = true
+            await player.extendKeepPlayingQueueForTesting()
 
-        await player.extendKeepPlayingQueueForTesting()
+            #expect(player.queue.map(\.id) == [1, 2, 3])
+            #expect(continuation.callCount == 1)
+            #expect(!player.keepPlayingLastExtensionWasFallback)
+            #expect(player.keepPlayingFallbackReason == nil)
+        }
 
-        XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
-        XCTAssertEqual(player.keepPlayingFallbackReason, .waitingForModel)
-    }
+        /// An empty `.ready([])` result (provider found literally nothing) must
+        /// also fall back rather than silently leaving the queue to run dry.
+        @Test func testEmptyReadyResultFallsBack() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            player.keepPlayingProvider = FixedProvider(.ready([]))
 
-    /// A model that's available but genuinely has no candidates is a
-    /// different, distinct reason from "still downloading" — both are
-    /// fallbacks, but the UI can only tell the user the truth if these stay
-    /// separate.
-    func testUnavailableFallsBackWithADistinctReasonFromWaitingForModel() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-        player.keepPlayingProvider = FixedProvider(.unavailable)
+            await player.extendKeepPlayingQueueForTesting()
 
-        await player.extendKeepPlayingQueueForTesting()
+            #expect(player.keepPlayingLastExtensionWasFallback)
+        }
 
-        XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
-        XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
-    }
+        // MARK: - A real similarity pick appends without a fallback marker
 
-    /// No provider wired at all (the state under `swift test`, and on first
-    /// launch before the app finishes assembling Discovery) must behave
-    /// exactly like an explicit `.unavailable` answer — never crash, never a
-    /// silent no-op.
-    func testNoProviderWiredFallsBackWithoutCrashing() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-        player.keepPlayingProvider = nil
+        /// Uses ids actually present in the shared `LibraryStore` (so hydration
+        /// via `LibraryStore.shared.trackRow(id:)` succeeds for real, rather than
+        /// asserting against fixture ids the real on-disk store doesn't know
+        /// about) to prove the non-fallback path appends exactly what the
+        /// provider returned and marks it as Keep Playing's own.
+        @Test func testReadySimilarityPicksAppendWithoutFallbackMarker() async throws {
+            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
+            let picks = Array(realIDs.prefix(2))
 
-        await player.extendKeepPlayingQueueForTesting()
+            let tracks = (1...3).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
+            player.keepPlayingProvider = FixedProvider(.ready(picks))
 
-        XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
-        XCTAssertEqual(player.keepPlayingFallbackReason, .unavailable)
-    }
+            await player.extendKeepPlayingQueueForTesting()
 
-    /// Remote browse queues have no persisted source id to use as a fallback.
-    /// Their explicit continuation must be preferred so a one-track Jamendo
-    /// play-now action becomes a real queue instead of ending in dead air.
-    func testQueueContinuationAppendsRemoteTracksWithoutFallback() async {
-        let player = AudioPlayer.shared
-        let continuation = FixedContinuation(rows: [makeTrack(2), makeTrack(3)])
+            #expect(!player.keepPlayingLastExtensionWasFallback)
+            #expect(player.keepPlayingFallbackReason == nil)
+            #expect(Array(player.queue.dropFirst(3).map(\.id)) == picks)
+            #expect(Set(player.keepPlayingAutoAddedTrackIDs) == Set(picks))
+        }
 
-        player.keepPlayingEnabled = false
-        player.play(tracks: [makeTrack(1)], startAt: 0,
-                    source: .continuation(continuation))
-        player.keepPlayingEnabled = true
-        await player.extendKeepPlayingQueueForTesting()
+        // MARK: - Turning Keep Playing off removes the not-yet-played auto-added tail
 
-        XCTAssertEqual(player.queue.map(\.id), [1, 2, 3])
-        XCTAssertEqual(continuation.callCount, 1)
-        XCTAssertFalse(player.keepPlayingLastExtensionWasFallback)
-        XCTAssertNil(player.keepPlayingFallbackReason)
-    }
+        @Test func testTurningOffKeepPlayingRemovesUnplayedAutoAddedTracksOnly() async throws {
+            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
+            let picks = Array(realIDs.prefix(2))
 
-    /// An empty `.ready([])` result (provider found literally nothing) must
-    /// also fall back rather than silently leaving the queue to run dry.
-    func testEmptyReadyResultFallsBack() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-        player.keepPlayingProvider = FixedProvider(.ready([]))
+            let tracks = (1...3).map { makeTrack($0) }
+            // index 0: tracks 2 and 3 are manually-queued "unplayed" tracks that
+            // must survive turning Keep Playing off.
+            player.play(tracks: tracks, startAt: 0)
 
-        await player.extendKeepPlayingQueueForTesting()
+            player.keepPlayingProvider = FixedProvider(.ready(picks))
+            await player.extendKeepPlayingQueueForTesting()
+            #expect(player.queue.map(\.id) == [1, 2, 3] + picks)
 
-        XCTAssertTrue(player.keepPlayingLastExtensionWasFallback)
-    }
+            player.keepPlayingEnabled = false
 
-    // MARK: - A real similarity pick appends without a fallback marker
+            #expect(player.queue.map(\.id) == [1, 2, 3], "manually-queued tracks 2/3 must survive")
+            #expect(player.keepPlayingAutoAddedTrackIDs.isEmpty)
+        }
 
-    /// Uses ids actually present in the shared `LibraryStore` (so hydration
-    /// via `LibraryStore.shared.trackRow(id:)` succeeds for real, rather than
-    /// asserting against fixture ids the real on-disk store doesn't know
-    /// about) to prove the non-fallback path appends exactly what the
-    /// provider returned and marks it as Keep Playing's own.
-    func testReadySimilarityPicksAppendWithoutFallbackMarker() async throws {
-        let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
-        try XCTSkipIf(realIDs.count < 2, "Needs at least two tracks in the shared library to hydrate against")
-        let picks = Array(realIDs.prefix(2))
+        /// `removeUnplayedKeepPlayingTracks` (the explicit "Clear auto-added
+        /// tracks" affordance) must never touch a track before the current
+        /// index, even if that track happened to be auto-added by an earlier
+        /// extension — it already played, so it's history, not a pending
+        /// auto-add to undo.
+        @Test func testClearAutoAddedNeverRemovesAlreadyPlayedTracks() async throws {
+            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
+            let picks = Array(realIDs.prefix(2))
 
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-        player.keepPlayingProvider = FixedProvider(.ready(picks))
+            let tracks = (1...2).map { makeTrack($0) }
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 1)  // index 1 (last manual track)
 
-        await player.extendKeepPlayingQueueForTesting()
+            player.keepPlayingProvider = FixedProvider(.ready(picks))
+            await player.extendKeepPlayingQueueForTesting()
+            #expect(player.queue.map(\.id) == [1, 2] + picks)
 
-        XCTAssertFalse(player.keepPlayingLastExtensionWasFallback)
-        XCTAssertNil(player.keepPlayingFallbackReason)
-        XCTAssertEqual(Array(player.queue.dropFirst(3).map(\.id)), picks)
-        XCTAssertEqual(Set(player.keepPlayingAutoAddedTrackIDs), Set(picks))
-    }
+            player.skipToIndex(2)  // "play" the first auto-added track
+            player.removeUnplayedKeepPlayingTracks()
 
-    // MARK: - Turning Keep Playing off removes the not-yet-played auto-added tail
+            #expect(player.queue.map(\.id) == [1, 2, picks[0]],
+                           "the played auto-add stays; the unplayed one is removed")
+        }
 
-    func testTurningOffKeepPlayingRemovesUnplayedAutoAddedTracksOnly() async throws {
-        let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
-        try XCTSkipIf(realIDs.count < 2, "Needs at least two tracks in the shared library to hydrate against")
-        let picks = Array(realIDs.prefix(2))
+        // MARK: - Extension only fires near the end of the queue (integration)
 
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        // index 0: tracks 2 and 3 are manually-queued "unplayed" tracks that
-        // must survive turning Keep Playing off.
-        player.play(tracks: tracks, startAt: 0)
+        @Test func testExtensionDoesNotFireInTheMiddleOfALongQueue() async {
+            let tracks = (1...10).map { makeTrack($0) }
+            player.play(tracks: tracks, startAt: 0)
 
-        player.keepPlayingProvider = FixedProvider(.ready(picks))
-        await player.extendKeepPlayingQueueForTesting()
-        XCTAssertEqual(player.queue.map(\.id), [1, 2, 3] + picks)
+            let provider = FixedProvider(.ready([100]))
+            player.keepPlayingProvider = provider
+            player.skipToIndex(3)  // 7 tracks still left — nowhere near the end
 
-        player.keepPlayingEnabled = false
+            // `skipToIndex` -> `loadCurrent` already ran `maybeExtendKeepPlayingQueue`
+            // synchronously; give any (wrongly) spawned Task a beat to land.
+            try? await Task.sleep(nanoseconds: 50_000_000)
 
-        XCTAssertEqual(player.queue.map(\.id), [1, 2, 3], "manually-queued tracks 2/3 must survive")
-        XCTAssertTrue(player.keepPlayingAutoAddedTrackIDs.isEmpty)
-    }
+            #expect(provider.callCount == 0)
+        }
 
-    /// `removeUnplayedKeepPlayingTracks` (the explicit "Clear auto-added
-    /// tracks" affordance) must never touch a track before the current
-    /// index, even if that track happened to be auto-added by an earlier
-    /// extension — it already played, so it's history, not a pending
-    /// auto-add to undo.
-    func testClearAutoAddedNeverRemovesAlreadyPlayedTracks() async throws {
-        let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
-        try XCTSkipIf(realIDs.count < 2, "Needs at least two tracks in the shared library to hydrate against")
-        let picks = Array(realIDs.prefix(2))
+        @Test func testRepeatAllNeverExtends() async {
+            let tracks = (1...3).map { makeTrack($0) }
+            player.repeatMode = .all
+            player.play(tracks: tracks, startAt: 2)  // last track, but repeat-all loops forever
 
-        let player = AudioPlayer.shared
-        let tracks = (1...2).map { makeTrack($0) }
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 1)  // index 1 (last manual track)
+            let provider = FixedProvider(.ready([100]))
+            player.keepPlayingProvider = provider
+            // `play(tracks:startAt:)` already ran `loadCurrent` -> `maybeExtendKeepPlayingQueue`
+            // once; re-run the gate explicitly to be sure repeat-all keeps blocking it.
+            player.maybeExtendKeepPlayingQueue()
+            try? await Task.sleep(nanoseconds: 50_000_000)
 
-        player.keepPlayingProvider = FixedProvider(.ready(picks))
-        await player.extendKeepPlayingQueueForTesting()
-        XCTAssertEqual(player.queue.map(\.id), [1, 2] + picks)
+            #expect(provider.callCount == 0)
+        }
 
-        player.skipToIndex(2)  // "play" the first auto-added track
-        player.removeUnplayedKeepPlayingTracks()
+        // MARK: - Dead air: next() at end of queue must resume once a
+        // still-in-flight extension lands (real report — a mood search's
+        // matches finish before the extension, which re-runs a live query, has
+        // time to complete)
 
-        XCTAssertEqual(player.queue.map(\.id), [1, 2, picks[0]],
-                       "the played auto-add stays; the unplayed one is removed")
-    }
+        @Test func testNextAtEndOfQueueResumesOnceInFlightExtensionLands() async throws {
+            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            if realIDs.isEmpty { try Test.cancel("Needs at least one track in the shared library to hydrate against") }
+            let pick = realIDs[0]
 
-    // MARK: - Extension only fires near the end of the queue (integration)
+            let tracks = [makeTrack(1)]
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 0)  // the one and only track, already "playing"
 
-    func testExtensionDoesNotFireInTheMiddleOfALongQueue() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...10).map { makeTrack($0) }
-        player.play(tracks: tracks, startAt: 0)
+            // Simulate `maybeExtendKeepPlayingQueue` having already kicked off a
+            // real extension for this position (it re-runs a live query for a
+            // mood queue, so it can genuinely still be running when the last
+            // track ends).
+            player.keepPlayingExtensionInFlight = true
 
-        let provider = FixedProvider(.ready([100]))
-        player.keepPlayingProvider = provider
-        player.skipToIndex(3)  // 7 tracks still left — nowhere near the end
+            player.next()  // the track just finished; queue is exhausted
 
-        // `skipToIndex` -> `loadCurrent` already ran `maybeExtendKeepPlayingQueue`
-        // synchronously; give any (wrongly) spawned Task a beat to land.
-        try? await Task.sleep(nanoseconds: 50_000_000)
+            #expect(!player.isPlaying, "nothing to play yet — this is the real dead-air moment")
+            #expect(player.keepPlayingBoundaryState ==
+                           .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0),
+                          "next() must remember it stopped only because an extension was still in flight")
 
-        XCTAssertEqual(provider.callCount, 0)
-    }
+            player.keepPlayingProvider = FixedProvider(.ready([pick]))
+            await player.extendKeepPlayingQueueForTesting()
 
-    func testRepeatAllNeverExtends() async {
-        let player = AudioPlayer.shared
-        let tracks = (1...3).map { makeTrack($0) }
-        player.repeatMode = .all
-        player.play(tracks: tracks, startAt: 2)  // last track, but repeat-all loops forever
+            #expect(player.queue.map(\.id) == [1, pick])
+            #expect(player.isPlaying, "the extension landed real tracks — playback must actually resume, not sit queued-but-silent")
+            #expect(player.index == 1)
+            #expect(player.keepPlayingBoundaryState == .idle)
+        }
 
-        let provider = FixedProvider(.ready([100]))
-        player.keepPlayingProvider = provider
-        // `play(tracks:startAt:)` already ran `loadCurrent` -> `maybeExtendKeepPlayingQueue`
-        // once; re-run the gate explicitly to be sure repeat-all keeps blocking it.
-        player.maybeExtendKeepPlayingQueue()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        /// The same race, but the extension comes back with nothing playable
+        /// (a real "no matches" or empty fallback pool) — must NOT force a
+        /// resume into an unchanged, still-exhausted queue.
+        @Test func testNextAtEndOfQueueStaysStoppedWhenExtensionFindsNothing() async {
+            // No shared-library fallback: another parallel suite's tracks must
+            // never turn this deliberate "nothing playable" case into a resume.
+            player.keepPlayingLibrary = .empty
+            let tracks = [makeTrack(1)]
+            playWithoutAutoExtending(player, tracks: tracks, startAt: 0)
 
-        XCTAssertEqual(provider.callCount, 0)
-    }
+            player.keepPlayingExtensionInFlight = true
+            player.next()
+            #expect(player.keepPlayingBoundaryState ==
+                           .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
 
-    // MARK: - Dead air: next() at end of queue must resume once a
-    // still-in-flight extension lands (real report — a mood search's
-    // matches finish before the extension, which re-runs a live query, has
-    // time to complete)
+            player.keepPlayingProvider = FixedProvider(.unavailable)
+            await player.extendKeepPlayingQueueForTesting()
 
-    func testNextAtEndOfQueueResumesOnceInFlightExtensionLands() async throws {
-        let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
-        try XCTSkipIf(realIDs.isEmpty, "Needs at least one track in the shared library to hydrate against")
-        let pick = realIDs[0]
+            #expect(!player.isPlaying)
+            #expect(player.keepPlayingBoundaryState ==
+                           .exhausted(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
+        }
 
-        let player = AudioPlayer.shared
-        let tracks = [makeTrack(1)]
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 0)  // the one and only track, already "playing"
+        /// A playlist is a starting scope, not a hard stop for Keep Playing. Once
+        /// every playlist item has been consumed, the fallback must be able to
+        /// choose an eligible track from the rest of the library instead of
+        /// returning the already-exhausted playlist and producing dead air.
+        @Test func testPlaylistKeepPlayingContinuesFromTheLibraryAfterPlaylistEnds() async throws {
+            let store = LibraryStore.shared
+            let source = try await store.insertSource(Source(
+                id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
+                title: "Keep Playing Playlist Fixture \(UUID().uuidString)",
+                addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
+                licenseText: nil, memberCapHit: false))
+            let sourceID = try #require(source.id)
+            let first = try await store.insertTrack(Track(
+                id: nil, albumId: nil, sourceId: sourceID, title: "Playlist Start",
+                trackNo: 1, discNo: nil, durationSec: 120, codec: "MP3",
+                sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-1"))
+            let continuation = try await store.insertTrack(Track(
+                id: nil, albumId: nil, sourceId: sourceID, title: "Library Continuation",
+                trackNo: 2, discNo: nil, durationSec: 120, codec: "MP3",
+                sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-2"))
+            let firstID = try #require(first.id)
+            let continuationID = try #require(continuation.id)
+            let playlist = try await store.createManualPlaylist(
+                title: "Keep Playing Fixture \(UUID().uuidString)", trackIds: [firstID])
+            let playlistRows = try await store.playlistItems(playlistId: try #require(playlist.id))
 
-        // Simulate `maybeExtendKeepPlayingQueue` having already kicked off a
-        // real extension for this position (it re-runs a live query for a
-        // mood queue, so it can genuinely still be running when the last
-        // track ends).
-        player.keepPlayingExtensionInFlight = true
+            playWithoutAutoExtending(player, tracks: playlistRows, startAt: 0)
+            player.queueSource = .playlist(playlist)
+            player.keepPlayingProvider = nil
+            await player.extendKeepPlayingQueueForTesting()
 
-        player.next()  // the track just finished; queue is exhausted
+            #expect(player.queue.contains { $0.id == continuationID },
+                          "Keep Playing must continue beyond an exhausted playlist")
 
-        XCTAssertFalse(player.isPlaying, "nothing to play yet — this is the real dead-air moment")
-        XCTAssertEqual(player.keepPlayingBoundaryState,
-                       .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0),
-                      "next() must remember it stopped only because an extension was still in flight")
-
-        player.keepPlayingProvider = FixedProvider(.ready([pick]))
-        await player.extendKeepPlayingQueueForTesting()
-
-        XCTAssertEqual(player.queue.map(\.id), [1, pick])
-        XCTAssertTrue(player.isPlaying, "the extension landed real tracks — playback must actually resume, not sit queued-but-silent")
-        XCTAssertEqual(player.index, 1)
-        XCTAssertEqual(player.keepPlayingBoundaryState, .idle)
-    }
-
-    /// The same race, but the extension comes back with nothing playable
-    /// (a real "no matches" or empty fallback pool) — must NOT force a
-    /// resume into an unchanged, still-exhausted queue.
-    func testNextAtEndOfQueueStaysStoppedWhenExtensionFindsNothing() async {
-        let player = AudioPlayer.shared
-        let tracks = [makeTrack(1)]
-        playWithoutAutoExtending(player, tracks: tracks, startAt: 0)
-
-        player.keepPlayingExtensionInFlight = true
-        player.next()
-        XCTAssertEqual(player.keepPlayingBoundaryState,
-                       .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
-
-        player.keepPlayingProvider = FixedProvider(.unavailable)
-        await player.extendKeepPlayingQueueForTesting()
-
-        XCTAssertFalse(player.isPlaying)
-        XCTAssertEqual(player.keepPlayingBoundaryState,
-                       .exhausted(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
-    }
-
-    /// A playlist is a starting scope, not a hard stop for Keep Playing. Once
-    /// every playlist item has been consumed, the fallback must be able to
-    /// choose an eligible track from the rest of the library instead of
-    /// returning the already-exhausted playlist and producing dead air.
-    func testPlaylistKeepPlayingContinuesFromTheLibraryAfterPlaylistEnds() async throws {
-        let store = LibraryStore.shared
-        let source = try await store.insertSource(Source(
-            id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
-            title: "Keep Playing Playlist Fixture \(UUID().uuidString)",
-            addedAt: Date(), lastResolvedAt: nil, followUpdates: false,
-            licenseText: nil, memberCapHit: false))
-        let sourceID = try XCTUnwrap(source.id)
-        let first = try await store.insertTrack(Track(
-            id: nil, albumId: nil, sourceId: sourceID, title: "Playlist Start",
-            trackNo: 1, discNo: nil, durationSec: 120, codec: "MP3",
-            sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-1"))
-        let continuation = try await store.insertTrack(Track(
-            id: nil, albumId: nil, sourceId: sourceID, title: "Library Continuation",
-            trackNo: 2, discNo: nil, durationSec: 120, codec: "MP3",
-            sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "fixture-2"))
-        let firstID = try XCTUnwrap(first.id)
-        let continuationID = try XCTUnwrap(continuation.id)
-        let playlist = try await store.createManualPlaylist(
-            title: "Keep Playing Fixture \(UUID().uuidString)", trackIds: [firstID])
-        let playlistRows = try await store.playlistItems(playlistId: try XCTUnwrap(playlist.id))
-
-        let player = AudioPlayer.shared
-        playWithoutAutoExtending(player, tracks: playlistRows, startAt: 0)
-        player.queueSource = .playlist(playlist)
-        player.keepPlayingProvider = nil
-        await player.extendKeepPlayingQueueForTesting()
-
-        XCTAssertTrue(player.queue.contains { $0.id == continuationID },
-                      "Keep Playing must continue beyond an exhausted playlist")
-
-        try? await store.deletePlaylist(id: try XCTUnwrap(playlist.id))
-        try? await store.deleteSource(id: sourceID)
+            try? await store.deletePlaylist(id: try #require(playlist.id))
+            try? await store.deleteSource(id: sourceID)
+        }
     }
 }
+

@@ -1,6 +1,7 @@
 #if !os(watchOS) && canImport(CoreML)
 import ParsoAudioNeural
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmDiscovery
 
@@ -13,7 +14,7 @@ import XCTest
 /// failed. When they ARE present, it loads the real Core ML weights through
 /// `ModelManager` + `CoreMLSemanticModel` and asserts a real embedding in the
 /// current persisted embedding space — not the deterministic fake.
-final class ModelManagerRealLoadSmokeTests: XCTestCase {
+@Suite struct ModelManagerRealLoadSmokeTests {
     /// `.../parso-tonearm` — this file lives at `Tests/DiscoveryTests/`.
     private var repoRoot: URL {
         URL(fileURLWithPath: #filePath)
@@ -29,38 +30,38 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
         ]).resolve()
     }
 
-    func testResolverFindsRealResourcesOrSkips() throws {
+    @Test func testResolverFindsRealResourcesOrSkips() throws {
         let resources = realResources()
-        try XCTSkipUnless(
-            resources.audioEncoderURL != nil && resources.melFilterBankURL != nil,
-            "converted CLAP audio package / mel filterbank not on this host — run `make models`")
-        XCTAssertTrue(
+        if !(resources.audioEncoderURL != nil && resources.melFilterBankURL != nil) {
+            try Test.cancel("converted CLAP audio package / mel filterbank not on this host — run `make models`")
+        }
+        #expect(
             FileManager.default.fileExists(atPath: resources.audioEncoderURL!.path))
-        XCTAssertTrue(
+        #expect(
             FileManager.default.fileExists(atPath: resources.melFilterBankURL!.path))
     }
 
     // MARK: - Text encoder (session 10)
 
-    func testResolverFindsRealTextResourcesOrSkips() throws {
+    @Test func testResolverFindsRealTextResourcesOrSkips() throws {
         let r = realResources()
-        try XCTSkipUnless(
-            r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil,
-            "converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: r.textEncoderURL!.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: r.tokenizerVocabURL!.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: r.tokenizerMergesURL!.path))
+        if !(r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil) {
+            try Test.cancel("converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
+        }
+        #expect(FileManager.default.fileExists(atPath: r.textEncoderURL!.path))
+        #expect(FileManager.default.fileExists(atPath: r.tokenizerVocabURL!.path))
+        #expect(FileManager.default.fileExists(atPath: r.tokenizerMergesURL!.path))
     }
 
     /// Loads the REAL converted `CLAPTextEncoder` weights + RoBERTa tokenizer
     /// through `ModelManager.textEncoder` and asserts a real 128-d, finite,
     /// non-zero-norm text embedding — not the deterministic fake. This is the
     /// text-side parallel of `testLoadsRealEncoderAndProducesExpectedShapeEmbedding`.
-    func testLoadsRealTextEncoderAndProducesEmbeddingInCurrentSpace() async throws {
+    @Test func testLoadsRealTextEncoderAndProducesEmbeddingInCurrentSpace() async throws {
         let r = realResources()
-        try XCTSkipUnless(
-            r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil,
-            "converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
+        if !(r.textEncoderURL != nil && r.tokenizerVocabURL != nil && r.tokenizerMergesURL != nil) {
+            try Test.cancel("converted CLAP text package / tokenizer sidecars not on this host — run `make models`")
+        }
 
         // `ModelManager` now compiles a raw `.mlpackage` itself (`CompiledModelCache`) — on a real
         // device the ODR asset pack never contains a build-compiled `.mlmodelc` (it is a plain
@@ -77,28 +78,28 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
         // gated smoke test runnable in a normal `make test-local`.
         let manager = ModelManager(resourceProvider: { resolved })
         let encoder = try await manager.textEncoder(context: .background)
-        XCTAssertEqual(encoder.spec.dimensions, EmbeddingSpace.current.dimensions)
-        XCTAssertEqual(encoder.spec.textMaxLength, 77)
+        #expect(encoder.spec.dimensions == EmbeddingSpace.current.dimensions)
+        #expect(encoder.spec.textMaxLength == 77)
 
         let a = try await encoder.embedText("gentle acoustic guitar")
-        XCTAssertEqual(a.count, EmbeddingSpace.current.dimensions,
+        #expect(a.count == EmbeddingSpace.current.dimensions,
                        "real CLAP text embedding must match the persisted embedding space")
-        XCTAssertTrue(a.allSatisfy { $0.isFinite }, "embedding must be finite")
+        #expect(a.allSatisfy { $0.isFinite }, "embedding must be finite")
         let norm = sqrt(a.reduce(0) { $0 + Double($1) * Double($1) })
-        XCTAssertGreaterThan(norm, 0.01, "embedding must have non-zero norm")
+        #expect(norm > 0.01, "embedding must have non-zero norm")
 
         // Distinct phrases produce distinct vectors (the encoder is doing real
         // work, not returning a constant).
         let b = try await encoder.embedText("aggressive thrash metal")
         let cos = zip(a, b).reduce(Float(0)) { $0 + $1.0 * $1.1 }
-        XCTAssertLessThan(cos, 0.999, "different prompts must not collapse to the same vector")
+        #expect(cos < 0.999, "different prompts must not collapse to the same vector")
     }
 
-    func testLoadsRealEncoderAndProducesExpectedShapeEmbedding() async throws {
+    @Test func testLoadsRealEncoderAndProducesExpectedShapeEmbedding() async throws {
         let resources = realResources()
-        try XCTSkipUnless(
-            resources.audioEncoderURL != nil && resources.melFilterBankURL != nil,
-            "converted CLAP audio package / mel filterbank not on this host — run `make models`")
+        if !(resources.audioEncoderURL != nil && resources.melFilterBankURL != nil) {
+            try Test.cancel("converted CLAP audio package / mel filterbank not on this host — run `make models`")
+        }
 
         // `ModelManager` now compiles a raw `.mlpackage` itself (`CompiledModelCache`) — pass the
         // resolved package straight through, exactly as production does.
@@ -109,18 +110,18 @@ final class ModelManagerRealLoadSmokeTests: XCTestCase {
         let encoder = try await manager.audioEncoder(context: .foreground)
         let spec = encoder.spec
 
-        XCTAssertEqual(spec.dimensions, 512)
-        XCTAssertEqual(spec.sampleRate, 48_000)
+        #expect(spec.dimensions == 512)
+        #expect(spec.sampleRate == 48_000)
 
         // A valid-shape log-mel clip (values themselves are arbitrary; a
         // constant floor is fine for a shape/finiteness smoke check).
         let logMel = [Float](repeating: -6.0, count: spec.frames * spec.melBins)
         let embedding = try await encoder.embedAudio(logMel: logMel)
 
-        XCTAssertEqual(embedding.count, 512, "real CLAP audio embedding must be 512-dim")
-        XCTAssertTrue(embedding.allSatisfy { $0.isFinite }, "embedding must be finite")
+        #expect(embedding.count == 512, "real CLAP audio embedding must be 512-dim")
+        #expect(embedding.allSatisfy { $0.isFinite }, "embedding must be finite")
         let norm = sqrt(embedding.reduce(0) { $0 + Double($1) * Double($1) })
-        XCTAssertGreaterThan(norm, 0, "embedding must have non-zero norm")
+        #expect(norm > 0, "embedding must have non-zero norm")
     }
 }
 #endif

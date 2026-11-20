@@ -1,17 +1,18 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class SubsonicAPITests: XCTestCase {
+@Suite struct SubsonicAPITests {
 
-    func testSaltedTokenKnownVector() {
-        XCTAssertEqual(
-            SubsonicAPI.token(password: "password", salt: "salt"),
+    @Test func testSaltedTokenKnownVector() {
+        #expect(
+            SubsonicAPI.token(password: "password", salt: "salt") ==
             "b305cadbb3bce54f3aa59c64fec00dea"
         )
     }
 
-    func testURLConstructionNormalizesBaseAndAddsTokenAuth() throws {
+    @Test func testURLConstructionNormalizesBaseAndAddsTokenAuth() throws {
         let baseURL = try SubsonicAPI.normalizeBaseURL("music.example.com/navidrome/")
         let auth = SubsonicAPI.Auth(
             username: "alice",
@@ -27,38 +28,38 @@ final class SubsonicAPITests: XCTestCase {
             auth: auth,
             format: .json
         )
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.scheme, "https")
-        XCTAssertEqual(components.host, "music.example.com")
-        XCTAssertEqual(components.path, "/navidrome/rest/stream.view")
-        XCTAssertEqual(query["u"], "alice")
-        XCTAssertEqual(query["t"], "b305cadbb3bce54f3aa59c64fec00dea")
-        XCTAssertEqual(query["s"], "salt")
-        XCTAssertEqual(query["v"], "1.16.1")
-        XCTAssertEqual(query["c"], "TonearmTests")
-        XCTAssertEqual(query["f"], "json")
-        XCTAssertEqual(query["id"], "song 1")
+        #expect(components.scheme == "https")
+        #expect(components.host == "music.example.com")
+        #expect(components.path == "/navidrome/rest/stream.view")
+        #expect(query["u"] == "alice")
+        #expect(query["t"] == "b305cadbb3bce54f3aa59c64fec00dea")
+        #expect(query["s"] == "salt")
+        #expect(query["v"] == "1.16.1")
+        #expect(query["c"] == "TonearmTests")
+        #expect(query["f"] == "json")
+        #expect(query["id"] == "song 1")
     }
 
-    func testServerFormPolicy() throws {
+    @Test func testServerFormPolicy() throws {
         let url = try SubsonicServerPolicy.normalizeBaseURL("http://localhost:4533/")
 
-        XCTAssertEqual(url.absoluteString, "http://localhost:4533/")
-        XCTAssertTrue(SubsonicServerPolicy.canSubmit(
+        #expect(url.absoluteString == "http://localhost:4533/")
+        #expect(SubsonicServerPolicy.canSubmit(
             url: "http://localhost:4533",
             username: "user",
             password: "secret"
         ))
-        XCTAssertFalse(SubsonicServerPolicy.canSubmit(
+        #expect(!SubsonicServerPolicy.canSubmit(
             url: "ftp://localhost",
             username: "user",
             password: "secret"
         ))
     }
 
-    func testDecodesNavidromeJSONArtists() throws {
+    @Test func testDecodesNavidromeJSONArtists() throws {
         let artists = try SubsonicAPI.decodeArtists(data("""
         {
           "subsonic-response": {
@@ -78,12 +79,12 @@ final class SubsonicAPITests: XCTestCase {
         }
         """), format: .json)
 
-        XCTAssertEqual(artists, [
+        #expect(artists == [
             SubsonicArtist(id: "artist-1", name: "A Winged Victory", albumCount: 2)
         ])
     }
 
-    func testDecodesSubsonicXMLIndexes() throws {
+    @Test func testDecodesSubsonicXMLIndexes() throws {
         let artists = try SubsonicAPI.decodeArtists(data("""
         <subsonic-response status="ok" version="1.16.1">
           <indexes ignoredArticles="The">
@@ -94,12 +95,12 @@ final class SubsonicAPITests: XCTestCase {
         </subsonic-response>
         """), format: .xml)
 
-        XCTAssertEqual(artists, [
+        #expect(artists == [
             SubsonicArtist(id: "artist-2", name: "Biosphere", albumCount: 4)
         ])
     }
 
-    func testDecodesArtistCoverArtJSONAndXML() throws {
+    @Test func testDecodesArtistCoverArtJSONAndXML() throws {
         let jsonArtists = try SubsonicAPI.decodeArtists(data("""
         {
           "subsonic-response": {
@@ -115,7 +116,7 @@ final class SubsonicAPITests: XCTestCase {
           }
         }
         """), format: .json)
-        XCTAssertEqual(jsonArtists, [
+        #expect(jsonArtists == [
             SubsonicArtist(id: "artist-1", name: "A Winged Victory", albumCount: 2, coverArt: "ar-artist-1_0")
         ])
 
@@ -128,12 +129,12 @@ final class SubsonicAPITests: XCTestCase {
           </indexes>
         </subsonic-response>
         """), format: .xml)
-        XCTAssertEqual(xmlArtists, [
+        #expect(xmlArtists == [
             SubsonicArtist(id: "artist-2", name: "Biosphere", albumCount: 4, coverArt: "ar-artist-2_0")
         ])
     }
 
-    func testDecodesJSONArtistDetailAlbums() throws {
+    @Test func testDecodesJSONArtistDetailAlbums() throws {
         let artist = try SubsonicAPI.decodeArtist(data("""
         {
           "subsonic-response": {
@@ -150,12 +151,12 @@ final class SubsonicAPITests: XCTestCase {
         }
         """), format: .json)
 
-        XCTAssertEqual(artist.id, "artist-1")
-        XCTAssertEqual(artist.albums.first?.id, "album-1")
-        XCTAssertEqual(artist.albums.first?.songCount, 9)
+        #expect(artist.id == "artist-1")
+        #expect(artist.albums.first?.id == "album-1")
+        #expect(artist.albums.first?.songCount == 9)
     }
 
-    func testDecodesXMLArtistDetailAlbums() throws {
+    @Test func testDecodesXMLArtistDetailAlbums() throws {
         let artist = try SubsonicAPI.decodeArtist(data("""
         <subsonic-response status="ok" version="1.16.1">
           <artist id="artist-3" name="Loscil">
@@ -164,14 +165,14 @@ final class SubsonicAPITests: XCTestCase {
         </subsonic-response>
         """), format: .xml)
 
-        XCTAssertEqual(artist.name, "Loscil")
-        XCTAssertEqual(artist.albums, [
+        #expect(artist.name == "Loscil")
+        #expect(artist.albums == [
             SubsonicAlbumSummary(id: "album-3", name: "Clara", artist: "Loscil",
                                  artistId: nil, songCount: 11, year: 2021, genre: "Ambient")
         ])
     }
 
-    func testDecodesJSONAlbumSongs() throws {
+    @Test func testDecodesJSONAlbumSongs() throws {
         let album = try SubsonicAPI.decodeAlbum(data("""
         {
           "subsonic-response": {
@@ -195,14 +196,14 @@ final class SubsonicAPITests: XCTestCase {
         }
         """), format: .json)
 
-        XCTAssertEqual(album.id, "album-1")
-        XCTAssertEqual(album.songs.first?.title, "Our Lord Debussy")
-        XCTAssertEqual(album.songs.first?.duration, 312)
-        XCTAssertEqual(album.songs.first?.size, 123_456)
-        XCTAssertEqual(album.songs.first?.coverArt, "cover-1")
+        #expect(album.id == "album-1")
+        #expect(album.songs.first?.title == "Our Lord Debussy")
+        #expect(album.songs.first?.duration == 312)
+        #expect(album.songs.first?.size == 123_456)
+        #expect(album.songs.first?.coverArt == "cover-1")
     }
 
-    func testCoverArtURLConstructionUsesAuthenticatedEndpoint() throws {
+    @Test func testCoverArtURLConstructionUsesAuthenticatedEndpoint() throws {
         let baseURL = try SubsonicAPI.normalizeBaseURL("https://music.example.com")
         let auth = SubsonicAPI.Auth(
             username: "alice",
@@ -218,16 +219,16 @@ final class SubsonicAPITests: XCTestCase {
             auth: auth,
             format: .json
         )
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(components.path, "/rest/getCoverArt.view")
-        XCTAssertEqual(query["id"], "cover 1")
-        XCTAssertEqual(query["u"], "alice")
-        XCTAssertEqual(query["t"], "b305cadbb3bce54f3aa59c64fec00dea")
+        #expect(components.path == "/rest/getCoverArt.view")
+        #expect(query["id"] == "cover 1")
+        #expect(query["u"] == "alice")
+        #expect(query["t"] == "b305cadbb3bce54f3aa59c64fec00dea")
     }
 
-    func testDecodesXMLAlbumSongs() throws {
+    @Test func testDecodesXMLAlbumSongs() throws {
         let album = try SubsonicAPI.decodeAlbum(data("""
         <subsonic-response status="ok" version="1.16.1">
           <album id="album-4" name="Substrata" artist="Biosphere" year="1997" genre="Ambient">
@@ -238,8 +239,8 @@ final class SubsonicAPITests: XCTestCase {
         </subsonic-response>
         """), format: .xml)
 
-        XCTAssertEqual(album.name, "Substrata")
-        XCTAssertEqual(album.songs, [
+        #expect(album.name == "Substrata")
+        #expect(album.songs == [
             SubsonicSong(id: "song-4", title: "Poa Alpina", album: "Substrata",
                          albumId: "album-4", artist: "Biosphere", artistId: nil,
                          track: 4, discNumber: nil, duration: 282, suffix: "mp3",
@@ -248,7 +249,7 @@ final class SubsonicAPITests: XCTestCase {
         ])
     }
 
-    func testRemoteErrorCodes() {
+    @Test func testRemoteErrorCodes() {
         let fixtures: [(Int, String)] = [
             (40, "Wrong username or password"),
             (60, "Trial period expired"),
@@ -256,18 +257,21 @@ final class SubsonicAPITests: XCTestCase {
         ]
 
         for (code, message) in fixtures {
-            XCTAssertThrowsError(try SubsonicAPI.decodePing(data("""
-            { "subsonic-response": {
-                "status": "failed",
-                "error": { "code": \(code), "message": "\(message)" }
-            } }
-            """), format: .json)) { error in
-                XCTAssertEqual(error as? SubsonicAPI.Error, .remote(code: code, message: message))
+            do {
+                _ = try SubsonicAPI.decodePing(data("""
+                { "subsonic-response": {
+                    "status": "failed",
+                    "error": { "code": \(code), "message": "\(message)" }
+                } }
+                """), format: .json)
+                Issue.record("expected decodePing to throw for code \(code)")
+            } catch {
+                #expect(error as? SubsonicAPI.Error == .remote(code: code, message: message))
             }
         }
     }
 
-    func testEmptyLibraryDecodesToNoArtists() throws {
+    @Test func testEmptyLibraryDecodesToNoArtists() throws {
         let artists = try SubsonicAPI.decodeArtists(data("""
         { "subsonic-response": {
             "status": "ok",
@@ -275,15 +279,21 @@ final class SubsonicAPITests: XCTestCase {
         } }
         """), format: .json)
 
-        XCTAssertEqual(artists, [])
+        #expect(artists == [])
     }
 
-    func testMalformedResponsesThrow() {
-        XCTAssertThrowsError(try SubsonicAPI.decodeArtists(data("{}"), format: .json)) { error in
-            XCTAssertEqual(error as? SubsonicAPI.Error, .malformedResponse)
+    @Test func testMalformedResponsesThrow() {
+        do {
+            _ = try SubsonicAPI.decodeArtists(data("{}"), format: .json)
+            Issue.record("expected decodeArtists to throw for malformed JSON")
+        } catch {
+            #expect(error as? SubsonicAPI.Error == .malformedResponse)
         }
-        XCTAssertThrowsError(try SubsonicAPI.decodeArtists(data("<not-subsonic />"), format: .xml)) { error in
-            XCTAssertEqual(error as? SubsonicAPI.Error, .malformedResponse)
+        do {
+            _ = try SubsonicAPI.decodeArtists(data("<not-subsonic />"), format: .xml)
+            Issue.record("expected decodeArtists to throw for malformed XML")
+        } catch {
+            #expect(error as? SubsonicAPI.Error == .malformedResponse)
         }
     }
 
@@ -308,7 +318,7 @@ private final class AlwaysFailingSubsonicStub: URLProtocol {
     override func stopLoading() {}
 }
 
-final class SubsonicProviderPartialImplementationTests: XCTestCase {
+@Suite struct SubsonicProviderPartialImplementationTests {
     private func makeProvider() -> SubsonicProvider {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [AlwaysFailingSubsonicStub.self]
@@ -320,7 +330,7 @@ final class SubsonicProviderPartialImplementationTests: XCTestCase {
         )
     }
 
-    func testRootBrowseReturnsAnEmptyLibraryRatherThanThrowingWhenNeitherArtistEndpointIsReachable() async throws {
+    @Test func testRootBrowseReturnsAnEmptyLibraryRatherThanThrowingWhenNeitherArtistEndpointIsReachable() async throws {
         // Real gap this hardens: Funkwhale's own docs say it implements only "a subset" of the
         // Subsonic API, and a pod admin can disable Subsonic access entirely server-wide — once
         // AppState.addSubsonicServer's own ping has already validated the connection/credentials
@@ -328,6 +338,6 @@ final class SubsonicProviderPartialImplementationTests: XCTestCase {
         // the existing "No music found" empty-browse state already represents honestly, not as a
         // hard error that blocks the whole library from opening.
         let nodes = try await makeProvider().browse(path: "")
-        XCTAssertEqual(nodes, [])
+        #expect(nodes == [])
     }
 }

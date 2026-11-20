@@ -1,5 +1,6 @@
 import Foundation
 import StoreKit
+import TonearmWatchProtocol
 
 /// Result of asking the App Store for the contribution product. Speaks in the store's own
 /// vocabulary so feature UI and tests never touch StoreKit types.
@@ -136,11 +137,11 @@ public final class SupportDevelopmentStore: ObservableObject {
     /// unavailable. Never a hardcoded price — see `displayPrice`'s own doc.
     @Published private var loadedDisplayPrice: String?
 
-    private let defaults: UserDefaults
+    private let defaults: any DefaultsStoring
     private let purchasing_: SupportDevelopmentPurchasing
     private var updatesTask: Task<Void, Never>?
 
-    public init(defaults: UserDefaults = .standard,
+    public init(defaults: any DefaultsStoring = UserDefaults.standard,
                 purchasing: SupportDevelopmentPurchasing = LiveSupportDevelopmentPurchasing()) {
         self.defaults = defaults
         self.purchasing_ = purchasing

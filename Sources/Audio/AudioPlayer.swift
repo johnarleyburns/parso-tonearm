@@ -150,6 +150,15 @@ public final class AudioPlayer: ObservableObject {
 
     public var streamOnCellular = true
     public var prefetchDepth = 2
+    /// Keep Playing's library access; tests inject `.empty` so concurrent
+    /// suites cannot see each other's tracks.
+    public var keepPlayingLibrary = KeepPlayingLibrary.live
+    /// Test seam for the "already fully cached" gate. Production reads the real
+    /// sparse cache; tests can avoid touching the shared on-disk cache.
+    var cachedPlaybackURL: (URL) -> URL? = { AudioCache.playableCompleteBlobURL(for: $0) }
+    /// Test seam: record the prefetched URL without creating a real
+    /// `CachingResourceLoader`/URLSession. Production keeps this `true`.
+    var prefetchLoaderEnabled = true
     public var preferFLAC = false
     public var replayGainMode: ReplayGain.Mode = .track
     public var replayGainPreampDB: Double = 0
@@ -170,7 +179,7 @@ public final class AudioPlayer: ObservableObject {
     public var sleepAtEndOfTrack = false
     @Published public internal(set) var sleepTimerEndsAt: Date?
 
-    var player = AVPlayer()
+    var player: any PlayerEngine
     var loopPlayer: AVQueuePlayer?
     var audioLooper: AVPlayerLooper?
     var timeObserver: Any?
@@ -226,7 +235,7 @@ public final class AudioPlayer: ObservableObject {
     /// prefetch loader is.
     var preloadFreshenTask: Task<Void, Never>?
     var loadedSourceSampleRate: Double = 0
-    var crossfadePlayer: AVPlayer?
+    var crossfadePlayer: (any PlayerEngine)?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
@@ -240,9 +249,13 @@ public final class AudioPlayer: ObservableObject {
     /// EQ (T4.1): a single tap engine shared across items; reattached to the
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?
-    let pathMonitor = NWPathMonitor()
+    let pathMonitor: any NetworkPathMonitoring
+    /// Builds the incoming player for a crossfade. Production gets a real
+    /// `AVPlayer`; tests get a deterministic fake so no crossfade test needs a
+    /// real player.
+    let makeCrossfadePlayer: (AVPlayerItem?) -> any PlayerEngine
     /// Whether the network path is currently usable (for pre-playback preparation gates).
-    public var isNetworkAvailable: Bool { pathMonitor.currentPath.status == .satisfied }
+    public var isNetworkAvailable: Bool { pathMonitor.isAvailable }
     let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
     var sleepTimerTask: Task<Void, Never>?
 
@@ -272,10 +285,52 @@ public final class AudioPlayer: ObservableObject {
         return Array(queue.dropFirst(index + 1))
     }
 
-    private init() {
+    /// Internal, not `private`: visible to `@testable import TonearmCore` so
+    /// tests can construct an isolated instance instead of sharing `.shared`.
+    /// Not `public` — construction stays confined to this package and its
+    /// tests, not external API. `player`/`pathMonitor` default to the real
+    /// production path; tests that don't need genuine `AVPlayer`/`NWPathMonitor`
+    /// behavior can inject lightweight fakes instead (see `AudioPlayer.makeForTesting()`).
+    init(
+        player: any PlayerEngine = AVPlayer(),
+        pathMonitor: any NetworkPathMonitoring = RealNetworkPathMonitor(),
+        makeCrossfadePlayer: @escaping (AVPlayerItem?) -> any PlayerEngine = { AVPlayer(playerItem: $0) }
+    ) {
+        self.player = player
+        self.pathMonitor = pathMonitor
+        self.makeCrossfadePlayer = makeCrossfadePlayer
         addPeriodicObserver()
         observeTimeControlStatus()
         observeNetworkPath()
+    }
+
+    /// `pathMonitor.start(queue:)` keeps its underlying OS-level dispatch source running until
+    /// explicitly cancelled — it is not released just because this object's reference count hits
+    /// zero. Harmless for the single, process-lifetime `.shared` instance, but every test now
+    /// constructs its own `AudioPlayer()`; without this, each one leaks a live path monitor and
+    /// its dedicated queue, and the accumulation across a full test run can leave the test
+    /// process unable to exit cleanly after every test has already reported passed.
+    isolated deinit {
+        pathMonitor.cancel()
+        // A test process that is kept alive by an in-flight task, observer or
+        // resource-loader URLSession never exits, which looks like a CI hang.
+        // Tear everything down explicitly; every one of these is idempotent.
+        transitionTicker?.cancel()
+        stallWatchTask?.cancel()
+        keepPlayingExtensionTask?.cancel()
+        catalogPlaybackLoadTask?.cancel()
+        localReadinessTask?.cancel()
+        restoreTask?.cancel()
+        preloadFreshenTask?.cancel()
+        sleepTimerTask?.cancel()
+        for task in prefetchFreshenTasks.values { task.cancel() }
+        for loader in loaders { loader.shutdown() }
+        for loader in prefetchLoaders.values { loader.shutdown() }
+        preloadedNextLoader?.shutdown()
+        crossfadeNextLoader?.shutdown()
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        if let itemEndObserver { NotificationCenter.default.removeObserver(itemEndObserver) }
+        timeControlCancellable?.cancel()
     }
 
     /// Installs the real platform bridge and starts the iOS-only integrations

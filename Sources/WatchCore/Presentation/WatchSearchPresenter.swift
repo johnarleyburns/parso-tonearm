@@ -39,8 +39,14 @@ public final class WatchSearchPresenter: ObservableObject {
     @Published public var query: String = "" {
         didSet { if query != oldValue { queryChanged() } }
     }
-    @Published public private(set) var phase: Phase
+    @Published public private(set) var phase: Phase {
+        didSet { phaseDidChange?(phase) }
+    }
     @Published public private(set) var mode: Mode
+
+    /// Observation seam for deterministic tests: signalled after every phase
+    /// transition instead of polling from a busy test loop.
+    var phaseDidChange: ((Phase) -> Void)?
 
     private let connectedSearch: ConnectedSearch
     private let offlineSearch: OfflineSearch

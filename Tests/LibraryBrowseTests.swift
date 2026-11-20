@@ -1,29 +1,29 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class LibraryBrowseTests: XCTestCase {
+@Suite struct LibraryBrowseTests {
 
-    func testBrowseModeOrderIsSongsArtistsAlbumsGenres() {
-        XCTAssertEqual(LibraryBrowseMode.allCases, [.songs, .artists, .albums, .genres])
+    @Test func testBrowseModeOrderIsSongsArtistsAlbumsGenres() {
+        #expect(LibraryBrowseMode.allCases == [.songs, .artists, .albums, .genres])
     }
 
-    func testEmptyLibraryProducesNoSections() {
+    @Test func testEmptyLibraryProducesNoSections() {
         for mode in LibraryBrowseMode.allCases {
-            XCTAssertEqual(LibraryBrowse.sections(for: mode, rows: []), [], mode.rawValue)
+            #expect(LibraryBrowse.sections(for: mode, rows: []) == [], "\(mode.rawValue)")
         }
     }
 
-    func testIndexTitleBucketsASCIIAndOtherLeadingScalars() {
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "Álvaro Soler"), "A")
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "the beatles"), "T")
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "3 Doors Down"), "#")
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "!Action Pact!"), "#")
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "東京事変"), "#")
-        XCTAssertEqual(LibraryBrowse.indexTitle(for: "   "), "#")
+    @Test func testIndexTitleBucketsASCIIAndOtherLeadingScalars() {
+        #expect(LibraryBrowse.indexTitle(for: "Álvaro Soler") == "A")
+        #expect(LibraryBrowse.indexTitle(for: "the beatles") == "T")
+        #expect(LibraryBrowse.indexTitle(for: "3 Doors Down") == "#")
+        #expect(LibraryBrowse.indexTitle(for: "!Action Pact!") == "#")
+        #expect(LibraryBrowse.indexTitle(for: "東京事変") == "#")
+        #expect(LibraryBrowse.indexTitle(for: "   ") == "#")
     }
 
-    func testArtistsGroupAndSortByFoldedArticleAwareName() {
+    @Test func testArtistsGroupAndSortByFoldedArticleAwareName() {
         let rows = [
             row(id: 1, title: "Come Together", artist: "The Beatles"),
             row(id: 2, title: "El Mismo Sol", artist: "Álvaro Soler"),
@@ -32,12 +32,12 @@ final class LibraryBrowseTests: XCTestCase {
 
         let sections = LibraryBrowse.sections(for: .artists, rows: rows)
 
-        XCTAssertEqual(sections.map(\.indexTitle), ["A", "B", "#"])
-        XCTAssertEqual(sections.flatMap(\.entries).map(\.title),
+        #expect(sections.map(\.indexTitle) == ["A", "B", "#"])
+        #expect(sections.flatMap(\.entries).map(\.title) ==
                        ["Álvaro Soler", "The Beatles", "3 Doors Down"])
     }
 
-    func testSongsSortStablyForDuplicateTitles() {
+    @Test func testSongsSortStablyForDuplicateTitles() {
         let rows = [
             row(id: 1, title: "Same", artist: "A", sortKey: "same"),
             row(id: 2, title: "Same", artist: "B", sortKey: "same"),
@@ -46,11 +46,11 @@ final class LibraryBrowseTests: XCTestCase {
 
         let entries = LibraryBrowse.sections(for: .songs, rows: rows).flatMap(\.entries)
 
-        XCTAssertEqual(entries.map(\.title), ["Another", "Same", "Same"])
-        XCTAssertEqual(entries.filter { $0.title == "Same" }.map { $0.rows[0].id }, [1, 2])
+        #expect(entries.map(\.title) == ["Another", "Same", "Same"])
+        #expect(entries.filter { $0.title == "Same" }.map { $0.rows[0].id } == [1, 2])
     }
 
-    func testOneArtistWithOneThousandAlbums() {
+    @Test func testOneArtistWithOneThousandAlbums() {
         let rows = (0..<1_000).map { index in
             row(id: Int64(index + 1),
                 title: "Track \(index)",
@@ -63,14 +63,14 @@ final class LibraryBrowseTests: XCTestCase {
         let artistEntries = LibraryBrowse.sections(for: .artists, rows: rows).flatMap(\.entries)
         let albumEntries = LibraryBrowse.sections(for: .albums, rows: rows).flatMap(\.entries)
 
-        XCTAssertEqual(artistEntries.count, 1)
-        XCTAssertEqual(artistEntries.first?.title, "One Artist")
-        XCTAssertEqual(artistEntries.first?.subtitle, "1,000 albums")
-        XCTAssertEqual(artistEntries.first?.rows.count, 1_000)
-        XCTAssertEqual(albumEntries.count, 1_000)
+        #expect(artistEntries.count == 1)
+        #expect(artistEntries.first?.title == "One Artist")
+        #expect(artistEntries.first?.subtitle == "1,000 albums")
+        #expect(artistEntries.first?.rows.count == 1_000)
+        #expect(albumEntries.count == 1_000)
     }
 
-    func testCompilationAlbumsGroupUnderAlbumArtist() {
+    @Test func testCompilationAlbumsGroupUnderAlbumArtist() {
         let rows = [
             row(id: 1, title: "Track A", artist: "Track Artist A", albumArtist: "Various Artists"),
             row(id: 2, title: "Track B", artist: "Track Artist B", albumArtist: "Various Artists"),
@@ -78,11 +78,11 @@ final class LibraryBrowseTests: XCTestCase {
 
         let entries = LibraryBrowse.sections(for: .artists, rows: rows).flatMap(\.entries)
 
-        XCTAssertEqual(entries.map(\.title), ["Various Artists"])
-        XCTAssertEqual(entries.first?.rows.map { $0.track.title }, ["Track A", "Track B"])
+        #expect(entries.map(\.title) == ["Various Artists"])
+        #expect(entries.first?.rows.map { $0.track.title } == ["Track A", "Track B"])
     }
 
-    func testGenresPreferTrackThenAlbumAndGroupUnknowns() {
+    @Test func testGenresPreferTrackThenAlbumAndGroupUnknowns() {
         let rows = [
             row(id: 1, title: "Track Folk", artist: "A", albumGenre: "Album Rock", trackGenre: "Folk"),
             row(id: 2, title: "Album Rock Track", artist: "B", albumGenre: "Album Rock"),
@@ -91,9 +91,9 @@ final class LibraryBrowseTests: XCTestCase {
 
         let entries = LibraryBrowse.sections(for: .genres, rows: rows).flatMap(\.entries)
 
-        XCTAssertEqual(entries.map(\.title), ["Album Rock", "Folk", "Unknown Genre"])
-        XCTAssertEqual(entries.first { $0.title == "Folk" }?.rows.map { $0.track.title }, ["Track Folk"])
-        XCTAssertEqual(entries.first { $0.title == "Album Rock" }?.rows.map { $0.track.title },
+        #expect(entries.map(\.title) == ["Album Rock", "Folk", "Unknown Genre"])
+        #expect(entries.first { $0.title == "Folk" }?.rows.map { $0.track.title } == ["Track Folk"])
+        #expect(entries.first { $0.title == "Album Rock" }?.rows.map { $0.track.title } ==
                        ["Album Rock Track"])
     }
 

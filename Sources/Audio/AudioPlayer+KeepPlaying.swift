@@ -149,7 +149,7 @@ extension AudioPlayer {
     private func currentKeepPlayingExclusions() async -> Set<Int64> {
         // Session exclusions plus the durable "never recommend" / removed-from-library identities
         // resolved to their current local track ids (covers re-added tracks).
-        let durable = (try? await LibraryStore.shared.excludedTrackIDs()) ?? []
+        let durable = await keepPlayingLibrary.excludedTrackIDs()
         return Set(keepPlayingHistory).union(queue.compactMap { $0.track.id }).union(durable)
     }
 
@@ -255,13 +255,13 @@ extension AudioPlayer {
     ) async {
         var rows: [TrackRow] = []
         for id in ids {
-            if let row = try? await LibraryStore.shared.trackRow(id: id) {
+            if let row = await keepPlayingLibrary.trackRow(id) {
                 rows.append(row)
             }
         }
         // Snapshot the analysed BPM/key now so the explanation never changes on a later re-index.
         let mix = recommendation == .mixMatched
-            ? ((try? await LibraryStore.shared.djLoadTrackInfo(trackIds: ids)) ?? [:]) : [:]
+            ? await keepPlayingLibrary.djLoadTrackInfo(ids) : [:]
         guard !Task.isCancelled else { return }
         guard !rows.isEmpty else {
             await extendWithFallback(reason: .unavailable, excluding: await currentKeepPlayingExclusions())
@@ -292,7 +292,7 @@ extension AudioPlayer {
             // dead air: broaden to the whole library (the exclusion set still
             // prevents every played/queued track), exactly as the playlist
             // fallback already does.
-            let all = (try? await LibraryStore.shared.allTrackRows()) ?? []
+            let all = await keepPlayingLibrary.allTrackRows()
             guard !Task.isCancelled else { return }
             candidates = usable(all)
         }
@@ -309,8 +309,8 @@ extension AudioPlayer {
     private func keepPlayingFallbackPool() async -> [TrackRow] {
         switch queueSource {
         case .source(let source):
-            guard let sourceId = source.id else { return (try? await LibraryStore.shared.allTrackRows()) ?? [] }
-            return (try? await LibraryStore.shared.tracks(forSource: sourceId)) ?? []
+            guard let sourceId = source.id else { return await keepPlayingLibrary.allTrackRows() }
+            return await keepPlayingLibrary.tracksForSource(sourceId)
         case .playlist(let playlist):
             // A playlist is the queue's starting scope, not a boundary for
             // Keep Playing. Once every playlist item is excluded, using the
@@ -318,9 +318,9 @@ extension AudioPlayer {
             // to the library; the exclusion set still prevents repeats of
             // every played and queued track.
             _ = playlist
-            return (try? await LibraryStore.shared.allTrackRows()) ?? []
+            return await keepPlayingLibrary.allTrackRows()
         case .library, .none, .continuation:
-            return (try? await LibraryStore.shared.allTrackRows()) ?? []
+            return await keepPlayingLibrary.allTrackRows()
         case .ambient:
             return []
         }

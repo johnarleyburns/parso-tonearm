@@ -1,11 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 import GRDB
 @testable import TonearmCore
 
 /// docs/plans/macos-app-cloud-sync-plan.md §4 — DB-layer half of the
 /// discovery-index sync feature: syncID persistence and the accept/reject/
 /// requeue outcome actually landing in the database.
-final class LibraryStoreDiscoverySyncTests: XCTestCase {
+@Suite struct LibraryStoreDiscoverySyncTests {
 
     private func makeStore() throws -> LibraryStore {
         try LibraryStore(inMemory: true)
@@ -17,43 +18,43 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
                    title: "Src", addedAt: Date(), lastResolvedAt: nil,
                    followUpdates: false, licenseText: nil, memberCapHit: false,
                    localIsFolder: false, artworkTrackId: nil))
-        let sourceId = try XCTUnwrap(source.id)
+        let sourceId = try #require(source.id)
         let track = try await store.insertTrack(
             Track(id: nil, albumId: nil, sourceId: sourceId, title: "Track",
                   trackNo: 1, discNo: nil, durationSec: nil, codec: nil,
                   sampleRate: nil, bitDepthOrBitrate: nil, sortKey: "a"))
-        let trackId = try XCTUnwrap(track.id)
+        let trackId = try #require(track.id)
         let asset = try await store.insertAsset(
             Asset(id: nil, trackId: trackId, kind: .localRef, bookmark: nil,
                   relPath: "a.flac", remoteURL: nil, altRemoteURL: nil,
                   sizeBytes: nil, unsupportedReason: nil))
-        let assetId = try XCTUnwrap(asset.id)
+        let assetId = try #require(asset.id)
         return (trackId, assetId)
     }
 
-    func testEnsureTrackSyncIDGeneratesAndPersists() async throws {
+    @Test func testEnsureTrackSyncIDGeneratesAndPersists() async throws {
         let store = try makeStore()
         let (trackId, _) = try await seedTrackWithAsset(store)
         let first = try await store.ensureTrackSyncID(trackId: trackId)
-        XCTAssertNotNil(first)
+        #expect(first != nil)
         let second = try await store.ensureTrackSyncID(trackId: trackId)
-        XCTAssertEqual(first, second, "must not regenerate a different syncID on a second call")
+        #expect(first == second, "must not regenerate a different syncID on a second call")
     }
 
-    func testLocalTrackIdResolvesByGeneratedSyncID() async throws {
+    @Test func testLocalTrackIdResolvesByGeneratedSyncID() async throws {
         let store = try makeStore()
         let (trackId, _) = try await seedTrackWithAsset(store)
         let generated = try await store.ensureTrackSyncID(trackId: trackId)
-        let syncID = try XCTUnwrap(generated)
+        let syncID = try #require(generated)
         let resolved = try await store.localTrackId(forSyncID: syncID)
-        XCTAssertEqual(resolved, trackId)
+        #expect(resolved == trackId)
     }
 
-    func testApplyIncomingEmbeddingAcceptsWhenNotYetIndexed() async throws {
+    @Test func testApplyIncomingEmbeddingAcceptsWhenNotYetIndexed() async throws {
         let store = try makeStore()
         let (trackId, _) = try await seedTrackWithAsset(store)
         let generatedSyncID = try await store.ensureTrackSyncID(trackId: trackId)
-        let trackSyncID = try XCTUnwrap(generatedSyncID)
+        let trackSyncID = try #require(generatedSyncID)
 
         let incoming = DiscoveryEmbedding(
             trackId: 999, assetId: 999, assetRevision: 1, modelVersion: 1,
@@ -64,20 +65,20 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
             incoming, trackSyncID: trackSyncID,
             activePipelineVersion: 1, activeModelVersion: 1,
             activePreprocessingVersion: 1, activeSamplingVersion: 1)
-        XCTAssertEqual(result, .accepted)
+        #expect(result == .accepted)
 
         let saved = try await store.dbQueue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertEqual(saved?.trackId, trackId, "accepted row must be keyed by the LOCAL trackId")
-        XCTAssertEqual(saved?.quantizedVector, Data([1, 2]))
+        #expect(saved?.trackId == trackId, "accepted row must be keyed by the LOCAL trackId")
+        #expect(saved?.quantizedVector == Data([1, 2]))
     }
 
-    func testApplyIncomingEmbeddingRejectsAndKeepsLocalWhenAlreadyIndexed() async throws {
+    @Test func testApplyIncomingEmbeddingRejectsAndKeepsLocalWhenAlreadyIndexed() async throws {
         let store = try makeStore()
         let (trackId, assetId) = try await seedTrackWithAsset(store)
         let generatedSyncID = try await store.ensureTrackSyncID(trackId: trackId)
-        let trackSyncID = try XCTUnwrap(generatedSyncID)
+        let trackSyncID = try #require(generatedSyncID)
         try await store.seedBuiltInEmbedding(
             trackId: trackId, assetId: assetId, pipelineVersion: 1,
             modelVersion: 1, preprocessingVersion: 1, samplingVersion: 1,
@@ -91,19 +92,19 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
             incoming, trackSyncID: trackSyncID,
             activePipelineVersion: 1, activeModelVersion: 1,
             activePreprocessingVersion: 1, activeSamplingVersion: 1)
-        XCTAssertEqual(result, .rejectedKeepLocal)
+        #expect(result == .rejectedKeepLocal)
 
         let saved = try await store.dbQueue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertEqual(saved?.quantizedVector, Data([9]), "local row must be untouched")
+        #expect(saved?.quantizedVector == Data([9]), "local row must be untouched")
     }
 
-    func testApplyIncomingEmbeddingRequeuesLocalJobOnVersionMismatch() async throws {
+    @Test func testApplyIncomingEmbeddingRequeuesLocalJobOnVersionMismatch() async throws {
         let store = try makeStore()
         let (trackId, assetId) = try await seedTrackWithAsset(store)
         let generatedSyncID = try await store.ensureTrackSyncID(trackId: trackId)
-        let trackSyncID = try XCTUnwrap(generatedSyncID)
+        let trackSyncID = try #require(generatedSyncID)
         // A completed local job at pipeline version 1, but no embedding yet
         // (the job's own completion sets one, so seed the job directly).
         try await store.dbQueue.write { db in
@@ -124,7 +125,7 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
             incompatible, trackSyncID: trackSyncID,
             activePipelineVersion: 1, activeModelVersion: 1,
             activePreprocessingVersion: 1, activeSamplingVersion: 1)
-        XCTAssertEqual(result, .rejectedRequeued)
+        #expect(result == .rejectedRequeued)
 
         let job = try await store.dbQueue.read { db in
             try DiscoveryIndexJob
@@ -132,10 +133,10 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
                 .filter(Column("pipelineVersion") == 1)
                 .fetchOne(db)
         }
-        XCTAssertEqual(job?.state, .queued, "the LOCAL job must be reset so this device re-indexes itself")
+        #expect(job?.state == .queued, "the LOCAL job must be reset so this device re-indexes itself")
     }
 
-    func testApplyIncomingEmbeddingIsPendingWhenTrackNotYetImported() async throws {
+    @Test func testApplyIncomingEmbeddingIsPendingWhenTrackNotYetImported() async throws {
         let store = try makeStore()
         let incoming = DiscoveryEmbedding(
             trackId: 999, assetId: 999, assetRevision: 1, modelVersion: 1,
@@ -145,10 +146,10 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
             incoming, trackSyncID: "no-such-track",
             activePipelineVersion: 1, activeModelVersion: 1,
             activePreprocessingVersion: 1, activeSamplingVersion: 1)
-        XCTAssertEqual(result, .trackNotYetImported)
+        #expect(result == .trackNotYetImported)
     }
 
-    func testPendingSyncRecordUpsertsPrunesAndDiscards() async throws {
+    @Test func testPendingSyncRecordUpsertsPrunesAndDiscards() async throws {
         let store = try makeStore()
         let old = Date().addingTimeInterval(-91 * 86_400)
         try await store.upsertPendingSyncRecord(recordName: "r", recordType: "DJTrackPrep",
@@ -159,12 +160,12 @@ final class LibraryStoreDiscoverySyncTests: XCTestCase {
                                                 payload: Data([2]), trackKeys: [], receivedAt: Date())
         let count = try await store.pendingSyncRecordCount()
         let saved = try await store.pendingSyncRecords()
-        XCTAssertEqual(count, 1)
-        XCTAssertEqual(saved.first?.payload, Data([2]))
+        #expect(count == 1)
+        #expect(saved.first?.payload == Data([2]))
         let pruned = try await store.prunePendingSyncRecords(olderThan: Date().addingTimeInterval(-90 * 86_400))
-        XCTAssertEqual(pruned, 0)
+        #expect(pruned == 0)
         try await store.discardPendingSyncRecords()
         let remaining = try await store.pendingSyncRecordCount()
-        XCTAssertEqual(remaining, 0)
+        #expect(remaining == 0)
     }
 }

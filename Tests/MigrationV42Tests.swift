@@ -1,5 +1,6 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// v42: persisted `asset.remoteContentType` — the provider's own MIME type
@@ -7,8 +8,8 @@ import XCTest
 /// Google Drive track with an extensionless cached file played fine on first
 /// stream but failed on the second, cached-file play, because `AVURLAsset`
 /// had no extension or MIME hint to infer the format from.
-final class MigrationV42Tests: XCTestCase {
-    func testV42AddsRemoteContentTypeColumnWithoutLosingExistingAssetData() throws {
+@Suite struct MigrationV42Tests {
+    @Test func testV42AddsRemoteContentTypeColumnWithoutLosingExistingAssetData() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v41").migrate(queue)
 
@@ -39,15 +40,15 @@ final class MigrationV42Tests: XCTestCase {
             let row = try Row.fetchOne(
                 db, sql: "SELECT remoteURL, remoteContentType FROM asset WHERE trackId = ?",
                 arguments: [trackId])
-            XCTAssertEqual(row?["remoteURL"] as String?, "https://example.test/pre-existing.mp3")
-            XCTAssertNil(row?["remoteContentType"] as String?)
+            #expect(row?["remoteURL"] as String? == "https://example.test/pre-existing.mp3")
+            #expect(row?["remoteContentType"] as String? == nil)
 
             let columns = try db.columns(in: "asset").map(\.name)
-            XCTAssertTrue(columns.contains("remoteContentType"))
+            #expect(columns.contains("remoteContentType"))
         }
     }
 
-    func testMigratingTwiceIsIdempotent() throws {
+    @Test func testMigratingTwiceIsIdempotent() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
         try Schema.migrator().migrate(queue)
@@ -56,7 +57,7 @@ final class MigrationV42Tests: XCTestCase {
     /// The new column round-trips through the `Asset` GRDB record, same as
     /// `remoteNodeID`/`remoteNodePath` (v22) — unlike the deliberately
     /// transient fields, which must NOT survive a save/reload.
-    func testAssetRoundTripsRemoteContentType() throws {
+    @Test func testAssetRoundTripsRemoteContentType() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
 
@@ -84,6 +85,6 @@ final class MigrationV42Tests: XCTestCase {
         try queue.write { db in try asset.insert(db) }
 
         let reloaded = try queue.read { db in try Asset.filter(Column("trackId") == trackId).fetchOne(db) }
-        XCTAssertEqual(reloaded?.remoteContentType, "audio/mpeg")
+        #expect(reloaded?.remoteContentType == "audio/mpeg")
     }
 }

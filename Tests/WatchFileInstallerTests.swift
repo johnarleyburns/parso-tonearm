@@ -1,13 +1,13 @@
 import Foundation
 import SwiftData
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 import TonearmWatchProtocol
 
 /// §8.3 installer: audio/metadata ordering, duplicate delivery, corruption, storage reserve,
 /// replacement, delete/install race, and convergence after a restart.
-final class WatchFileInstallerTests: XCTestCase {
-    func testFailedRetentionDoesNotClaimAudioIsSafelyDeferred() async throws {
+@Suite struct WatchFileInstallerTests {
+    @Test func testFailedRetentionDoesNotClaimAudioIsSafelyDeferred() async throws {
         let fx = try Fixture()
         let blockedDirectory = fx.root.appendingPathComponent("not-a-directory")
         try Data([1]).write(to: blockedDirectory)
@@ -17,9 +17,9 @@ final class WatchFileInstallerTests: XCTestCase {
         let digest = try WatchFileDigest.measure(incoming)
         let outcome = await installer.install(stagedURL: incoming, metadata: WatchAudioFileMetadata(
             trackID: "unknown", expectedBytes: digest.bytes, sha256: digest.sha256, fileExtension: "m4a").dictionary)
-        XCTAssertEqual(outcome, .rejected(trackID: "unknown", .init(code: .installationFailed)))
+        #expect(outcome == .rejected(trackID: "unknown", .init(code: .installationFailed)))
     }
-    func testExplicitContainerInstallsExtensionlessCacheWithOrWithoutMetadataFirst() async throws {
+    @Test func testExplicitContainerInstallsExtensionlessCacheWithOrWithoutMetadataFirst() async throws {
         for metadataFirst in [true, false] {
             let fx = try Fixture()
             if metadataFirst { try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached")) }
@@ -31,33 +31,33 @@ final class WatchFileInstallerTests: XCTestCase {
             let expected = WatchInstallOutcome.installed(trackID: "cached",
                 relativeFilename: "\(digest.sha256).mp3", bytes: digest.bytes)
             if metadataFirst {
-                XCTAssertEqual(first, expected)
+                #expect(first == expected)
             } else {
-                XCTAssertEqual(first, .deferredAwaitingMetadata(trackID: "cached"))
+                #expect(first == .deferredAwaitingMetadata(trackID: "cached"))
                 try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached"))
                 let outcomes = await fx.installer.retryDeferred()
-                XCTAssertEqual(outcomes, [expected])
+                #expect(outcomes == [expected])
             }
         }
     }
 
-    func testExtensionlessCacheAudioBeforeMetadataSurvivesDeferredRetry() async throws {
+    @Test func testExtensionlessCacheAudioBeforeMetadataSurvivesDeferredRetry() async throws {
         let fx = try Fixture()
         let staged = try fx.stage("cache-hash-mp3", bytes: Data("cached-audio".utf8))
         let digest = try WatchFileDigest.measure(staged)
         let metadata = WatchAudioFileMetadata(trackID: "cached", expectedBytes: digest.bytes,
                                               sha256: digest.sha256)
         let deferred = await fx.installer.install(stagedURL: staged, metadata: metadata)
-        XCTAssertEqual(deferred, .deferredAwaitingMetadata(trackID: "cached"))
+        #expect(deferred == .deferredAwaitingMetadata(trackID: "cached"))
         try await fx.repository.upsertTrack(.init(trackID: "cached", title: "Cached"))
         let outcomes = await fx.installer.retryDeferred()
-        XCTAssertEqual(outcomes, [.installed(trackID: "cached", relativeFilename: digest.sha256,
+        #expect(outcomes == [.installed(trackID: "cached", relativeFilename: digest.sha256,
                                             bytes: digest.bytes)])
         let ready = try await fx.repository.tracks(readyOnly: true)
-        XCTAssertEqual(ready.map(\.id), ["cached"])
+        #expect(ready.map(\.id) == ["cached"])
     }
 
-    func testMetadataBeforeAudioInstallsAndReports() async throws {
+    @Test func testMetadataBeforeAudioInstallsAndReports() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "one", title: "One", codec: "aac"))
         let staged = try fx.stage("one.m4a", bytes: Data("audio-bytes-one".utf8))
@@ -68,35 +68,35 @@ final class WatchFileInstallerTests: XCTestCase {
             metadata: WatchAudioFileMetadata(trackID: "one", expectedBytes: digest.bytes,
                                              sha256: digest.sha256, codec: "aac"))
 
-        XCTAssertEqual(outcome, .installed(trackID: "one", relativeFilename: "\(digest.sha256).m4a",
+        #expect(outcome == .installed(trackID: "one", relativeFilename: "\(digest.sha256).m4a",
                                           bytes: digest.bytes))
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["one"])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+        #expect(ready == ["one"])
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
     }
 
-    func testAudioBeforeMetadataDefersThenConverges() async throws {
+    @Test func testAudioBeforeMetadataDefersThenConverges() async throws {
         let fx = try Fixture()
         let staged = try fx.stage("ghost.m4a", bytes: Data("ghost-audio".utf8))
         let digest = try WatchFileDigest.measure(staged)
         let meta = WatchAudioFileMetadata(trackID: "ghost", expectedBytes: digest.bytes, sha256: digest.sha256)
 
         let deferred = await fx.installer.install(stagedURL: staged, metadata: meta)
-        XCTAssertEqual(deferred, .deferredAwaitingMetadata(trackID: "ghost"))
+        #expect(deferred == .deferredAwaitingMetadata(trackID: "ghost"))
         let deferredIDs = await fx.installer.deferredTrackIDs()
-        XCTAssertEqual(deferredIDs, ["ghost"])
+        #expect(deferredIDs == ["ghost"])
 
         try await fx.repository.upsertTrack(.init(trackID: "ghost", title: "Ghost"))
         let retried = await fx.installer.retryDeferred()
-        XCTAssertEqual(retried, [.installed(trackID: "ghost", relativeFilename: "\(digest.sha256).m4a",
+        #expect(retried == [.installed(trackID: "ghost", relativeFilename: "\(digest.sha256).m4a",
                                            bytes: digest.bytes)])
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["ghost"])
+        #expect(ready == ["ghost"])
         let remaining = await fx.installer.deferredTrackIDs()
-        XCTAssertEqual(remaining, [])
+        #expect(remaining == [])
     }
 
-    func testDeferredFileSurvivesRestart() async throws {
+    @Test func testDeferredFileSurvivesRestart() async throws {
         let fx = try Fixture()
         let staged = try fx.stage("later.m4a", bytes: Data("later-audio".utf8))
         let digest = try WatchFileDigest.measure(staged)
@@ -109,11 +109,11 @@ final class WatchFileInstallerTests: XCTestCase {
                                            stagingDirectory: fx.staging)
         try await fx.repository.upsertTrack(.init(trackID: "later", title: "Later"))
         let outcomes = await restarted.retryDeferred()
-        XCTAssertEqual(outcomes, [.installed(trackID: "later", relativeFilename: "\(digest.sha256).m4a",
+        #expect(outcomes == [.installed(trackID: "later", relativeFilename: "\(digest.sha256).m4a",
                                             bytes: digest.bytes)])
     }
 
-    func testDuplicateDeliveryValidatesWithoutRewrite() async throws {
+    @Test func testDuplicateDeliveryValidatesWithoutRewrite() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "dup", title: "Dup"))
         let bytes = Data("dup-bytes".utf8)
@@ -124,13 +124,13 @@ final class WatchFileInstallerTests: XCTestCase {
 
         let second = try fx.stage("dup-2.m4a", bytes: bytes)
         let outcome = await fx.installer.install(stagedURL: second, metadata: meta)
-        XCTAssertEqual(outcome, .duplicateIgnored(trackID: "dup"))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: second.path))
+        #expect(outcome == .duplicateIgnored(trackID: "dup"))
+        #expect(!FileManager.default.fileExists(atPath: second.path))
         let files = try FileManager.default.contentsOfDirectory(atPath: fx.audio.path)
-        XCTAssertEqual(files, ["\(digest.sha256).m4a"])
+        #expect(files == ["\(digest.sha256).m4a"])
     }
 
-    func testTruncatedFileIsRejectedAndStagingCleared() async throws {
+    @Test func testTruncatedFileIsRejectedAndStagingCleared() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "trunc", title: "Trunc"))
         let staged = try fx.stage("trunc.m4a", bytes: Data("short".utf8))
@@ -139,13 +139,13 @@ final class WatchFileInstallerTests: XCTestCase {
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "trunc", expectedBytes: digest.bytes + 100,
                                              sha256: digest.sha256))
-        XCTAssertEqual(outcome, .rejected(trackID: "trunc", WatchProtocolFault(code: .checksumMismatch)))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+        #expect(outcome == .rejected(trackID: "trunc", WatchProtocolFault(code: .checksumMismatch)))
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
         let ready = try await fx.repository.tracks(readyOnly: true)
-        XCTAssertTrue(ready.isEmpty)
+        #expect(ready.isEmpty)
     }
 
-    func testWrongChecksumIsRejected() async throws {
+    @Test func testWrongChecksumIsRejected() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "bad", title: "Bad"))
         let staged = try fx.stage("bad.m4a", bytes: Data("bad-bytes".utf8))
@@ -154,10 +154,10 @@ final class WatchFileInstallerTests: XCTestCase {
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "bad", expectedBytes: digest.bytes,
                                              sha256: String(repeating: "0", count: 64)))
-        XCTAssertEqual(outcome, .rejected(trackID: "bad", WatchProtocolFault(code: .checksumMismatch)))
+        #expect(outcome == .rejected(trackID: "bad", WatchProtocolFault(code: .checksumMismatch)))
     }
 
-    func testUnsupportedCodecIsARejectNotARetry() async throws {
+    @Test func testUnsupportedCodecIsARejectNotARetry() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "ogg", title: "Ogg"))
         let staged = try fx.stage("track.ogg", bytes: Data("vorbis".utf8))
@@ -165,10 +165,10 @@ final class WatchFileInstallerTests: XCTestCase {
         let outcome = await fx.installer.install(
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "ogg", expectedBytes: digest.bytes, sha256: digest.sha256))
-        XCTAssertEqual(outcome, .rejected(trackID: "ogg", WatchProtocolFault(code: .unsupportedAudio)))
+        #expect(outcome == .rejected(trackID: "ogg", WatchProtocolFault(code: .unsupportedAudio)))
     }
 
-    func testInsufficientStorageIsRejected() async throws {
+    @Test func testInsufficientStorageIsRejected() async throws {
         let fx = try Fixture(freeBytes: 1_000)
         try await fx.repository.upsertTrack(.init(trackID: "big", title: "Big"))
         let staged = try fx.stage("big.m4a", bytes: Data("some-audio".utf8))
@@ -176,10 +176,10 @@ final class WatchFileInstallerTests: XCTestCase {
         let outcome = await fx.installer.install(
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "big", expectedBytes: digest.bytes, sha256: digest.sha256))
-        XCTAssertEqual(outcome, .rejected(trackID: "big", WatchProtocolFault(code: .insufficientWatchStorage)))
+        #expect(outcome == .rejected(trackID: "big", WatchProtocolFault(code: .insufficientWatchStorage)))
     }
 
-    func testReplacementRemovesTheSupersededFileOnlyAfterCommit() async throws {
+    @Test func testReplacementRemovesTheSupersededFileOnlyAfterCommit() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "rep", title: "Rep"))
         let v1 = try fx.stage("rep-1.m4a", bytes: Data("version-one".utf8))
@@ -193,12 +193,12 @@ final class WatchFileInstallerTests: XCTestCase {
         let outcome = await fx.installer.install(
             stagedURL: v2,
             metadata: WatchAudioFileMetadata(trackID: "rep", expectedBytes: d2.bytes, sha256: d2.sha256))
-        XCTAssertEqual(outcome, .installed(trackID: "rep", relativeFilename: "\(d2.sha256).m4a", bytes: d2.bytes))
+        #expect(outcome == .installed(trackID: "rep", relativeFilename: "\(d2.sha256).m4a", bytes: d2.bytes))
         let files = try FileManager.default.contentsOfDirectory(atPath: fx.audio.path)
-        XCTAssertEqual(files, ["\(d2.sha256).m4a"])
+        #expect(files == ["\(d2.sha256).m4a"])
     }
 
-    func testLateFileForDeletedTrackDoesNotResurrectIt() async throws {
+    @Test func testLateFileForDeletedTrackDoesNotResurrectIt() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "gone", title: "Gone"))
         _ = try await fx.repository.removeTracks(["gone"])
@@ -207,12 +207,12 @@ final class WatchFileInstallerTests: XCTestCase {
         let outcome = await fx.installer.install(
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "gone", expectedBytes: digest.bytes, sha256: digest.sha256))
-        XCTAssertEqual(outcome, .deferredAwaitingMetadata(trackID: "gone"))
+        #expect(outcome == .deferredAwaitingMetadata(trackID: "gone"))
         let tracks = try await fx.repository.tracks(readyOnly: false)
-        XCTAssertTrue(tracks.isEmpty)
+        #expect(tracks.isEmpty)
     }
 
-    func testCrashAfterMoveBeforeCommitConvergesOnRedelivery() async throws {
+    @Test func testCrashAfterMoveBeforeCommitConvergesOnRedelivery() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "crash", title: "Crash"))
         let bytes = Data("crash-audio".utf8)
@@ -225,20 +225,20 @@ final class WatchFileInstallerTests: XCTestCase {
         let outcome = await fx.installer.install(
             stagedURL: staged,
             metadata: WatchAudioFileMetadata(trackID: "crash", expectedBytes: digest.bytes, sha256: digest.sha256))
-        XCTAssertEqual(outcome, .installed(trackID: "crash", relativeFilename: "\(digest.sha256).m4a",
+        #expect(outcome == .installed(trackID: "crash", relativeFilename: "\(digest.sha256).m4a",
                                           bytes: digest.bytes))
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["crash"])
+        #expect(ready == ["crash"])
     }
 
-    func testUnparseableMetadataIsRejectedWithoutRetainingTheFile() async throws {
+    @Test func testUnparseableMetadataIsRejectedWithoutRetainingTheFile() async throws {
         let fx = try Fixture()
         let staged = try fx.stage("junk.m4a", bytes: Data("junk".utf8))
         let outcome = await fx.installer.install(stagedURL: staged, metadata: ["nope": "1"])
-        XCTAssertEqual(outcome, .rejected(trackID: "", WatchProtocolFault(code: .installationFailed)))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: staged.path))
+        #expect(outcome == .rejected(trackID: "", WatchProtocolFault(code: .installationFailed)))
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
         let deferredIDs = await fx.installer.deferredTrackIDs()
-        XCTAssertEqual(deferredIDs, [])
+        #expect(deferredIDs == [])
     }
 }
 
@@ -279,27 +279,27 @@ private struct Fixture {
     }
 }
 
-final class WatchArtworkInstallerTests: XCTestCase {
-    func testRepeatedDeferredArtworkRetriesPreserveFileUntilBindingArrives() async throws {
+@Suite struct WatchArtworkInstallerTests {
+    @Test func testRepeatedDeferredArtworkRetriesPreserveFileUntilBindingArrives() async throws {
         let fx = try ArtworkFixture()
         let incoming = try fx.stage("arrived.png", bytes: Data("valid-artwork".utf8))
         let digest = try WatchFileDigest.measure(incoming)
         let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
             sha256: digest.sha256, role: .cover)
         let initial = await fx.installer.install(stagedURL: incoming, metadata: metadata)
-        XCTAssertEqual(initial, .deferredAwaitingMetadata(artworkID: digest.sha256))
+        #expect(initial == .deferredAwaitingMetadata(artworkID: digest.sha256))
         for _ in 0..<3 {
             let retry = await fx.installer.retryDeferred()
-            XCTAssertEqual(retry, [.deferredAwaitingMetadata(artworkID: digest.sha256)])
-            XCTAssertEqual(try WatchFileDigest.measure(fx.staging.appendingPathComponent("\(digest.sha256).png")).sha256,
+            #expect(retry == [.deferredAwaitingMetadata(artworkID: digest.sha256)])
+            #expect(try WatchFileDigest.measure(fx.staging.appendingPathComponent("\(digest.sha256).png")).sha256 ==
                 digest.sha256)
         }
         try await fx.repository.upsertTrack(.init(trackID: "matching", title: "Matching", coverArtworkID: digest.sha256))
         let completed = await fx.installer.retryDeferred()
-        XCTAssertEqual(completed, [.installed(artworkID: digest.sha256,
+        #expect(completed == [.installed(artworkID: digest.sha256,
             relativeFilename: "\(digest.sha256).png", bytes: digest.bytes)])
     }
-    func testArtworkSuccessAndDuplicateDoNotRewrite() async throws {
+    @Test func testArtworkSuccessAndDuplicateDoNotRewrite() async throws {
         let fx = try ArtworkFixture()
         let bytes = Data("jpeg-derivative".utf8)
         let staged = try fx.stage("incoming.jpg", bytes: bytes)
@@ -309,37 +309,37 @@ final class WatchArtworkInstallerTests: XCTestCase {
         let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
                                                 sha256: digest.sha256, role: .cover)
         let first = await fx.installer.install(stagedURL: staged, metadata: metadata)
-        XCTAssertEqual(first, .installed(artworkID: digest.sha256, relativeFilename: "\(digest.sha256).jpg", bytes: digest.bytes))
+        #expect(first == .installed(artworkID: digest.sha256, relativeFilename: "\(digest.sha256).jpg", bytes: digest.bytes))
         let destination = fx.artwork.appendingPathComponent("\(digest.sha256).jpg")
         let before = try Data(contentsOf: destination)
         let duplicate = try fx.stage("duplicate.jpg", bytes: bytes)
         let duplicateOutcome = await fx.installer.install(stagedURL: duplicate, metadata: metadata)
-        XCTAssertEqual(duplicateOutcome, .duplicateIgnored(artworkID: digest.sha256))
-        XCTAssertEqual(try Data(contentsOf: destination), before)
+        #expect(duplicateOutcome == .duplicateIgnored(artworkID: digest.sha256))
+        #expect(try Data(contentsOf: destination) == before)
     }
 
-    func testArtworkRejectsUnsupportedAndEveryIntegrityMismatch() async throws {
+    @Test func testArtworkRejectsUnsupportedAndEveryIntegrityMismatch() async throws {
         let fx = try ArtworkFixture()
         let staged = try fx.stage("incoming.jpg", bytes: Data("derivative".utf8))
         let digest = try WatchFileDigest.measure(staged)
         let wrongSize = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes + 1,
                                                  sha256: digest.sha256, role: .cover)
         let wrongSizeOutcome = await fx.installer.install(stagedURL: staged, metadata: wrongSize)
-        XCTAssertEqual(wrongSizeOutcome,
+        #expect(wrongSizeOutcome ==
                        .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .checksumMismatch)))
         let unsupported = try fx.stage("incoming.gif", bytes: Data("derivative".utf8))
         let unsupportedMetadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
                                                            sha256: digest.sha256, role: .cover)
         let unsupportedOutcome = await fx.installer.install(stagedURL: unsupported, metadata: unsupportedMetadata)
-        XCTAssertEqual(unsupportedOutcome,
+        #expect(unsupportedOutcome ==
                        .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .unsupportedArtwork)))
         let mismatch = try fx.stage("mismatch.jpg", bytes: Data("different".utf8))
         let mismatchOutcome = await fx.installer.install(stagedURL: mismatch, metadata: unsupportedMetadata)
-        XCTAssertEqual(mismatchOutcome,
+        #expect(mismatchOutcome ==
                        .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .checksumMismatch)))
     }
 
-    func testArtworkIDMustEqualCanonicalSHA256AndReserveIsHonoured() async throws {
+    @Test func testArtworkIDMustEqualCanonicalSHA256AndReserveIsHonoured() async throws {
         let fx = try ArtworkFixture(freeBytes: 1_000)
         let staged = try fx.stage("incoming.jpg", bytes: Data("derivative".utf8))
         let digest = try WatchFileDigest.measure(staged)
@@ -347,31 +347,31 @@ final class WatchArtworkInstallerTests: XCTestCase {
         let mismatchedID = WatchArtworkFileMetadata(artworkID: String(repeating: "A", count: 64),
                                                     expectedBytes: digest.bytes, sha256: digest.sha256, role: .cover)
         let mismatchedIDOutcome = await fx.installer.install(stagedURL: staged, metadata: mismatchedID)
-        XCTAssertEqual(mismatchedIDOutcome,
+        #expect(mismatchedIDOutcome ==
                        .rejected(artworkID: String(repeating: "a", count: 64), WatchProtocolFault(code: .checksumMismatch)))
         let reserve = try fx.stage("reserve.jpg", bytes: Data("derivative".utf8))
         let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
                                                 sha256: digest.sha256, role: .cover)
         let reserveOutcome = await fx.installer.install(stagedURL: reserve, metadata: metadata)
-        XCTAssertEqual(reserveOutcome,
+        #expect(reserveOutcome ==
                        .rejected(artworkID: digest.sha256, WatchProtocolFault(code: .insufficientWatchStorage)))
     }
 
-    func testArtworkBeforeBindingDefersThenInstallsAndManifestListsIt() async throws {
+    @Test func testArtworkBeforeBindingDefersThenInstallsAndManifestListsIt() async throws {
         let fx = try ArtworkFixture()
         let staged = try fx.stage("incoming.png", bytes: Data("derivative".utf8))
         let digest = try WatchFileDigest.measure(staged)
         let metadata = WatchArtworkFileMetadata(artworkID: digest.sha256, expectedBytes: digest.bytes,
                                                 sha256: digest.sha256, role: .custom)
         let deferredOutcome = await fx.installer.install(stagedURL: staged, metadata: metadata)
-        XCTAssertEqual(deferredOutcome, .deferredAwaitingMetadata(artworkID: digest.sha256))
+        #expect(deferredOutcome == .deferredAwaitingMetadata(artworkID: digest.sha256))
         try await fx.repository.upsertTrack(.init(trackID: "track", title: "Track",
                                                    customArtworkID: digest.sha256))
         let retryOutcomes = await fx.installer.retryDeferred()
         let manifest = try await fx.repository.manifest()
-        XCTAssertEqual(retryOutcomes,
+        #expect(retryOutcomes ==
                        [.installed(artworkID: digest.sha256, relativeFilename: "\(digest.sha256).png", bytes: digest.bytes)])
-        XCTAssertEqual(manifest.installedArtworkIDs, [digest.sha256])
+        #expect(manifest.installedArtworkIDs == [digest.sha256])
     }
 }
 

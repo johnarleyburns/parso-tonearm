@@ -1,32 +1,32 @@
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 
-final class WatchPlaylistNameMatchTests: XCTestCase {
+@Suite struct WatchPlaylistNameMatchTests {
     private let titles = ["Morning Run", "Deep Focus", "Late Night Jazz"]
 
-    func testExactMatchIsCaseInsensitive() {
-        XCTAssertEqual(WatchPlaylistNameMatch.best("deep focus", in: titles), "Deep Focus")
+    @Test func testExactMatchIsCaseInsensitive() {
+        #expect(WatchPlaylistNameMatch.best("deep focus", in: titles) == "Deep Focus")
     }
 
-    func testPrefixMatch() {
-        XCTAssertEqual(WatchPlaylistNameMatch.best("morning", in: titles), "Morning Run")
+    @Test func testPrefixMatch() {
+        #expect(WatchPlaylistNameMatch.best("morning", in: titles) == "Morning Run")
     }
 
-    func testSubstringMatch() {
-        XCTAssertEqual(WatchPlaylistNameMatch.best("jazz", in: titles), "Late Night Jazz")
+    @Test func testSubstringMatch() {
+        #expect(WatchPlaylistNameMatch.best("jazz", in: titles) == "Late Night Jazz")
     }
 
-    func testReverseMatchWhenQueryIsWordier() {
-        XCTAssertEqual(WatchPlaylistNameMatch.best("play my deep focus playlist", in: titles), "Deep Focus")
+    @Test func testReverseMatchWhenQueryIsWordier() {
+        #expect(WatchPlaylistNameMatch.best("play my deep focus playlist", in: titles) == "Deep Focus")
     }
 
-    func testNoMatchReturnsNil() {
-        XCTAssertNil(WatchPlaylistNameMatch.best("workout", in: titles))
+    @Test func testNoMatchReturnsNil() {
+        #expect(WatchPlaylistNameMatch.best("workout", in: titles) == nil)
     }
 
-    func testEmptyInputsReturnNil() {
-        XCTAssertNil(WatchPlaylistNameMatch.best("", in: titles))
-        XCTAssertNil(WatchPlaylistNameMatch.best("   ", in: titles))
-        XCTAssertNil(WatchPlaylistNameMatch.best("anything", in: []))
+    @Test func testEmptyInputsReturnNil() {
+        #expect(WatchPlaylistNameMatch.best("", in: titles) == nil)
+        #expect(WatchPlaylistNameMatch.best("   ", in: titles) == nil)
+        #expect(WatchPlaylistNameMatch.best("anything", in: []) == nil)
     }
 }

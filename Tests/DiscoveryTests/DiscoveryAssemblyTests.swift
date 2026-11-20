@@ -2,7 +2,8 @@
 import AVFoundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -11,7 +12,7 @@ import XCTest
 /// reconciler/scheduler/model set over the single core writer — recovers at
 /// launch and drains the queue end to end against a deterministic synthetic
 /// encoder and real on-disk audio.
-final class DiscoveryAssemblyTests: XCTestCase {
+@Suite struct DiscoveryAssemblyTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -87,7 +88,7 @@ final class DiscoveryAssemblyTests: XCTestCase {
         }
     }
 
-    func testRecoverAndReconcileResetsStaleLeasesAndBootstrapsAllTracks() async throws {
+    @Test func testRecoverAndReconcileResetsStaleLeasesAndBootstrapsAllTracks() async throws {
         let queue = try makeQueue()
         for _ in 0..<3 { _ = try await seedTrack(queue, fileURL: nil, durationSec: nil) }
 
@@ -101,13 +102,13 @@ final class DiscoveryAssemblyTests: XCTestCase {
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { snap })
         let recovery = try await assembly.recoverAndReconcileAtLaunch()
 
-        XCTAssertEqual(recovery.resetIndexLeases, 1)
-        XCTAssertEqual(recovery.bootstrappedTracks, 2, "tracks 2 and 3 had no job yet")
+        #expect(recovery.resetIndexLeases == 1)
+        #expect(recovery.bootstrappedTracks == 2, "tracks 2 and 3 had no job yet")
         let coverage = try await jobs.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.total, 3)
+        #expect(coverage.total == 3)
     }
 
-    func testDrainQueueRunsBootstrappedJobsToCompletion() async throws {
+    @Test func testDrainQueueRunsBootstrappedJobsToCompletion() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -127,17 +128,17 @@ final class DiscoveryAssemblyTests: XCTestCase {
         _ = try await assembly.recoverAndReconcileAtLaunch()
 
         let completed = try await assembly.drainQueue()
-        XCTAssertEqual(completed, 2)
+        #expect(completed == 2)
 
         let embeddingCount = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
         }
-        XCTAssertEqual(embeddingCount, 2)
+        #expect(embeddingCount == 2)
         let coverage = try await assembly.jobs.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.complete, 2)
+        #expect(coverage.complete == 2)
     }
 
-    func testDrainQueueDoesNothingWhileUserPaused() async throws {
+    @Test func testDrainQueueDoesNothingWhileUserPaused() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -153,9 +154,9 @@ final class DiscoveryAssemblyTests: XCTestCase {
         _ = try await assembly.recoverAndReconcileAtLaunch()
 
         let completed = try await assembly.drainQueue()
-        XCTAssertEqual(completed, 0)
+        #expect(completed == 0)
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .queued, "paused leaves the job untouched")
+        #expect(job?.state == .queued, "paused leaves the job untouched")
     }
 
     /// Reproduces the real TestFlight report: a pre-existing library (tracks
@@ -172,7 +173,7 @@ final class DiscoveryAssemblyTests: XCTestCase {
     /// progress — see `IndexStatusPresentationTests
     /// .testBlockedSchedulerNeverShownAsGenericIndexing` for the UI half of
     /// this regression.
-    func testPersistentPolicyBlockLeavesJobsQueuedAndRecordsTheRealReason() async throws {
+    @Test func testPersistentPolicyBlockLeavesJobsQueuedAndRecordsTheRealReason() async throws {
         let queue = try makeQueue()
         let trackCount = 25
         for _ in 0..<trackCount { _ = try await seedTrack(queue, fileURL: nil, durationSec: nil) }
@@ -197,28 +198,27 @@ final class DiscoveryAssemblyTests: XCTestCase {
         await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
 
         let recovery = try await assembly.recoverAndReconcileAtLaunch()
-        XCTAssertEqual(recovery.bootstrappedTracks, trackCount, "every pre-existing track got a job")
+        #expect(recovery.bootstrappedTracks == trackCount, "every pre-existing track got a job")
 
         // Simulate several foreground tick-loop passes (the real loop calls
         // drainQueue every 20s) — none of them should make progress while
         // the gate holds, and the loop must not lose the reason.
         for _ in 0..<5 {
             let completed = try await assembly.drainQueue()
-            XCTAssertEqual(completed, 0)
+            #expect(completed == 0)
         }
 
         let coverage = try await assembly.jobs.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.total, trackCount)
-        XCTAssertEqual(coverage.complete, 0)
-        XCTAssertEqual(
-            coverage.queuedOrRunning, trackCount,
-            "jobs blocked before being claimed stay .queued — this is what made the old "
-                + "status UI show a generic, unexplained 'Indexing' forever")
+        #expect(coverage.total == trackCount)
+        #expect(coverage.complete == 0)
+        #expect(
+            coverage.queuedOrRunning == trackCount,
+            "jobs blocked before being claimed stay .queued — this is what made the old status UI show a generic, unexplained 'Indexing' forever")
         let reasonAfterBlock = await assembly.lastBlockReason
-        XCTAssertEqual(reasonAfterBlock, .thermalSerious)
+        #expect(reasonAfterBlock == .thermalSerious)
 
         let snapshot = try await assembly.statusSnapshot()
-        XCTAssertEqual(snapshot.schedulerBlockReason, .thermalSerious)
+        #expect(snapshot.schedulerBlockReason == .thermalSerious)
 
         // Once the real condition clears, the scheduler is unblocked and the
         // stale reason must not survive — even though these particular jobs
@@ -231,7 +231,7 @@ final class DiscoveryAssemblyTests: XCTestCase {
             hasMemoryWarning: false, continuousNominalSeconds: 120)
         _ = try await assembly.drainQueue()
         let reasonAfterRecovery = await assembly.lastBlockReason
-        XCTAssertNil(reasonAfterRecovery, "a resolved gate must not leave a stale reason behind")
+        #expect(reasonAfterRecovery == nil, "a resolved gate must not leave a stale reason behind")
     }
 }
 #endif

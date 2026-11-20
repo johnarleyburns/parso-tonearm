@@ -1,15 +1,15 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
 @MainActor
-final class RemoteLibraryCopyTests: XCTestCase {
-    func testCredentialCopyUsesLocalAppleKeychainLanguage() {
+@Suite struct RemoteLibraryCopyTests {
+    @Test func testCredentialCopyUsesLocalAppleKeychainLanguage() {
         for connector in RemoteConnectorCatalog.all
             where connector.authKind != .folderPicker && connector.authKind != .urlOnly {
             let privacy = connector.guide.sections
                 .first { $0.title == "Privacy" }?
                 .body ?? ""
-            XCTAssertTrue(
+            #expect(
                 privacy.contains("locally in Apple Keychain"),
                 "\(connector.title) privacy copy should mention local Apple Keychain storage"
             )
@@ -18,10 +18,10 @@ final class RemoteLibraryCopyTests: XCTestCase {
         let smbPrivacy = RemoteConnectorCatalog.connector(for: .smb)?
             .guide.sections.first { $0.title == "Privacy" }?
             .body ?? ""
-        XCTAssertTrue(smbPrivacy.contains("does not store SMB passwords"))
+        #expect(smbPrivacy.contains("does not store SMB passwords"))
     }
 
-    func testTerminologyUsesMusicAndLibrariesForVisibleCoreLabels() {
-        XCTAssertEqual(QueueSource.library.label, "From Music")
+    @Test func testTerminologyUsesMusicAndLibrariesForVisibleCoreLabels() {
+        #expect(QueueSource.library.label == "From Music")
     }
 }

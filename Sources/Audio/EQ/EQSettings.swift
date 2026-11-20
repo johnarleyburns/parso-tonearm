@@ -1,5 +1,6 @@
 import Foundation
 import ParsoAudioPlayback
+import TonearmWatchProtocol
 
 /// User-facing EQ state. This is a pure value: no UI frameworks, no I/O.
 public struct EQSettings: Equatable, Codable, Sendable {
@@ -119,12 +120,12 @@ public enum EQSettingsPersistence {
     private static let legacyGainsKey = "eq.gains"
     private static let userPresetsKey = "eq.userPresets"
 
-    public static func load(defaults: UserDefaults = .standard) -> EQSettings {
+    public static func load(defaults: any DefaultsStoring = UserDefaults.standard) -> EQSettings {
         let store = EQSettingsStore(presets: allPresets(defaults: defaults))
         if let data = defaults.data(forKey: settingsKey) {
             return store.settings(fromEncodedPayload: data)
         }
-        if let gains = defaults.array(forKey: legacyGainsKey) as? [Double] {
+        if let gains = defaults.object(forKey: legacyGainsKey) as? [Double] {
             return store.normalized(EQSettings(
                 bands: gains.map(Float.init),
                 enabled: defaults.bool(forKey: legacyEnabledKey),
@@ -134,12 +135,12 @@ public enum EQSettingsPersistence {
         return .flat
     }
 
-    public static func save(_ settings: EQSettings, defaults: UserDefaults = .standard) {
+    public static func save(_ settings: EQSettings, defaults: any DefaultsStoring = UserDefaults.standard) {
         let store = EQSettingsStore(presets: allPresets(defaults: defaults))
         defaults.set(store.encodedPayload(for: settings), forKey: settingsKey)
     }
 
-    public static func userPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
+    public static func userPresets(defaults: any DefaultsStoring = UserDefaults.standard) -> [EQPreset] {
         guard let data = defaults.data(forKey: userPresetsKey),
               let presets = try? JSONDecoder().decode([EQPreset].self, from: data) else {
             return []
@@ -147,11 +148,11 @@ public enum EQSettingsPersistence {
         return presets
     }
 
-    public static func allPresets(defaults: UserDefaults = .standard) -> [EQPreset] {
+    public static func allPresets(defaults: any DefaultsStoring = UserDefaults.standard) -> [EQPreset] {
         EQPreset.builtIns + userPresets(defaults: defaults)
     }
 
-    public static func saveUserPreset(_ preset: EQPreset, defaults: UserDefaults = .standard) {
+    public static func saveUserPreset(_ preset: EQPreset, defaults: any DefaultsStoring = UserDefaults.standard) {
         var presets = userPresets(defaults: defaults)
         presets.removeAll { $0.id == preset.id }
         presets.append(preset)

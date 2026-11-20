@@ -2,7 +2,7 @@
 import Foundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -11,17 +11,15 @@ import XCTest
 /// / stale files rebuild from the authoritative `discovery_embedding` rows;
 /// a vanished cache never marks a job incomplete. Mixed pipeline versions are
 /// never scanned together (plan §6/§9).
-final class VectorIndexRecoveryTests: XCTestCase {
+@Suite final class VectorIndexRecoveryTests {
     private var cacheURL: URL!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("vidx-\(UUID().uuidString).bin")
     }
-    override func tearDown() {
+    deinit {
         try? FileManager.default.removeItem(at: cacheURL)
-        super.tearDown()
     }
 
     private func seed(_ queue: DatabaseQueue, vectors: [(Int64, [Float])],
@@ -37,22 +35,22 @@ final class VectorIndexRecoveryTests: XCTestCase {
         }
     }
 
-    func testRebuildFromEmbeddingsProducesConsistentSnapshot() async throws {
+    @Test func testRebuildFromEmbeddingsProducesConsistentSnapshot() async throws {
         let queue = try SearchFixture.makeQueue()
         try await seed(queue, vectors: [(1, [1, 0, 0, 0]), (2, [0, 1, 0, 0]), (3, [0, 0, 1, 0])])
         let index = VectorIndex(writer: queue, cacheURL: cacheURL)
 
         let snap = try await index.currentSnapshot()
-        XCTAssertEqual(snap.rowCount, 3)
-        XCTAssertEqual(snap.dimensions, EmbeddingSpace.current.dimensions)
-        XCTAssertEqual(Set(snap.trackIDByRow).count, 3)
+        #expect(snap.rowCount == 3)
+        #expect(snap.dimensions == EmbeddingSpace.current.dimensions)
+        #expect(Set(snap.trackIDByRow).count == 3)
         // Dequantized row 0 ≈ its unit vector.
         let r0 = snap.dequantizedRow(snap.trackIDByRow.firstIndex(of: snap.trackIDByRow[0])!)
-        XCTAssertEqual(r0.count, EmbeddingSpace.current.dimensions)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+        #expect(r0.count == EmbeddingSpace.current.dimensions)
+        #expect(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
-    func testMissingCacheRebuilds() async throws {
+    @Test func testMissingCacheRebuilds() async throws {
         let queue = try SearchFixture.makeQueue()
         try await seed(queue, vectors: [(1, [1, 0, 0, 0]), (2, [0, 1, 0, 0])])
         let index = VectorIndex(writer: queue, cacheURL: cacheURL)
@@ -61,11 +59,11 @@ final class VectorIndexRecoveryTests: XCTestCase {
         await index.releasePublishedSnapshot()
 
         let snap = try await index.currentSnapshot()
-        XCTAssertEqual(snap.rowCount, 2)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+        #expect(snap.rowCount == 2)
+        #expect(FileManager.default.fileExists(atPath: cacheURL.path))
     }
 
-    func testTruncatedCacheRebuilds() async throws {
+    @Test func testTruncatedCacheRebuilds() async throws {
         let queue = try SearchFixture.makeQueue()
         try await seed(queue, vectors: [(1, [1, 0, 0, 0]), (2, [0, 1, 0, 0]), (3, [0, 0, 1, 0])])
         let index = VectorIndex(writer: queue, cacheURL: cacheURL)
@@ -77,10 +75,10 @@ final class VectorIndexRecoveryTests: XCTestCase {
         await index.releasePublishedSnapshot()
 
         let snap = try await index.currentSnapshot()
-        XCTAssertEqual(snap.rowCount, 3)
+        #expect(snap.rowCount == 3)
     }
 
-    func testStaleSignatureTriggersRebuildWithNewGeneration() async throws {
+    @Test func testStaleSignatureTriggersRebuildWithNewGeneration() async throws {
         let queue = try SearchFixture.makeQueue()
         try await seed(queue, vectors: [(1, [1, 0, 0, 0])])
         let index = VectorIndex(writer: queue, cacheURL: cacheURL)
@@ -93,11 +91,11 @@ final class VectorIndexRecoveryTests: XCTestCase {
             try SearchFixture.seedEmbedding(db, trackId: t, assetId: a, vector: [0, 1, 0, 0])
         }
         let snap2 = try await index.currentSnapshot()
-        XCTAssertEqual(snap2.rowCount, 2)
-        XCTAssertGreaterThan(snap2.generation, g1)
+        #expect(snap2.rowCount == 2)
+        #expect(snap2.generation > g1)
     }
 
-    func testCommitBeforePublicationCrashRebuildsFromDB() async throws {
+    @Test func testCommitBeforePublicationCrashRebuildsFromDB() async throws {
         let queue = try SearchFixture.makeQueue()
         try await seed(queue, vectors: [(1, [1, 0, 0, 0]), (2, [0, 1, 0, 0])])
         // "Process A" builds and publishes the cache file for 2 rows.
@@ -116,10 +114,10 @@ final class VectorIndexRecoveryTests: XCTestCase {
         // signature mismatch and rebuilds before serving any scan.
         let indexB = VectorIndex(writer: queue, cacheURL: cacheURL)
         let snap = try await indexB.currentSnapshot()
-        XCTAssertEqual(snap.rowCount, 3)
+        #expect(snap.rowCount == 3)
     }
 
-    func testMixedPipelineVersionsNotScannedTogether() async throws {
+    @Test func testMixedPipelineVersionsNotScannedTogether() async throws {
         let queue = try SearchFixture.makeQueue()
         // Two current-version rows...
         try await seed(queue, vectors: [(1, [1, 0, 0, 0]), (2, [0, 1, 0, 0])])
@@ -136,8 +134,8 @@ final class VectorIndexRecoveryTests: XCTestCase {
         }
         let index = VectorIndex(writer: queue, cacheURL: cacheURL)
         let snap = try await index.currentSnapshot()
-        XCTAssertEqual(snap.rowCount, 2, "older-pipeline row must be excluded from the scan set")
-        XCTAssertEqual(snap.modelVersion, DiscoveryPipelineVersion.model)
+        #expect(snap.rowCount == 2, "older-pipeline row must be excluded from the scan set")
+        #expect(snap.modelVersion == DiscoveryPipelineVersion.model)
     }
 }
 #endif

@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 import CoreGraphics
 @testable import TonearmCore
 
-final class SpectrogramDetectorTests: XCTestCase {
+@Suite struct SpectrogramDetectorTests {
 
     private let detector = SpectrogramDetector()
 
@@ -34,41 +34,41 @@ final class SpectrogramDetectorTests: XCTestCase {
 
     // MARK: - Spectrogram detections
 
-    func testDetectsGrayscaleSmoothGradient() {
+    @Test func testDetectsGrayscaleSmoothGradient() {
         // A grayscale gradient with <=16 distinct levels (at 20x20 resolution)
         // has entropy < 4.0, so it looks like a spectrogram. Using 8 bands across the vertical axis.
         let img = makeImage { _, y in
             let v = UInt8((y / 3) * 32)
             return (v, v, v)
         }
-        XCTAssertTrue(detector.isSpectrogram(img),
+        #expect(detector.isSpectrogram(img),
                        "Grayscale gradient with few bands should be detected as spectrogram")
     }
 
-    func testDetectsNearGrayscaleWithLowEntropy() {
+    @Test func testDetectsNearGrayscaleWithLowEntropy() {
         // Few distinct brightness bands (near-gray) means low entropy.
         let img = makeImage { _, y in
             let v = UInt8((y / 5) * 60)
             return (v, UInt8(max(0, Int(v) - 8)), UInt8(min(255, Int(v) + 8)))
         }
-        XCTAssertTrue(detector.isSpectrogram(img),
+        #expect(detector.isSpectrogram(img),
                        "Near-grayscale image with few bands (low entropy) should be spectrogram")
     }
 
-    func testDetectsGrayscaleWithFewBands() {
+    @Test func testDetectsGrayscaleWithFewBands() {
         // Simulates a spectrogram: few horizontal brightness bands.
         let img = makeImage { _, y in
             let band = y / 4
             let v = UInt8(50 + (band % 5) * 40)
             return (v, v, v)
         }
-        XCTAssertTrue(detector.isSpectrogram(img),
+        #expect(detector.isSpectrogram(img),
                        "Grayscale image with few brightness bands (spectrogram-like) should be detected")
     }
 
     // MARK: - Non-spectrogram rejections
 
-    func testRejectsColorPhoto() {
+    @Test func testRejectsColorPhoto() {
         // Bright, distinct colors scattered across the image. Each 2x2 block
         // has a different saturated color so no averaging to gray.
         let colors: [(UInt8, UInt8, UInt8)] = [
@@ -80,48 +80,48 @@ final class SpectrogramDetectorTests: XCTestCase {
             let idx = (x / 2 + y / 2 * 10) % colors.count
             return colors[idx]
         }
-        XCTAssertFalse(detector.isSpectrogram(img),
+        #expect(!detector.isSpectrogram(img),
                         "Colorful block image should not be detected as spectrogram")
     }
 
-    func testRejectsBWCrispPhoto() {
+    @Test func testRejectsBWCrispPhoto() {
         // Scattered grayscale with many distinct brightness values means high entropy.
         let img = makeImage { x, y in
             let v = UInt8((x * 13 + y * 17) % 256)
             return (v, v, v)
         }
-        XCTAssertFalse(detector.isSpectrogram(img),
+        #expect(!detector.isSpectrogram(img),
                         "Grayscale photo with many distinct levels (high entropy) should not be spectrogram")
     }
 
-    func testRejectsGrayscalePhotoWithDetail() {
+    @Test func testRejectsGrayscalePhotoWithDetail() {
         // Grayscale image with many brightness levels scattered randomly.
         let img = makeImage { x, y in
             let raw: Int = (x * 13) + (y * 17) + ((x ^ y) * 7)
             let v = UInt8(raw % 256)
             return (v, v, v)
         }
-        XCTAssertFalse(detector.isSpectrogram(img),
+        #expect(!detector.isSpectrogram(img),
                         "Grayscale photo with detail (high entropy) should not be spectrogram")
     }
 
     // MARK: - Edge cases (low entropy = treated like spectrogram)
 
-    func testSolidBlackIsRejectedBecauseLowEntropy() {
+    @Test func testSolidBlackIsRejectedBecauseLowEntropy() {
         let img = makeImage { _, _ in (0, 0, 0) }
-        XCTAssertTrue(detector.isSpectrogram(img),
+        #expect(detector.isSpectrogram(img),
                        "Solid black has zero entropy and should be rejected")
     }
 
-    func testSolidWhiteIsRejectedBecauseLowEntropy() {
+    @Test func testSolidWhiteIsRejectedBecauseLowEntropy() {
         let img = makeImage { _, _ in (255, 255, 255) }
-        XCTAssertTrue(detector.isSpectrogram(img),
+        #expect(detector.isSpectrogram(img),
                        "Solid white has zero entropy and should be rejected")
     }
 
     // MARK: - Configurable thresholds
 
-    func testCustomEntropyThreshold() {
+    @Test func testCustomEntropyThreshold() {
         // With a very strict entropy threshold (1.0), only near-empty images
         // are flagged. The scattered grayscale pattern should pass.
         let strict = SpectrogramDetector(entropyThreshold: 1.0)
@@ -129,11 +129,11 @@ final class SpectrogramDetectorTests: XCTestCase {
             let v = UInt8((x * 13 + y * 17) % 256)
             return (v, v, v)
         }
-        XCTAssertFalse(strict.isSpectrogram(img),
+        #expect(!strict.isSpectrogram(img),
                         "Scattered grayscale should pass with strict entropy threshold")
     }
 
-    func testPermissiveGrayThreshold() {
+    @Test func testPermissiveGrayThreshold() {
         // With grayThreshold = 1.0, the gray check always passes, so only entropy matters.
         // A colorful photo has high entropy and should still pass.
         let permissive = SpectrogramDetector(grayThreshold: 1.0)
@@ -145,7 +145,7 @@ final class SpectrogramDetectorTests: XCTestCase {
             let idx = (x / 2 + y / 2 * 10) % colors.count
             return colors[idx]
         }
-        XCTAssertFalse(permissive.isSpectrogram(img),
+        #expect(!permissive.isSpectrogram(img),
                         "Colorful photo has high entropy, bypassing gray check")
     }
 }

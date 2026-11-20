@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 @testable import TonearmWatchCore
 @testable import TonearmWatchProtocol
@@ -7,10 +8,10 @@ import XCTest
 /// bridge seam. The integration case at the bottom drives the real watch coordinator across the fake
 /// duplex link — the definition of done: a fake-transport watch searches the complete fixture
 /// library and plays a playlist through a spy phone player.
-final class PhoneWatchProjectionTests: XCTestCase {
+@Suite struct PhoneWatchProjectionTests {
     private let libraryID = WatchPairedLibraryID("library-phase4")
 
-    func testResolvedPlaylistCommandKeepsPlaylistQueueSource() {
+    @Test func testResolvedPlaylistCommandKeepsPlaylistQueueSource() {
         let playlist = Playlist(id: 42, title: "Evening Jazz", kind: .manual,
                                 folderBookmark: nil, watch: false)
         let ref = WatchCollectionRef(kind: .playlist, id: "prow:42")
@@ -18,20 +19,23 @@ final class PhoneWatchProjectionTests: XCTestCase {
         let source = PhoneWatchPlaybackSource.queueSource(for: ref, playlist: playlist)
 
         guard case .playlist(let actual) = source else {
-            return XCTFail("a resolved watch playlist must remain a playlist queue")
+            Issue.record("a resolved watch playlist must remain a playlist queue")
+            return
         }
-        XCTAssertEqual(actual, playlist)
+        #expect(actual == playlist)
     }
 
-    func testUnresolvedOrNonPlaylistCommandUsesSafeLibraryQueueSource() {
+    @Test func testUnresolvedOrNonPlaylistCommandUsesSafeLibraryQueueSource() {
         let ref = WatchCollectionRef(kind: .playlist, id: "prow:42")
         let album = WatchCollectionRef(kind: .album, id: "arow:7")
 
         guard case .library = PhoneWatchPlaybackSource.queueSource(for: ref, playlist: nil) else {
-            return XCTFail("an unresolved playlist must fall back safely to library playback")
+            Issue.record("an unresolved playlist must fall back safely to library playback")
+            return
         }
         guard case .library = PhoneWatchPlaybackSource.queueSource(for: album, playlist: nil) else {
-            return XCTFail("non-playlist playback must use the library source")
+            Issue.record("non-playlist playback must use the library source")
+            return
         }
     }
 
@@ -51,15 +55,15 @@ final class PhoneWatchProjectionTests: XCTestCase {
             Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil, title: "Fixture",
                    addedAt: Date(), lastResolvedAt: nil, followUpdates: false, licenseText: nil,
                    memberCapHit: false))
-        let sourceID = try XCTUnwrap(source.id)
+        let sourceID = try #require(source.id)
         let artist = try await store.insertArtist(
             Artist(id: nil, name: "Miles Davis", sortName: "Davis, Miles"))
-        let artistID = try XCTUnwrap(artist.id)
+        let artistID = try #require(artist.id)
         let album = try await store.insertAlbum(
             Album(id: nil, sourceId: sourceID, title: "Kind of Blue", artist: "Miles Davis",
                   artistId: artistID, albumArtist: "Miles Davis", genre: "Jazz", year: 1959,
                   artworkId: "art-1"))
-        let albumID = try XCTUnwrap(album.id)
+        let albumID = try #require(album.id)
 
         var trackIDs: [WatchTrackID] = []
         var trackRowIDs: [Int64] = []
@@ -70,7 +74,7 @@ final class PhoneWatchProjectionTests: XCTestCase {
                       discNo: 1, durationSec: 300 + Double(i), codec: "FLAC", sampleRate: 44_100,
                       bitDepthOrBitrate: "16-bit", sortKey: String(format: "%04d", i + 1),
                       genre: "Jazz", composer: nil, artistId: artistID))
-            let tid = try XCTUnwrap(track.id)
+            let tid = try #require(track.id)
             trackIDs.append(PhoneWatchID.track(track))
             trackRowIDs.append(tid)
             _ = try await store.insertAsset(
@@ -84,12 +88,12 @@ final class PhoneWatchProjectionTests: XCTestCase {
                       trackNo: 100 + n, discNo: 2, durationSec: 60, codec: "FLAC", sampleRate: 44_100,
                       bitDepthOrBitrate: "16-bit", sortKey: String(format: "%04d", 100 + n),
                       genre: "Jazz", composer: nil, artistId: artistID))
-            _ = try XCTUnwrap(track.id)
+            _ = try #require(track.id)
         }
 
         let playlist = try await store.insertPlaylist(
             Playlist(id: nil, title: "Evening Jazz", kind: .manual, folderBookmark: nil, watch: false))
-        let playlistID = try XCTUnwrap(playlist.id)
+        let playlistID = try #require(playlist.id)
         for tid in trackRowIDs {
             try await store.addToPlaylist(playlistId: playlistID, trackId: tid)
         }
@@ -115,26 +119,26 @@ final class PhoneWatchProjectionTests: XCTestCase {
 
     // MARK: - Search
 
-    func testSelectedDownloadMetadataDoesNotMirrorFullPhoneCatalog() async throws {
+    @Test func testSelectedDownloadMetadataDoesNotMirrorFullPhoneCatalog() async throws {
         let fixture = try await makeFixture(extraTracks: 40)
-        let selected = try XCTUnwrap(fixture.trackIDs.first)
+        let selected = try #require(fixture.trackIDs.first)
         let pages = try await makeHandler(fixture).catalogPages(revision: 9,
             trackIDs: [selected.rawValue], playlistIDs: [fixture.playlistRef.id])
-        XCTAssertEqual(pages.flatMap(\.tracks).map(\.trackID), [selected])
-        XCTAssertTrue(pages.allSatisfy { $0.downloadSelectionOnly == true })
-        XCTAssertEqual(pages.flatMap(\.playlists).count, 1)
-        XCTAssertEqual(pages.flatMap(\.playlists).first?.trackIDs, [selected])
+        #expect(pages.flatMap(\.tracks).map(\.trackID) == [selected])
+        #expect(pages.allSatisfy { $0.downloadSelectionOnly == true })
+        #expect(pages.flatMap(\.playlists).count == 1)
+        #expect(pages.flatMap(\.playlists).first?.trackIDs == [selected])
         let empty = try await makeHandler(fixture).catalogPages(revision: 10, trackIDs: [], playlistIDs: [])
-        XCTAssertTrue(empty.flatMap(\.tracks).isEmpty)
-        XCTAssertTrue(empty.flatMap(\.playlists).isEmpty)
+        #expect(empty.flatMap(\.tracks).isEmpty)
+        #expect(empty.flatMap(\.playlists).isEmpty)
         let ordered = [fixture.trackIDs[1], fixture.trackIDs[0]]
         let playlist = WatchLibraryPlaylist(playlistID: fixture.playlistRef.id, title: "Explicit selection", trackIDs: ordered)
         let selectedPages = try await makeHandler(fixture).catalogPages(revision: 11,
             trackIDs: Set(ordered.map(\.rawValue)), playlistIDs: [fixture.playlistRef.id], selectedPlaylists: [playlist])
-        XCTAssertEqual(selectedPages.flatMap(\.playlists), [playlist], "Transfer the explicitly selected playlist name and order")
+        #expect(selectedPages.flatMap(\.playlists) == [playlist], "Transfer the explicitly selected playlist name and order")
     }
 
-    func testConnectedSearchSpansTracksAlbumsAndPlaylists() async throws {
+    @Test func testConnectedSearchSpansTracksAlbumsAndPlaylists() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
@@ -142,13 +146,13 @@ final class PhoneWatchProjectionTests: XCTestCase {
             WatchSearchRequest(query: "blue", scope: .all, generation: 1))
 
         let kinds = Set(response.rows.map(\.kind))
-        XCTAssertTrue(kinds.contains(.track))   // "Blue in Green"
-        XCTAssertTrue(kinds.contains(.album))   // "Kind of Blue"
-        XCTAssertTrue(response.rows.contains { $0.kind == .track && $0.title == "Blue in Green" })
-        XCTAssertTrue(response.rows.contains { $0.kind == .album && $0.title == "Kind of Blue" })
+        #expect(kinds.contains(.track))   // "Blue in Green"
+        #expect(kinds.contains(.album))   // "Kind of Blue"
+        #expect(response.rows.contains { $0.kind == .track && $0.title == "Blue in Green" })
+        #expect(response.rows.contains { $0.kind == .album && $0.title == "Kind of Blue" })
     }
 
-    func testSearchTrackRowsMatchLibraryStoreRankingOrder() async throws {
+    @Test func testSearchTrackRowsMatchLibraryStoreRankingOrder() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
@@ -156,88 +160,88 @@ final class PhoneWatchProjectionTests: XCTestCase {
         let response = try await handler.handleSearch(
             WatchSearchRequest(query: "jazz", scope: .tracks, generation: 7))
 
-        XCTAssertEqual(response.rows.map(\.id), expected)
-        XCTAssertFalse(expected.isEmpty)
+        #expect(response.rows.map(\.id) == expected)
+        #expect(!expected.isEmpty)
     }
 
-    func testSearchPagingIsForwardOnlyAndNonOverlapping() async throws {
+    @Test func testSearchPagingIsForwardOnlyAndNonOverlapping() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let first = try await handler.handleSearch(
             WatchSearchRequest(query: "jazz", scope: .tracks, generation: 1, limit: 2))
-        XCTAssertEqual(first.rows.count, 2)
-        let token = try XCTUnwrap(first.nextPageToken)
+        #expect(first.rows.count == 2)
+        let token = try #require(first.nextPageToken)
 
         let second = try await handler.handleSearch(
             WatchSearchRequest(query: "jazz", scope: .tracks, pageToken: token, generation: 2, limit: 2))
 
-        XCTAssertTrue(Set(first.rows.map(\.id)).isDisjoint(with: second.rows.map(\.id)))
-        XCTAssertNil(second.nextPageToken)
+        #expect(Set(first.rows.map(\.id)).isDisjoint(with: second.rows.map(\.id)))
+        #expect(second.nextPageToken == nil)
     }
 
-    func testCorruptPageTokenRewindsToFirstPageRatherThanThrowing() async throws {
+    @Test func testCorruptPageTokenRewindsToFirstPageRatherThanThrowing() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let response = try await handler.handleSearch(
             WatchSearchRequest(query: "jazz", scope: .tracks, pageToken: "not-base64!!",
                                generation: 1, limit: 2))
-        XCTAssertEqual(response.rows.count, 2)
+        #expect(response.rows.count == 2)
     }
 
-    func testShortQueryReturnsEmptyWithoutHittingTheStore() async throws {
+    @Test func testShortQueryReturnsEmptyWithoutHittingTheStore() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let response = try await handler.handleSearch(
             WatchSearchRequest(query: "a", scope: .all, generation: 1))
-        XCTAssertTrue(response.rows.isEmpty)
+        #expect(response.rows.isEmpty)
     }
 
     // MARK: - Browse
 
-    func testBrowseAlbumsIsTitleSortedWithTrackCounts() async throws {
+    @Test func testBrowseAlbumsIsTitleSortedWithTrackCounts() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let response = try await handler.handleBrowse(
             WatchBrowseRequest(category: .albums, generation: 1))
 
-        XCTAssertEqual(response.rows.map(\.title), ["Kind of Blue"])
-        XCTAssertEqual(response.rows.first?.trackCount, 3)
+        #expect(response.rows.map(\.title) == ["Kind of Blue"])
+        #expect(response.rows.first?.trackCount == 3)
     }
 
-    func testBrowseRecentReflectsPlayHistory() async throws {
+    @Test func testBrowseRecentReflectsPlayHistory() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
         let rows = try await fixture.store.allTrackRows()
-        try await fixture.store.recordPlay(trackId: try XCTUnwrap(rows[1].track.id))
+        try await fixture.store.recordPlay(trackId: try #require(rows[1].track.id))
 
         let response = try await handler.handleBrowse(
             WatchBrowseRequest(category: .recent, generation: 1))
 
-        XCTAssertEqual(response.rows.first?.title, rows[1].track.title)
+        #expect(response.rows.first?.title == rows[1].track.title)
     }
 
     // MARK: - Collection detail
 
-    func testCollectionDetailReturnsOrderedTracksAndHonestTotalCount() async throws {
+    @Test func testCollectionDetailReturnsOrderedTracksAndHonestTotalCount() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let response = try await handler.handleCollection(
             WatchCollectionRequest(collection: fixture.playlistRef, limit: 2))
 
-        XCTAssertEqual(response.title, "Evening Jazz")
-        XCTAssertEqual(response.totalCount, 3)
-        XCTAssertEqual(response.tracks.map(\.title), ["So What", "Freddie Freeloader"])
-        XCTAssertTrue(response.isPlayable)
-        XCTAssertEqual(response.tracks.first?.genre, "Jazz")
-        XCTAssertNotNil(response.nextPageToken)
+        #expect(response.title == "Evening Jazz")
+        #expect(response.totalCount == 3)
+        #expect(response.tracks.map(\.title) == ["So What", "Freddie Freeloader"])
+        #expect(response.isPlayable)
+        #expect(response.tracks.first?.genre == "Jazz")
+        #expect(response.nextPageToken != nil)
     }
 
-    func testCollectionDetailUsesTransferTimeDerivativeBindings() async throws {
+    @Test func testCollectionDetailUsesTransferTimeDerivativeBindings() async throws {
         let fixture = try await makeFixture()
         let cover = String(repeating: "c", count: 64)
         let custom = String(repeating: "d", count: 64)
@@ -245,76 +249,76 @@ final class PhoneWatchProjectionTests: XCTestCase {
             store: fixture.store, player: SpyPlaybackBridge(), libraryID: libraryID,
             revisionStore: WatchInMemoryRevisionStore(revision: 3),
             artworkBindingProvider: { trackID in
-                XCTAssertFalse(trackID.isEmpty)
+                #expect(!trackID.isEmpty)
                 return (coverArtworkID: cover, customArtworkID: custom)
             })
 
         let response = try await handler.handleCollection(
             WatchCollectionRequest(collection: fixture.playlistRef, limit: 1))
 
-        let track = try XCTUnwrap(response.tracks.first)
-        XCTAssertEqual(track.coverArtworkID, cover)
-        XCTAssertEqual(track.customArtworkID, custom)
+        let track = try #require(response.tracks.first)
+        #expect(track.coverArtworkID == cover)
+        #expect(track.customArtworkID == custom)
         // The catalog's IA artwork identifier is retained only as a legacy source field; it is
         // not used as either watch-installed derivative binding.
-        XCTAssertEqual(track.artworkID, "art-1")
+        #expect(track.artworkID == "art-1")
         let pages = try await handler.catalogPages(revision: 4,
             trackIDs: [track.trackID.rawValue], playlistIDs: [])
-        let pushed = try XCTUnwrap(pages.first?.tracks.first)
-        XCTAssertEqual(pushed.coverArtworkID, cover)
-        XCTAssertEqual(pushed.customArtworkID, custom)
-        XCTAssertEqual(pushed.genre, "Jazz")
-        XCTAssertNil(pushed.artworkID)
+        let pushed = try #require(pages.first?.tracks.first)
+        #expect(pushed.coverArtworkID == cover)
+        #expect(pushed.customArtworkID == custom)
+        #expect(pushed.genre == "Jazz")
+        #expect(pushed.artworkID == nil)
         let decoded = try JSONDecoder().decode(WatchTrackSummary.self, from: JSONEncoder().encode(pushed))
-        XCTAssertEqual(decoded, pushed)
+        #expect(decoded == pushed)
     }
 
-    func testEmptyPlaylistIsVisiblyNonPlayable() async throws {
+    @Test func testEmptyPlaylistIsVisiblyNonPlayable() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let response = try await handler.handleCollection(
             WatchCollectionRequest(collection: fixture.emptyPlaylistRef))
-        XCTAssertEqual(response.totalCount, 0)
-        XCTAssertFalse(response.isPlayable)
+        #expect(response.totalCount == 0)
+        #expect(!response.isPlayable)
 
         let reply = await handler.handlePlayCommand(.playCollection(fixture.emptyPlaylistRef))
-        XCTAssertFalse(reply.accepted)
-        XCTAssertEqual(reply.fault?.code, .contentNotFound)
+        #expect(!reply.accepted)
+        #expect(reply.fault?.code == .contentNotFound)
     }
 
-    func testUnknownCollectionSurfacesContentNotFound() async throws {
+    @Test func testUnknownCollectionSurfacesContentNotFound() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         do {
             _ = try await handler.handleCollection(
                 WatchCollectionRequest(collection: WatchCollectionRef(kind: .album, id: "arow:99999")))
-            XCTFail("expected a fault")
+            Issue.record("expected a fault")
         } catch let fault as WatchProtocolFault {
-            XCTAssertEqual(fault.code, .contentNotFound)
+            #expect(fault.code == .contentNotFound)
         }
     }
 
     // MARK: - Playback
 
-    func testPlayCollectionDrivesBridgeAndReturnsAuthoritativeSnapshot() async throws {
+    @Test func testPlayCollectionDrivesBridgeAndReturnsAuthoritativeSnapshot() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
 
         let reply = await handler.handlePlayCommand(.playCollection(fixture.playlistRef))
 
-        XCTAssertTrue(reply.accepted)
-        let snapshot = try XCTUnwrap(reply.snapshot)
-        XCTAssertEqual(snapshot.currentItem?.title, "So What")
-        XCTAssertEqual(snapshot.queueCount, 3)
-        XCTAssertEqual(snapshot.collectionTitle, "Evening Jazz")
+        #expect(reply.accepted)
+        let snapshot = try #require(reply.snapshot)
+        #expect(snapshot.currentItem?.title == "So What")
+        #expect(snapshot.queueCount == 3)
+        #expect(snapshot.collectionTitle == "Evening Jazz")
         let directives = await bridge.directives
-        XCTAssertEqual(directives, ["play(3@0)"])
+        #expect(directives == ["play(3@0)"])
     }
 
-    func testPlayTrackStartsCollectionAtTheTappedRow() async throws {
+    @Test func testPlayTrackStartsCollectionAtTheTappedRow() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
@@ -322,12 +326,12 @@ final class PhoneWatchProjectionTests: XCTestCase {
         let reply = await handler.handlePlayCommand(
             .playTrack(fixture.trackIDs[2], in: fixture.playlistRef))
 
-        XCTAssertTrue(reply.accepted)
-        XCTAssertEqual(reply.snapshot?.currentItem?.title, "Blue in Green")
-        XCTAssertEqual(reply.snapshot?.queueIndex, 2)
+        #expect(reply.accepted)
+        #expect(reply.snapshot?.currentItem?.title == "Blue in Green")
+        #expect(reply.snapshot?.queueIndex == 2)
     }
 
-    func testDeletedTrackBetweenRequestAndPlayIsRejected() async throws {
+    @Test func testDeletedTrackBetweenRequestAndPlayIsRejected() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
@@ -335,16 +339,16 @@ final class PhoneWatchProjectionTests: XCTestCase {
         _ = try await handler.handleSearch(
             WatchSearchRequest(query: "so what", scope: .tracks, generation: 1))
         let rows = try await fixture.store.allTrackRows()
-        try await fixture.store.deleteTrack(id: try XCTUnwrap(rows.first { $0.track.title == "So What" }?.track.id))
+        try await fixture.store.deleteTrack(id: try #require(rows.first { $0.track.title == "So What" }?.track.id))
 
         let reply = await handler.handlePlayCommand(.playTrack(fixture.trackIDs[0]))
-        XCTAssertFalse(reply.accepted)
-        XCTAssertEqual(reply.fault?.code, .contentNotFound)
+        #expect(!reply.accepted)
+        #expect(reply.fault?.code == .contentNotFound)
         let directives = await bridge.directives
-        XCTAssertTrue(directives.isEmpty)
+        #expect(directives.isEmpty)
     }
 
-    func testEveryTransportCommandForwardsToTheBridge() async throws {
+    @Test func testEveryTransportCommandForwardsToTheBridge() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
@@ -364,13 +368,13 @@ final class PhoneWatchProjectionTests: XCTestCase {
         ]
         for (command, _) in cases {
             let reply = await handler.handlePlayCommand(command)
-            XCTAssertTrue(reply.accepted, "\(command.action) should be accepted")
+            #expect(reply.accepted, "\(command.action) should be accepted")
         }
         let directives = await bridge.directives
-        XCTAssertEqual(Array(directives.dropFirst()), cases.map(\.1))
+        #expect(Array(directives.dropFirst()) == cases.map(\.1))
     }
 
-    func testRequestSnapshotIsReadOnly() async throws {
+    @Test func testRequestSnapshotIsReadOnly() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
@@ -379,84 +383,84 @@ final class PhoneWatchProjectionTests: XCTestCase {
 
         let reply = await handler.handlePlayCommand(WatchPlayCommand(action: .requestSnapshot))
 
-        XCTAssertTrue(reply.accepted)
-        XCTAssertNotNil(reply.snapshot?.currentItem, "requestSnapshot must return the live snapshot")
+        #expect(reply.accepted)
+        #expect(reply.snapshot?.currentItem != nil, "requestSnapshot must return the live snapshot")
         let directivesAfter = await bridge.directives
-        XCTAssertEqual(directivesAfter, directivesBefore, "requestSnapshot must not touch the player")
+        #expect(directivesAfter == directivesBefore, "requestSnapshot must not touch the player")
     }
 
-    func testSetVolumeIsClampedAndReportedInTheReplySnapshot() async throws {
+    @Test func testSetVolumeIsClampedAndReportedInTheReplySnapshot() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
         _ = await handler.handlePlayCommand(.playCollection(fixture.playlistRef))
 
         let reply = await handler.handlePlayCommand(.setVolume(0.35))
-        XCTAssertTrue(reply.accepted)
-        XCTAssertEqual(reply.snapshot?.volume ?? -1, 0.35, accuracy: 0.0001)
+        #expect(reply.accepted)
+        #expect(abs((reply.snapshot?.volume ?? -1) - 0.35) <= 0.0001)
 
         let missing = await handler.handlePlayCommand(WatchPlayCommand(action: .setVolume))
-        XCTAssertFalse(missing.accepted, "setVolume without a level must be rejected, not ignored")
+        #expect(!missing.accepted, "setVolume without a level must be rejected, not ignored")
     }
 
-    func testSnapshotCarriesArtworkColourAndClampsVolume() {
+    @Test func testSnapshotCarriesArtworkColourAndClampsVolume() {
         let queue = [WatchTrackSummary(trackID: WatchTrackID("t0"), title: "T0")]
         let snapshot = WatchPlaybackSnapshotBuilder.build(.init(
             revision: 1, source: .localLibrary, isPlaying: true, queue: queue, index: 0,
             elapsedSeconds: 0, volume: -3, artworkColorHex: "#C9792F"))
-        XCTAssertEqual(snapshot.volume, 0)
-        XCTAssertEqual(snapshot.artworkColorHex, "#C9792F")
+        #expect(snapshot.volume == 0)
+        #expect(snapshot.artworkColorHex == "#C9792F")
     }
 
-    func testOlderSnapshotWithoutRedesignFieldsStillDecodes() throws {
+    @Test func testOlderSnapshotWithoutRedesignFieldsStillDecodes() throws {
         let legacy = WatchPhonePlaybackSnapshot(revision: 3)
         var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any] ?? [:]
         json.removeValue(forKey: "volume")
         json.removeValue(forKey: "artworkColorHex")
         let data = try JSONSerialization.data(withJSONObject: json)
         let decoded = try JSONDecoder().decode(WatchPhonePlaybackSnapshot.self, from: data)
-        XCTAssertNil(decoded.volume)
-        XCTAssertNil(decoded.artworkColorHex)
+        #expect(decoded.volume == nil)
+        #expect(decoded.artworkColorHex == nil)
     }
 
-    func testTransportCommandMissingItsArgumentIsRejected() async throws {
+    @Test func testTransportCommandMissingItsArgumentIsRejected() async throws {
         let fixture = try await makeFixture()
         let handler = makeHandler(fixture)
 
         let reply = await handler.handlePlayCommand(WatchPlayCommand(action: .seek))
-        XCTAssertFalse(reply.accepted)
+        #expect(!reply.accepted)
     }
 
     // MARK: - Snapshot builder
 
-    func testSnapshotWindowIsClampedAroundTheCurrentIndex() {
+    @Test func testSnapshotWindowIsClampedAroundTheCurrentIndex() {
         let queue = (0..<60).map {
             WatchTrackSummary(trackID: WatchTrackID("t\($0)"), title: "T\($0)")
         }
         let mid = WatchPlaybackSnapshotBuilder.build(.init(
             revision: 1, source: .localLibrary, isPlaying: true, queue: queue, index: 30,
             elapsedSeconds: 5))
-        XCTAssertEqual(mid.queueWindow.count, WatchPhonePlaybackSnapshot.queueWindowLimit)
-        XCTAssertEqual(mid.queueCount, 60)
-        XCTAssertTrue(mid.queueWindow.contains { $0.trackID == WatchTrackID("t30") })
-        XCTAssertGreaterThanOrEqual(mid.queueWindowStartIndex, 20)
+        #expect(mid.queueWindow.count == WatchPhonePlaybackSnapshot.queueWindowLimit)
+        #expect(mid.queueCount == 60)
+        #expect(mid.queueWindow.contains { $0.trackID == WatchTrackID("t30") })
+        #expect(mid.queueWindowStartIndex >= 20)
 
         let end = WatchPlaybackSnapshotBuilder.build(.init(
             revision: 1, source: .localLibrary, isPlaying: false, queue: queue, index: 59,
             elapsedSeconds: 0))
-        XCTAssertEqual(end.queueWindow.count, WatchPhonePlaybackSnapshot.queueWindowLimit)
-        XCTAssertEqual(end.queueWindow.last?.trackID, WatchTrackID("t59"))
+        #expect(end.queueWindow.count == WatchPhonePlaybackSnapshot.queueWindowLimit)
+        #expect(end.queueWindow.last?.trackID == WatchTrackID("t59"))
 
         let empty = WatchPlaybackSnapshotBuilder.build(.init(
             revision: 9, source: .localLibrary, isPlaying: true, queue: [], index: 0,
             elapsedSeconds: 3))
-        XCTAssertEqual(empty.source, .none)
-        XCTAssertFalse(empty.isPlaying)
+        #expect(empty.source == .none)
+        #expect(!empty.isPlaying)
     }
 
     // MARK: - Payload budget
 
-    func testFullSearchPageStaysWithinTheImmediateChannelBudget() async throws {
+    @Test func testFullSearchPageStaysWithinTheImmediateChannelBudget() async throws {
         let fixture = try await makeFixture(extraTracks: 40)
         let handler = makeHandler(fixture)
 
@@ -465,13 +469,13 @@ final class PhoneWatchProjectionTests: XCTestCase {
         let data = try WatchProtocolEnvelope.encode(
             kind: .searchResponse, payload: response, pairedLibraryID: libraryID)
 
-        XCTAssertLessThanOrEqual(response.rows.count, WatchSearchRequest.maximumPageSize)
-        XCTAssertLessThan(data.count, 24_000, "a search page must fit an immediate WCSession message")
+        #expect(response.rows.count <= WatchSearchRequest.maximumPageSize)
+        #expect(data.count < 24_000, "a search page must fit an immediate WCSession message")
     }
 
     // MARK: - Integration across the fake link
 
-    func testWatchSearchesAndPlaysAcrossTheFakeDuplexLink() async throws {
+    @Test func testWatchSearchesAndPlaysAcrossTheFakeDuplexLink() async throws {
         let fixture = try await makeFixture()
         let bridge = SpyPlaybackBridge()
         let handler = makeHandler(fixture, bridge: bridge)
@@ -490,24 +494,26 @@ final class PhoneWatchProjectionTests: XCTestCase {
         await watch.activate(reachable: true)
 
         guard case .results(let search) = await watch.search("blue", scope: .all) else {
-            return XCTFail("expected results")
+            Issue.record("expected results")
+            return
         }
-        XCTAssertTrue(search.rows.contains { $0.title == "Blue in Green" })
+        #expect(search.rows.contains { $0.title == "Blue in Green" })
 
         guard case .results(let browse) = await watch.browse(.playlists) else {
-            return XCTFail("expected playlist results")
+            Issue.record("expected playlist results")
+            return
         }
-        let playlistRow = try XCTUnwrap(browse.rows.first { $0.title == "Evening Jazz" })
-        let ref = try XCTUnwrap(playlistRow.collectionRef)
+        let playlistRow = try #require(browse.rows.first { $0.title == "Evening Jazz" })
+        let ref = try #require(playlistRow.collectionRef)
 
         let detail = try await watch.collection(ref).get()
-        XCTAssertEqual(detail.totalCount, 3)
+        #expect(detail.totalCount == 3)
 
         let reply = await watch.send(.playCollection(ref))
-        XCTAssertTrue(reply.accepted)
-        XCTAssertEqual(reply.snapshot?.currentItem?.title, "So What")
+        #expect(reply.accepted)
+        #expect(reply.snapshot?.currentItem?.title == "So What")
         let directives = await bridge.directives
-        XCTAssertEqual(directives, ["play(3@0)"])
+        #expect(directives == ["play(3@0)"])
     }
 
 }

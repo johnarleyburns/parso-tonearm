@@ -1,14 +1,15 @@
-import XCTest
+import Foundation
+import Testing
 import CloudKit
 @testable import TonearmCore
 
 /// C7 — pure round-trips between GRDB domain rows and `CKRecord`s. No networked
 /// CloudKit; asserts parent-ref integrity via `syncID` and local-bookmark omission.
-final class RecordMappingTests: XCTestCase {
+@Suite struct RecordMappingTests {
 
     private let zoneID = CKRecordZone.ID(zoneName: "TestZone", ownerName: CKCurrentUserDefaultName)
 
-    func testSourceRoundTrips() {
+    @Test func testSourceRoundTrips() {
         let source = Source(id: 1, kind: .iaItem, iaIdentifier: "gd77", originalURL: "https://archive.org/x",
                             title: "Show", addedAt: Date(timeIntervalSince1970: 1000),
                             lastResolvedAt: nil, followUpdates: true, licenseText: "CC",
@@ -16,24 +17,24 @@ final class RecordMappingTests: XCTestCase {
                             syncID: "SRC-1")
         let record = RecordMapping.record(from: source, zoneID: zoneID)
         let decoded = RecordMapping.source(from: record)
-        XCTAssertEqual(decoded?.syncID, "SRC-1")
-        XCTAssertEqual(decoded?.kind, .iaItem)
-        XCTAssertEqual(decoded?.title, "Show")
-        XCTAssertEqual(decoded?.followUpdates, true)
-        XCTAssertEqual(decoded?.iaIdentifier, "gd77")
+        #expect(decoded?.syncID == "SRC-1")
+        #expect(decoded?.kind == .iaItem)
+        #expect(decoded?.title == "Show")
+        #expect(decoded?.followUpdates == true)
+        #expect(decoded?.iaIdentifier == "gd77")
     }
 
-    func testAlbumCarriesParentSourceSyncID() {
+    @Test func testAlbumCarriesParentSourceSyncID() {
         let album = Album(id: 2, sourceId: 1, title: "Set I", artist: "GD", year: 1977,
                           artworkId: "art", syncID: "ALB-1")
         let record = RecordMapping.record(from: album, sourceSyncID: "SRC-1", zoneID: zoneID)
         let decoded = RecordMapping.album(from: record)
-        XCTAssertEqual(decoded?.album.syncID, "ALB-1")
-        XCTAssertEqual(decoded?.album.title, "Set I")
-        XCTAssertEqual(decoded?.sourceSyncID, "SRC-1")
+        #expect(decoded?.album.syncID == "ALB-1")
+        #expect(decoded?.album.title == "Set I")
+        #expect(decoded?.sourceSyncID == "SRC-1")
     }
 
-    func testTrackCarriesParentRefs() {
+    @Test func testTrackCarriesParentRefs() {
         let track = Track(id: 3, albumId: 2, sourceId: 1, title: "Jam", trackNo: 4, discNo: 1,
                           durationSec: 620, codec: "flac", sampleRate: 44100,
                           bitDepthOrBitrate: "16", sortKey: "0004",
@@ -43,109 +44,109 @@ final class RecordMappingTests: XCTestCase {
         let record = RecordMapping.record(from: track, sourceSyncID: "SRC-1",
                                           albumSyncID: "ALB-1", zoneID: zoneID)
         let decoded = RecordMapping.track(from: record)
-        XCTAssertEqual(decoded?.track.syncID, "TRK-1")
-        XCTAssertEqual(decoded?.sourceSyncID, "SRC-1")
-        XCTAssertEqual(decoded?.albumSyncID, "ALB-1")
-        XCTAssertEqual(decoded?.track.durationSec, 620)
-        XCTAssertEqual(decoded?.track.rgTrackGain, -6.54)
-        XCTAssertEqual(decoded?.track.rgAlbumGain, -5.25)
-        XCTAssertEqual(decoded?.track.rgTrackPeak, 0.91)
-        XCTAssertEqual(decoded?.track.rgAlbumPeak, 0.98)
+        #expect(decoded?.track.syncID == "TRK-1")
+        #expect(decoded?.sourceSyncID == "SRC-1")
+        #expect(decoded?.albumSyncID == "ALB-1")
+        #expect(decoded?.track.durationSec == 620)
+        #expect(decoded?.track.rgTrackGain == -6.54)
+        #expect(decoded?.track.rgAlbumGain == -5.25)
+        #expect(decoded?.track.rgTrackPeak == 0.91)
+        #expect(decoded?.track.rgAlbumPeak == 0.98)
     }
 
-    func testAssetOmitsLocalBookmark() {
+    @Test func testAssetOmitsLocalBookmark() {
         let asset = Asset(id: 4, trackId: 3, kind: .localRef, bookmark: Data([1, 2, 3]),
                           relPath: "a.flac", remoteURL: nil, altRemoteURL: nil,
                           opusRemoteURL: nil, sizeBytes: 100, unsupportedReason: nil,
                           needsReimport: false, syncID: "AST-1")
         let record = RecordMapping.record(from: asset, trackSyncID: "TRK-1", zoneID: zoneID)
-        XCTAssertNil(record["bookmark"], "device-specific bookmark must never sync")
+        #expect(record["bookmark"] == nil, "device-specific bookmark must never sync")
         let decoded = RecordMapping.asset(from: record)
-        XCTAssertNil(decoded?.asset.bookmark)
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.asset.bookmark == nil)
+        #expect(decoded?.trackSyncID == "TRK-1")
         // A local-ref with no remote URL is flagged for re-import on pull (C4).
-        XCTAssertEqual(decoded?.asset.needsReimport, true)
+        #expect(decoded?.asset.needsReimport == true)
     }
 
-    func testRemoteAssetDoesNotNeedReimport() {
+    @Test func testRemoteAssetDoesNotNeedReimport() {
         let asset = Asset(id: 5, trackId: 3, kind: .remote, bookmark: nil, relPath: nil,
                           remoteURL: "https://archive.org/a.mp3", altRemoteURL: nil,
                           opusRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil,
                           needsReimport: false, syncID: "AST-2")
         let record = RecordMapping.record(from: asset, trackSyncID: "TRK-1", zoneID: zoneID)
         let decoded = RecordMapping.asset(from: record)
-        XCTAssertEqual(decoded?.asset.needsReimport, false)
+        #expect(decoded?.asset.needsReimport == false)
     }
 
-    func testPlaylistOmitsFolderBookmark() {
+    @Test func testPlaylistOmitsFolderBookmark() {
         let playlist = Playlist(id: 6, title: "Faves", kind: .manual,
                                 folderBookmark: Data([9]), watch: false,
                                 isInCrate: true, syncID: "PL-1")
         let record = RecordMapping.record(from: playlist, zoneID: zoneID)
-        XCTAssertNil(record["folderBookmark"])
+        #expect(record["folderBookmark"] == nil)
         let decoded = RecordMapping.playlist(from: record)
-        XCTAssertEqual(decoded?.syncID, "PL-1")
-        XCTAssertEqual(decoded?.title, "Faves")
-        XCTAssertEqual(decoded?.isInCrate, true)
+        #expect(decoded?.syncID == "PL-1")
+        #expect(decoded?.title == "Faves")
+        #expect(decoded?.isInCrate == true)
     }
 
-    func testPlaylistItemCarriesParentRefs() {
+    @Test func testPlaylistItemCarriesParentRefs() {
         let item = PlaylistItem(id: 7, playlistId: 6, position: 2, trackId: 3,
                                 sectionTitle: "Encore", syncID: "PLI-1")
         let record = RecordMapping.record(from: item, playlistSyncID: "PL-1",
                                           trackSyncID: "TRK-1", zoneID: zoneID)
         let decoded = RecordMapping.playlistItem(from: record)
-        XCTAssertEqual(decoded?.item.position, 2)
-        XCTAssertEqual(decoded?.playlistSyncID, "PL-1")
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.item.position == 2)
+        #expect(decoded?.playlistSyncID == "PL-1")
+        #expect(decoded?.trackSyncID == "TRK-1")
     }
 
-    func testFavoriteRoundTrips() {
+    @Test func testFavoriteRoundTrips() {
         let fav = Favorite(id: 8, trackId: 3, favoritedAt: Date(timeIntervalSince1970: 5),
                            syncID: "FAV-1")
         let record = RecordMapping.record(from: fav, trackSyncID: "TRK-1", zoneID: zoneID)
         let decoded = RecordMapping.favorite(from: record)
-        XCTAssertEqual(decoded?.favorite.syncID, "FAV-1")
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.favorite.syncID == "FAV-1")
+        #expect(decoded?.trackSyncID == "TRK-1")
     }
 
-    func testPlayEventRoundTrips() {
+    @Test func testPlayEventRoundTrips() {
         let event = PlayEvent(id: 9, trackId: 3, playedAt: Date(timeIntervalSince1970: 42),
                               syncID: "PE-1")
         let record = RecordMapping.record(from: event, trackSyncID: "TRK-1", zoneID: zoneID)
         let decoded = RecordMapping.playEvent(from: record)
-        XCTAssertEqual(decoded?.event.syncID, "PE-1")
-        XCTAssertEqual(decoded?.event.playedAt, Date(timeIntervalSince1970: 42))
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.event.syncID == "PE-1")
+        #expect(decoded?.event.playedAt == Date(timeIntervalSince1970: 42))
+        #expect(decoded?.trackSyncID == "TRK-1")
     }
 
-    func testCustomArtworkRoundTripsWithoutImage() {
+    @Test func testCustomArtworkRoundTripsWithoutImage() {
         let art = CustomArtworkRecord(syncID: "CA-1", artworkId: "abc.jpg")
         let record = RecordMapping.record(from: art, trackSyncID: "TRK-1", fileURL: nil, zoneID: zoneID)
         let decoded = RecordMapping.customArtwork(from: record)
-        XCTAssertEqual(decoded?.artwork.syncID, "CA-1")
-        XCTAssertEqual(decoded?.artwork.artworkId, "abc.jpg")
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
-        XCTAssertNil(decoded?.imageURL)
+        #expect(decoded?.artwork.syncID == "CA-1")
+        #expect(decoded?.artwork.artworkId == "abc.jpg")
+        #expect(decoded?.trackSyncID == "TRK-1")
+        #expect(decoded?.imageURL == nil)
     }
 
-    func testDiscoveryEmbeddingRoundTrips() {
+    @Test func testDiscoveryEmbeddingRoundTrips() {
         let embedding = DiscoveryEmbedding(
             trackId: 3, assetId: 4, assetRevision: 1, modelVersion: 1,
             preprocessingVersion: 1, samplingVersion: 1, dimensions: 4,
             quantizedVector: Data([1, 2, 3, 4]), scale: 0.01,
             completedAt: Date(timeIntervalSince1970: 100), syncID: "EMB-1")
         let record = RecordMapping.record(from: embedding, trackSyncID: "TRK-1", zoneID: zoneID)
-        XCTAssertNil(record["assetId"], "device-local asset identity must never sync")
+        #expect(record["assetId"] == nil, "device-local asset identity must never sync")
         let decoded = RecordMapping.discoveryEmbedding(from: record)
-        XCTAssertEqual(decoded?.embedding.syncID, "EMB-1")
-        XCTAssertEqual(decoded?.embedding.dimensions, 4)
-        XCTAssertEqual(decoded?.embedding.quantizedVector, Data([1, 2, 3, 4]))
-        XCTAssertEqual(decoded?.embedding.scale, 0.01)
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.embedding.syncID == "EMB-1")
+        #expect(decoded?.embedding.dimensions == 4)
+        #expect(decoded?.embedding.quantizedVector == Data([1, 2, 3, 4]))
+        #expect(decoded?.embedding.scale == 0.01)
+        #expect(decoded?.trackSyncID == "TRK-1")
     }
 
-    func testDiscoveryTrackAnalysisRoundTrips() {
+    @Test func testDiscoveryTrackAnalysisRoundTrips() {
         let analysis = DiscoveryTrackAnalysis(
             trackId: 3, assetId: 4, assetRevision: 1, analysisVersion: 1,
             bpm: 128, key: "Am", energy: 0.8, phraseSummary: "verse-chorus",
@@ -153,18 +154,18 @@ final class RecordMappingTests: XCTestCase {
             syncID: "ANA-1")
         let record = RecordMapping.record(from: analysis, trackSyncID: "TRK-1", zoneID: zoneID)
         let decoded = RecordMapping.discoveryTrackAnalysis(from: record)
-        XCTAssertEqual(decoded?.analysis.syncID, "ANA-1")
-        XCTAssertEqual(decoded?.analysis.bpm, 128)
-        XCTAssertEqual(decoded?.analysis.key, "Am")
-        XCTAssertEqual(decoded?.analysis.phraseSummary, "verse-chorus")
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
+        #expect(decoded?.analysis.syncID == "ANA-1")
+        #expect(decoded?.analysis.bpm == 128)
+        #expect(decoded?.analysis.key == "Am")
+        #expect(decoded?.analysis.phraseSummary == "verse-chorus")
+        #expect(decoded?.trackSyncID == "TRK-1")
     }
 
     /// `RecordMapping.djTrackPrep(from:)` is decode-only now (nothing in this app ever enqueues a
     /// `DJTrackPrep` record to push — `enqueueDJTrackPrep` was removed as dead code), so there's
     /// no more encode half to round-trip against; this builds the `CKRecord` a legacy remote
     /// record from an old app version's sync history would look like, by hand.
-    func testDJTrackPrepDecodesIdentityAndKeptFields() {
+    @Test func testDJTrackPrepDecodesIdentityAndKeptFields() {
         let keys = [TrackIdentityKey(strength: .source, value: "source-hash"),
                     TrackIdentityKey(strength: .meta, value: "meta-hash")]
         let record = CKRecord(recordType: RecordMapping.RecordType.djTrackPrep.rawValue,
@@ -181,24 +182,24 @@ final class RecordMappingTests: XCTestCase {
         record["hotCues"] = "{\"1\":2.5}" as CKRecordValue
 
         let decoded = RecordMapping.djTrackPrep(from: record)
-        XCTAssertEqual(decoded?.prep.syncID, "PREP-1")
-        XCTAssertEqual(decoded?.prep.bpm, 128)
-        XCTAssertEqual(decoded?.prep.camelotKey, "8B")
-        XCTAssertEqual(decoded?.prep.analysisUpdatedAt, Date(timeIntervalSince1970: 11))
-        XCTAssertEqual(decoded?.prep.bpmOverride, 130)
-        XCTAssertEqual(decoded?.trackSyncID, "TRK-1")
-        XCTAssertEqual(decoded?.trackKeys, keys)
+        #expect(decoded?.prep.syncID == "PREP-1")
+        #expect(decoded?.prep.bpm == 128)
+        #expect(decoded?.prep.camelotKey == "8B")
+        #expect(decoded?.prep.analysisUpdatedAt == Date(timeIntervalSince1970: 11))
+        #expect(decoded?.prep.bpmOverride == 130)
+        #expect(decoded?.trackSyncID == "TRK-1")
+        #expect(decoded?.trackKeys == keys)
     }
 
-    func testAppSettingsRoundTrips() {
+    @Test func testAppSettingsRoundTrips() {
         let settings = SyncedSettings(
             eqEnabled: true,
             eqGains: Array(repeating: 1.5, count: EQEngine.bandCount),
             userPresets: [EQPreset(name: "Mine", gains: Array(repeating: 2, count: EQEngine.bandCount), isBuiltIn: false)],
             preferFLAC: true, prefetchDepth: 3, streamOnCellular: false, artworkLookup: true)
         let record = RecordMapping.record(from: settings, zoneID: zoneID)
-        XCTAssertEqual(record.recordID.recordName, RecordMapping.appSettingsRecordName)
+        #expect(record.recordID.recordName == RecordMapping.appSettingsRecordName)
         let decoded = RecordMapping.syncedSettings(from: record)
-        XCTAssertEqual(decoded, settings)
+        #expect(decoded == settings)
     }
 }

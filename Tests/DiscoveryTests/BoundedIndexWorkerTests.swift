@@ -2,7 +2,8 @@
 import AVFoundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -15,7 +16,7 @@ import XCTest
 /// fixtures generated on disk. Also covers the C03/C04 fixtures that the
 /// windowed reader now unblocks: corrupt-audio handling and checkpoint
 /// rollback/resume.
-final class BoundedIndexWorkerTests: XCTestCase {
+@Suite struct BoundedIndexWorkerTests {
     // MARK: - Harness
 
     private func makeQueue() throws -> DatabaseQueue {
@@ -135,7 +136,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
     /// chain was removed, this pins that a real rhythmic fixture still gets a real bpm through
     /// the full `BoundedIndexWorker` pipeline, and that no `discovery_transition_profile` write
     /// is ever attempted (the table no longer exists at all — see `MigrationV43Tests`).
-    func testMusicalAnalysisWritesRealBPMViaLeanAnalysisAndNeverTouchesTransitionProfile() async throws {
+    @Test func testMusicalAnalysisWritesRealBPMViaLeanAnalysisAndNeverTouchesTransitionProfile() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -157,17 +158,19 @@ final class BoundedIndexWorkerTests: XCTestCase {
 
         let outcome = try await runToCompletion(scheduler)
         guard case .jobCompleted = outcome else {
-            return XCTFail("expected jobCompleted, got \(outcome)")
+            Issue.record("expected jobCompleted, got \(outcome)")
+            return
         }
 
         let analysis = try await queue.read { db in try DiscoveryTrackAnalysis.fetchOne(db, key: trackId) }
-        let bpm = try XCTUnwrap(XCTUnwrap(analysis).bpm, "LeanAnalysis should find a real bpm")
-        XCTAssertEqual(bpm, 128, accuracy: 2)
+        let foundAnalysis = try #require(analysis)
+        let bpm = try #require(foundAnalysis.bpm, "LeanAnalysis should find a real bpm")
+        #expect(abs(bpm - 128) <= 2)
 
         // The table itself no longer exists (v43) — confirms nothing in the lean path tries to
         // write to it (that would throw "no such table" and fail the job above, not silently).
         let hasTable = try await queue.read { db in try db.tableExists("discovery_transition_profile") }
-        XCTAssertFalse(hasTable)
+        #expect(!hasTable)
     }
 
     private func nominalSnapshot() -> DiscoverySchedulingSnapshot {
@@ -203,7 +206,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
     /// quantized `discovery_embedding`; then real BPM/key/energy →
     /// `discovery_track_analysis`; plus `discovery_asset_state` populated from
     /// the actual file it read.
-    func testEndToEndPopulatesEmbeddingAnalysisAndAssetStateRows() async throws {
+    @Test func testEndToEndPopulatesEmbeddingAnalysisAndAssetStateRows() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -227,10 +230,9 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let outcome = try await runToCompletion(scheduler)
         guard case .jobCompleted = outcome else {
             let j = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-            return XCTFail(
-                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") "
-                    + "msg=\(j?.errorMessage ?? "nil") emb=\(j?.embeddingStageState.rawValue ?? "?") "
-                    + "mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
+            Issue.record(
+                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") msg=\(j?.errorMessage ?? "nil") emb=\(j?.embeddingStageState.rawValue ?? "?") mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
+            return
         }
 
         let (embedding, analysis, assetState) = try await queue.read {
@@ -242,22 +244,21 @@ final class BoundedIndexWorkerTests: XCTestCase {
             )
         }
 
-        let vec = try XCTUnwrap(embedding)
-        XCTAssertEqual(vec.dimensions, syntheticSpec().dimensions)
-        XCTAssertEqual(vec.quantizedVector.count, vec.dimensions, "one int8 per dimension")
-        XCTAssertGreaterThan(vec.scale, 0)
-        XCTAssertEqual(vec.samplingVersion, DiscoveryPipelineVersion.sampling)
+        let vec = try #require(embedding)
+        #expect(vec.dimensions == syntheticSpec().dimensions)
+        #expect(vec.quantizedVector.count == vec.dimensions, "one int8 per dimension")
+        #expect(vec.scale > 0)
+        #expect(vec.samplingVersion == DiscoveryPipelineVersion.sampling)
 
-        let ana = try XCTUnwrap(analysis)
-        XCTAssertEqual(ana.analysisVersion, DiscoveryPipelineVersion.musicalAnalysis)
-        XCTAssertNotNil(ana.completedAt)
-        XCTAssertEqual(
-            try XCTUnwrap(ana.analysisScopeSeconds), 35, accuracy: 0.5,
-            "shorter file analyzed in full")
+        let ana = try #require(analysis)
+        #expect(ana.analysisVersion == DiscoveryPipelineVersion.musicalAnalysis)
+        #expect(ana.completedAt != nil)
+        let analysisScopeSeconds = try #require(ana.analysisScopeSeconds)
+        #expect(abs(analysisScopeSeconds - 35) <= 0.5, "shorter file analyzed in full")
 
-        let state = try XCTUnwrap(assetState)
-        XCTAssertEqual(state.observedSizeBytes, Int64((try Data(contentsOf: wav)).count))
-        XCTAssertNotNil(state.observedMTime)
+        let state = try #require(assetState)
+        #expect(state.observedSizeBytes == Int64((try Data(contentsOf: wav)).count))
+        #expect(state.observedMTime != nil)
 
         // Real report (owner's own words): "why would mood EVER return non bpm/camelot tracks:
         // don't we index clap and bpm/camelot at the same time..." -- `commitAnalysis` atomically
@@ -266,22 +267,22 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let indexedFlag = try await queue.read { db in
             try Bool.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
         }
-        XCTAssertEqual(indexedFlag, true, "both embedding and analysis landed -- track must be marked indexed")
+        #expect(indexedFlag == true, "both embedding and analysis landed -- track must be marked indexed")
 
         // No window checkpoints survive a finalized embedding (plan §6).
         let leftoverCheckpoints = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_window_checkpoint")!
         }
-        XCTAssertEqual(leftoverCheckpoints, 0)
+        #expect(leftoverCheckpoints == 0)
 
         let coverage = try await jobs.coverage(pipelineVersion: 1)
-        XCTAssertEqual(coverage.complete, 1)
-        XCTAssertEqual(coverage.failed, 0)
+        #expect(coverage.complete == 1)
+        #expect(coverage.failed == 0)
     }
 
     /// A short track (<= 10 s) yields exactly one zero-padded window and still
     /// produces a valid finite, non-zero-norm embedding.
-    func testShortTrackProducesOneWindowEmbedding() async throws {
+    @Test func testShortTrackProducesOneWindowEmbedding() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -302,14 +303,14 @@ final class BoundedIndexWorkerTests: XCTestCase {
 
         _ = try await runToCompletion(scheduler)
         let vec = try await queue.read { db in try DiscoveryEmbedding.fetchOne(db, key: trackId) }
-        let embedding = try XCTUnwrap(vec)
+        let embedding = try #require(vec)
         let ints = embedding.quantizedVector.map { Int8(bitPattern: $0) }
-        XCTAssertTrue(ints.contains { $0 != 0 }, "non-zero-norm vector")
+        #expect(ints.contains { $0 != 0 }, "non-zero-norm vector")
     }
 
     /// Corrupt/unsupported audio must terminate the stage explicitly — never
     /// a fake embedding, never an infinite retry (plan §6/§8/§11).
-    func testCorruptAudioTerminatesWithoutEmbedding() async throws {
+    @Test func testCorruptAudioTerminatesWithoutEmbedding() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -331,18 +332,18 @@ final class BoundedIndexWorkerTests: XCTestCase {
         _ = try await runToCompletion(scheduler)
 
         let jobRow = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        let job = try XCTUnwrap(jobRow)
-        XCTAssertEqual(job.embeddingStageState, .unsupported)
+        let job = try #require(jobRow)
+        #expect(job.embeddingStageState == .unsupported)
         let embedding = try await queue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertNil(embedding, "no fabricated embedding for undecodable audio")
+        #expect(embedding == nil, "no fabricated embedding for undecodable audio")
     }
 
     /// Checkpoint rollback: a content replacement (`restart: true`) clears
     /// prior window checkpoints and the stale embedding, and a fresh run
     /// re-derives everything against the new revision (plan §4/§11).
-    func testContentReplacementRollsBackCheckpointsAndReindexes() async throws {
+    @Test func testContentReplacementRollsBackCheckpointsAndReindexes() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -365,7 +366,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let firstVec = try await queue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertNotNil(firstVec)
+        #expect(firstVec != nil)
 
         // Simulate a real content replacement.
         try writeSineWAV(seconds: 22, to: wav)
@@ -374,19 +375,20 @@ final class BoundedIndexWorkerTests: XCTestCase {
             restart: true)
 
         let completedAfterRestart = try await jobs.completedWindowIndices(jobId: firstJobId(queue, trackId))
-        XCTAssertTrue(completedAfterRestart.isEmpty, "restart clears window checkpoints")
+        #expect(completedAfterRestart.isEmpty, "restart clears window checkpoints")
 
         _ = try await runToCompletion(scheduler)
         let secondRow = try await queue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertEqual(try XCTUnwrap(secondRow).assetRevision, 2)
+        let secondEmbedding = try #require(secondRow)
+        #expect(secondEmbedding.assetRevision == 2)
     }
 
     /// A pre-existing checkpoint for window 0 is not re-read: the worker
     /// resumes at the next missing window after a simulated relaunch
     /// (plan §6: "Resume at the next missing window after relaunch").
-    func testResumesAtNextMissingWindow() async throws {
+    @Test func testResumesAtNextMissingWindow() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -413,7 +415,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
         }
 
         let before = try await jobs.completedWindowIndices(jobId: jobId)
-        XCTAssertEqual(before, [0])
+        #expect(before == [0])
 
         let models = ModelManager(resourceProvider: { .unavailable })
         await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
@@ -425,13 +427,14 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let vecRow = try await queue.read { db in
             try DiscoveryEmbedding.fetchOne(db, key: trackId)
         }
-        XCTAssertEqual(try XCTUnwrap(vecRow).dimensions, syntheticSpec().dimensions)
+        let vec = try #require(vecRow)
+        #expect(vec.dimensions == syntheticSpec().dimensions)
     }
 
     /// Deterministic preferred-asset selection (plan §5): a valid local
     /// original outranks a remote downloadable original regardless of id
     /// order; ties break by ascending id.
-    func testPreferredAssetSelectionOrder() throws {
+    @Test func testPreferredAssetSelectionOrder() throws {
         let local = Asset(
             id: 9, trackId: 1, kind: .localRef, bookmark: Data([1, 2, 3]), relPath: nil,
             remoteURL: nil, altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
@@ -439,7 +442,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
             id: 2, trackId: 1, kind: .remote, bookmark: nil, relPath: nil,
             remoteURL: "https://example.com/a.flac", altRemoteURL: nil, sizeBytes: nil,
             unsupportedReason: nil)
-        XCTAssertEqual(DiscoveryReconciler.preferredAsset(from: [remote, local])?.id, 9)
+        #expect(DiscoveryReconciler.preferredAsset(from: [remote, local])?.id == 9)
 
         let localA = Asset(
             id: 7, trackId: 1, kind: .managedCopy, bookmark: nil, relPath: "a.caf", remoteURL: nil,
@@ -447,7 +450,7 @@ final class BoundedIndexWorkerTests: XCTestCase {
         let localB = Asset(
             id: 3, trackId: 1, kind: .localRef, bookmark: nil, relPath: "b.caf", remoteURL: nil,
             altRemoteURL: nil, sizeBytes: nil, unsupportedReason: nil)
-        XCTAssertEqual(DiscoveryReconciler.preferredAsset(from: [localA, localB])?.id, 3)
+        #expect(DiscoveryReconciler.preferredAsset(from: [localA, localB])?.id == 3)
 
         let unsupported = Asset(
             id: 1, trackId: 1, kind: .localRef, bookmark: Data([9]), relPath: nil, remoteURL: nil,
@@ -459,8 +462,8 @@ final class BoundedIndexWorkerTests: XCTestCase {
         // `waitingForAsset`: nothing was ever going to make that asset
         // locally resolvable on its own). With only an unsupported asset and
         // a remote-only one to choose from, neither qualifies.
-        XCTAssertNil(
-            DiscoveryReconciler.preferredAsset(from: [unsupported, remote]),
+        #expect(
+            DiscoveryReconciler.preferredAsset(from: [unsupported, remote]) == nil,
             "neither an unsupported nor a remote-only asset is a valid pick")
     }
 

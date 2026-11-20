@@ -1,7 +1,8 @@
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 private final class Box: @unchecked Sendable {
@@ -11,7 +12,7 @@ private final class Box: @unchecked Sendable {
     func bump() { lock.withLock { n += 1 } }
 }
 
-final class LocalMediaPipelineTests: XCTestCase {
+@Suite struct LocalMediaPipelineTests {
     private func pngData(width: Int, height: Int) -> Data {
         let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpaceCreateDeviceRGB(),
@@ -25,24 +26,24 @@ final class LocalMediaPipelineTests: XCTestCase {
         return out as Data
     }
 
-    func testLargeCoverIsDownsampledToBudget() throws {
-        let art = try XCTUnwrap(EmbeddedArtworkDownsampler.downsample(pngData(width: 3000, height: 2000), maxPixel: 512))
-        XCTAssertLessThanOrEqual(max(art.image.width, art.image.height), 512)
-        XCTAssertEqual(art.sourceWidth, 3000)
+    @Test func testLargeCoverIsDownsampledToBudget() throws {
+        let art = try #require(EmbeddedArtworkDownsampler.downsample(pngData(width: 3000, height: 2000), maxPixel: 512))
+        #expect(max(art.image.width, art.image.height) <= 512)
+        #expect(art.sourceWidth == 3000)
     }
 
-    func testNormalCoverYieldsThumbnail() throws {
-        let art = try XCTUnwrap(EmbeddedArtworkDownsampler.downsample(pngData(width: 300, height: 300)))
-        XCTAssertGreaterThan(art.image.width, 0)
+    @Test func testNormalCoverYieldsThumbnail() throws {
+        let art = try #require(EmbeddedArtworkDownsampler.downsample(pngData(width: 300, height: 300)))
+        #expect(art.image.width > 0)
     }
 
-    func testMalformedOrOverBudgetCoverRejected() {
-        XCTAssertNil(EmbeddedArtworkDownsampler.downsample(Data([1, 2, 3, 4])))
-        XCTAssertNil(EmbeddedArtworkDownsampler.downsample(pngData(width: 64, height: 64), maxSourcePixels: 100))
-        XCTAssertNil(EmbeddedArtworkDownsampler.downsample(pngData(width: 64, height: 64), maxEncodedBytes: 10))
+    @Test func testMalformedOrOverBudgetCoverRejected() {
+        #expect(EmbeddedArtworkDownsampler.downsample(Data([1, 2, 3, 4])) == nil)
+        #expect(EmbeddedArtworkDownsampler.downsample(pngData(width: 64, height: 64), maxSourcePixels: 100) == nil)
+        #expect(EmbeddedArtworkDownsampler.downsample(pngData(width: 64, height: 64), maxEncodedBytes: 10) == nil)
     }
 
-    func testConcurrentConsumersShareOneLoad() async {
+    @Test func testConcurrentConsumersShareOneLoad() async {
         let flights = SingleFlight<Int>()
         let runs = Box()
         await withTaskGroup(of: Int?.self) { group in
@@ -55,14 +56,14 @@ final class LocalMediaPipelineTests: XCTestCase {
                     }
                 }
             }
-            for await v in group { XCTAssertEqual(v, 7) }
+            for await v in group { #expect(v == 7) }
         }
-        XCTAssertEqual(runs.count, 1)
+        #expect(runs.count == 1)
         let active = await flights.activeCount
-        XCTAssertEqual(active, 0)
+        #expect(active == 0)
     }
 
-    func testLastConsumerCancellingCancelsWork() async {
+    @Test func testLastConsumerCancellingCancelsWork() async {
         let flights = SingleFlight<Int>()
         let cancelled = Box()
         let task = Task {
@@ -76,12 +77,12 @@ final class LocalMediaPipelineTests: XCTestCase {
         task.cancel()
         _ = await task.value
         try? await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(cancelled.count, 1)
+        #expect(cancelled.count == 1)
         let active = await flights.activeCount
-        XCTAssertEqual(active, 0)
+        #expect(active == 0)
     }
 
-    func testDiagnosticsCarryStageAndOpaqueIDOnly() {
+    @Test func testDiagnosticsCarryStageAndOpaqueIDOnly() {
         let events = Box()
         let captured = LockedEvents()
         let diag = LocalPlaybackDiagnostics(clock: { 42 }, memorySampler: { 100 })
@@ -91,12 +92,12 @@ final class LocalMediaPipelineTests: XCTestCase {
         diag.record(.resolveStart, loadID: id)
         diag.record(.accessAcquired, loadID: id)
         let all = captured.all
-        XCTAssertEqual(all.map(\.stage), [.resolveStart, .accessAcquired])
-        XCTAssertEqual(all.first?.loadID, id)
-        XCTAssertEqual(all.first?.residentMegabytes, 100)
+        #expect(all.map(\.stage) == [.resolveStart, .accessAcquired])
+        #expect(all.first?.loadID == id)
+        #expect(all.first?.residentMegabytes == 100)
         diag.isEnabled = false
         diag.record(.itemBuilt, loadID: id)
-        XCTAssertEqual(events.count, 2)
+        #expect(events.count == 2)
     }
 }
 

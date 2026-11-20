@@ -1,53 +1,53 @@
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 import TonearmWatchProtocol
 
 @MainActor
-final class WatchConnectionChromeTests: XCTestCase {
-    func testBlipShowsTransientBannerButKeepsConnectedFeatures() {
+@Suite struct WatchConnectionChromeTests {
+    @Test func testBlipShowsTransientBannerButKeepsConnectedFeatures() {
         let chrome = WatchConnectionChrome(initial: .connected)
         chrome.apply(connectivity: .temporarilyUnavailable)
-        XCTAssertEqual(chrome.banner, .temporarilyUnavailable)
+        #expect(chrome.banner == .temporarilyUnavailable)
         // C-08: a blip shows a transient hint but is not a confirmed offline banner.
-        XCTAssertFalse(chrome.showsOfflineBanner)
+        #expect(!chrome.showsOfflineBanner)
     }
 
-    func testColdStartIsOfflineUntilNegotiated() {
+    @Test func testColdStartIsOfflineUntilNegotiated() {
         let chrome = WatchConnectionChrome()
-        XCTAssertEqual(chrome.banner, .unavailable)
-        XCTAssertFalse(chrome.showsConnectedFeatures)
+        #expect(chrome.banner == .unavailable)
+        #expect(!chrome.showsConnectedFeatures)
         chrome.apply(connectivity: .connected)
-        XCTAssertTrue(chrome.showsConnectedFeatures)
+        #expect(chrome.showsConnectedFeatures)
     }
 
-    func testConfirmedDisconnectionPulsesOnceAndShowsOfflineBanner() {
+    @Test func testConfirmedDisconnectionPulsesOnceAndShowsOfflineBanner() {
         let chrome = WatchConnectionChrome()
         chrome.confirmedDisconnection()
         chrome.confirmedDisconnection()
-        XCTAssertEqual(chrome.banner, .unavailable)
-        XCTAssertTrue(chrome.showsOfflineBanner)
-        XCTAssertEqual(chrome.disconnectPulse, 2)
+        #expect(chrome.banner == .unavailable)
+        #expect(chrome.showsOfflineBanner)
+        #expect(chrome.disconnectPulse == 2)
     }
 
-    func testReconnectRestoresConnectedUnlessIncompatible() {
+    @Test func testReconnectRestoresConnectedUnlessIncompatible() {
         let chrome = WatchConnectionChrome()
         chrome.confirmedDisconnection()
         chrome.reconnected()
-        XCTAssertEqual(chrome.banner, .connected)
-        XCTAssertTrue(chrome.showsConnectedFeatures)
+        #expect(chrome.banner == .connected)
+        #expect(chrome.showsConnectedFeatures)
 
         chrome.markIncompatible()
         chrome.apply(connectivity: .connected)
         chrome.reconnected()
-        XCTAssertEqual(chrome.banner, .incompatible, "incompatibility is sticky until relaunch")
+        #expect(chrome.banner == .incompatible, "incompatibility is sticky until relaunch")
     }
 
-    func testLibraryReplacementPrompt() {
+    @Test func testLibraryReplacementPrompt() {
         let chrome = WatchConnectionChrome()
-        XCTAssertNil(chrome.pendingLibraryReplacement)
+        #expect(chrome.pendingLibraryReplacement == nil)
         chrome.requestLibraryReplacement(current: "lib-a", incoming: "lib-b")
-        XCTAssertEqual(chrome.pendingLibraryReplacement, "lib-b")
+        #expect(chrome.pendingLibraryReplacement == "lib-b")
         chrome.resolveLibraryReplacement()
-        XCTAssertNil(chrome.pendingLibraryReplacement)
+        #expect(chrome.pendingLibraryReplacement == nil)
     }
 }

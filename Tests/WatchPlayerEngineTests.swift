@@ -1,226 +1,227 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class WatchPlayerEngineTests: XCTestCase {
+@Suite struct WatchPlayerEngineTests {
 
     func urlMap(_ track: String) -> URL? {
         URL(fileURLWithPath: "/tmp/\(track).mp3")
     }
 
-    func testInitialState() {
+    @Test func testInitialState() {
         let engine = WatchPlayerEngine()
-        XCTAssertFalse(engine.isPlaying)
-        XCTAssertEqual(engine.repeatMode, .off)
-        XCTAssertEqual(engine.elapsed, 0)
-        XCTAssertNil(engine.currentTrack)
-        XCTAssertFalse(engine.canPlayNext)
-        XCTAssertFalse(engine.canPlayPrevious)
+        #expect(!engine.isPlaying)
+        #expect(engine.repeatMode == .off)
+        #expect(engine.elapsed == 0)
+        #expect(engine.currentTrack == nil)
+        #expect(!engine.canPlayNext)
+        #expect(!engine.canPlayPrevious)
     }
 
-    func testPlayEmitsDirectives() {
+    @Test func testPlayEmitsDirectives() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         let directives = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(directives, [.loadItem(urlMap("t1")!), .play])
-        XCTAssertTrue(engine.isPlaying)
+        #expect(directives == [.loadItem(urlMap("t1")!), .play])
+        #expect(engine.isPlaying)
     }
 
-    func testPlayWithMissingURLReturnsEmpty() {
+    @Test func testPlayWithMissingURLReturnsEmpty() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         let directives = engine.command(.play, urlForTrack: { _ in nil })
-        XCTAssertTrue(directives.isEmpty)
-        XCTAssertFalse(engine.isPlaying)
+        #expect(directives.isEmpty)
+        #expect(!engine.isPlaying)
     }
 
-    func testPauseEmitsPause() {
+    @Test func testPauseEmitsPause() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.pause)
-        XCTAssertEqual(directives, [.pause])
-        XCTAssertFalse(engine.isPlaying)
+        #expect(directives == [.pause])
+        #expect(!engine.isPlaying)
     }
 
-    func testTogglePlayPause() {
+    @Test func testTogglePlayPause() {
         var engine = WatchPlayerEngine(queue: ["t1"])
 
         let d1 = engine.command(.togglePlayPause, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(d1.last, .play)
-        XCTAssertTrue(engine.isPlaying)
+        #expect(d1.last == .play)
+        #expect(engine.isPlaying)
 
         let d2 = engine.command(.togglePlayPause)
-        XCTAssertEqual(d2.last, .pause)
-        XCTAssertFalse(engine.isPlaying)
+        #expect(d2.last == .pause)
+        #expect(!engine.isPlaying)
     }
 
-    func testNextAdvancesTrack() {
+    @Test func testNextAdvancesTrack() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t1")
+        #expect(engine.currentTrack == "t1")
 
         let directives = engine.command(.next, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t2")
-        XCTAssertEqual(engine.currentIndex, 1)
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t2")
+        #expect(engine.currentIndex == 1)
+        #expect(directives.last == .play)
     }
 
-    func testNextAtEndWithRepeatOffGoesToLastTrack() {
+    @Test func testNextAtEndWithRepeatOffGoesToLastTrack() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.next, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(directives.last, .play) // stays on last track
+        #expect(directives.last == .play) // stays on last track
     }
 
-    func testNextAtEndWithRepeatAllWraps() {
+    @Test func testNextAtEndWithRepeatAllWraps() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"], startIndex: 1)
         engine.cycleRepeat()  // off → all
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t2")
+        #expect(engine.currentTrack == "t2")
 
         let directives = engine.command(.next, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t1")
-        XCTAssertEqual(engine.currentIndex, 0)
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t1")
+        #expect(engine.currentIndex == 0)
+        #expect(directives.last == .play)
     }
 
-    func testRepeatOneReplaysSameTrack() {
+    @Test func testRepeatOneReplaysSameTrack() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"])
         engine.cycleRepeat() // off → all
         engine.cycleRepeat() // all → one
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
 
         let directives = engine.command(.next, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t1", "repeat one should stay on same track")
-        XCTAssertEqual(engine.elapsed, 0)
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t1", "repeat one should stay on same track")
+        #expect(engine.elapsed == 0)
+        #expect(directives.last == .play)
     }
 
-    func testPreviousWithin3SecondsRestarts() {
+    @Test func testPreviousWithin3SecondsRestarts() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"], startIndex: 1)
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         _ = engine.command(.seek(to: 2.0))
 
         let directives = engine.command(.previous, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t2", "under 3s should restart current")
-        XCTAssertEqual(engine.elapsed, 0)
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t2", "under 3s should restart current")
+        #expect(engine.elapsed == 0)
+        #expect(directives.last == .play)
     }
 
-    func testPreviousAfter3SecondsGoesBack() {
+    @Test func testPreviousAfter3SecondsGoesBack() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"], startIndex: 1)
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         _ = engine.command(.seek(to: 5.0))
 
         let directives = engine.command(.previous, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t1", "over 3s should go to previous")
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t1", "over 3s should go to previous")
+        #expect(directives.last == .play)
     }
 
-    func testCycleRepeat() {
+    @Test func testCycleRepeat() {
         var engine = WatchPlayerEngine()
-        XCTAssertEqual(engine.repeatMode, .off)
+        #expect(engine.repeatMode == .off)
         engine.cycleRepeat()
-        XCTAssertEqual(engine.repeatMode, .all)
+        #expect(engine.repeatMode == .all)
         engine.cycleRepeat()
-        XCTAssertEqual(engine.repeatMode, .one)
+        #expect(engine.repeatMode == .one)
         engine.cycleRepeat()
-        XCTAssertEqual(engine.repeatMode, .off)
+        #expect(engine.repeatMode == .off)
     }
 
-    func testToggleShuffle() {
+    @Test func testToggleShuffle() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2", "t3"])
-        XCTAssertFalse(engine.isShuffled)
+        #expect(!engine.isShuffled)
         engine.toggleShuffle()
-        XCTAssertTrue(engine.isShuffled)
-        XCTAssertEqual(engine.currentIndex, 0)
-        XCTAssertEqual(engine.queue.count, 3)
+        #expect(engine.isShuffled)
+        #expect(engine.currentIndex == 0)
+        #expect(engine.queue.count == 3)
     }
 
-    func testSetQueue() {
+    @Test func testSetQueue() {
         var engine = WatchPlayerEngine()
         engine.setQueue(["a", "b", "c"], startIndex: 1)
-        XCTAssertEqual(engine.queue, ["a", "b", "c"])
-        XCTAssertEqual(engine.currentIndex, 1)
-        XCTAssertEqual(engine.elapsed, 0)
-        XCTAssertEqual(engine.currentTrack, "b")
+        #expect(engine.queue == ["a", "b", "c"])
+        #expect(engine.currentIndex == 1)
+        #expect(engine.elapsed == 0)
+        #expect(engine.currentTrack == "b")
     }
 
-    func testSetQueueClearsRequestedPlayingState() {
+    @Test func testSetQueueClearsRequestedPlayingState() {
         var engine = WatchPlayerEngine(queue: ["old"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertTrue(engine.isPlaying)
+        #expect(engine.isPlaying)
 
         engine.setQueue(["new"])
 
-        XCTAssertFalse(engine.isPlaying)
-        XCTAssertEqual(engine.currentTrack, "new")
+        #expect(!engine.isPlaying)
+        #expect(engine.currentTrack == "new")
     }
 
-    func testConfirmedPlayingCanReconcileAnOptimisticPlayRequest() {
+    @Test func testConfirmedPlayingCanReconcileAnOptimisticPlayRequest() {
         var engine = WatchPlayerEngine(queue: ["track"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertTrue(engine.isPlaying)
+        #expect(engine.isPlaying)
 
         engine.setConfirmedPlaying(false)
 
-        XCTAssertFalse(engine.isPlaying)
-        XCTAssertFalse(engine.snapshot.isPlaying)
+        #expect(!engine.isPlaying)
+        #expect(!engine.snapshot.isPlaying)
     }
 
-    func testJumpToTrack() {
+    @Test func testJumpToTrack() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2", "t3"])
         let directives = engine.command(.jump(to: 2), urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t3")
-        XCTAssertEqual(engine.currentIndex, 2)
-        XCTAssertEqual(directives.first, .loadItem(urlMap("t3")!))
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t3")
+        #expect(engine.currentIndex == 2)
+        #expect(directives.first == .loadItem(urlMap("t3")!))
+        #expect(directives.last == .play)
     }
 
-    func testSeek() {
+    @Test func testSeek() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         let directives = engine.command(.seek(to: 30.0))
-        XCTAssertEqual(engine.elapsed, 30.0)
-        XCTAssertEqual(directives, [.seek(to: 30.0)])
+        #expect(engine.elapsed == 30.0)
+        #expect(directives == [.seek(to: 30.0)])
     }
 
-    func testItemEndedAutoAdvance() {
+    @Test func testItemEndedAutoAdvance() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.itemEnded, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t2")
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t2")
+        #expect(directives.last == .play)
     }
 
-    func testItemEndedAtEndOfQueueStops() {
+    @Test func testItemEndedAtEndOfQueueStops() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.itemEnded, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(directives, [.stop])
-        XCTAssertFalse(engine.isPlaying)
+        #expect(directives == [.stop])
+        #expect(!engine.isPlaying)
     }
 
-    func testItemFailedSkipsToNext() {
+    @Test func testItemFailedSkipsToNext() {
         var engine = WatchPlayerEngine(queue: ["t1", "t2"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.itemFailed, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.currentTrack, "t2")
-        XCTAssertEqual(directives.last, .play)
+        #expect(engine.currentTrack == "t2")
+        #expect(directives.last == .play)
     }
 
-    func testRouteLostPauses() {
+    @Test func testRouteLostPauses() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         let directives = engine.command(.routeLost)
-        XCTAssertEqual(directives, [.pause])
-        XCTAssertFalse(engine.isPlaying)
+        #expect(directives == [.pause])
+        #expect(!engine.isPlaying)
     }
 
-    func testSnapshot() {
+    @Test func testSnapshot() {
         var engine = WatchPlayerEngine(queue: ["a", "b", "c"], startIndex: 1)
         _ = engine.command(.seek(to: 15.0))
         let snap = engine.snapshot
-        XCTAssertEqual(snap.trackKeys, ["a", "b", "c"])
-        XCTAssertEqual(snap.currentIndex, 1)
-        XCTAssertEqual(snap.elapsed, 15.0)
-        XCTAssertFalse(snap.isPlaying)
+        #expect(snap.trackKeys == ["a", "b", "c"])
+        #expect(snap.currentIndex == 1)
+        #expect(snap.elapsed == 15.0)
+        #expect(!snap.isPlaying)
     }
 
     // MARK: - Live elapsed tracking (watch position lost on phone interrupt)
@@ -232,31 +233,31 @@ final class WatchPlayerEngineTests: XCTestCase {
     // playback steals a shared Bluetooth route, an interruption) persists and resumes from the
     // position actually reached, not a stale value (frequently 0).
 
-    func testUpdateElapsedTracksTheLivePlaybackPosition() {
+    @Test func testUpdateElapsedTracksTheLivePlaybackPosition() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
-        XCTAssertEqual(engine.elapsed, 0)
+        #expect(engine.elapsed == 0)
 
         engine.updateElapsed(12.4)
-        XCTAssertEqual(engine.elapsed, 12.4)
+        #expect(engine.elapsed == 12.4)
         engine.updateElapsed(47.8)
-        XCTAssertEqual(engine.elapsed, 47.8)
+        #expect(engine.elapsed == 47.8)
     }
 
-    func testPauseAfterLiveTimeUpdatesPersistsTheActualPositionNotAStaleOne() {
+    @Test func testPauseAfterLiveTimeUpdatesPersistsTheActualPositionNotAStaleOne() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         engine.updateElapsed(47.8)
 
         let directives = engine.command(.pause)
 
-        XCTAssertEqual(directives, [.pause])
-        XCTAssertEqual(engine.elapsed, 47.8, "pausing must capture the live position, not reset it")
-        XCTAssertEqual(engine.snapshot.elapsed, 47.8,
+        #expect(directives == [.pause])
+        #expect(engine.elapsed == 47.8, "pausing must capture the live position, not reset it")
+        #expect(engine.snapshot.elapsed == 47.8,
                        "the persisted snapshot must carry the live position, too")
     }
 
-    func testResumingAfterAnAutomaticPauseStaysAtTheSamePosition() {
+    @Test func testResumingAfterAnAutomaticPauseStaysAtTheSamePosition() {
         // The exact shape of the reported bug: the watch's own playback of a track pauses itself —
         // here, because the phone starting a different track steals a shared Bluetooth route, which
         // `WatchPlayer.handleAudioEvent(.routeLost)` resolves to the same `.pause` engine command a
@@ -267,26 +268,26 @@ final class WatchPlayerEngineTests: XCTestCase {
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         engine.updateElapsed(90.0)
         _ = engine.command(.pause)
-        XCTAssertEqual(engine.elapsed, 90.0)
+        #expect(engine.elapsed == 90.0)
 
         // The user goes back to the watch and presses Play — the same `.play` command every resume
         // uses.
         let resumeDirectives = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
 
-        XCTAssertEqual(resumeDirectives, [.loadItem(urlMap("t1")!), .play])
-        XCTAssertEqual(engine.elapsed, 90.0, "resuming must not restart the track from the beginning")
+        #expect(resumeDirectives == [.loadItem(urlMap("t1")!), .play])
+        #expect(engine.elapsed == 90.0, "resuming must not restart the track from the beginning")
     }
 
-    func testUpdateElapsedIsIgnoredWithAnEmptyQueue() {
+    @Test func testUpdateElapsedIsIgnoredWithAnEmptyQueue() {
         var engine = WatchPlayerEngine()
         engine.updateElapsed(42.0)
-        XCTAssertEqual(engine.elapsed, 0)
+        #expect(engine.elapsed == 0)
     }
 
-    func testUpdateElapsedClampsNegativeValues() {
+    @Test func testUpdateElapsedClampsNegativeValues() {
         var engine = WatchPlayerEngine(queue: ["t1"])
         _ = engine.command(.play, urlForTrack: { [self] in urlMap($0) })
         engine.updateElapsed(-5.0)
-        XCTAssertEqual(engine.elapsed, 0)
+        #expect(engine.elapsed == 0)
     }
 }

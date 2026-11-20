@@ -1,24 +1,24 @@
-import XCTest
+import Testing
 @testable import TonearmCore
 
-final class ShareURLBuilderTests: XCTestCase {
+@Suite struct ShareURLBuilderTests {
 
-    func testSimpleIdentifier() {
+    @Test func testSimpleIdentifier() {
         let url = ShareURLBuilder.url(identifier: "GratefulDead1977")
-        XCTAssertEqual(url?.absoluteString, "https://archive.org/details/GratefulDead1977")
+        #expect(url?.absoluteString == "https://archive.org/details/GratefulDead1977")
     }
 
-    func testFavoritesStripsPrefix() {
+    @Test func testFavoritesStripsPrefix() {
         let url = ShareURLBuilder.url(identifier: "fav-jsmith")
-        XCTAssertEqual(url?.absoluteString, "https://archive.org/details/jsmith")
+        #expect(url?.absoluteString == "https://archive.org/details/jsmith")
     }
 
-    func testEmptyIdentifierReturnsNil() {
-        XCTAssertNil(ShareURLBuilder.url(identifier: ""))
+    @Test func testEmptyIdentifierReturnsNil() {
+        #expect(ShareURLBuilder.url(identifier: "") == nil)
     }
 
-    func testIdentifierWithSlashes() {
+    @Test func testIdentifierWithSlashes() {
         let url = ShareURLBuilder.url(identifier: "some_collection/item_name")
-        XCTAssertEqual(url?.absoluteString, "https://archive.org/details/some_collection/item_name")
+        #expect(url?.absoluteString == "https://archive.org/details/some_collection/item_name")
     }
 }

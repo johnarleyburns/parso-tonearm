@@ -1,8 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 @MainActor
-final class ShuffleRepeatTests: XCTestCase {
+@Suite final class ShuffleRepeatTests {
+    private let player = AudioPlayer.makeForTesting()
 
     private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                               originalURL: nil, title: "Test Source",
@@ -22,18 +24,9 @@ final class ShuffleRepeatTests: XCTestCase {
         return TrackRow(track: t, album: album, source: src, asset: a)
     }
 
-    nonisolated override func tearDown() {
-        MainActor.assumeIsolated {
-            AudioPlayer.shared.shuffle = false
-            AudioPlayer.shared.repeatMode = .off
-        }
-        super.tearDown()
-    }
-
     // MARK: - Shuffle
 
-    func testShuffleReordersQueue() {
-        let player = AudioPlayer.shared
+    @Test func testShuffleReordersQueue() {
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 0)
         let originalIds = player.queue.map { $0.id }
@@ -41,24 +34,22 @@ final class ShuffleRepeatTests: XCTestCase {
         player.shuffle = true
         let shuffledIds = player.queue.map { $0.id }
 
-        XCTAssertEqual(player.index, 0)
-        XCTAssertEqual(shuffledIds.count, 10)
-        XCTAssertEqual(shuffledIds.first, originalIds.first, "Current track should stay first")
-        XCTAssertNotEqual(originalIds, shuffledIds, "Queue should be reordered")
+        #expect(player.index == 0)
+        #expect(shuffledIds.count == 10)
+        #expect(shuffledIds.first == originalIds.first, "Current track should stay first")
+        #expect(originalIds != shuffledIds, "Queue should be reordered")
     }
 
-    func testShufflePreservesCurrentTrack() {
-        let player = AudioPlayer.shared
+    @Test func testShufflePreservesCurrentTrack() {
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 4)
         let currentId = player.currentTrack?.id
 
         player.shuffle = true
-        XCTAssertEqual(player.queue.first?.id, currentId)
+        #expect(player.queue.first?.id == currentId)
     }
 
-    func testShuffleOffRestoresOrder() {
-        let player = AudioPlayer.shared
+    @Test func testShuffleOffRestoresOrder() {
         let tracks = (1...10).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 2)
         let originalOrder = tracks.map { $0.id }
@@ -67,57 +58,52 @@ final class ShuffleRepeatTests: XCTestCase {
         player.shuffle = false
 
         let restored = player.queue.map { $0.id }
-        XCTAssertEqual(restored, originalOrder)
-        XCTAssertEqual(player.index, 2)
+        #expect(restored == originalOrder)
+        #expect(player.index == 2)
     }
 
-    func testShuffleSingleTrackNoChange() {
-        let player = AudioPlayer.shared
+    @Test func testShuffleSingleTrackNoChange() {
         let tracks = [makeTrack(1)]
         player.play(tracks: tracks, startAt: 0)
         let originalIds = player.queue.map { $0.id }
 
         player.shuffle = true
-        XCTAssertEqual(player.queue.map { $0.id }, originalIds)
+        #expect(player.queue.map { $0.id } == originalIds)
     }
 
     // MARK: - Repeat
 
-    func testRepeatModeCycles() {
-        let player = AudioPlayer.shared
+    @Test func testRepeatModeCycles() {
         player.repeatMode = .off
         player.cycleRepeatMode()
-        XCTAssertEqual(player.repeatMode, .all)
+        #expect(player.repeatMode == .all)
         player.cycleRepeatMode()
-        XCTAssertEqual(player.repeatMode, .one)
+        #expect(player.repeatMode == .one)
         player.cycleRepeatMode()
-        XCTAssertEqual(player.repeatMode, .off)
+        #expect(player.repeatMode == .off)
     }
 
-    func testRepeatAllWraps() {
-        let player = AudioPlayer.shared
+    @Test func testRepeatAllWraps() {
         player.repeatMode = .all
         let tracks = [makeTrack(1), makeTrack(2), makeTrack(3)]
         player.play(tracks: tracks, startAt: 2)
         player.next()
-        XCTAssertEqual(player.index, 0)
+        #expect(player.index == 0)
     }
 
-    func testRepeatOneDoesNotAdvance() {
-        let player = AudioPlayer.shared
+    @Test func testRepeatOneDoesNotAdvance() {
         player.repeatMode = .one
         let tracks = [makeTrack(1), makeTrack(2)]
         player.play(tracks: tracks, startAt: 0)
         player.next()
-        XCTAssertEqual(player.index, 0, "Index stays the same on repeat one")
+        #expect(player.index == 0, "Index stays the same on repeat one")
     }
 
-    func testRepeatOffStopsAtEnd() {
-        let player = AudioPlayer.shared
+    @Test func testRepeatOffStopsAtEnd() {
         player.repeatMode = .off
         let tracks = [makeTrack(1), makeTrack(2)]
         player.play(tracks: tracks, startAt: 1)
         player.next()
-        XCTAssertFalse(player.isPlaying)
+        #expect(!player.isPlaying)
     }
 }

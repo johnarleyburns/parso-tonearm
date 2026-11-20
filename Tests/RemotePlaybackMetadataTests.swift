@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 @MainActor
-final class RemotePlaybackMetadataTests: XCTestCase {
-    func testMockProvidersBuildPlayableRowsWithoutDroppingSourceMetadata() async throws {
+@Suite struct RemotePlaybackMetadataTests {
+    @Test func testMockProvidersBuildPlayableRowsWithoutDroppingSourceMetadata() async throws {
         for kind in RemoteLibraryAccessPolicy.productSourceKinds {
             let source = Source(
                 id: nil,
@@ -30,62 +31,63 @@ final class RemotePlaybackMetadataTests: XCTestCase {
             let provider = StaticRemoteProvider(sourceKind: kind, node: node, resolved: resolvedAsset(for: kind, metadata: metadata))
 
             let browsed = try await provider.browse(path: "")
-            let audio = try XCTUnwrap(browsed.first)
+            let audio = try #require(browsed.first)
             let resolved = try await provider.resolve(node: audio)
             let row = RemoteTrackRowFactory.row(source: source, node: audio, resolved: resolved, index: 0)
 
-            XCTAssertEqual(row.source?.kind, kind)
-            XCTAssertEqual(row.source?.title, source.title)
-            XCTAssertEqual(row.asset?.transientRemoteHeaders["X-Test-Provider"], kind.rawValue)
-            XCTAssertEqual(row.asset?.transientRemoteSupportsByteRanges, kind != .smb)
+            #expect(row.source?.kind == kind)
+            #expect(row.source?.title == source.title)
+            #expect(row.asset?.transientRemoteHeaders["X-Test-Provider"] == kind.rawValue)
+            #expect(row.asset?.transientRemoteSupportsByteRanges == (kind != .smb))
 
             if [.subsonic, .jellyfin, .emby, .plex].contains(kind) {
-                XCTAssertEqual(row.album?.title, "Field Test Album")
-                XCTAssertEqual(row.album?.artist, "Field Test Artist")
-                XCTAssertEqual(row.track.trackNo, 7)
-                XCTAssertEqual(row.track.codec, "FLAC")
-                XCTAssertEqual(row.album?.artworkId, "\(kind.rawValue):cover")
+                #expect(row.album?.title == "Field Test Album")
+                #expect(row.album?.artist == "Field Test Artist")
+                #expect(row.track.trackNo == 7)
+                #expect(row.track.codec == "FLAC")
+                #expect(row.album?.artworkId == "\(kind.rawValue):cover")
             } else {
-                XCTAssertNil(row.album)
-                XCTAssertEqual(row.track.title, "Track.flac")
+                #expect(row.album == nil)
+                #expect(row.track.title == "Track.flac")
             }
 
-            AudioPlayer.shared.play(tracks: [row], startAt: 0, source: .source(source))
-            XCTAssertEqual(AudioPlayer.shared.currentTrack?.source?.kind, kind)
-            XCTAssertEqual(AudioPlayer.shared.currentTrack?.asset?.transientRemoteHeaders["X-Test-Provider"], kind.rawValue)
+            let player = AudioPlayer.makeForTesting()
+            player.play(tracks: [row], startAt: 0, source: .source(source))
+            #expect(player.currentTrack?.source?.kind == kind)
+            #expect(player.currentTrack?.asset?.transientRemoteHeaders["X-Test-Provider"] == kind.rawValue)
         }
     }
 
-    func testMiniplayerDisplayPolicyUsesProviderNamesAndCacheState() {
+    @Test func testMiniplayerDisplayPolicyUsesProviderNamesAndCacheState() {
         let archiveRow = row(kind: .iaItem, assetKind: .remote)
-        XCTAssertEqual(
+        #expect(
             PlaybackDisplayPolicy.miniPlayerSubtitle(
                 row: archiveRow,
                 cacheState: .none,
                 shuffle: false,
                 repeatMode: .off
-            ),
-            "archive.org"
+            )
+            == "archive.org"
         )
-        XCTAssertEqual(
+        #expect(
             PlaybackDisplayPolicy.miniPlayerSubtitle(
                 row: archiveRow,
                 cacheState: .cached,
                 shuffle: false,
                 repeatMode: .off
-            ),
-            "archive.org · cached"
+            )
+            == "archive.org · cached"
         )
 
         let subsonicRow = row(kind: .subsonic, assetKind: .remote)
-        XCTAssertEqual(
+        #expect(
             PlaybackDisplayPolicy.miniPlayerSubtitle(
                 row: subsonicRow,
                 cacheState: .filling(0.5),
                 shuffle: true,
                 repeatMode: .all
-            ),
-            "Shuffled · Repeat All · Subsonic · caching..."
+            )
+            == "Shuffled · Repeat All · Subsonic · caching..."
         )
     }
 

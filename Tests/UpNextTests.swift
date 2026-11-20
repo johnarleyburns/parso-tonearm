@@ -1,61 +1,62 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 @MainActor
-final class UpNextTests: XCTestCase {
+@Suite struct UpNextTests {
 
     // MARK: - Queue Source
 
-    func testQueueSourceFromPlaylist() {
+    @Test func testQueueSourceFromPlaylist() {
         let playlist = Playlist(id: 1, title: "Test Playlist", kind: .manual,
                                 folderBookmark: nil, watch: false)
         let source = QueueSource.playlist(playlist)
-        XCTAssertEqual(source.label, "From Playlist: Test Playlist")
+        #expect(source.label == "From Playlist: Test Playlist")
     }
 
-    func testQueueSourceFromSource() {
+    @Test func testQueueSourceFromSource() {
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "test",
                          originalURL: nil, title: "Beethoven",
                          addedAt: Date(), lastResolvedAt: nil,
                          followUpdates: false, licenseText: nil, memberCapHit: false)
         let source = QueueSource.source(src)
-        XCTAssertEqual(source.label, "From Library: Beethoven")
+        #expect(source.label == "From Library: Beethoven")
     }
 
-    func testQueueSourceLibrary() {
-        XCTAssertEqual(QueueSource.library.label, "From Music")
+    @Test func testQueueSourceLibrary() {
+        #expect(QueueSource.library.label == "From Music")
     }
 
-    func testQueueSourceAmbient() {
-        XCTAssertEqual(QueueSource.ambient.label, "Ambient")
+    @Test func testQueueSourceAmbient() {
+        #expect(QueueSource.ambient.label == "Ambient")
     }
 
-    func testQueueSourceNone() {
-        XCTAssertEqual(QueueSource.none.label, "")
+    @Test func testQueueSourceNone() {
+        #expect(QueueSource.none.label == "")
     }
 
     /// The queue header now shows the source icon instead of the
     /// "From Library: …" text prefix, and the section header uses the bare name.
-    func testQueueSourceIconAndShortLabel() {
+    @Test func testQueueSourceIconAndShortLabel() {
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "test",
                          originalURL: nil, title: "Beethoven",
                          addedAt: Date(), lastResolvedAt: nil,
                          followUpdates: false, licenseText: nil, memberCapHit: false)
         let source = QueueSource.source(src)
-        XCTAssertEqual(source.icon, "externaldrive.connected.to.line.below")
-        XCTAssertEqual(source.shortLabel, "Beethoven")
+        #expect(source.icon == "externaldrive.connected.to.line.below")
+        #expect(source.shortLabel == "Beethoven")
 
         let playlist = Playlist(id: 1, title: "Test Playlist", kind: .manual,
                                 folderBookmark: nil, watch: false)
-        XCTAssertEqual(QueueSource.playlist(playlist).icon, "music.note.list")
-        XCTAssertEqual(QueueSource.playlist(playlist).shortLabel, "Test Playlist")
-        XCTAssertEqual(QueueSource.library.icon, "music.note")
+        #expect(QueueSource.playlist(playlist).icon == "music.note.list")
+        #expect(QueueSource.playlist(playlist).shortLabel == "Test Playlist")
+        #expect(QueueSource.library.icon == "music.note")
     }
 
     // MARK: - Up Next
 
-    func testUpNextContents() {
-        let player = AudioPlayer.shared
+    @Test func testUpNextContents() {
+        let player = AudioPlayer.makeForTesting()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test Source",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -76,16 +77,16 @@ final class UpNextTests: XCTestCase {
 
         player.play(tracks: tracks, startAt: 2, source: .source(src))
 
-        XCTAssertEqual(player.queueSource, .source(src))
-        XCTAssertEqual(player.index, 2)
-        XCTAssertEqual(player.queue.count, 10)
-        XCTAssertEqual(player.upNextTracks.count, 7) // tracks after index 2 = 3..9 = 7
-        XCTAssertEqual(player.upNextTracks.first?.track.title, "Track 4")
-        XCTAssertEqual(player.upNextTracks.last?.track.title, "Track 10")
+        #expect(player.queueSource == .source(src))
+        #expect(player.index == 2)
+        #expect(player.queue.count == 10)
+        #expect(player.upNextTracks.count == 7) // tracks after index 2 = 3..9 = 7
+        #expect(player.upNextTracks.first?.track.title == "Track 4")
+        #expect(player.upNextTracks.last?.track.title == "Track 10")
     }
 
-    func testUpNextEmptyWhenLastTrack() {
-        let player = AudioPlayer.shared
+    @Test func testUpNextEmptyWhenLastTrack() {
+        let player = AudioPlayer.makeForTesting()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -101,11 +102,11 @@ final class UpNextTests: XCTestCase {
 
         player.play(tracks: [row], startAt: 0)
 
-        XCTAssertEqual(player.upNextTracks.count, 0)
+        #expect(player.upNextTracks.count == 0)
     }
 
-    func testUpNextAfterPlayResets() {
-        let player = AudioPlayer.shared
+    @Test func testUpNextAfterPlayResets() {
+        let player = AudioPlayer.makeForTesting()
         let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                          originalURL: nil, title: "Test",
                          addedAt: Date(), lastResolvedAt: nil,
@@ -125,7 +126,7 @@ final class UpNextTests: XCTestCase {
         }
 
         player.play(tracks: tracks1, startAt: 0)
-        XCTAssertEqual(player.upNextTracks.count, 4)
+        #expect(player.upNextTracks.count == 4)
 
         let tracks2: [TrackRow] = (1...3).map { i in
             let t = Track(id: Int64(i + 10), albumId: 1, sourceId: 1,
@@ -140,7 +141,7 @@ final class UpNextTests: XCTestCase {
         }
 
         player.play(tracks: tracks2, startAt: 1)
-        XCTAssertEqual(player.upNextTracks.count, 1)
+        #expect(player.upNextTracks.count == 1)
     }
 
     // MARK: - Direct library play
@@ -161,28 +162,28 @@ final class UpNextTests: XCTestCase {
         }
     }
 
-    func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
-        let player = AudioPlayer.shared
+    @Test func testDirectLibraryPlayReplacesQueueAndNotifiesOnce() {
+        let player = AudioPlayer.makeForTesting()
         player.play(tracks: libraryRows("Old", 1...5), startAt: 2)
         let results = libraryRows("New", 20...24)
         var messages: [String] = []
 
         player.playLibraryResult(results, startAt: 1) { messages.append($0) }
 
-        XCTAssertEqual(player.queue.map(\.id), results.map(\.id))
-        XCTAssertEqual(player.index, 1)
-        XCTAssertEqual(player.queueSource, .library)
-        XCTAssertEqual(player.upNextTracks.map(\.track.title), ["New22", "New23", "New24"])
-        XCTAssertEqual(messages, ["Queue updated with New21"])
-        XCTAssertEqual(AudioPlayer.queueReplacedToastTag, "playback.queue-replaced")
+        #expect(player.queue.map(\.id) == results.map(\.id))
+        #expect(player.index == 1)
+        #expect(player.queueSource == .library)
+        #expect(player.upNextTracks.map(\.track.title) == ["New22", "New23", "New24"])
+        #expect(messages == ["Queue updated with New21"])
+        #expect(AudioPlayer.queueReplacedToastTag == "playback.queue-replaced")
     }
 
-    func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
-        let player = AudioPlayer.shared
+    @Test func testDirectLibraryPlayWithEmptyQueueDoesNotNotify() {
+        let player = AudioPlayer.makeForTesting()
         player.play(tracks: [], startAt: 0)
-        XCTAssertTrue(player.queue.isEmpty)
+        #expect(player.queue.isEmpty)
         var messages: [String] = []
         player.playLibraryResult(libraryRows("New", 20...22), startAt: 0) { messages.append($0) }
-        XCTAssertTrue(messages.isEmpty)
+        #expect(messages.isEmpty)
     }
 }

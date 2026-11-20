@@ -1,93 +1,94 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
 @MainActor
-final class QueueEditorTests: XCTestCase {
+@Suite struct QueueEditorTests {
 
-    func testMoveCurrentTrackUpdatesCurrentIndex() {
+    @Test func testMoveCurrentTrackUpdatesCurrentIndex() {
         let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
         let edited = QueueEditor.move(from: 2, to: 0, in: state)
 
-        XCTAssertEqual(edited.queue, [3, 1, 2, 4])
-        XCTAssertEqual(edited.currentIndex, 0)
+        #expect(edited.queue == [3, 1, 2, 4])
+        #expect(edited.currentIndex == 0)
     }
 
-    func testMoveItemFromBelowCurrentToAboveCurrentTracksIndex() {
+    @Test func testMoveItemFromBelowCurrentToAboveCurrentTracksIndex() {
         let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
         let edited = QueueEditor.move(from: 3, to: 1, in: state)
 
-        XCTAssertEqual(edited.queue, [1, 4, 2, 3])
-        XCTAssertEqual(edited.currentIndex, 3)
+        #expect(edited.queue == [1, 4, 2, 3])
+        #expect(edited.currentIndex == 3)
     }
 
-    func testMoveItemFromAboveCurrentToBelowCurrentTracksIndex() {
+    @Test func testMoveItemFromAboveCurrentToBelowCurrentTracksIndex() {
         let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
         let edited = QueueEditor.move(from: 0, to: 3, in: state)
 
-        XCTAssertEqual(edited.queue, [2, 3, 4, 1])
-        XCTAssertEqual(edited.currentIndex, 1)
+        #expect(edited.queue == [2, 3, 4, 1])
+        #expect(edited.currentIndex == 1)
     }
 
-    func testMoveOntoCurrentSlotKeepsCurrentTrackSelected() {
+    @Test func testMoveOntoCurrentSlotKeepsCurrentTrackSelected() {
         let state = QueueEditor.State(queue: [1, 2, 3, 4], currentIndex: 2)
 
         let edited = QueueEditor.move(from: 0, to: 2, in: state)
 
-        XCTAssertEqual(edited.queue, [2, 3, 1, 4])
-        XCTAssertEqual(edited.currentIndex, 1)
+        #expect(edited.queue == [2, 3, 1, 4])
+        #expect(edited.currentIndex == 1)
     }
 
-    func testRemoveCurrentAdvancesToNextTrackWhenPossible() {
+    @Test func testRemoveCurrentAdvancesToNextTrackWhenPossible() {
         let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 1)
 
         let edited = QueueEditor.remove(at: 1, in: state)
 
-        XCTAssertEqual(edited.queue, [1, 3])
-        XCTAssertEqual(edited.currentIndex, 1)
+        #expect(edited.queue == [1, 3])
+        #expect(edited.currentIndex == 1)
     }
 
-    func testRemoveCurrentLastTrackFallsBackToPreviousTrack() {
+    @Test func testRemoveCurrentLastTrackFallsBackToPreviousTrack() {
         let state = QueueEditor.State(queue: [1, 2, 3], currentIndex: 2)
 
         let edited = QueueEditor.remove(at: 2, in: state)
 
-        XCTAssertEqual(edited.queue, [1, 2])
-        XCTAssertEqual(edited.currentIndex, 1)
+        #expect(edited.queue == [1, 2])
+        #expect(edited.currentIndex == 1)
     }
 
-    func testInsertNextIntoEmptyQueueSelectsInsertedTrack() {
+    @Test func testInsertNextIntoEmptyQueueSelectsInsertedTrack() {
         let state = QueueEditor.State<Int>(queue: [], currentIndex: 7)
 
         let edited = QueueEditor.insertNext(42, in: state)
 
-        XCTAssertEqual(edited.queue, [42])
-        XCTAssertEqual(edited.currentIndex, 0)
+        #expect(edited.queue == [42])
+        #expect(edited.currentIndex == 0)
     }
 
-    func testAppendIntoEmptyQueueSelectsInsertedTrack() {
+    @Test func testAppendIntoEmptyQueueSelectsInsertedTrack() {
         let state = QueueEditor.State<Int>(queue: [], currentIndex: 3)
 
         let edited = QueueEditor.append(42, in: state)
 
-        XCTAssertEqual(edited.queue, [42])
-        XCTAssertEqual(edited.currentIndex, 0)
+        #expect(edited.queue == [42])
+        #expect(edited.currentIndex == 0)
     }
 
-    func testInvalidInputsNormalizeWithoutMutatingQueue() {
+    @Test func testInvalidInputsNormalizeWithoutMutatingQueue() {
         let state = QueueEditor.State(queue: [1, 2], currentIndex: 99)
 
-        XCTAssertEqual(QueueEditor.move(from: 8, to: 0, in: state),
+        #expect(QueueEditor.move(from: 8, to: 0, in: state) ==
                        QueueEditor.State(queue: [1, 2], currentIndex: 1))
-        XCTAssertEqual(QueueEditor.remove(at: -1, in: state),
+        #expect(QueueEditor.remove(at: -1, in: state) ==
                        QueueEditor.State(queue: [1, 2], currentIndex: 1))
     }
 
-    func testAudioPlayerQueueEditsDoNotResurrectRemovedTrackWhenShuffleRestores() throws {
-        let player = AudioPlayer.shared
+    @Test func testAudioPlayerQueueEditsDoNotResurrectRemovedTrackWhenShuffleRestores() throws {
+        let player = AudioPlayer.makeForTesting()
         let tracks = (1...8).map { makeTrack($0) }
         player.play(tracks: tracks, startAt: 2)
         let currentID = player.currentTrack?.id
@@ -97,8 +98,8 @@ final class QueueEditorTests: XCTestCase {
         player.removeFromQueue(at: player.queue.count - 1)
         player.shuffle = false
 
-        XCTAssertEqual(player.currentTrack?.id, currentID)
-        XCTAssertFalse(player.queue.map(\.id).contains(try XCTUnwrap(removedID)))
+        #expect(player.currentTrack?.id == currentID)
+        #expect(!(player.queue.map(\.id).contains(try #require(removedID))))
     }
 
     private func makeTrack(_ id: Int) -> TrackRow {

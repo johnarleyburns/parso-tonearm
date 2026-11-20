@@ -2,7 +2,8 @@
 import AVFoundation
 import GRDB
 import ParsoAudioNeural
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -25,7 +26,7 @@ import XCTest
 ///  - thermal serious mid-run (job parks `waitingForCooling`),
 ///  - `discovery_runtime` telemetry (last run / stop reason / coverage
 ///    snapshot / next scheduled).
-final class DiscoveryBackgroundControllerTests: XCTestCase {
+@Suite struct DiscoveryBackgroundControllerTests {
     // MARK: - Fakes
 
     private final class FakeInvocation: BackgroundTaskInvocation, @unchecked Sendable {
@@ -228,7 +229,7 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
 
     // MARK: - Registration
 
-    func testRegistrationIsIdempotent() async throws {
+    @Test func testRegistrationIsIdempotent() async throws {
         let queue = try makeQueue()
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
@@ -237,14 +238,14 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
 
         let first = await controller.register()
         let second = await controller.register()
-        XCTAssertTrue(first)
-        XCTAssertTrue(second)
-        XCTAssertEqual(scheduler.registerCallCount, 1)
+        #expect(first)
+        #expect(second)
+        #expect(scheduler.registerCallCount == 1)
     }
 
     // MARK: - Submission / coalescing
 
-    func testSubmitCoalescesToOneOutstandingRequest() async throws {
+    @Test func testSubmitCoalescesToOneOutstandingRequest() async throws {
         let queue = try makeQueue()
         for _ in 0..<3 { _ = try await seedTrack(queue, fileURL: nil, durationSec: nil) }
         let scheduler = FakeScheduler()
@@ -257,19 +258,19 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
 
         for _ in 0..<3 { await controller.submitPendingWorkRequestIfNeeded() }
 
-        XCTAssertEqual(scheduler.pendingCount, 1, "same identifier coalesces to one request")
-        let request = try XCTUnwrap(scheduler.lastRequest)
-        XCTAssertTrue(request.requiresExternalPower)
-        XCTAssertFalse(request.requiresNetworkConnectivity)
-        XCTAssertEqual(request.earliestBeginDate, fixedNow.addingTimeInterval(900))
+        #expect(scheduler.pendingCount == 1, "same identifier coalesces to one request")
+        let request = try #require(scheduler.lastRequest)
+        #expect(request.requiresExternalPower)
+        #expect(!request.requiresNetworkConnectivity)
+        #expect(request.earliestBeginDate == fixedNow.addingTimeInterval(900))
 
         let runtime = try await assembly.settings.runtime()
-        XCTAssertEqual(runtime.lastBackgroundSubmissionResult, "submitted")
-        XCTAssertEqual(runtime.lastBackgroundSubmissionAt, fixedNow)
-        XCTAssertEqual(runtime.nextScheduledAt, fixedNow.addingTimeInterval(900))
+        #expect(runtime.lastBackgroundSubmissionResult == "submitted")
+        #expect(runtime.lastBackgroundSubmissionAt == fixedNow)
+        #expect(runtime.nextScheduledAt == fixedNow.addingTimeInterval(900))
     }
 
-    func testNoRequestSubmittedWhenQueueIsEmpty() async throws {
+    @Test func testNoRequestSubmittedWhenQueueIsEmpty() async throws {
         let queue = try makeQueue()
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
@@ -277,10 +278,10 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         await controller.submitPendingWorkRequestIfNeeded()
-        XCTAssertEqual(scheduler.pendingCount, 0)
+        #expect(scheduler.pendingCount == 0)
     }
 
-    func testSubmitFailureRecordedWithoutLosingJobs() async throws {
+    @Test func testSubmitFailureRecordedWithoutLosingJobs() async throws {
         let queue = try makeQueue()
         _ = try await seedTrack(queue, fileURL: nil, durationSec: nil)
         let scheduler = FakeScheduler()
@@ -292,16 +293,16 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
 
         await controller.submitPendingWorkRequestIfNeeded()
 
-        XCTAssertEqual(scheduler.pendingCount, 0)
+        #expect(scheduler.pendingCount == 0)
         let runtime = try await assembly.settings.runtime()
-        XCTAssertTrue(runtime.lastBackgroundSubmissionResult?.hasPrefix("error:") ?? false)
+        #expect(runtime.lastBackgroundSubmissionResult?.hasPrefix("error:") ?? false)
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .queued, "a failed submit must not lose the job")
+        #expect(job?.state == .queued, "a failed submit must not lose the job")
     }
 
     // MARK: - Granted drain
 
-    func testGrantedRunDrainsAndCompletesExactlyOnce() async throws {
+    @Test func testGrantedRunDrainsAndCompletesExactlyOnce() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -321,22 +322,22 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         let invocation = FakeInvocation(identifier: "test.discovery-index")
         await controller.run(invocation)
 
-        XCTAssertEqual(invocation.completeCount, 1, "BG task completed exactly once (plan §7)")
-        XCTAssertEqual(invocation.lastSuccess, true)
+        #expect(invocation.completeCount == 1, "BG task completed exactly once (plan §7)")
+        #expect(invocation.lastSuccess == true)
 
         let embeddings = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
         }
-        XCTAssertEqual(embeddings, 2)
+        #expect(embeddings == 2)
         let runtime = try await assembly.settings.runtime()
-        XCTAssertEqual(runtime.coverageSnapshot, "2 / 2")
-        XCTAssertEqual(runtime.lastStopReason, "background: 2 completed")
-        XCTAssertNotNil(runtime.lastSuccessfulWorkAt)
+        #expect(runtime.coverageSnapshot == "2 / 2")
+        #expect(runtime.lastStopReason == "background: 2 completed")
+        #expect(runtime.lastSuccessfulWorkAt != nil)
     }
 
     // MARK: - Expiration mid-drain
 
-    func testExpirationMidDrainKeepsCheckpointsAndJobResumes() async throws {
+    @Test func testExpirationMidDrainKeepsCheckpointsAndJobResumes() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -353,43 +354,44 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         _ = await controller.register()
 
         let invocation = FakeInvocation(identifier: "test.discovery-index")
-        // Fire expiration after a few windows have been persisted, but before
-        // the job can finalize.
+        // Fire expiration after the first window has had a chance to persist,
+        // while several windows still remain. Tying this to the fourth snapshot
+        // read raced finalization: the last window could already be committed.
         box.onRead = { count, _ in
-            if count == 4 { invocation.fireExpiration() }
+            if count == 2 { invocation.fireExpiration() }
         }
         await controller.run(invocation)
 
-        XCTAssertEqual(invocation.completeCount, 1)
-        XCTAssertEqual(invocation.lastSuccess, false, "expired run reports failure so iOS reschedules")
+        #expect(invocation.completeCount == 1)
+        #expect(invocation.lastSuccess == false, "expired run reports failure so iOS reschedules")
 
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertNotEqual(job?.state, .complete)
-        XCTAssertEqual(job?.attemptCount, 0, "expiration is not a transient failure")
+        #expect(job?.state != .complete)
+        #expect(job?.attemptCount == 0, "expiration is not a transient failure")
         let checkpoints = try await checkpointCount(queue)
-        XCTAssertGreaterThanOrEqual(checkpoints, 1, "durable window checkpoints survived")
-        XCTAssertLessThan(checkpoints, 4, "the job did not finish before expiry")
+        #expect(checkpoints >= 1, "durable window checkpoints survived")
+        #expect(checkpoints < 4, "the job did not finish before expiry")
 
         let runtime = try await assembly.settings.runtime()
-        XCTAssertTrue(runtime.lastStopReason?.contains("expired") ?? false)
+        #expect(runtime.lastStopReason?.contains("expired") ?? false)
 
         // Resume on the next (foreground) drain: it picks up at the next
         // missing window and completes.
         box.onRead = nil
         box.mutate { $0 = self.foregroundSnapshot() }
         let completed = try await assembly.drainQueue()
-        XCTAssertEqual(completed, 1)
+        #expect(completed == 1)
         let resumed = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(resumed?.state, .complete)
+        #expect(resumed?.state == .complete)
         let embeddings = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
         }
-        XCTAssertEqual(embeddings, 1)
+        #expect(embeddings == 1)
     }
 
     // MARK: - Grant revoked mid-run
 
-    func testBackgroundGrantRevokedMidRunReleasesJobNoRetryPenalty() async throws {
+    @Test func testBackgroundGrantRevokedMidRunReleasesJobNoRetryPenalty() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -410,17 +412,17 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         let invocation = FakeInvocation(identifier: "test.discovery-index")
         await controller.run(invocation)
 
-        XCTAssertEqual(invocation.completeCount, 1)
+        #expect(invocation.completeCount == 1)
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .queued, "grant loss releases the job, not a waiting state")
-        XCTAssertEqual(job?.attemptCount, 0)
+        #expect(job?.state == .queued, "grant loss releases the job, not a waiting state")
+        #expect(job?.attemptCount == 0)
         let checkpoints = try await checkpointCount(queue)
-        XCTAssertGreaterThanOrEqual(checkpoints, 1)
+        #expect(checkpoints >= 1)
     }
 
     // MARK: - Power / thermal transitions mid-run
 
-    func testChargingLostMidRunParksJobWaitingForPower() async throws {
+    @Test func testChargingLostMidRunParksJobWaitingForPower() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -441,11 +443,11 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .waitingForPower)
-        XCTAssertEqual(job?.attemptCount, 0)
+        #expect(job?.state == .waitingForPower)
+        #expect(job?.attemptCount == 0)
     }
 
-    func testThermalSeriousMidRunParksJobWaitingForCooling() async throws {
+    @Test func testThermalSeriousMidRunParksJobWaitingForCooling() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -466,8 +468,8 @@ final class DiscoveryBackgroundControllerTests: XCTestCase {
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
-        XCTAssertEqual(job?.state, .waitingForCooling)
-        XCTAssertEqual(job?.attemptCount, 0)
+        #expect(job?.state == .waitingForCooling)
+        #expect(job?.attemptCount == 0)
     }
 }
 #endif

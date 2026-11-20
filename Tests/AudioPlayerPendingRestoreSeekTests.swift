@@ -1,6 +1,7 @@
 #if !os(watchOS)
 import AVFoundation
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// Architecture-review finding: a restore-time seek target used to be a bare `Double?` with no
@@ -9,7 +10,8 @@ import XCTest
 /// next — reported as nonsensical elapsed times, and, if the target exceeded the new track's
 /// length, a silent end-of-track skip.
 @MainActor
-final class AudioPlayerPendingRestoreSeekTests: XCTestCase {
+@Suite final class AudioPlayerPendingRestoreSeekTests {
+    private let player = AudioPlayer.makeForTesting()
     private let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil,
                                 title: "S", addedAt: Date(), lastResolvedAt: nil,
                                 followUpdates: false, licenseText: nil, memberCapHit: false)
@@ -24,16 +26,7 @@ final class AudioPlayerPendingRestoreSeekTests: XCTestCase {
         return TrackRow(track: track, album: nil, source: source, asset: asset)
     }
 
-    override func tearDown() {
-        let p = AudioPlayer.shared
-        p.ordinaryBuildItemHook = nil
-        p.clearQueuePlayback()
-        p.queue = []
-        super.tearDown()
-    }
-
-    func testStaleRestoreSeekNeverAppliesToADifferentlyLoadedTrack() {
-        let player = AudioPlayer.shared
+    @Test func testStaleRestoreSeekNeverAppliesToADifferentlyLoadedTrack() {
         player.ordinaryBuildItemHook = { _ in (AVPlayerItem(asset: AVMutableComposition()), nil) }
         player.keepPlayingEnabled = false
         player.queue = [row(1), row(2)]
@@ -46,12 +39,11 @@ final class AudioPlayerPendingRestoreSeekTests: XCTestCase {
 
         player.skipToIndex(1)
 
-        XCTAssertNil(player.pendingRestoreSeek,
+        #expect(player.pendingRestoreSeek == nil,
                      "a restore target recorded for a different track must never survive loading a different one")
     }
 
-    func testRestoreSeekSurvivesReloadingTheSameOccurrence() {
-        let player = AudioPlayer.shared
+    @Test func testRestoreSeekSurvivesReloadingTheSameOccurrence() {
         player.ordinaryBuildItemHook = { _ in (AVPlayerItem(asset: AVMutableComposition()), nil) }
         player.keepPlayingEnabled = false
         player.queue = [row(1)]
@@ -64,7 +56,7 @@ final class AudioPlayerPendingRestoreSeekTests: XCTestCase {
         // discard a still-valid pending target.
         player.loadCurrent(autoplay: false)
 
-        XCTAssertEqual(player.pendingRestoreSeek?.seconds, 42)
+        #expect(player.pendingRestoreSeek?.seconds == 42)
     }
 }
 #endif

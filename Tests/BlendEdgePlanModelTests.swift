@@ -1,23 +1,24 @@
 #if !os(watchOS)
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
-final class BlendEdgePlanModelTests: XCTestCase {
-    func testPersistedEdgePlanRoundTripsWithoutSourceSpecificType() throws {
+@Suite struct BlendEdgePlanModelTests {
+    @Test func testPersistedEdgePlanRoundTripsWithoutSourceSpecificType() throws {
         let plan = BlendEdgePlan(
             blendID: "saved.example", edge: 1, outgoingTrackID: "catalog-a", incomingTrackID: "catalog-b",
             style: .bassSwap, tempo: 1, overlapBeats: 32, incomingGain: 1,
             outgoingSwapBeat: 32, incomingSwapBeat: 16,
             blendStartSeconds: 90, swapSeconds: 105, blendEndSeconds: 120, incomingOffsetSeconds: 90)
         let decoded = try JSONDecoder().decode(BlendEdgePlan.self, from: JSONEncoder().encode(plan))
-        XCTAssertEqual(decoded, plan)
-        XCTAssertNotNil(decoded.schedule())
+        #expect(decoded == plan)
+        #expect(decoded.schedule() != nil)
     }
 
-    func testProductionSourcesDoNotSpellTheOldPlanType() throws {
+    @Test func testProductionSourcesDoNotSpellTheOldPlanType() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Sources")
-        let files = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
         var offenders: [String] = []
         for case let url as URL in files where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
@@ -27,7 +28,7 @@ final class BlendEdgePlanModelTests: XCTestCase {
                 offenders.append(url.lastPathComponent)
             }
         }
-        XCTAssertEqual(offenders, [])
+        #expect(offenders == [])
     }
 }
 #endif

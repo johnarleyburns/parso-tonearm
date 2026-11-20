@@ -1,13 +1,13 @@
 import Foundation
 import SwiftData
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 import TonearmWatchProtocol
 
 /// `WatchSyncActor` turns everything the link reports into local SwiftData truth. These exercise it
 /// directly — no duplex link — so the installer/repository interplay is what is under test.
-final class WatchSyncActorTests: XCTestCase {
-    func testLocalOnlyWatchDropsLegacyCatalogButPreservesInstalledAudioAndSelectedMetadata() async throws {
+@Suite struct WatchSyncActorTests {
+    @Test func testLocalOnlyWatchDropsLegacyCatalogButPreservesInstalledAudioAndSelectedMetadata() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "installed", title: "Installed", albumTitle: "Downloaded Album"))
         let installedURL = fx.audio.appendingPathComponent("installed.m4a")
@@ -20,20 +20,20 @@ final class WatchSyncActorTests: XCTestCase {
         let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, localDownloadsOnly: true)
         await sync.removeLegacyCatalogMetadata()
         let rows = try await fx.repository.tracks()
-        XCTAssertEqual(rows.map(\.id), ["installed"])
-        XCTAssertTrue(FileManager.default.fileExists(atPath: installedURL.path))
+        #expect(rows.map(\.id) == ["installed"])
+        #expect(FileManager.default.fileExists(atPath: installedURL.path))
         await sync.didReceiveCatalogPage(.init(catalogID: "old", revision: 20, pageIndex: 0, pageCount: 1,
             tracks: [.init(trackID: "remote", title: "Unselected")], playlists: []))
         let ignored = try await fx.repository.tracks()
-        XCTAssertEqual(ignored.map(\.id), ["installed"])
+        #expect(ignored.map(\.id) == ["installed"])
         await sync.didReceiveCatalogPage(.init(catalogID: "selected", revision: 21, pageIndex: 0, pageCount: 1,
             tracks: [.init(trackID: "queued", title: "Selected audio")], playlists: [], downloadSelectionOnly: true))
         let selected = try await fx.repository.tracks()
-        XCTAssertEqual(Set(selected.map(\.id)), ["installed", "queued"])
+        #expect(Set(selected.map(\.id)) == ["installed", "queued"])
         let playable = try await fx.repository.tracks(readyOnly: true)
-        XCTAssertEqual(playable.map(\.id), ["installed"])
+        #expect(playable.map(\.id) == ["installed"])
     }
-    func testWholeAACSurvivesUnrelatedCatalogPagesUntilItsMetadataArrives() async throws {
+    @Test func testWholeAACSurvivesUnrelatedCatalogPagesUntilItsMetadataArrives() async throws {
         let fx = try Fixture()
         let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, requiresNormalizedAAC: true)
         let source = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -43,24 +43,24 @@ final class WatchSyncActorTests: XCTestCase {
         await sync.didReceiveAudioFile(at: incoming, metadata: WatchAudioFileMetadata(trackID: "late-audio",
             expectedBytes: digest.bytes, sha256: digest.sha256, codec: "aac", fileExtension: "m4a").dictionary)
         let retained = fx.staging.appendingPathComponent("late-audio.m4a")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: retained.path))
+        #expect(FileManager.default.fileExists(atPath: retained.path))
         await sync.didReceiveCatalogPage(.init(catalogID: "large-library", revision: 1,
             pageIndex: 0, pageCount: 2, tracks: [.init(trackID: "unrelated", title: "Other music")], playlists: []))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: retained.path),
+        #expect(FileManager.default.fileExists(atPath: retained.path),
             "Retrying before this track's metadata arrives must not delete Apple's delivered audio")
         let restartedInstaller = WatchFileInstaller(repository: fx.repository, audioDirectory: fx.audio,
             stagingDirectory: fx.staging)
         for _ in 0..<3 {
             let outcomes = await restartedInstaller.retryDeferred()
-            XCTAssertEqual(outcomes, [.deferredAwaitingMetadata(trackID: "late-audio")])
-            XCTAssertEqual(try WatchFileDigest.measure(retained).sha256, digest.sha256)
+            #expect(outcomes == [.deferredAwaitingMetadata(trackID: "late-audio")])
+            #expect(try WatchFileDigest.measure(retained).sha256 == digest.sha256)
         }
         await sync.didReceiveCatalogPage(.init(catalogID: "large-library", revision: 1,
             pageIndex: 1, pageCount: 2, tracks: [.init(trackID: "late-audio", title: "Late catalog audio")], playlists: []))
         let ready = try await fx.repository.manifest().readyTrackIDs
-        XCTAssertEqual(ready, ["late-audio"], "Installation must finish without a second phone transfer")
+        #expect(ready == ["late-audio"], "Installation must finish without a second phone transfer")
     }
-    func testRejectedMetadataContextIsReportedAsFailureNotQueuedSuccess() async throws {
+    @Test func testRejectedMetadataContextIsReportedAsFailureNotQueuedSuccess() async throws {
         let fx = try Fixture()
         let diagnostics = WatchDiagnosticsRecorder()
         let sync = WatchSyncActor(repository: fx.repository, installer: fx.installer, diagnostics: diagnostics)
@@ -68,12 +68,12 @@ final class WatchSyncActorTests: XCTestCase {
         await sync.setCoordinator(coordinator)
         await sync.publishPeriodicStatus()
         let events = await diagnostics.events().filter { $0.category == .manifestConvergence }
-        XCTAssertEqual(events.last?.stateCode, "reportQueueFailed")
-        XCTAssertFalse(events.contains { $0.stateCode == "reported" })
+        #expect(events.last?.stateCode == "reportQueueFailed")
+        #expect(!events.contains { $0.stateCode == "reported" })
         let accepted = await coordinator.publishManifestContext(.init(manifestID: "empty", readyTrackIDs: [], installedBytes: 0))
-        XCTAssertFalse(accepted)
+        #expect(!accepted)
     }
-    func testOfflinePlaylistRootInstallsAudioAndLaterCatalogEnrichesPlaceholders() async throws {
+    @Test func testOfflinePlaylistRootInstallsAudioAndLaterCatalogEnrichesPlaceholders() async throws {
         let fx = try Fixture()
         let file = try fx.stage("home.m4a", bytes: Data("home-audio".utf8))
         let digest = try WatchFileDigest.measure(file)
@@ -85,23 +85,21 @@ final class WatchSyncActorTests: XCTestCase {
                   title: "Home Cooking", trackIDs: ["home", "other"])
         ]))
         let installed = try await fx.repository.tracks(readyOnly: true)
-        XCTAssertEqual(installed.map(\.id), ["home"])
+        #expect(installed.map(\.id) == ["home"])
         await fx.syncActor.didReceiveCatalogPage(.init(catalogID: "older-queued-catalog", revision: 3,
             pageIndex: 0, pageCount: 1, tracks: [.init(trackID: "home", title: "Home Cooking I", artist: "Artist")],
             playlists: []))
         let enriched = try await fx.repository.tracks(readyOnly: true).first
-        XCTAssertEqual(enriched?.title, "Home Cooking I")
-        XCTAssertEqual(enriched?.artist, "Artist")
-        XCTAssertEqual(enriched?.isReady, true)
+        #expect(enriched?.title == "Home Cooking I")
+        #expect(enriched?.artist == "Artist")
+        #expect(enriched?.isReady == true)
     }
 
     @MainActor
-    func testProductionFanoutDeliversCatalogMetadataAndUnblocksDeferredInstallation() async throws {
+    @Test func testProductionFanoutDeliversCatalogMetadataAndUnblocksDeferredInstallation() async throws {
         let fx = try Fixture()
         let repository = fx.repository
-        let suite = "watch-sync-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let receipt = Date(timeIntervalSince1970: 50_000)
         let status = WatchSyncStatusState(defaults: defaults, now: { receipt },
             latestInstallation: { try? await repository.lastAudioInstallationDate() })
@@ -113,22 +111,22 @@ final class WatchSyncActorTests: XCTestCase {
         let digest = try WatchFileDigest.measure(staged)
         await coordinator.receiveFile(staged, metadata: WatchAudioFileMetadata(trackID: "home",
             expectedBytes: digest.bytes, sha256: digest.sha256, fileExtension: "mp3").dictionary)
-        XCTAssertNil(status.lastAudioInstalledAt, "Deferred delivery is not an installation")
+        #expect(status.lastAudioInstalledAt == nil, "Deferred delivery is not an installation")
         let page = WatchLibraryPage(catalogID: "production", revision: 3, pageIndex: 0, pageCount: 1,
             tracks: [.init(trackID: "home", title: "Home Cooking I")], playlists: [])
         let data = try WatchProtocolEnvelope.fromPhone(kind: .catalogPage, payload: page,
             libraryID: "phone", revision: 3)
         await coordinator.receiveUserInfo(data)
         let installed = try await repository.tracks(readyOnly: true)
-        XCTAssertEqual(installed.map(\.id), ["home"])
-        XCTAssertEqual(status.lastCatalogSyncAt, receipt)
-        XCTAssertNotNil(status.lastAudioInstalledAt)
+        #expect(installed.map(\.id) == ["home"])
+        #expect(status.lastCatalogSyncAt == receipt)
+        #expect(status.lastAudioInstalledAt != nil)
         let restored = WatchSyncStatusState(defaults: defaults)
-        XCTAssertEqual(restored.lastCatalogSyncAt, receipt)
-        XCTAssertEqual(restored.lastAudioInstalledAt, status.lastAudioInstalledAt)
+        #expect(restored.lastCatalogSyncAt == receipt)
+        #expect(restored.lastAudioInstalledAt == status.lastAudioInstalledAt)
     }
 
-    func testCatalogPageMakesSearchAvailableAndInstallsAudioWithoutWaitingForOtherPages() async throws {
+    @Test func testCatalogPageMakesSearchAvailableAndInstallsAudioWithoutWaitingForOtherPages() async throws {
         let fx = try Fixture()
         let incoming = try fx.stage("cache-mp3", bytes: Data("home-cooking-audio".utf8))
         let digest = try WatchFileDigest.measure(incoming)
@@ -140,16 +138,16 @@ final class WatchSyncActorTests: XCTestCase {
         let tracks = try await fx.repository.tracks(readyOnly: false)
         let rows = WatchLocalCatalogSearch.rows(query: "Home Cooking", tracks: tracks,
             playlists: [], onWatchOnly: false)
-        XCTAssertEqual(rows.map(\.id), ["home"], "A missing or slow page must not hide received catalog metadata")
-        XCTAssertEqual(tracks.first?.localFilename, "\(digest.sha256).mp3")
-        XCTAssertEqual(tracks.first?.isReady, true, "Catalog metadata must retry audio that arrived first")
+        #expect(rows.map(\.id) == ["home"], "A missing or slow page must not hide received catalog metadata")
+        #expect(tracks.first?.localFilename == "\(digest.sha256).mp3")
+        #expect(tracks.first?.isReady == true, "Catalog metadata must retry audio that arrived first")
         let deferred = await fx.installer.deferredTrackIDs()
-        XCTAssertTrue(deferred.isEmpty)
+        #expect(deferred.isEmpty)
         let installed = try await fx.repository.manifest().readyTrackIDs
-        XCTAssertEqual(installed, ["home"])
+        #expect(installed == ["home"])
     }
 
-    func testTrackRootCreatesARowThenTheFileMakesItReady() async throws {
+    @Test func testTrackRootCreatesARowThenTheFileMakesItReady() async throws {
         let fx = try Fixture()
         await fx.syncActor.didReceiveDownloadRoots(WatchSetDownloadRoots(revision: 3, roots: [
             WatchDownloadRootDescriptor(rootID: "r-one", kind: .track, sourceID: "one",
@@ -157,9 +155,9 @@ final class WatchSyncActorTests: XCTestCase {
         ]))
 
         let afterRoot = try await fx.repository.tracks(readyOnly: false)
-        XCTAssertEqual(afterRoot.map(\.id), ["one"])
-        XCTAssertEqual(afterRoot.first?.title, "One Song")
-        XCTAssertFalse(afterRoot.first?.isReady ?? true)
+        #expect(afterRoot.map(\.id) == ["one"])
+        #expect(afterRoot.first?.title == "One Song")
+        #expect(!(afterRoot.first?.isReady ?? true))
 
         let staged = try fx.stage("one.m4a", bytes: Data("song-one-audio".utf8))
         let digest = try WatchFileDigest.measure(staged)
@@ -167,17 +165,17 @@ final class WatchSyncActorTests: XCTestCase {
             trackID: "one", expectedBytes: digest.bytes, sha256: digest.sha256).dictionary)
 
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["one"])
+        #expect(ready == ["one"])
     }
 
-    func testAudioArrivingBeforeItsRootConvergesWhenTheRootLands() async throws {
+    @Test func testAudioArrivingBeforeItsRootConvergesWhenTheRootLands() async throws {
         let fx = try Fixture()
         let staged = try fx.stage("early.m4a", bytes: Data("early-bird-audio".utf8))
         let digest = try WatchFileDigest.measure(staged)
         await fx.syncActor.didReceiveAudioFile(at: staged, metadata: WatchAudioFileMetadata(
             trackID: "early", expectedBytes: digest.bytes, sha256: digest.sha256).dictionary)
         let beforeRoot = try await fx.repository.tracks(readyOnly: false)
-        XCTAssertTrue(beforeRoot.isEmpty)
+        #expect(beforeRoot.isEmpty)
 
         // The download-roots handler ends with `installer.retryDeferred()`.
         await fx.syncActor.didReceiveDownloadRoots(WatchSetDownloadRoots(revision: 1, roots: [
@@ -185,10 +183,10 @@ final class WatchSyncActorTests: XCTestCase {
                                         title: "Early", trackIDs: ["early"])
         ]))
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["early"])
+        #expect(ready == ["early"])
     }
 
-    func testRemoveAssetsDropsTheTrackAndItsFile() async throws {
+    @Test func testRemoveAssetsDropsTheTrackAndItsFile() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "gone", title: "Gone"))
         let staged = try fx.stage("gone.m4a", bytes: Data("doomed-audio".utf8))
@@ -196,15 +194,15 @@ final class WatchSyncActorTests: XCTestCase {
         _ = await fx.installer.install(stagedURL: staged, metadata: WatchAudioFileMetadata(
             trackID: "gone", expectedBytes: digest.bytes, sha256: digest.sha256))
         let filename = "\(digest.sha256).m4a"
-        XCTAssertTrue(FileManager.default.fileExists(atPath: fx.audio.appendingPathComponent(filename).path))
+        #expect(FileManager.default.fileExists(atPath: fx.audio.appendingPathComponent(filename).path))
 
         await fx.syncActor.didReceiveRemoveAssets(WatchRemoveAssets(revision: 9, trackIDs: ["gone"]))
         let remaining = try await fx.repository.tracks(readyOnly: false)
-        XCTAssertTrue(remaining.isEmpty)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: fx.audio.appendingPathComponent(filename).path))
+        #expect(remaining.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fx.audio.appendingPathComponent(filename).path))
     }
 
-    func testReconciliationAdoptsAMatchingOrphanAfterAStoreRebuild() async throws {
+    @Test func testReconciliationAdoptsAMatchingOrphanAfterAStoreRebuild() async throws {
         let fx = try Fixture()
         let bytes = Data("recovered-audio-payload".utf8)
         let staged = try fx.stage("probe.m4a", bytes: bytes)
@@ -217,10 +215,10 @@ final class WatchSyncActorTests: XCTestCase {
         await fx.syncActor.phoneRequestedReconciliation(WatchReconciliationRequest(scope: .all, trigger: .storeRecovered))
 
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["rec"])
+        #expect(ready == ["rec"])
     }
 
-    func testDuplicateAudioDeliveryLeavesASingleReadyRow() async throws {
+    @Test func testDuplicateAudioDeliveryLeavesASingleReadyRow() async throws {
         let fx = try Fixture()
         try await fx.repository.upsertTrack(.init(trackID: "dup", title: "Dup"))
         let bytes = Data("dup-delivery-audio".utf8)
@@ -232,8 +230,8 @@ final class WatchSyncActorTests: XCTestCase {
             await fx.syncActor.didReceiveAudioFile(at: url, metadata: meta)
         }
         let ready = try await fx.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(ready, ["dup"])
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fx.audio.path), ["\(digest.sha256).m4a"])
+        #expect(ready == ["dup"])
+        #expect(try FileManager.default.contentsOfDirectory(atPath: fx.audio.path) == ["\(digest.sha256).m4a"])
     }
 }
 

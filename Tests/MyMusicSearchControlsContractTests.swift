@@ -1,46 +1,47 @@
 #if !os(watchOS)
-import XCTest
+import Foundation
+import Testing
 
 /// Find Mood reuses the single top search field instead of owning a second one.
-final class MyMusicSearchControlsContractTests: XCTestCase {
+@Suite struct MyMusicSearchControlsContractTests {
     private func source() throws -> String {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
                           encoding: .utf8)
     }
 
-    func testSoundQueryOwnsNoTextField() throws {
+    @Test func testSoundQueryOwnsNoTextField() throws {
         let s = try source()
-        let tail = try XCTUnwrap(s.range(of: "struct MyMusicSoundQuery")).lowerBound
-        XCTAssertFalse(String(s[tail...]).contains("TextField("))
-        XCTAssertFalse(s.contains("TextField("))
+        let tail = try #require(s.range(of: "struct MyMusicSoundQuery")).lowerBound
+        #expect(!(String(s[tail...]).contains("TextField(")))
+        #expect(!s.contains("TextField("))
     }
 
-    func testTopFieldStaysVisibleInFindMood() throws {
+    @Test func testTopFieldStaysVisibleInFindMood() throws {
         let s = try source()
-        XCTAssertFalse(s.contains("if mode == .all { allSearchField }"))
-        XCTAssertTrue(s.contains("if mode != .mix { allSearchField }"))
-        XCTAssertFalse(s.contains("if newMode != .all { appState.searchText = \"\" }"))
+        #expect(!s.contains("if mode == .all { allSearchField }"))
+        #expect(s.contains("if mode != .mix { allSearchField }"))
+        #expect(!s.contains("if newMode != .all { appState.searchText = \"\" }"))
     }
 
-    func testTopFieldDrivesSoundModel() throws {
+    @Test func testTopFieldDrivesSoundModel() throws {
         let s = try source()
-        XCTAssertTrue(s.contains(".onChange(of: appState.searchText)"))
-        XCTAssertTrue(s.contains("soundModel.searchText = text"))
+        #expect(s.contains(".onChange(of: appState.searchText)"))
+        #expect(s.contains("soundModel.searchText = text"))
     }
 
     /// Find's Mood mode must work like the standalone Mood tab: pill selection, not free text
     /// alone, and never empty on first entry. Mood and genre pills render as one merged,
     /// alphabetically-sorted, ucfirst-capitalized row (not two separate pickers).
-    func testSoundModeShowsMoodAndGenrePills() throws {
+    @Test func testSoundModeShowsMoodAndGenrePills() throws {
         let s = try source()
-        XCTAssertTrue(s.contains("MoodPillPicker(pills: combinedMoodPills"))
-        XCTAssertTrue(s.contains("(allMoodPills + genrePills)"))
+        #expect(s.contains("MoodPillPicker(pills: combinedMoodPills"))
+        #expect(s.contains("(allMoodPills + genrePills)"))
     }
 
-    func testSoundModeDefaultsToCalmWhenNothingSelectedYet() throws {
+    @Test func testSoundModeDefaultsToCalmWhenNothingSelectedYet() throws {
         let s = try source()
-        XCTAssertTrue(s.contains("MoodPillTaxonomy.energy.first(where: { $0.id == \"calm\" })"))
+        #expect(s.contains("MoodPillTaxonomy.energy.first(where: { $0.id == \"calm\" })"))
     }
 
     /// A stale pill selection from a previous sound-model instance must never survive — it would
@@ -48,19 +49,19 @@ final class MyMusicSearchControlsContractTests: XCTestCase {
     /// refinements.
     /// Mix-compatible ordering against the currently-playing track degrades gracefully instead
     /// of hard-blocking when that track isn't analyzed yet.
-    func testSoundModeGracefullyDegradesMixMatchingInsteadOfHardBlocking() throws {
+    @Test func testSoundModeGracefullyDegradesMixMatchingInsteadOfHardBlocking() throws {
         let s = try source()
-        XCTAssertTrue(s.contains("model.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))"))
-        XCTAssertTrue(s.contains(".onChange(of: player.currentTrack?.id)"))
-        XCTAssertTrue(s.contains(".onChange(of: appState.musicalInfoRevision)"))
-        XCTAssertTrue(s.contains("info.bpm != nil && info.camelotKey != nil"))
+        #expect(s.contains("model.setMatchingReferenceTrackID(trackID, enabled: isReadyForMatching(trackID))"))
+        #expect(s.contains(".onChange(of: player.currentTrack?.id)"))
+        #expect(s.contains(".onChange(of: appState.musicalInfoRevision)"))
+        #expect(s.contains("info.bpm != nil && info.camelotKey != nil"))
     }
 
-    func testLeavingSoundModeClearsThePillSelection() throws {
+    @Test func testLeavingSoundModeClearsThePillSelection() throws {
         let s = try source()
-        let guardRange = try XCTUnwrap(s.range(of: "guard mode == .sound else {"))
+        let guardRange = try #require(s.range(of: "guard mode == .sound else {"))
         let tail = String(s[guardRange.upperBound...].prefix(200))
-        XCTAssertTrue(tail.contains("selectedMoodPillIDs = []"))
+        #expect(tail.contains("selectedMoodPillIDs = []"))
     }
 }
 #endif

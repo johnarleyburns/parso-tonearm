@@ -1,10 +1,10 @@
 import Foundation
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class DuplicateDetectionTests: XCTestCase {
-    func testIdenticalFilesAreGroupedBySizeAndSampleHash() {
+@Suite struct DuplicateDetectionTests {
+    @Test func testIdenticalFilesAreGroupedBySizeAndSampleHash() {
         let payload = bytes(count: 300_000, salt: 7)
         let candidates = [
             DuplicateDetection.Candidate(id: "a.flac", bytes: payload),
@@ -14,27 +14,27 @@ final class DuplicateDetectionTests: XCTestCase {
 
         let groups = DuplicateDetection.groups(from: candidates)
 
-        XCTAssertEqual(groups.count, 1)
-        XCTAssertEqual(groups[0].ids, ["a.flac", "b.flac"])
-        XCTAssertEqual(groups[0].fingerprint.sizeBytes, 300_000)
-        XCTAssertEqual(groups[0].fingerprint.sampleHash.count, 64)
+        #expect(groups.count == 1)
+        #expect(groups[0].ids == ["a.flac", "b.flac"])
+        #expect(groups[0].fingerprint.sizeBytes == 300_000)
+        #expect(groups[0].fingerprint.sampleHash.count == 64)
     }
 
-    func testSameSizeDifferentContentDoesNotGroup() {
+    @Test func testSameSizeDifferentContentDoesNotGroup() {
         let candidates = [
             DuplicateDetection.Candidate(id: "left", bytes: bytes(count: 400_000, salt: 1)),
             DuplicateDetection.Candidate(id: "right", bytes: bytes(count: 400_000, salt: 2)),
         ]
 
-        XCTAssertEqual(DuplicateDetection.groups(from: candidates), [])
+        #expect(DuplicateDetection.groups(from: candidates) == [])
     }
 
-    func testFilesSmallerThanTwoWindowsAreCoveredByOverlappingSample() {
+    @Test func testFilesSmallerThanTwoWindowsAreCoveredByOverlappingSample() {
         let base = bytes(count: 180_000, salt: 3)
         var changed = base
         changed[100_000] ^= 0xff
 
-        XCTAssertEqual(DuplicateDetection.sample(bytes: base).count, 256 * 1_024)
+        #expect(DuplicateDetection.sample(bytes: base).count == 256 * 1_024)
 
         let groups = DuplicateDetection.groups(from: [
             DuplicateDetection.Candidate(id: "original", bytes: base),
@@ -42,10 +42,10 @@ final class DuplicateDetectionTests: XCTestCase {
             DuplicateDetection.Candidate(id: "mutated", bytes: changed),
         ])
 
-        XCTAssertEqual(groups.map(\.ids), [["original", "copy"]])
+        #expect(groups.map(\.ids) == [["original", "copy"]])
     }
 
-    func testVerySmallAndEmptyFilesUseDeterministicFingerprints() {
+    @Test func testVerySmallAndEmptyFilesUseDeterministicFingerprints() {
         let smallA = DuplicateDetection.Candidate(id: "small-a", bytes: [1, 2, 3])
         let smallB = DuplicateDetection.Candidate(id: "small-b", bytes: [1, 2, 3])
         let smallC = DuplicateDetection.Candidate(id: "small-c", bytes: [1, 2, 4])
@@ -54,16 +54,16 @@ final class DuplicateDetectionTests: XCTestCase {
 
         let groups = DuplicateDetection.groups(from: [smallA, smallB, smallC, emptyA, emptyB])
 
-        XCTAssertEqual(groups.map(\.ids), [
+        #expect(groups.map(\.ids) == [
             ["small-a", "small-b"],
             ["empty-a", "empty-b"],
         ])
-        XCTAssertEqual(emptyA.fingerprint.sizeBytes, 0)
-        XCTAssertEqual(emptyA.fingerprint.sampleHash, emptyB.fingerprint.sampleHash)
-        XCTAssertNotEqual(smallA.fingerprint.sampleHash, smallC.fingerprint.sampleHash)
+        #expect(emptyA.fingerprint.sizeBytes == 0)
+        #expect(emptyA.fingerprint.sampleHash == emptyB.fingerprint.sampleHash)
+        #expect(smallA.fingerprint.sampleHash != smallC.fingerprint.sampleHash)
     }
 
-    func testCallerCanProvidePrecomputedWindowHashesWithoutFileIO() {
+    @Test func testCallerCanProvidePrecomputedWindowHashesWithoutFileIO() {
         let first = Data(bytes(count: DuplicateDetection.sampleByteCount, salt: 11))
         let last = Data(bytes(count: DuplicateDetection.sampleByteCount, salt: 12))
         let fingerprint = DuplicateDetection.fingerprint(
@@ -78,10 +78,10 @@ final class DuplicateDetectionTests: XCTestCase {
             DuplicateDetection.Candidate(id: "near-match", sizeBytes: fingerprint.sizeBytes + 1, sampleHash: fingerprint.sampleHash),
         ])
 
-        XCTAssertEqual(groups.map(\.ids), [["remote-a", "remote-b"]])
+        #expect(groups.map(\.ids) == [["remote-a", "remote-b"]])
     }
 
-    func testFiveThousandFileLibraryGroupsStably() {
+    @Test func testFiveThousandFileLibraryGroupsStably() {
         var candidates: [DuplicateDetection.Candidate] = []
         candidates.reserveCapacity(5_000)
 
@@ -104,12 +104,12 @@ final class DuplicateDetectionTests: XCTestCase {
         let groups = DuplicateDetection.groups(from: candidates)
         let elapsed = Date().timeIntervalSince(startedAt)
 
-        XCTAssertEqual(candidates.count, 5_000)
-        XCTAssertEqual(groups.map(\.ids), [
+        #expect(candidates.count == 5_000)
+        #expect(groups.map(\.ids) == [
             ["album-a-track-1", "album-a-track-2", "album-a-track-3"],
             ["album-b-track-1", "album-b-track-2"],
         ])
-        XCTAssertLessThan(elapsed, 0.5)
+        #expect(elapsed < 0.5)
     }
 
     private func bytes(count: Int, salt: UInt8) -> Data {

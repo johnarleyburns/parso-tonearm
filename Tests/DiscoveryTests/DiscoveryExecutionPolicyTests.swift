@@ -1,7 +1,8 @@
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmDiscovery
 
-final class DiscoveryExecutionPolicyTests: XCTestCase {
+@Suite struct DiscoveryExecutionPolicyTests {
     private func snapshot(
         thermalState: DiscoveryThermalState = .nominal,
         continuousFairOrWorseSeconds: TimeInterval = 0,
@@ -15,62 +16,62 @@ final class DiscoveryExecutionPolicyTests: XCTestCase {
             recentThermalDowngradeCount: recentThermalDowngradeCount)
     }
 
-    func testPrefersGPUWhenNominalAndIdle() {
-        XCTAssertEqual(DiscoveryExecutionPolicy.decide(snapshot()), .gpuPreferred)
+    @Test func testPrefersGPUWhenNominalAndIdle() {
+        #expect(DiscoveryExecutionPolicy.decide(snapshot()) == .gpuPreferred)
     }
 
-    func testPlaybackActiveForcesCPUEvenWhenNominal() {
+    @Test func testPlaybackActiveForcesCPUEvenWhenNominal() {
         let decision = DiscoveryExecutionPolicy.decide(snapshot(isPlaybackActive: true))
-        XCTAssertEqual(decision, .cpuOnly(reason: .playbackActive))
+        #expect(decision == .cpuOnly(reason: .playbackActive))
     }
 
-    func testPlaybackTakesPriorityOverThermalReason() {
+    @Test func testPlaybackTakesPriorityOverThermalReason() {
         let decision = DiscoveryExecutionPolicy.decide(
             snapshot(thermalState: .critical, isPlaybackActive: true))
-        XCTAssertEqual(decision, .cpuOnly(reason: .playbackActive))
+        #expect(decision == .cpuOnly(reason: .playbackActive))
     }
 
-    func testSeriousOrCriticalAlwaysForcesCPU() {
-        XCTAssertEqual(
-            DiscoveryExecutionPolicy.decide(snapshot(thermalState: .serious)),
-            .cpuOnly(reason: .thermalSeriousOrCritical))
-        XCTAssertEqual(
-            DiscoveryExecutionPolicy.decide(snapshot(thermalState: .critical)),
-            .cpuOnly(reason: .thermalSeriousOrCritical))
+    @Test func testSeriousOrCriticalAlwaysForcesCPU() {
+        #expect(
+            DiscoveryExecutionPolicy.decide(snapshot(thermalState: .serious))
+                == .cpuOnly(reason: .thermalSeriousOrCritical))
+        #expect(
+            DiscoveryExecutionPolicy.decide(snapshot(thermalState: .critical))
+                == .cpuOnly(reason: .thermalSeriousOrCritical))
     }
 
     /// The core fix: a single momentary `.fair` reading must NOT immediately
     /// fall back to CPU — only a sustained one should. This is what breaks
     /// the old self-triggered debounce loop.
-    func testMomentaryFairDoesNotFallBackToCPU() {
+    @Test func testMomentaryFairDoesNotFallBackToCPU() {
         let decision = DiscoveryExecutionPolicy.decide(
             snapshot(thermalState: .fair, continuousFairOrWorseSeconds: 1))
-        XCTAssertEqual(decision, .gpuPreferred)
+        #expect(decision == .gpuPreferred)
     }
 
-    func testSustainedFairFallsBackToCPU() {
+    @Test func testSustainedFairFallsBackToCPU() {
         let justBelow = DiscoveryExecutionPolicy.decide(snapshot(
             thermalState: .fair,
             continuousFairOrWorseSeconds: DiscoveryExecutionPolicy.fairSustainedThresholdSeconds - 1))
-        XCTAssertEqual(justBelow, .gpuPreferred)
+        #expect(justBelow == .gpuPreferred)
 
         let atThreshold = DiscoveryExecutionPolicy.decide(snapshot(
             thermalState: .fair,
             continuousFairOrWorseSeconds: DiscoveryExecutionPolicy.fairSustainedThresholdSeconds))
-        XCTAssertEqual(atThreshold, .cpuOnly(reason: .thermalSustainedFair))
+        #expect(atThreshold == .cpuOnly(reason: .thermalSustainedFair))
     }
 
-    func testRepeatedOscillationTripsCircuitBreakerEvenWhenCurrentlyNominal() {
+    @Test func testRepeatedOscillationTripsCircuitBreakerEvenWhenCurrentlyNominal() {
         let decision = DiscoveryExecutionPolicy.decide(snapshot(
             thermalState: .nominal,
             recentThermalDowngradeCount: DiscoveryExecutionPolicy.oscillationLimit))
-        XCTAssertEqual(decision, .cpuOnly(reason: .recentOscillation))
+        #expect(decision == .cpuOnly(reason: .recentOscillation))
     }
 
-    func testBelowOscillationLimitStillPrefersGPU() {
+    @Test func testBelowOscillationLimitStillPrefersGPU() {
         let decision = DiscoveryExecutionPolicy.decide(snapshot(
             thermalState: .nominal,
             recentThermalDowngradeCount: DiscoveryExecutionPolicy.oscillationLimit - 1))
-        XCTAssertEqual(decision, .gpuPreferred)
+        #expect(decision == .gpuPreferred)
     }
 }

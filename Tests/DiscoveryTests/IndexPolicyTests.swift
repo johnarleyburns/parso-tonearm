@@ -1,11 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmDiscovery
 
 /// Deterministic policy-gate fixtures (IMPLEMENT_CLAP_PLAN.md §6/§11 C05):
 /// every case is pure input -> decision, no clock/device access, matching
 /// "Do not require iOS to grant a real task to pass deterministic tests."
-final class IndexPolicyTests: XCTestCase {
+@Suite struct IndexPolicyTests {
     private func snapshot(
         appState: DiscoveryAppRunState = .foreground,
         thermalState: DiscoveryThermalState = .nominal,
@@ -41,27 +42,27 @@ final class IndexPolicyTests: XCTestCase {
             isOnWiFi: isOnWiFi)
     }
 
-    func testNominalForegroundProceedsWithTwoSecondDelay() {
+    @Test func testNominalForegroundProceedsWithTwoSecondDelay() {
         let decision = IndexPolicy.decide(snapshot())
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testUserPauseAlwaysWins() {
+    @Test func testUserPauseAlwaysWins() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .critical, isUserPaused: true))
-        XCTAssertEqual(decision, .blocked(reason: .userPaused))
+        #expect(decision == .blocked(reason: .userPaused))
     }
 
-    func testThermalCriticalIsNeverOverridable() {
+    @Test func testThermalCriticalIsNeverOverridable() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .critical, isUserSelectedTrackRequest: true))
-        XCTAssertEqual(decision, .blocked(reason: .thermalCritical))
+        #expect(decision == .blocked(reason: .thermalCritical))
     }
 
-    func testThermalSeriousIsNeverOverridable() {
+    @Test func testThermalSeriousIsNeverOverridable() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .serious, isUserSelectedTrackRequest: true))
-        XCTAssertEqual(decision, .blocked(reason: .thermalSerious))
+        #expect(decision == .blocked(reason: .thermalSerious))
     }
 
     /// `.fair` no longer halts the scheduler at all (see
@@ -70,144 +71,144 @@ final class IndexPolicyTests: XCTestCase {
     /// reading, so there is no reason to stop it too. `.fair`'s reaction
     /// is now purely a compute-engine choice, decided separately by
     /// `DiscoveryExecutionPolicy.decide(_:)`.
-    func testThermalFairDoesNotBlockScheduling() {
+    @Test func testThermalFairDoesNotBlockScheduling() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .fair, isUserSelectedTrackRequest: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testThermalFairInBackgroundStillProceedsWhileCharging() {
+    @Test func testThermalFairInBackgroundStillProceedsWhileCharging() {
         let decision = IndexPolicy.decide(
             snapshot(appState: .background, thermalState: .fair, isCharging: true,
                      hasBackgroundProcessingGrant: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 0))
+        #expect(decision == .proceed(interWindowDelaySeconds: 0))
     }
 
-    func testMemoryWarningBlocks() {
+    @Test func testMemoryWarningBlocks() {
         let decision = IndexPolicy.decide(snapshot(hasMemoryWarning: true))
-        XCTAssertEqual(decision, .blocked(reason: .memoryWarning))
+        #expect(decision == .blocked(reason: .memoryWarning))
     }
 
     /// Real user feedback: listening while the library builds its sound index is a main use
     /// case — automatic indexing must keep running during playback, not pause for it (see
     /// `IndexPolicy.decide`'s `.foreground` case doc for the full reasoning/history).
-    func testPlaybackActiveDoesNotBlockAutomaticIndexing() {
+    @Test func testPlaybackActiveDoesNotBlockAutomaticIndexing() {
         let decision = IndexPolicy.decide(snapshot(isPlaybackActive: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testLowPowerModeUnpluggedBlocksAutomaticButSelectedTrackOverrides() {
+    @Test func testLowPowerModeUnpluggedBlocksAutomaticButSelectedTrackOverrides() {
         let blocked = IndexPolicy.decide(
             snapshot(isCharging: false, isLowPowerModeEnabled: true))
-        XCTAssertEqual(blocked, .blocked(reason: .lowBatteryOrLowPowerMode))
+        #expect(blocked == .blocked(reason: .lowBatteryOrLowPowerMode))
 
         let overridden = IndexPolicy.decide(
             snapshot(
                 isCharging: false, isLowPowerModeEnabled: true,
                 isUserSelectedTrackRequest: true))
-        XCTAssertEqual(overridden, .proceed(interWindowDelaySeconds: 2))
+        #expect(overridden == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testLowBatteryUnderThresholdUnpluggedBlocks() {
+    @Test func testLowBatteryUnderThresholdUnpluggedBlocks() {
         let decision = IndexPolicy.decide(
             snapshot(batteryLevel: 0.29, isCharging: false))
-        XCTAssertEqual(decision, .blocked(reason: .lowBatteryOrLowPowerMode))
+        #expect(decision == .blocked(reason: .lowBatteryOrLowPowerMode))
     }
 
-    func testUnknownBatteryUnpluggedIsTreatedAsLow() {
+    @Test func testUnknownBatteryUnpluggedIsTreatedAsLow() {
         let decision = IndexPolicy.decide(snapshot(batteryLevel: nil, isCharging: false))
-        XCTAssertEqual(decision, .blocked(reason: .lowBatteryOrLowPowerMode))
+        #expect(decision == .blocked(reason: .lowBatteryOrLowPowerMode))
     }
 
-    func testLowBatteryWhileChargingProceeds() {
+    @Test func testLowBatteryWhileChargingProceeds() {
         let decision = IndexPolicy.decide(snapshot(batteryLevel: 0.1, isCharging: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testChargingOnlySettingBlocksWhenUnplugged() {
+    @Test func testChargingOnlySettingBlocksWhenUnplugged() {
         let decision = IndexPolicy.decide(
             snapshot(isCharging: false, chargingOnlySetting: true))
-        XCTAssertEqual(decision, .blocked(reason: .chargingOnlyRequired))
+        #expect(decision == .blocked(reason: .chargingOnlyRequired))
     }
 
-    func testChargingOnlySettingProceedsWhenCharging() {
+    @Test func testChargingOnlySettingProceedsWhenCharging() {
         let decision = IndexPolicy.decide(
             snapshot(isCharging: true, chargingOnlySetting: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testRemoteSparseJobBlocksOffWiFiWhenWiFiOnlySettingIsOn() {
+    @Test func testRemoteSparseJobBlocksOffWiFiWhenWiFiOnlySettingIsOn() {
         let decision = IndexPolicy.decide(
             snapshot(
                 isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: true,
                 isOnWiFi: false))
-        XCTAssertEqual(decision, .blocked(reason: .remoteSamplingRequiresWiFi))
+        #expect(decision == .blocked(reason: .remoteSamplingRequiresWiFi))
     }
 
-    func testRemoteSparseJobProceedsOnWiFi() {
+    @Test func testRemoteSparseJobProceedsOnWiFi() {
         let decision = IndexPolicy.decide(
             snapshot(
                 isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: true,
                 isOnWiFi: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testRemoteSparseJobProceedsOffWiFiWhenWiFiOnlySettingIsOff() {
+    @Test func testRemoteSparseJobProceedsOffWiFiWhenWiFiOnlySettingIsOff() {
         let decision = IndexPolicy.decide(
             snapshot(
                 isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: false,
                 isOnWiFi: false))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testLocalJobNeverBlockedByWiFiGateRegardlessOfNetwork() {
+    @Test func testLocalJobNeverBlockedByWiFiGateRegardlessOfNetwork() {
         let decision = IndexPolicy.decide(
             snapshot(
                 isCurrentJobRemoteSparse: false, remoteIndexingWiFiOnlySetting: true,
                 isOnWiFi: false))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed(interWindowDelaySeconds: 2))
     }
 
-    func testBackgroundWithoutGrantBlocks() {
+    @Test func testBackgroundWithoutGrantBlocks() {
         let decision = IndexPolicy.decide(
             snapshot(
                 appState: .background, isCharging: true,
                 hasBackgroundProcessingGrant: false))
-        XCTAssertEqual(decision, .blocked(reason: .backgroundGrantMissing))
+        #expect(decision == .blocked(reason: .backgroundGrantMissing))
     }
 
-    func testBackgroundRequiresChargingRegardlessOfChargingOnlySetting() {
+    @Test func testBackgroundRequiresChargingRegardlessOfChargingOnlySetting() {
         let decision = IndexPolicy.decide(
             snapshot(
                 appState: .background, isCharging: false,
                 hasBackgroundProcessingGrant: true))
-        XCTAssertEqual(decision, .blocked(reason: .chargingOnlyRequired))
+        #expect(decision == .blocked(reason: .chargingOnlyRequired))
     }
 
-    func testBackgroundGrantedAndChargingProceedsWithZeroInterWindowDelay() {
+    @Test func testBackgroundGrantedAndChargingProceedsWithZeroInterWindowDelay() {
         let decision = IndexPolicy.decide(
             snapshot(
                 appState: .background, isCharging: true,
                 hasBackgroundProcessingGrant: true))
-        XCTAssertEqual(decision, .proceed(interWindowDelaySeconds: 0))
+        #expect(decision == .proceed(interWindowDelaySeconds: 0))
     }
 
     // MARK: - ThermalDiagnostic
 
-    func testThermalDiagnosticCountsDownWhileNominal() {
+    @Test func testThermalDiagnosticCountsDownWhileNominal() {
         let d = ThermalDiagnostic(state: .nominal, continuousNominalSeconds: 37)
-        XCTAssertEqual(d.secondsUntilRecovered, 23, accuracy: 0.001)
+        #expect(abs(d.secondsUntilRecovered - 23) <= 0.001)
     }
 
-    func testThermalDiagnosticClampsAtZeroOnceRecovered() {
+    @Test func testThermalDiagnosticClampsAtZeroOnceRecovered() {
         let d = ThermalDiagnostic(state: .nominal, continuousNominalSeconds: 90)
-        XCTAssertEqual(d.secondsUntilRecovered, 0)
+        #expect(d.secondsUntilRecovered == 0)
     }
 
     /// A currently non-nominal state has nothing to "count down" — the full window is still
     /// required from the moment it returns to `.nominal`.
-    func testThermalDiagnosticReportsFullWindowWhileNotNominal() {
+    @Test func testThermalDiagnosticReportsFullWindowWhileNotNominal() {
         let d = ThermalDiagnostic(state: .fair, continuousNominalSeconds: 0)
-        XCTAssertEqual(d.secondsUntilRecovered, IndexPolicy.thermalFairRecoverySeconds)
+        #expect(d.secondsUntilRecovered == IndexPolicy.thermalFairRecoverySeconds)
     }
 }

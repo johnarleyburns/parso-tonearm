@@ -1,49 +1,50 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class CredentialStoreTests: XCTestCase {
+@Suite struct CredentialStoreTests {
 
-    func testRoundTrip() throws {
+    @Test func testRoundTrip() throws {
         let store = makeStore()
         let account = "round-trip"
-        let data = try XCTUnwrap("secret".data(using: .utf8))
+        let data = try #require("secret".data(using: .utf8))
 
         try store.save(data, account: account)
 
-        XCTAssertEqual(try store.read(account: account), data)
+        #expect(try store.read(account: account) == data)
         try store.delete(account: account)
     }
 
-    func testOverwrite() throws {
+    @Test func testOverwrite() throws {
         let store = makeStore()
         let account = "overwrite"
-        let first = try XCTUnwrap("first".data(using: .utf8))
-        let second = try XCTUnwrap("second".data(using: .utf8))
+        let first = try #require("first".data(using: .utf8))
+        let second = try #require("second".data(using: .utf8))
 
         try store.save(first, account: account)
         try store.save(second, account: account)
 
-        XCTAssertEqual(try store.read(account: account), second)
+        #expect(try store.read(account: account) == second)
         try store.delete(account: account)
     }
 
-    func testDelete() throws {
+    @Test func testDelete() throws {
         let store = makeStore()
         let account = "delete"
-        let data = try XCTUnwrap("secret".data(using: .utf8))
+        let data = try #require("secret".data(using: .utf8))
 
         try store.save(data, account: account)
         try store.delete(account: account)
 
-        XCTAssertNil(try store.read(account: account))
+        #expect(try store.read(account: account) == nil)
     }
 
-    func testMissingCredentialReturnsNil() throws {
+    @Test func testMissingCredentialReturnsNil() throws {
         let store = makeStore()
 
-        XCTAssertNil(try store.read(account: "missing"))
-        XCTAssertNoThrow(try store.delete(account: "missing"))
+        #expect(try store.read(account: "missing") == nil)
+        #expect(throws: Never.self) { try store.delete(account: "missing") }
     }
 
     private func makeStore() -> CredentialStore {

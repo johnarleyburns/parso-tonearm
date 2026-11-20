@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 
 /// Source contract: each root tab owns exactly one NavigationStack, with a
 /// native large title, and the Now Playing destination lives inside it.
-final class RootTabNavigationContractTests: XCTestCase {
+@Suite struct RootTabNavigationContractTests {
     private func source(_ path: String) throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
@@ -13,91 +13,91 @@ final class RootTabNavigationContractTests: XCTestCase {
         text.components(separatedBy: needle).count - 1
     }
 
-    func testRootViewHasNoGlobalStackAroundTabView() throws {
+    @Test func testRootViewHasNoGlobalStackAroundTabView() throws {
         let root = try source("Sources/Features/RootView.swift")
-        let rootTabs = try XCTUnwrap(root.range(of: "private var rootTabs"))
+        let rootTabs = try #require(root.range(of: "private var rootTabs"))
         let body = String(root[..<rootTabs.lowerBound])
-        XCTAssertFalse(body.contains("NavigationStack"), "RootView body must not wrap rootTabs in a NavigationStack")
-        XCTAssertFalse(body.contains("navigationDestination"))
-        let tabs = try XCTUnwrap(root.range(of: "TabView(selection"))
+        #expect(!body.contains("NavigationStack"), "RootView body must not wrap rootTabs in a NavigationStack")
+        #expect(!body.contains("navigationDestination"))
+        let tabs = try #require(root.range(of: "TabView(selection"))
         let beforeTabView = root[..<tabs.lowerBound].suffix(80)
-        XCTAssertFalse(beforeTabView.contains("NavigationStack {"))
+        #expect(!beforeTabView.contains("NavigationStack {"))
     }
 
-    func testListenIsHostedByALocalStack() throws {
+    @Test func testListenIsHostedByALocalStack() throws {
         let root = try source("Sources/Features/RootView.swift")
-        XCTAssertEqual(count("NavigationStack {", in: root), 1)
+        #expect(count("NavigationStack {", in: root) == 1)
         let squashed = root.components(separatedBy: .whitespacesAndNewlines).joined()
-        XCTAssertTrue(squashed.contains("NavigationStack{ListenView().rootTabChrome(.listen)}"))
-        XCTAssertFalse(root.contains("NavigationStack {\n                MyMusicView"))
+        #expect(squashed.contains("NavigationStack{ListenView().rootTabChrome(.listen)}"))
+        #expect(!root.contains("NavigationStack {\n                MyMusicView"))
     }
 
-    func testMyMusicAndFindOwnExactlyOneStackEach() throws {
+    @Test func testMyMusicAndFindOwnExactlyOneStackEach() throws {
         let myMusic = try source("Sources/Features/MyMusic/MyMusicView.swift")
         let find = try source("Sources/Features/Find/FindView.swift")
-        XCTAssertEqual(count("\n        NavigationStack", in: myMusic), 1)
-        XCTAssertEqual(count("\n        NavigationStack", in: find), 1)
-        XCTAssertTrue(myMusic.contains("NavigationStack(path: $navigationPath)"))
-        XCTAssertTrue(myMusic.contains(".rootTabChrome(.myMusic)"))
-        XCTAssertTrue(find.contains(".rootTabChrome(.find)"))
+        #expect(count("\n        NavigationStack", in: myMusic) == 1)
+        #expect(count("\n        NavigationStack", in: find) == 1)
+        #expect(myMusic.contains("NavigationStack(path: $navigationPath)"))
+        #expect(myMusic.contains(".rootTabChrome(.myMusic)"))
+        #expect(find.contains(".rootTabChrome(.find)"))
     }
 
-    func testRootViewsDeclareNativeLargeTitles() throws {
+    @Test func testRootViewsDeclareNativeLargeTitles() throws {
         let listen = try source("Sources/Features/Listen/ListenView.swift")
         let myMusic = try source("Sources/Features/MyMusic/MyMusicView.swift")
         let find = try source("Sources/Features/Find/FindView.swift")
         for (text, title) in [(listen, "Listen"), (myMusic, "My Music"), (find, "Find")] {
             let squashed = text.components(separatedBy: .whitespacesAndNewlines).joined()
             let key = ".navigationTitle(\"\(title)\").largeNavigationTitle()".replacingOccurrences(of: " ", with: "")
-            XCTAssertTrue(squashed.contains(key), "\(title) needs navigationTitle + large display mode")
+            #expect(squashed.contains(key), "\(title) needs navigationTitle + large display mode")
         }
-        XCTAssertFalse(listen.contains("nativeLargeTitle"), "no divergent large-title helper")
+        #expect(!listen.contains("nativeLargeTitle"), "no divergent large-title helper")
         let compat = try source("Sources/DesignSystem/PlatformCompat.swift")
-        XCTAssertTrue(compat.contains("navigationBarTitleDisplayMode(.large)"))
+        #expect(compat.contains("navigationBarTitleDisplayMode(.large)"))
     }
 
-    func testRootPathsNeverHideNavigationBar() throws {
+    @Test func testRootPathsNeverHideNavigationBar() throws {
         for path in ["Sources/Features/RootView.swift", "Sources/Features/RootTabChrome.swift",
                      "Sources/Features/Listen/ListenView.swift", "Sources/Features/MyMusic/MyMusicView.swift",
                      "Sources/Features/Find/FindView.swift"] {
             let text = try source(path)
             // Find may hide its bar only conditionally (while the search field is focused).
             if path.hasSuffix("Find/FindView.swift") {
-                XCTAssertFalse(text.contains(".hiddenNavigationBar()"), path)
-                XCTAssertTrue(text.contains(".hiddenNavigationBar(when: queryFocused"), path)
+                #expect(!text.contains(".hiddenNavigationBar()"), "\(path)")
+                #expect(text.contains(".hiddenNavigationBar(when: queryFocused"), "\(path)")
             } else {
-                XCTAssertFalse(text.contains("hiddenNavigationBar"), path)
+                #expect(!text.contains("hiddenNavigationBar"), "\(path)")
             }
-            XCTAssertFalse(text.contains(".navigationBarHidden"), path)
-            XCTAssertFalse(text.contains(".toolbar(.hidden, for: .navigationBar)"), path)
-            XCTAssertFalse(text.contains("ScreenHeader"), path)
+            #expect(!text.contains(".navigationBarHidden"), "\(path)")
+            #expect(!text.contains(".toolbar(.hidden, for: .navigationBar)"), "\(path)")
+            #expect(!text.contains("ScreenHeader"), "\(path)")
         }
     }
 
-    func testSharedNowPlayingDestinationKeepsZoomAndIsTabScoped() throws {
+    @Test func testSharedNowPlayingDestinationKeepsZoomAndIsTabScoped() throws {
         let chrome = try source("Sources/Features/RootTabChrome.swift")
         // item:, not isPresented: — the same boolean-driven-presentation fragility
         // SettingsView.swift already diagnosed and fixed once for a sheet.
-        XCTAssertTrue(chrome.contains(".navigationDestination(item: nowPlayingItem)"))
+        #expect(chrome.contains(".navigationDestination(item: nowPlayingItem)"))
         // Tabs with an explicit NavigationPath (Libraries) push Now Playing onto that same path,
         // so "<" pops one entry instead of collapsing the stack to the tab root.
-        XCTAssertTrue(chrome.contains(".navigationDestination(for: NowPlayingRoute.self)"))
-        XCTAssertTrue(chrome.contains("path.wrappedValue.append(NowPlayingRoute())"))
+        #expect(chrome.contains(".navigationDestination(for: NowPlayingRoute.self)"))
+        #expect(chrome.contains("path.wrappedValue.append(NowPlayingRoute())"))
         let sources = try source("Sources/Features/Sources/SourcesView.swift")
-        XCTAssertTrue(sources.contains(".rootTabChrome(.libraries, path: ownsNavigationStack ? $navigationPath : nil)"))
-        XCTAssertTrue(chrome.contains(".navigationTransition(.zoom(sourceID: \"now-playing\""))
-        XCTAssertTrue(chrome.contains("appState.showNowPlaying && appState.tab == tab"))
-        XCTAssertTrue(chrome.contains(".safeAreaInset(edge: .bottom"))
+        #expect(sources.contains(".rootTabChrome(.libraries, path: ownsNavigationStack ? $navigationPath : nil)"))
+        #expect(chrome.contains(".navigationTransition(.zoom(sourceID: \"now-playing\""))
+        #expect(chrome.contains("appState.showNowPlaying && appState.tab == tab"))
+        #expect(chrome.contains(".safeAreaInset(edge: .bottom"))
         let root = try source("Sources/Features/RootView.swift")
-        XCTAssertEqual(count(".rootTabChrome(", in: root), 1)
-        XCTAssertTrue(root.contains("rootTabNowPlayingNamespace, nowPlayingTransition"))
+        #expect(count(".rootTabChrome(", in: root) == 1)
+        #expect(root.contains("rootTabNowPlayingNamespace, nowPlayingTransition"))
     }
 
-    func testRootContentUsesSixteenPointGutter() throws {
+    @Test func testRootContentUsesSixteenPointGutter() throws {
         let listen = try source("Sources/Features/Listen/ListenView.swift")
-        XCTAssertEqual(count(".padding(.horizontal, 18)", in: listen), 0)
-        XCTAssertGreaterThanOrEqual(count(".padding(.horizontal, 16)", in: listen), 1)
-        XCTAssertFalse(try source("Sources/Features/MyMusic/MyMusicView.swift").contains(".padding(.horizontal, 18)"))
-        XCTAssertFalse(try source("Sources/Features/Find/FindView.swift").contains(".padding(.horizontal, 18)"))
+        #expect(count(".padding(.horizontal, 18)", in: listen) == 0)
+        #expect(count(".padding(.horizontal, 16)", in: listen) >= 1)
+        #expect(!(try source("Sources/Features/MyMusic/MyMusicView.swift").contains(".padding(.horizontal, 18)")))
+        #expect(!(try source("Sources/Features/Find/FindView.swift").contains(".padding(.horizontal, 18)")))
     }
 }

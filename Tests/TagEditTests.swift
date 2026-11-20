@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class TagEditTests: XCTestCase {
-    func testSingleEditBuildsDiffAndUndoPlan() {
+@Suite struct TagEditTests {
+    @Test func testSingleEditBuildsDiffAndUndoPlan() {
         var proposal = TagEdit.Proposal()
         proposal.assignments[.title] = .text("  New Title  ")
         proposal.assignments[.genre] = .text("Soul")
@@ -15,9 +16,9 @@ final class TagEditTests: XCTestCase {
 
         let plan = TagEdit.makePlan(selection: [track], proposal: proposal)
 
-        XCTAssertTrue(plan.canApply)
-        XCTAssertEqual(plan.issues, [])
-        XCTAssertEqual(plan.operations, [
+        #expect(plan.canApply)
+        #expect(plan.issues == [])
+        #expect(plan.operations == [
             TagEdit.Operation(
                 trackID: 1,
                 localPath: "/Music/01 - Old Title.flac",
@@ -27,7 +28,7 @@ final class TagEditTests: XCTestCase {
                     TagEdit.Change(field: .composer, before: .text("Writer"), after: nil),
                 ])
         ])
-        XCTAssertEqual(plan.undoOperations, [
+        #expect(plan.undoOperations == [
             TagEdit.Operation(
                 trackID: 1,
                 localPath: "/Music/01 - Old Title.flac",
@@ -39,7 +40,7 @@ final class TagEditTests: XCTestCase {
         ])
     }
 
-    func testBulkEditsFindReplaceAndNumberFromFilename() {
+    @Test func testBulkEditsFindReplaceAndNumberFromFilename() {
         let tracks = [
             editableTrack(
                 id: 1,
@@ -60,16 +61,16 @@ final class TagEditTests: XCTestCase {
 
         let plan = TagEdit.makePlan(selection: tracks, proposal: proposal)
 
-        XCTAssertTrue(plan.canApply)
-        XCTAssertEqual(plan.issues, [])
-        XCTAssertEqual(plan.operations.map(\.trackID), [1, 2])
-        XCTAssertEqual(plan.operations[0].changes, [
+        #expect(plan.canApply)
+        #expect(plan.issues == [])
+        #expect(plan.operations.map(\.trackID) == [1, 2])
+        #expect(plan.operations[0].changes == [
             TagEdit.Change(field: .title, before: .text("Blue (Live)"), after: .text("Blue")),
             TagEdit.Change(field: .albumTitle, before: .text("Old Album"), after: .text("New Album")),
             TagEdit.Change(field: .albumArtist, before: nil, after: .text("Alpha")),
             TagEdit.Change(field: .trackNumber, before: nil, after: .integer(1)),
         ])
-        XCTAssertEqual(plan.operations[1].changes, [
+        #expect(plan.operations[1].changes == [
             TagEdit.Change(field: .title, before: .text("Red (Live)"), after: .text("Red")),
             TagEdit.Change(field: .albumTitle, before: .text("Old Album"), after: .text("New Album")),
             TagEdit.Change(field: .albumArtist, before: nil, after: .text("Alpha")),
@@ -77,7 +78,7 @@ final class TagEditTests: XCTestCase {
         ])
     }
 
-    func testConflictingValuesAcrossSelectionAreReportedAsMixed() {
+    @Test func testConflictingValuesAcrossSelectionAreReportedAsMixed() {
         let selection = [
             editableTrack(id: 1, tags: tags(title: "A", albumTitle: "First", genre: "Ambient")),
             editableTrack(id: 2, tags: tags(title: "B", albumTitle: "Second", genre: "Ambient")),
@@ -85,12 +86,12 @@ final class TagEditTests: XCTestCase {
 
         let summary = TagEdit.summary(for: selection)
 
-        XCTAssertEqual(summary.states[.albumTitle], .mixed)
-        XCTAssertEqual(summary.states[.genre], .value(.text("Ambient")))
-        XCTAssertEqual(summary.states[.composer], .empty)
+        #expect(summary.states[.albumTitle] == .mixed)
+        #expect(summary.states[.genre] == .value(.text("Ambient")))
+        #expect(summary.states[.composer] == .empty)
     }
 
-    func testReadOnlyTracksBlockBulkPlanAndExposeUserFacingReason() {
+    @Test func testReadOnlyTracksBlockBulkPlanAndExposeUserFacingReason() {
         let local = editableTrack(id: 1, tags: tags(title: "Local"))
         let remote = TagEdit.EditableTrack(
             id: 2,
@@ -102,19 +103,19 @@ final class TagEditTests: XCTestCase {
 
         let plan = TagEdit.makePlan(selection: [local, remote], proposal: proposal)
 
-        XCTAssertFalse(plan.canApply)
-        XCTAssertEqual(plan.operations, [])
-        XCTAssertEqual(plan.undoOperations, [])
-        XCTAssertEqual(plan.issues, [
+        #expect(!plan.canApply)
+        #expect(plan.operations == [])
+        #expect(plan.undoOperations == [])
+        #expect(plan.issues == [
             .readOnly(
                 trackID: 2,
                 reason: "Remote libraries are read-only. Copy the file onto this device to edit tags.")
         ])
-        XCTAssertEqual(plan.issues.first?.message,
+        #expect(plan.issues.first?.message ==
                        "Remote libraries are read-only. Copy the file onto this device to edit tags.")
     }
 
-    func testValidationRejectsBlankTitleInvalidNumbersAndBadReplaceRules() {
+    @Test func testValidationRejectsBlankTitleInvalidNumbersAndBadReplaceRules() {
         var proposal = TagEdit.Proposal()
         proposal.assignments[.title] = .text(" ")
         proposal.assignments[.trackNumber] = .integer(0)
@@ -127,9 +128,9 @@ final class TagEditTests: XCTestCase {
 
         let plan = TagEdit.makePlan(selection: [track], proposal: proposal)
 
-        XCTAssertFalse(plan.canApply)
-        XCTAssertEqual(plan.operations, [])
-        XCTAssertEqual(plan.issues, [
+        #expect(!plan.canApply)
+        #expect(plan.operations == [])
+        #expect(plan.issues == [
             .emptyFind(field: .artist),
             .nonTextFindReplace(field: .year),
             .blankTitle(trackID: 1),
@@ -138,7 +139,7 @@ final class TagEditTests: XCTestCase {
         ])
     }
 
-    func testNoOpDiffProducesEmptyPlan() {
+    @Test func testNoOpDiffProducesEmptyPlan() {
         var proposal = TagEdit.Proposal()
         proposal.assignments[.title] = .text("  Same  ")
         proposal.replacements = [
@@ -148,11 +149,11 @@ final class TagEditTests: XCTestCase {
 
         let plan = TagEdit.makePlan(selection: [track], proposal: proposal)
 
-        XCTAssertTrue(plan.isNoOp)
-        XCTAssertFalse(plan.canApply)
+        #expect(plan.isNoOp)
+        #expect(!plan.canApply)
     }
 
-    func testEditableTrackFromTrackRowAllowsOnlyLocalFileBackedAssets() {
+    @Test func testEditableTrackFromTrackRowAllowsOnlyLocalFileBackedAssets() {
         let localRow = row(id: 1, asset: Asset(
             id: 1,
             trackId: 1,
@@ -177,10 +178,10 @@ final class TagEditTests: XCTestCase {
         let local = TagEdit.editableTrack(from: localRow)
         let remote = TagEdit.editableTrack(from: remoteRow)
 
-        XCTAssertEqual(local.filename, "03 - Local.flac")
-        XCTAssertEqual(local.writeAccess, .localFile(path: "/Music/03 - Local.flac"))
-        XCTAssertEqual(remote.filename, "remote.flac")
-        XCTAssertEqual(remote.writeAccess, .readOnly(
+        #expect(local.filename == "03 - Local.flac")
+        #expect(local.writeAccess == .localFile(path: "/Music/03 - Local.flac"))
+        #expect(remote.filename == "remote.flac")
+        #expect(remote.writeAccess == .readOnly(
             reason: "Remote libraries are read-only. Copy the file onto this device to edit tags."))
     }
 

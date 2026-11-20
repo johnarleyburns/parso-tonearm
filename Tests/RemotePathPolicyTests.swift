@@ -1,36 +1,36 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class RemotePathPolicyTests: XCTestCase {
+@Suite struct RemotePathPolicyTests {
 
-    func testNormalizesRelativePath() throws {
+    @Test func testNormalizesRelativePath() throws {
         let path = try RemotePathPolicy.normalize("Music/Album/01%20Song.flac")
 
-        XCTAssertEqual(path.rawValue, "Music/Album/01 Song.flac")
-        XCTAssertEqual(path.segments, ["Music", "Album", "01 Song.flac"])
+        #expect(path.rawValue == "Music/Album/01 Song.flac")
+        #expect(path.segments == ["Music", "Album", "01 Song.flac"])
     }
 
-    func testRejectsTraversal() {
+    @Test func testRejectsTraversal() {
         assertRejects("Music/../Secrets/song.mp3", .traversal)
         assertRejects("%2e%2e/Secrets/song.mp3", .traversal)
     }
 
-    func testRejectsAbsolutePaths() {
+    @Test func testRejectsAbsolutePaths() {
         assertRejects("/Music/song.mp3", .absolutePath)
         assertRejects("\\Music\\song.mp3", .absolutePath)
     }
 
-    func testRejectsURLEncodedSeparators() {
+    @Test func testRejectsURLEncodedSeparators() {
         assertRejects("Music%2FSong.mp3", .encodedSeparator)
         assertRejects("Music%5CSong.mp3", .encodedSeparator)
     }
 
-    func testRejectsEmptySegments() {
+    @Test func testRejectsEmptySegments() {
         assertRejects("Music//Song.mp3", .emptySegment)
     }
 
-    func testFiltersNonAudioNodes() {
+    @Test func testFiltersNonAudioNodes() {
         let nodes = [
             RemoteNode(id: "root", title: "Root", path: "Music", kind: .directory),
             RemoteNode(id: "collection", title: "Collection", path: "Albums", kind: .collection),
@@ -40,36 +40,45 @@ final class RemotePathPolicyTests: XCTestCase {
             RemoteNode(id: "item", title: "Remote Item", path: "remote-item", kind: .item),
         ]
 
-        XCTAssertEqual(
-            RemotePathPolicy.audioNodes(from: nodes).map(\.id),
+        #expect(
+            RemotePathPolicy.audioNodes(from: nodes).map(\.id) ==
             ["root", "collection", "mp3", "flac"]
         )
-        XCTAssertThrowsError(try RemotePathPolicy.requireAudioFile(path: "cover.jpg")) { error in
-            XCTAssertEqual(error as? RemotePathPolicy.Rejection, .nonAudioExtension)
+        do {
+            _ = try RemotePathPolicy.requireAudioFile(path: "cover.jpg")
+            Issue.record("expected requireAudioFile(path: \"cover.jpg\") to throw")
+        } catch {
+            #expect(error as? RemotePathPolicy.Rejection == .nonAudioExtension)
         }
     }
 
-    func testEnforcesPageCap() throws {
+    @Test func testEnforcesPageCap() throws {
         let items = Array(0 ... CollectionResolver.memberCap)
         let page = RemotePathPolicy.cappedPage(items)
 
-        XCTAssertEqual(page.items.count, CollectionResolver.memberCap)
-        XCTAssertTrue(page.capHit)
-        XCTAssertThrowsError(try RemotePathPolicy.enforcePageCap(items)) { error in
-            XCTAssertEqual(
-                error as? RemotePathPolicy.Rejection,
+        #expect(page.items.count == CollectionResolver.memberCap)
+        #expect(page.capHit)
+        do {
+            _ = try RemotePathPolicy.enforcePageCap(items)
+            Issue.record("expected enforcePageCap(items) to throw")
+        } catch {
+            #expect(
+                error as? RemotePathPolicy.Rejection ==
                 .pageCapExceeded(limit: CollectionResolver.memberCap)
             )
         }
-        XCTAssertEqual(
-            try RemotePathPolicy.enforcePageCap(Array(items.prefix(CollectionResolver.memberCap))),
+        #expect(
+            try RemotePathPolicy.enforcePageCap(Array(items.prefix(CollectionResolver.memberCap))) ==
             Array(items.prefix(CollectionResolver.memberCap))
         )
     }
 
     private func assertRejects(_ rawPath: String, _ expected: RemotePathPolicy.Rejection) {
-        XCTAssertThrowsError(try RemotePathPolicy.normalize(rawPath)) { error in
-            XCTAssertEqual(error as? RemotePathPolicy.Rejection, expected)
+        do {
+            _ = try RemotePathPolicy.normalize(rawPath)
+            Issue.record("expected normalize(\"\(rawPath)\") to throw")
+        } catch {
+            #expect(error as? RemotePathPolicy.Rejection == expected)
         }
     }
 }

@@ -1,10 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class OAuthTokenClientTests: XCTestCase {
+@Suite struct OAuthTokenClientTests {
 
-    func testTokenIsExpiredWhenBeyondExpiry() {
+    @Test func testTokenIsExpiredWhenBeyondExpiry() {
         let token = OAuthToken(
             provider: .dropbox,
             accessToken: "at",
@@ -15,10 +16,10 @@ final class OAuthTokenClientTests: XCTestCase {
             tokenEndpoint: URL(string: "https://example.com/token")!,
             apiEnvironment: .production(provider: .dropbox)
         )
-        XCTAssertTrue(token.isExpired)
+        #expect(token.isExpired)
     }
 
-    func testTokenIsNotExpiredWithFutureExpiry() {
+    @Test func testTokenIsNotExpiredWithFutureExpiry() {
         let future = Date().addingTimeInterval(3_600)
         let token = OAuthToken(
             provider: .googleDrive,
@@ -30,10 +31,10 @@ final class OAuthTokenClientTests: XCTestCase {
             tokenEndpoint: URL(string: "https://example.com/token")!,
             apiEnvironment: .production(provider: .googleDrive)
         )
-        XCTAssertFalse(token.isExpired)
+        #expect(!token.isExpired)
     }
 
-    func testTokenIsNotExpiredWithoutExpiryPCloud() {
+    @Test func testTokenIsNotExpiredWithoutExpiryPCloud() {
         let token = OAuthToken(
             provider: .pCloud,
             accessToken: "at",
@@ -44,14 +45,14 @@ final class OAuthTokenClientTests: XCTestCase {
             tokenEndpoint: URL(string: "https://api.pcloud.com/oauth2_token")!,
             apiEnvironment: .production(provider: .pCloud)
         )
-        XCTAssertFalse(token.isExpired)
+        #expect(!token.isExpired)
     }
 
-    func testRefreshErrorDescriptionIsUserFacing() {
-        XCTAssertEqual(OAuthError.refreshRequired.errorDescription, "Reconnect this library to continue.")
+    @Test func testRefreshErrorDescriptionIsUserFacing() {
+        #expect(OAuthError.refreshRequired.errorDescription == "Reconnect this library to continue.")
     }
 
-    func testOAuthTokenSerializationRoundTrips() throws {
+    @Test func testOAuthTokenSerializationRoundTrips() throws {
         let token = OAuthToken(
             provider: .oneDrive,
             accessToken: "at",
@@ -67,10 +68,10 @@ final class OAuthTokenClientTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(token)
         let restored = try JSONDecoder().decode(OAuthToken.self, from: data)
-        XCTAssertEqual(restored, token)
+        #expect(restored == token)
     }
 
-    func testAccessProviderRefreshesExpiredTokenAndSavesToStore() async throws {
+    @Test func testAccessProviderRefreshesExpiredTokenAndSavesToStore() async throws {
         let credentialStore = CredentialStore(service: "guru.parso.tonearm.oauth.tests.\(UUID().uuidString)")
         let store = OAuthTokenStore(credentialStore: credentialStore)
         let sourceID: Int64 = 99
@@ -102,14 +103,14 @@ final class OAuthTokenClientTests: XCTestCase {
             tokenClient: client
         )
         let access = try await accessProvider.access()
-        XCTAssertEqual(access.accessToken, "fresh-access")
+        #expect(access.accessToken == "fresh-access")
 
-        let saved = try XCTUnwrap(try store.read(provider: .dropbox, sourceID: sourceID))
-        XCTAssertEqual(saved.accessToken, "fresh-access")
-        XCTAssertEqual(saved.refreshToken, "fresh-refresh")
+        let saved = try #require(try store.read(provider: .dropbox, sourceID: sourceID))
+        #expect(saved.accessToken == "fresh-access")
+        #expect(saved.refreshToken == "fresh-refresh")
     }
 
-    func testAccessProviderUsesCachedTokenWhenNotExpired() async throws {
+    @Test func testAccessProviderUsesCachedTokenWhenNotExpired() async throws {
         let validToken = OAuthToken(
             provider: .googleDrive,
             accessToken: "valid-access",
@@ -123,10 +124,10 @@ final class OAuthTokenClientTests: XCTestCase {
         )
         let accessProvider = OAuthCloudDriveAccessProvider(token: validToken)
         let access = try await accessProvider.access()
-        XCTAssertEqual(access.accessToken, "valid-access")
+        #expect(access.accessToken == "valid-access")
     }
 
-    func testAccessProviderThrowsReconnectRequiredWithoutRefreshToken() async {
+    @Test func testAccessProviderThrowsReconnectRequiredWithoutRefreshToken() async {
         let expiredToken = OAuthToken(
             provider: .oneDrive,
             accessToken: "stale",
@@ -141,11 +142,11 @@ final class OAuthTokenClientTests: XCTestCase {
         let accessProvider = OAuthCloudDriveAccessProvider(token: expiredToken)
         do {
             _ = try await accessProvider.access()
-            XCTFail("Expected refreshRequired")
+            Issue.record("Expected refreshRequired")
         } catch let error as OAuthError {
-            XCTAssertEqual(error, .refreshRequired)
+            #expect(error == .refreshRequired)
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            Issue.record("Unexpected error: \(error)")
         }
     }
 }

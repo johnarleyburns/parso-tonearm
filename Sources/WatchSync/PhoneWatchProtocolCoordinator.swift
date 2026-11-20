@@ -25,11 +25,14 @@ public actor WatchInMemoryRevisionStore: WatchPhoneRevisionStore {
 public actor WatchUserDefaultsRevisionStore: WatchPhoneRevisionStore {
     public static let defaultsKey = "watch.protocol.phoneRevision"
 
-    private let defaults: UserDefaults
+    private let defaults: any DefaultsStoring
     private let key: String
 
-    public init(suiteName: String? = nil, key: String = WatchUserDefaultsRevisionStore.defaultsKey) {
-        self.defaults = suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
+    /// `defaults` is injectable so tests use an `InMemoryDefaultsStore`
+    /// rather than a real preferences suite.
+    public init(defaults: any DefaultsStoring = UserDefaults.standard,
+                key: String = WatchUserDefaultsRevisionStore.defaultsKey) {
+        self.defaults = defaults
         self.key = key
     }
 

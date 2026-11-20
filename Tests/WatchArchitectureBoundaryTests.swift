@@ -1,12 +1,12 @@
-import XCTest
+import Testing
 @testable import TonearmWatchProtocol
 
-final class WatchArchitectureBoundaryTests: XCTestCase {
-    func testProtocolIdentityAndPlaybackTargetAreStable() {
+@Suite struct WatchArchitectureBoundaryTests {
+    @Test func testProtocolIdentityAndPlaybackTargetAreStable() {
         let id: WatchTrackID = "track-stable-id"
-        XCTAssertEqual(id.rawValue, "track-stable-id")
-        XCTAssertEqual(WatchProtocolVersion.current, 3, "Compressed selected catalogs require protocol v3 on both devices")
-        XCTAssertEqual(WatchPlaybackTarget.iPhone.userFacingName, "iPhone")
-        XCTAssertEqual(WatchPlaybackTarget.watch.userFacingName, "Apple Watch")
+        #expect(id.rawValue == "track-stable-id")
+        #expect(WatchProtocolVersion.current == 3, "Compressed selected catalogs require protocol v3 on both devices")
+        #expect(WatchPlaybackTarget.iPhone.userFacingName == "iPhone")
+        #expect(WatchPlaybackTarget.watch.userFacingName == "Apple Watch")
     }
 }

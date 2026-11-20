@@ -1,22 +1,22 @@
 import Foundation
 import SwiftData
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 
-final class WatchLibraryRepositoryTests: XCTestCase {
-    func testGenreSurvivesRepositoryUpdatesAndOlderMissingGenre() async throws {
+@Suite struct WatchLibraryRepositoryTests {
+    @Test func testGenreSurvivesRepositoryUpdatesAndOlderMissingGenre() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "genre", title: "Song", genre: "Classical", phoneRevision: 1))
         var tracks = try await fixture.repository.tracks()
-        XCTAssertEqual(tracks.first?.genre, "Classical")
+        #expect(tracks.first?.genre == "Classical")
         try await fixture.repository.upsertTrack(.init(trackID: "genre", title: "Song", genre: "Choral", phoneRevision: 2))
         tracks = try await fixture.repository.tracks()
-        XCTAssertEqual(tracks.first?.genre, "Choral")
+        #expect(tracks.first?.genre == "Choral")
         try await fixture.repository.upsertTrack(.init(trackID: "legacy", title: "Legacy"))
         tracks = try await fixture.repository.tracks()
-        XCTAssertNil(tracks.first { $0.id == "legacy" }?.genre)
+        #expect(tracks.first { $0.id == "legacy" }?.genre == nil)
     }
-    func testCRUDRelationshipsSharedMembershipAndPartialCollections() async throws {
+    @Test func testCRUDRelationshipsSharedMembershipAndPartialCollections() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "one", title: "First", artist: "Artist", albumTitle: "Album"))
         try await fixture.repository.upsertTrack(.init(trackID: "two", title: "Second", artist: "Artist", albumTitle: "Album"))
@@ -27,33 +27,33 @@ final class WatchLibraryRepositoryTests: XCTestCase {
                                                sha256: digest.sha256, state: .ready)
 
         let playlists = try await fixture.repository.playlists()
-        XCTAssertEqual(playlists.first { $0.id == "a" }?.readyTrackIDs, ["one"])
-        XCTAssertEqual(playlists.first { $0.id == "b" }?.readyTrackIDs, ["one"])
-        XCTAssertEqual(playlists.first { $0.id == "a" }?.isPartial, true)
-        XCTAssertEqual(playlists.first { $0.id == "b" }?.isPartial, false)
+        #expect(playlists.first { $0.id == "a" }?.readyTrackIDs == ["one"])
+        #expect(playlists.first { $0.id == "b" }?.readyTrackIDs == ["one"])
+        #expect(playlists.first { $0.id == "a" }?.isPartial == true)
+        #expect(playlists.first { $0.id == "b" }?.isPartial == false)
         let readyIDs = try await fixture.repository.tracks(readyOnly: true).map(\.id)
-        XCTAssertEqual(readyIDs, ["one"])
+        #expect(readyIDs == ["one"])
     }
 
-    func testFullTrackMetadataRoundTripsThroughSnapshots() async throws {
+    @Test func testFullTrackMetadataRoundTripsThroughSnapshots() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(
             trackID: "full", title: "Full", artist: "Artist", albumTitle: "Album", durationSeconds: 214.5,
             trackNumber: 3, discNumber: 2, artworkID: "art-1", localThumbnailFilename: "art-1.jpg",
             codec: "aac", expectedBytes: 4_096, expectedSHA256: "deadbeef", phoneRevision: 7))
         let stored = try await fixture.repository.tracks()
-        let track = try XCTUnwrap(stored.first)
-        XCTAssertEqual(track.durationSeconds, 214.5)
-        XCTAssertEqual(track.trackNumber, 3)
-        XCTAssertEqual(track.discNumber, 2)
-        XCTAssertEqual(track.artworkID, "art-1")
-        XCTAssertEqual(track.codec, "aac")
-        XCTAssertEqual(track.phoneRevision, 7)
-        XCTAssertNil(track.localFilename)
-        XCTAssertFalse(track.isReady)
+        let track = try #require(stored.first)
+        #expect(track.durationSeconds == 214.5)
+        #expect(track.trackNumber == 3)
+        #expect(track.discNumber == 2)
+        #expect(track.artworkID == "art-1")
+        #expect(track.codec == "aac")
+        #expect(track.phoneRevision == 7)
+        #expect(track.localFilename == nil)
+        #expect(!track.isReady)
     }
 
-    func testArtworkProjectionUsesInstalledCustomBeforeCover() async throws {
+    @Test func testArtworkProjectionUsesInstalledCustomBeforeCover() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "art", title: "Art", artworkID: "legacy",
                                                         coverArtworkID: "cover", customArtworkID: "custom"))
@@ -64,11 +64,11 @@ final class WatchLibraryRepositoryTests: XCTestCase {
                                               validationState: .ready))
         try context.save()
         let tracks = try await fixture.repository.tracks()
-        let track = try XCTUnwrap(tracks.first)
-        XCTAssertEqual(track.artworkFilename, "custom.jpg")
+        let track = try #require(tracks.first)
+        #expect(track.artworkFilename == "custom.jpg")
     }
 
-    func testArtworkGCRemovesUnreferencedAssetsButKeepsSharedReferences() async throws {
+    @Test func testArtworkGCRemovesUnreferencedAssetsButKeepsSharedReferences() async throws {
         let fixture = try Fixture()
         let fileURL = fixture.artwork.appendingPathComponent("shared.jpg")
         try Data("shared-art".utf8).write(to: fileURL)
@@ -81,17 +81,17 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try context.save()
 
         try await fixture.repository.upsertTrack(.init(trackID: "one", title: "One", coverArtworkID: nil))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path), "shared art must survive")
+        #expect(FileManager.default.fileExists(atPath: fileURL.path), "shared art must survive")
         let sharedAsset = try await fixture.repository.artworkAsset(artworkID: digest.sha256)
-        XCTAssertNotNil(sharedAsset)
+        #expect(sharedAsset != nil)
 
         try await fixture.repository.removeTracks(["two"])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path), "zero-reference art must be swept")
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path), "zero-reference art must be swept")
         let removedAsset = try await fixture.repository.artworkAsset(artworkID: digest.sha256)
-        XCTAssertNil(removedAsset)
+        #expect(removedAsset == nil)
     }
 
-    func testArtworkReconciliationAdoptsHashValidOrphansAndInvalidatesCorruptRows() async throws {
+    @Test func testArtworkReconciliationAdoptsHashValidOrphansAndInvalidatesCorruptRows() async throws {
         let fixture = try Fixture()
         let validURL = fixture.artwork.appendingPathComponent("orphan.jpg")
         try Data("valid-art".utf8).write(to: validURL)
@@ -100,7 +100,7 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try FileManager.default.moveItem(at: validURL, to: canonicalURL)
         try await fixture.repository.reconcileArtworkFiles()
         let adoptedManifest = try await fixture.repository.manifest()
-        XCTAssertEqual(adoptedManifest.installedArtworkIDs, [validDigest.sha256])
+        #expect(adoptedManifest.installedArtworkIDs == [validDigest.sha256])
 
         let missingID = String(repeating: "e", count: 64)
         let context = ModelContext(fixture.container)
@@ -110,30 +110,30 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try await fixture.repository.reconcileArtworkFiles()
         let missingAsset = try await fixture.repository.artworkAsset(artworkID: missingID)
         let reconciledManifest = try await fixture.repository.manifest()
-        XCTAssertEqual(missingAsset?.validationState, .corrupt)
-        XCTAssertEqual(reconciledManifest.installedArtworkIDs, [validDigest.sha256])
+        #expect(missingAsset?.validationState == .corrupt)
+        #expect(reconciledManifest.installedArtworkIDs == [validDigest.sha256])
     }
 
     // §5.4: a late-arriving older revision is acknowledged, never applied over newer metadata.
-    func testStaleRevisionIsAcknowledgedButNotApplied() async throws {
+    @Test func testStaleRevisionIsAcknowledgedButNotApplied() async throws {
         let fixture = try Fixture()
         let inserted = try await fixture.repository.upsertTrack(.init(trackID: "t", title: "New Title", phoneRevision: 5))
         let stale = try await fixture.repository.upsertTrack(.init(trackID: "t", title: "Old Title", phoneRevision: 2))
         let current = try await fixture.repository.upsertTrack(.init(trackID: "t", title: "Newer Title", phoneRevision: 9))
-        XCTAssertEqual([inserted, stale, current], [.inserted, .staleIgnored, .updated])
+        #expect([inserted, stale, current] == [.inserted, .staleIgnored, .updated])
         let titles = try await fixture.repository.tracks().map(\.title)
-        XCTAssertEqual(titles, ["Newer Title"])
+        #expect(titles == ["Newer Title"])
 
         try await fixture.repository.upsertPlaylist(.init(playlistID: "p", title: "P", trackIDs: ["t"], phoneRevision: 4))
         let stalePlaylist = try await fixture.repository.upsertPlaylist(
             .init(playlistID: "p", title: "P", trackIDs: [], phoneRevision: 1), desiredOnWatch: true)
-        XCTAssertEqual(stalePlaylist, .staleIgnored)
+        #expect(stalePlaylist == .staleIgnored)
         // The stale membership edit is dropped, but the watch-local desire flag still lands.
         let members = try await fixture.repository.playlists().first?.trackIDs
-        XCTAssertEqual(members, ["t"])
+        #expect(members == ["t"])
     }
 
-    func testNormalizedSearchRanksTitleBeforeArtistAndIgnoresDiacritics() async throws {
+    @Test func testNormalizedSearchRanksTitleBeforeArtistAndIgnoresDiacritics() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "title", title: "Beyonce Halo", artist: "Someone"))
         try await fixture.repository.upsertTrack(.init(trackID: "artist", title: "Halo", artist: "Beyoncé"))
@@ -144,40 +144,40 @@ final class WatchLibraryRepositoryTests: XCTestCase {
                                                    installedBytes: digest.bytes, sha256: digest.sha256, state: .ready)
         }
         let result = try await fixture.repository.search("BEYONCÉ", readyOnly: true).map(\.id)
-        XCTAssertEqual(result, ["title", "artist", "album"])
+        #expect(result == ["title", "artist", "album"])
         // Every term must match somewhere, but not all in the same column: "Halo" by "Beyoncé"
         // satisfies both terms across title and artist, and ranks below the title-only match.
         let bothTerms = try await fixture.repository.search("beyonce halo").map(\.id)
         let unmatchedTerm = try await fixture.repository.search("beyonce nonsense").map(\.id)
         let blank = try await fixture.repository.search("   ").map(\.id)
-        XCTAssertEqual(bothTerms, ["title", "artist"])
-        XCTAssertEqual(unmatchedTerm, [])
-        XCTAssertEqual(blank, [])
+        #expect(bothTerms == ["title", "artist"])
+        #expect(unmatchedTerm == [])
+        #expect(blank == [])
     }
 
-    func testSearchExcludesTracksWithoutReadyAudioUnlessAsked() async throws {
+    @Test func testSearchExcludesTracksWithoutReadyAudioUnlessAsked() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "metadata-only", title: "Pending"))
         let readyOnly = try await fixture.repository.search("pending", readyOnly: true).map(\.id)
         let everything = try await fixture.repository.search("pending", readyOnly: false).map(\.id)
-        XCTAssertEqual(readyOnly, [])
-        XCTAssertEqual(everything, ["metadata-only"])
+        #expect(readyOnly == [])
+        #expect(everything == ["metadata-only"])
     }
 
-    func testManifestAndStorageCountOnlyReadyAssets() async throws {
+    @Test func testManifestAndStorageCountOnlyReadyAssets() async throws {
         let fixture = try Fixture()
         for id in ["ready", "installing"] { try await fixture.repository.upsertTrack(.init(trackID: id, title: id)) }
         try await fixture.repository.markAsset(trackID: "ready", relativeFilename: "ready.m4a", installedBytes: 10, sha256: "a", state: .ready)
         try await fixture.repository.markAsset(trackID: "installing", relativeFilename: "part.tmp", installedBytes: 4, sha256: "b", state: .installing)
         _ = try fixture.write("orphan.m4a", bytes: Data(repeating: 1, count: 3))
         let manifest = try await fixture.repository.manifest(), storage = try await fixture.repository.storage()
-        XCTAssertEqual(manifest.readyTrackIDs, ["ready"]); XCTAssertEqual(manifest.installedBytes, 10)
-        XCTAssertEqual(storage.readyBytes, 10)
-        XCTAssertEqual(storage.stagingBytes, 4)
-        XCTAssertEqual(storage.orphanBytes, 3)
+        #expect(manifest.readyTrackIDs == ["ready"]); #expect(manifest.installedBytes == 10)
+        #expect(storage.readyBytes == 10)
+        #expect(storage.stagingBytes == 4)
+        #expect(storage.orphanBytes == 3)
     }
 
-    func testManifestIDIsStableAcrossInsertionOrderAndChangesWithContent() async throws {
+    @Test func testManifestIDIsStableAcrossInsertionOrderAndChangesWithContent() async throws {
         let first = try Fixture(), second = try Fixture()
         for (repository, ids) in [(first.repository, ["a", "b"]), (second.repository, ["b", "a"])] {
             for id in ids {
@@ -186,28 +186,28 @@ final class WatchLibraryRepositoryTests: XCTestCase {
             }
         }
         let a = try await first.repository.manifest(), b = try await second.repository.manifest()
-        XCTAssertEqual(a.manifestID, b.manifestID)
-        XCTAssertEqual(a.readyTrackIDs, ["a", "b"])
+        #expect(a.manifestID == b.manifestID)
+        #expect(a.readyTrackIDs == ["a", "b"])
         try await second.repository.markAsset(trackID: "a", relativeFilename: "a.m4a", installedBytes: 2, sha256: "a", state: .ready)
         let changed = try await second.repository.manifest()
-        XCTAssertNotEqual(a.manifestID, changed.manifestID)
+        #expect(a.manifestID != changed.manifestID)
     }
 
     // §2.5: reserve the greater of 500 MB or 10% of free capacity before accepting a batch.
-    func testStorageReserveIsTheGreaterOfFiveHundredMegabytesOrTenPercent() {
+    @Test func testStorageReserveIsTheGreaterOfFiveHundredMegabytesOrTenPercent() {
         let small = WatchStorageSnapshot(readyBytes: 0, stagingBytes: 0, orphanBytes: 0, freeBytes: 1_000_000_000)
-        XCTAssertEqual(small.reserveBytes, 500_000_000)
-        XCTAssertTrue(small.canAccept(bytes: 400_000_000))
-        XCTAssertFalse(small.canAccept(bytes: 600_000_000))
+        #expect(small.reserveBytes == 500_000_000)
+        #expect(small.canAccept(bytes: 400_000_000))
+        #expect(!small.canAccept(bytes: 600_000_000))
 
         let large = WatchStorageSnapshot(readyBytes: 0, stagingBytes: 0, orphanBytes: 0, freeBytes: 20_000_000_000)
-        XCTAssertEqual(large.reserveBytes, 2_000_000_000)
-        XCTAssertTrue(large.canAccept(bytes: 18_000_000_000))
-        XCTAssertFalse(large.canAccept(bytes: 18_000_000_001))
-        XCTAssertFalse(large.canAccept(bytes: -1))
+        #expect(large.reserveBytes == 2_000_000_000)
+        #expect(large.canAccept(bytes: 18_000_000_000))
+        #expect(!large.canAccept(bytes: 18_000_000_001))
+        #expect(!large.canAccept(bytes: -1))
     }
 
-    func testReconciliationMarksMissingAndCorruptAndRetainsOrphans() async throws {
+    @Test func testReconciliationMarksMissingAndCorruptAndRetainsOrphans() async throws {
         let fixture = try Fixture()
         for id in ["missing", "corrupt"] { try await fixture.repository.upsertTrack(.init(trackID: id, title: id)) }
         try await fixture.repository.markAsset(trackID: "missing", relativeFilename: "missing.m4a", installedBytes: 2, sha256: "x", state: .ready)
@@ -215,30 +215,30 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try await fixture.repository.markAsset(trackID: "corrupt", relativeFilename: "corrupt.m4a", installedBytes: 3, sha256: "wrong", state: .ready)
         _ = try fixture.write("preserved.m4a", bytes: Data("orphan".utf8))
         let result = try await fixture.repository.reconcileFiles()
-        XCTAssertEqual(result.missingTrackIDs, ["missing"]); XCTAssertEqual(result.corruptTrackIDs, ["corrupt"])
-        XCTAssertEqual(result.orphans.map(\.relativeFilename), ["preserved.m4a"])
+        #expect(result.missingTrackIDs == ["missing"]); #expect(result.corruptTrackIDs == ["corrupt"])
+        #expect(result.orphans.map(\.relativeFilename) == ["preserved.m4a"])
         let ready = try await fixture.repository.tracks(readyOnly: true)
-        XCTAssertTrue(ready.isEmpty)
+        #expect(ready.isEmpty)
         // The file that failed validation is still on disk — reconciliation never deletes audio.
-        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.audio.appendingPathComponent("corrupt.m4a").path))
+        #expect(FileManager.default.fileExists(atPath: fixture.audio.appendingPathComponent("corrupt.m4a").path))
     }
 
-    func testOrphanAdoptionAndPlaylistSearch() async throws {
+    @Test func testOrphanAdoptionAndPlaylistSearch() async throws {
         let fixture = try Fixture(), data = Data("recover-me".utf8)
         try await fixture.repository.upsertTrack(.init(trackID: "recover", title: "Recovered"))
         try await fixture.repository.upsertPlaylist(.init(playlistID: "night", title: "Nîght Drive", trackIDs: ["recover"]))
         _ = try fixture.write("orphan.m4a", bytes: data)
         let reconciliation = try await fixture.repository.reconcileFiles()
-        let orphan = try XCTUnwrap(reconciliation.orphans.first)
+        let orphan = try #require(reconciliation.orphans.first)
         try await fixture.repository.adoptOrphan(orphan, forTrackID: "recover")
         let ready = try await fixture.repository.tracks(readyOnly: true)
         let playlists = try await fixture.repository.searchPlaylists("night")
-        XCTAssertEqual(ready.map(\.id), ["recover"]); XCTAssertEqual(playlists.map(\.id), ["night"])
+        #expect(ready.map(\.id) == ["recover"]); #expect(playlists.map(\.id) == ["night"])
     }
 
     /// Regression (#157): after an upgrade rebuilt the store, every previously downloaded track
     /// showed as undownloaded. The surviving files must re-attach to *their own* tracks.
-    func testRebuiltStoreReadoptsDownloadsToTheirOwnTracks() async throws {
+    @Test func testRebuiltStoreReadoptsDownloadsToTheirOwnTracks() async throws {
         let fixture = try Fixture()
         let a = try fixture.write("a.m4a", bytes: Data("track-a-audio".utf8))
         let b = try fixture.write("b.m4a", bytes: Data("track-b-audio-longer".utf8))
@@ -252,15 +252,15 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try await rebuilt.upsertTrack(.init(trackID: "B", title: "B"))
         try await rebuilt.upsertTrack(.init(trackID: "A", title: "A"))
         let orphans = try await rebuilt.reconcileFiles().orphans
-        XCTAssertEqual(orphans.count, 2)
+        #expect(orphans.count == 2)
         for orphan in orphans { await rebuilt.adoptJournaledOrphan(orphan) }
         let ready = try await rebuilt.tracks(readyOnly: true)
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: ready.map { ($0.id, $0.localFilename) }),
+        #expect(Dictionary(uniqueKeysWithValues: ready.map { ($0.id, $0.localFilename) }) ==
                        ["A": "a.m4a", "B": "b.m4a"])
     }
 
     // A rebuilt store must not call an unrelated file "ready" just because a track is waiting for one.
-    func testOrphanAdoptionRejectsFilesThatContradictTrackMetadata() async throws {
+    @Test func testOrphanAdoptionRejectsFilesThatContradictTrackMetadata() async throws {
         let fixture = try Fixture()
         let digest = try fixture.write("candidate.m4a", bytes: Data("actual-audio".utf8))
         try await fixture.repository.upsertTrack(.init(trackID: "expects", title: "Expects",
@@ -268,7 +268,7 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         try await fixture.repository.upsertTrack(.init(trackID: "wrong-size", title: "Wrong Size",
                                                        expectedBytes: digest.bytes + 1, expectedSHA256: digest.sha256))
         let reconciliation = try await fixture.repository.reconcileFiles()
-        let orphan = try XCTUnwrap(reconciliation.orphans.first)
+        let orphan = try #require(reconciliation.orphans.first)
 
         await assertThrows(WatchLibraryError.invalidOrphan("expects")) {
             try await fixture.repository.adoptOrphan(orphan, forTrackID: "expects")
@@ -280,10 +280,10 @@ final class WatchLibraryRepositoryTests: XCTestCase {
             try await fixture.repository.adoptOrphan(orphan, forTrackID: "nobody")
         }
         let stillPending = try await fixture.repository.tracks(readyOnly: true)
-        XCTAssertTrue(stillPending.isEmpty)
+        #expect(stillPending.isEmpty)
     }
 
-    func testPlaybackRestorePrunesNonReadyEntriesDeterministically() async throws {
+    @Test func testPlaybackRestorePrunesNonReadyEntriesDeterministically() async throws {
         let fixture = try Fixture()
         for id in ["ready", "missing"] { try await fixture.repository.upsertTrack(.init(trackID: id, title: id)) }
         try await fixture.repository.markAsset(trackID: "ready", relativeFilename: "ready.m4a", installedBytes: 1, sha256: "x", state: .ready)
@@ -291,47 +291,47 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         context.insert(WatchPlaybackStateModel(queueTrackIDs: ["missing", "ready"], currentIndex: 1, elapsedSeconds: 12))
         try context.save()
         let restored = try await fixture.repository.restorePlaybackState()
-        XCTAssertEqual(restored?.queueTrackIDs, ["ready"]); XCTAssertEqual(restored?.currentIndex, 0)
-        XCTAssertEqual(restored?.elapsedSeconds, 12)
+        #expect(restored?.queueTrackIDs == ["ready"]); #expect(restored?.currentIndex == 0)
+        #expect(restored?.elapsedSeconds == 12)
         // Repeating the restore is stable, not progressively destructive.
         let again = try await fixture.repository.restorePlaybackState()
-        XCTAssertEqual(again?.queueTrackIDs, ["ready"]); XCTAssertEqual(again?.currentIndex, 0)
+        #expect(again?.queueTrackIDs == ["ready"]); #expect(again?.currentIndex == 0)
     }
 
-    func testPlaybackRestoreClearsAQueueWithNoReadyTracks() async throws {
+    @Test func testPlaybackRestoreClearsAQueueWithNoReadyTracks() async throws {
         let fixture = try Fixture()
         try await fixture.repository.upsertTrack(.init(trackID: "gone", title: "Gone"))
         let context = ModelContext(fixture.container)
         context.insert(WatchPlaybackStateModel(queueTrackIDs: ["gone"], currentIndex: 0, elapsedSeconds: 30))
         try context.save()
         let restored = try await fixture.repository.restorePlaybackState()
-        XCTAssertEqual(restored?.queueTrackIDs, [])
-        XCTAssertEqual(restored?.currentIndex, 0)
-        XCTAssertEqual(restored?.elapsedSeconds, 0)
+        #expect(restored?.queueTrackIDs == [])
+        #expect(restored?.currentIndex == 0)
+        #expect(restored?.elapsedSeconds == 0)
     }
 
-    func testDeterministicSeedCanRunRepeatedly() async throws {
+    @Test func testDeterministicSeedCanRunRepeatedly() async throws {
         let fixture = try Fixture()
         try await fixture.repository.seedDeterministicFixture(); try await fixture.repository.seedDeterministicFixture()
         let trackIDs = try await fixture.repository.tracks().map(\.id)
         let playlistIDs = try await fixture.repository.playlists().map(\.id)
-        XCTAssertEqual(trackIDs, ["fixture-track"]); XCTAssertEqual(playlistIDs, ["fixture-playlist"])
+        #expect(trackIDs == ["fixture-track"]); #expect(playlistIDs == ["fixture-playlist"])
     }
 
-    func testAllSchemaModelsPersist() throws {
+    @Test func testAllSchemaModelsPersist() throws {
         let container = try WatchStoreBootstrap.inMemory(), context = ModelContext(container)
         context.insert(WatchDownloadJobModel(requestID: "request", trackID: "track", rootIDs: ["root"], attemptToken: "attempt"))
         context.insert(WatchDownloadRootModel(rootID: "root", kind: .playlist, sourceID: "playlist", desiredTrackIDs: ["track"]))
         context.insert(WatchPlaybackStateModel(queueTrackIDs: ["track"], currentIndex: 0))
         context.insert(WatchSyncStateModel(protocolVersion: 1, pairedLibraryIdentity: "library"))
         try context.save()
-        XCTAssertEqual(try context.fetch(FetchDescriptor<WatchDownloadJobModel>()).first?.state, .queued)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<WatchDownloadRootModel>()).first?.kind, .playlist)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<WatchPlaybackStateModel>()).first?.queueTrackIDs, ["track"])
-        XCTAssertEqual(try context.fetch(FetchDescriptor<WatchSyncStateModel>()).first?.pairedLibraryIdentity, "library")
+        #expect(try context.fetch(FetchDescriptor<WatchDownloadJobModel>()).first?.state == .queued)
+        #expect(try context.fetch(FetchDescriptor<WatchDownloadRootModel>()).first?.kind == .playlist)
+        #expect(try context.fetch(FetchDescriptor<WatchPlaybackStateModel>()).first?.queueTrackIDs == ["track"])
+        #expect(try context.fetch(FetchDescriptor<WatchSyncStateModel>()).first?.pairedLibraryIdentity == "library")
     }
 
-    func testUnknownRawValuesDecodeToSafeStatesRatherThanCrashing() throws {
+    @Test func testUnknownRawValuesDecodeToSafeStatesRatherThanCrashing() throws {
         let container = try WatchStoreBootstrap.inMemory(), context = ModelContext(container)
         let job = WatchDownloadJobModel(requestID: "r", trackID: "t", rootIDs: [], attemptToken: "a")
         let root = WatchDownloadRootModel(rootID: "root", kind: .track, sourceID: "s", desiredTrackIDs: [])
@@ -339,27 +339,27 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         context.insert(job); context.insert(root); context.insert(asset)
         job.stateRaw = "from-a-newer-build"; root.kindRaw = "from-a-newer-build"; asset.validationStateRaw = "from-a-newer-build"
         try context.save()
-        XCTAssertEqual(job.state, .failed)
-        XCTAssertEqual(root.kind, .track)
+        #expect(job.state == .failed)
+        #expect(root.kind == .track)
         // An unrecognized validation state must never read as playable.
-        XCTAssertEqual(asset.validationState, .corrupt)
+        #expect(asset.validationState == .corrupt)
     }
 
-    func testPersistentStoreRelaunches() async throws {
+    @Test func testPersistentStoreRelaunches() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = root.appendingPathComponent("library.store"), audio = root.appendingPathComponent("audio")
         var first: WatchStoreBootstrapResult? = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        let repository = WatchLibraryRepository(container: try XCTUnwrap(first?.container), audioDirectory: audio)
+        let repository = WatchLibraryRepository(container: try #require(first?.container), audioDirectory: audio)
         try await repository.seedDeterministicFixture(); first = nil
         let second = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        let reopened = WatchLibraryRepository(container: try XCTUnwrap(second.container), audioDirectory: audio)
+        let reopened = WatchLibraryRepository(container: try #require(second.container), audioDirectory: audio)
         let reopenedIDs = try await reopened.tracks().map(\.id)
-        XCTAssertEqual(second.state, .ready); XCTAssertEqual(reopenedIDs, ["fixture-track"])
+        #expect(second.state == .ready); #expect(reopenedIDs == ["fixture-track"])
     }
 
     /// A store written by a build that predates some of the current models must migrate forward
     /// through `WatchSchemaMigrationPlan` without losing the rows it already held.
-    func testOlderContainerMigratesForwardAndKeepsItsRows() async throws {
+    @Test func testOlderContainerMigratesForwardAndKeepsItsRows() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = root.appendingPathComponent("library.store"), audio = root.appendingPathComponent("audio")
         try FileManager.default.createDirectory(at: audio, withIntermediateDirectories: true)
@@ -368,48 +368,48 @@ final class WatchLibraryRepositoryTests: XCTestCase {
         var old: ModelContainer? = try ModelContainer(
             for: oldSchema,
             configurations: ModelConfiguration(WatchStoreBootstrap.storeName, schema: oldSchema, url: store, cloudKitDatabase: .none))
-        let oldContext = ModelContext(try XCTUnwrap(old))
+        let oldContext = ModelContext(try #require(old))
         oldContext.insert(WatchTrackModel(trackID: "carried", title: "Carried Over", artist: "Artist"))
         oldContext.insert(WatchStoreMetadata(key: "written-by", value: "old-build"))
         try oldContext.save()
         old = nil
 
         let upgraded = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        XCTAssertEqual(upgraded.state, .ready, "an additive schema change must migrate, not quarantine")
-        let repository = WatchLibraryRepository(container: try XCTUnwrap(upgraded.container), audioDirectory: audio)
+        #expect(upgraded.state == .ready, "an additive schema change must migrate, not quarantine")
+        let repository = WatchLibraryRepository(container: try #require(upgraded.container), audioDirectory: audio)
         let carried = try await repository.tracks().map(\.id)
         let writtenBy = try await repository.metadata("written-by")
-        XCTAssertEqual(carried, ["carried"])
-        XCTAssertEqual(writtenBy, "old-build")
+        #expect(carried == ["carried"])
+        #expect(writtenBy == "old-build")
         // Entities absent from the old store are usable immediately after the upgrade.
         try await repository.upsertPlaylist(.init(playlistID: "new", title: "New", trackIDs: ["carried"]))
         let playlistIDs = try await repository.playlists().map(\.id)
-        XCTAssertEqual(playlistIDs, ["new"])
+        #expect(playlistIDs == ["new"])
     }
 
-    func testCorruptStoreIsQuarantinedAudioPreservedAndRecoveryRepeatsSafely() throws {
+    @Test func testCorruptStoreIsQuarantinedAudioPreservedAndRecoveryRepeatsSafely() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = root.appendingPathComponent("library.store"), audio = root.appendingPathComponent("audio")
         try FileManager.default.createDirectory(at: audio, withIntermediateDirectories: true)
         try Data("not-a-store".utf8).write(to: store)
         try Data("music".utf8).write(to: audio.appendingPathComponent("keep.m4a"))
         let recovered = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio, now: Date(timeIntervalSince1970: 1))
-        XCTAssertEqual(recovered.state, .recovered)
-        let quarantine = try XCTUnwrap(recovered.quarantinedStoreURL)
-        XCTAssertEqual(recovered.recoverableFiles, [.init(relativeFilename: "keep.m4a", bytes: 5)])
+        #expect(recovered.state == .recovered)
+        let quarantine = try #require(recovered.quarantinedStoreURL)
+        #expect(recovered.recoverableFiles == [.init(relativeFilename: "keep.m4a", bytes: 5)])
         // The unreadable store is moved aside for diagnosis, not deleted.
-        XCTAssertTrue(FileManager.default.fileExists(atPath: quarantine.appendingPathComponent("library.store").path))
+        #expect(FileManager.default.fileExists(atPath: quarantine.appendingPathComponent("library.store").path))
         let repeated = WatchStoreBootstrap.open(storeURL: store, audioDirectory: audio)
-        XCTAssertEqual(repeated.state, .ready)
-        XCTAssertNil(repeated.quarantinedStoreURL)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: audio.appendingPathComponent("keep.m4a").path))
+        #expect(repeated.state == .ready)
+        #expect(repeated.quarantinedStoreURL == nil)
+        #expect(FileManager.default.fileExists(atPath: audio.appendingPathComponent("keep.m4a").path))
     }
 
     private func assertThrows(_ expected: WatchLibraryError, _ body: () async throws -> Void,
-                              file: StaticString = #filePath, line: UInt = #line) async {
-        do { try await body(); XCTFail("expected \(expected)", file: file, line: line) }
-        catch let error as WatchLibraryError { XCTAssertEqual(error, expected, file: file, line: line) }
-        catch { XCTFail("unexpected error \(error)", file: file, line: line) }
+                              sourceLocation: SourceLocation = #_sourceLocation) async {
+        do { try await body(); Issue.record("expected \(expected)", sourceLocation: sourceLocation) }
+        catch let error as WatchLibraryError { #expect(error == expected, sourceLocation: sourceLocation) }
+        catch { Issue.record("unexpected error \(error)", sourceLocation: sourceLocation) }
     }
 }
 

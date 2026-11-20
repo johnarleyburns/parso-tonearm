@@ -1,5 +1,6 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
@@ -9,7 +10,7 @@ import XCTest
 /// imports), bootstrap/outbox replay is idempotent, content replacement
 /// restarts the job, and metadata-only edits/deletes do not create spurious
 /// re-embeds.
-final class DiscoveryReconcilerTests: XCTestCase {
+@Suite struct DiscoveryReconcilerTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
@@ -40,7 +41,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
     /// Bootstrap must cover tracks that existed BEFORE discovery shipped —
     /// not only future imports (plan §4: "Bootstrap ALL existing core
     /// tracks, not just future imports").
-    func testBootstrapCoversAllExistingTracksAcrossPages() async throws {
+    @Test func testBootstrapCoversAllExistingTracksAcrossPages() async throws {
         let queue = try makeQueue()
         for i in 0..<(DiscoveryReconciler.bootstrapPageSize + 25) {
             try await insertTrack(queue, title: "Song \(i)")
@@ -49,15 +50,15 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, DiscoveryReconciler.bootstrapPageSize + 25)
+        #expect(enqueued == DiscoveryReconciler.bootstrapPageSize + 25)
 
         let jobCount = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_index_job")!
         }
-        XCTAssertEqual(jobCount, DiscoveryReconciler.bootstrapPageSize + 25)
+        #expect(jobCount == DiscoveryReconciler.bootstrapPageSize + 25)
     }
 
-    func testBootstrapIsIdempotent() async throws {
+    @Test func testBootstrapIsIdempotent() async throws {
         let queue = try makeQueue()
         try await insertTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -65,11 +66,11 @@ final class DiscoveryReconcilerTests: XCTestCase {
 
         let first = try await reconciler.bootstrapAllTracks()
         let second = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(first, 1)
-        XCTAssertEqual(second, 0, "re-running bootstrap must not duplicate jobs")
+        #expect(first == 1)
+        #expect(second == 0, "re-running bootstrap must not duplicate jobs")
     }
 
-    func testBootstrapMigratesMissingMusicalAnalysisWithoutResettingEmbedding() async throws {
+    @Test func testBootstrapMigratesMissingMusicalAnalysisWithoutResettingEmbedding() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue, title: "Needs BPM and key")
         let repo = IndexJobRepository(writer: queue)
@@ -88,16 +89,16 @@ final class DiscoveryReconcilerTests: XCTestCase {
         }
 
         let migrated = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(migrated, 1)
+        #expect(migrated == 1)
         let loadedJob = try await repo.job(
             trackId: trackID, pipelineVersion: DiscoveryPipelineVersion.pipeline)
-        let job = try XCTUnwrap(loadedJob)
-        XCTAssertEqual(job.state, .queued)
-        XCTAssertEqual(job.embeddingStageState, .complete)
-        XCTAssertEqual(job.musicalAnalysisStageState, .pending)
+        let job = try #require(loadedJob)
+        #expect(job.state == .queued)
+        #expect(job.embeddingStageState == .complete)
+        #expect(job.musicalAnalysisStageState == .pending)
     }
 
-    func testTrackInsertedChangeCreatesJobAndDrainsOutbox() async throws {
+    @Test func testTrackInsertedChangeCreatesJobAndDrainsOutbox() async throws {
         let queue = try makeQueue()
         // The v19 `discovery_change_track_inserted` trigger already wrote the
         // outbox row for this insert (Sources/Data/DiscoveryMigrations.swift)
@@ -107,20 +108,20 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let processed = try await reconciler.processOutbox()
-        XCTAssertEqual(processed, 1)
+        #expect(processed == 1)
 
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
+        #expect(job != nil)
 
         let remainingChanges = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
         }
-        XCTAssertEqual(remainingChanges, 0, "processed outbox rows must be removed")
+        #expect(remainingChanges == 0, "processed outbox rows must be removed")
     }
 
     /// Metadata-only edits must not create a fresh revision / re-embed
     /// (plan §4: "Do not make every metadata edit re-embed audio").
-    func testMetadataUpdateChangeDoesNotTouchExistingJob() async throws {
+    @Test func testMetadataUpdateChangeDoesNotTouchExistingJob() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -136,15 +137,15 @@ final class DiscoveryReconcilerTests: XCTestCase {
         try await reconciler.processOutbox()
 
         let after = try await repo.job(trackId: trackID, pipelineVersion: 1)!
-        XCTAssertEqual(before.assetRevision, after.assetRevision)
-        XCTAssertEqual(before.state, after.state)
-        XCTAssertEqual(before.updatedAt, after.updatedAt, "metadata edits must not restart the job")
+        #expect(before.assetRevision == after.assetRevision)
+        #expect(before.state == after.state)
+        #expect(before.updatedAt == after.updatedAt, "metadata edits must not restart the job")
     }
 
     /// Content replacement DOES bump the revision and restart the job (plan
     /// §4: "Source replacement changes the revision even if the title is
     /// identical").
-    func testAssetContentReplacedRestartsJobWithNewRevision() async throws {
+    @Test func testAssetContentReplacedRestartsJobWithNewRevision() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -159,7 +160,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
             jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis,
             state: .complete)
         let completed = try await repo.job(trackId: trackID, pipelineVersion: 1)!
-        XCTAssertEqual(completed.state, .complete)
+        #expect(completed.state == .complete)
 
         try await queue.write { db in
             try db.execute(
@@ -169,10 +170,10 @@ final class DiscoveryReconcilerTests: XCTestCase {
         try await reconciler.processOutbox()
 
         let restarted = try await repo.job(trackId: trackID, pipelineVersion: 1)!
-        XCTAssertEqual(restarted.id, completed.id, "same logical job, restarted")
-        XCTAssertEqual(restarted.state, .queued)
-        XCTAssertEqual(restarted.embeddingStageState, .pending)
-        XCTAssertGreaterThan(restarted.assetRevision ?? 0, completed.assetRevision ?? 0)
+        #expect(restarted.id == completed.id, "same logical job, restarted")
+        #expect(restarted.state == .queued)
+        #expect(restarted.embeddingStageState == .pending)
+        #expect(restarted.assetRevision ?? 0 > completed.assetRevision ?? 0)
     }
 
     // MARK: - Downloaded/on-device only (real report: "2631 tracks waiting
@@ -197,7 +198,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
     /// created one anyway and it sat in `waitingForAsset` permanently,
     /// since nothing was ever going to make a network-only asset locally
     /// resolvable on its own.
-    func testBootstrapSkipsATrackWhoseOnlyAssetIsRemote() async throws {
+    @Test func testBootstrapSkipsATrackWhoseOnlyAssetIsRemote() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         try await insertAsset(
@@ -206,14 +207,14 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 0, "a remote-only track must not be enqueued for indexing")
+        #expect(enqueued == 0, "a remote-only track must not be enqueued for indexing")
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNil(job)
+        #expect(job == nil)
     }
 
     /// A track with a real local asset (relPath) is unaffected — it is
     /// still eligible and gets that asset selected, exactly as before.
-    func testBootstrapStillEnqueuesATrackWithARealLocalAsset() async throws {
+    @Test func testBootstrapStillEnqueuesATrackWithARealLocalAsset() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         let assetID = try await insertAsset(
@@ -222,25 +223,25 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1)
+        #expect(enqueued == 1)
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertEqual(job?.selectedAssetId, assetID)
+        #expect(job?.selectedAssetId == assetID)
     }
 
     /// A track with NO asset rows yet (a local import still writing its
     /// asset) stays eligible with a `nil` selected asset, same as before —
     /// only a track whose assets ALL resolve to remote/cloud is skipped.
-    func testBootstrapStillEnqueuesATrackWithNoAssetRowsYet() async throws {
+    @Test func testBootstrapStillEnqueuesATrackWithNoAssetRowsYet() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         let repo = IndexJobRepository(writer: queue)
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1)
+        #expect(enqueued == 1)
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
-        XCTAssertNil(job?.selectedAssetId)
+        #expect(job != nil)
+        #expect(job?.selectedAssetId == nil)
     }
 
     /// `remoteOnlyTrackCount()` feeds the Settings confirmation dialog's
@@ -248,7 +249,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
     /// `assetSelection` treats as ineligible (remote-only), never a track
     /// that already has a real local asset or one with no asset rows yet
     /// (still eligible/pending, not "remote-only").
-    func testRemoteOnlyTrackCountMatchesIneligibleTracks() async throws {
+    @Test func testRemoteOnlyTrackCountMatchesIneligibleTracks() async throws {
         let queue = try makeQueue()
         let remoteOnly = try await insertTrack(queue, title: "Remote")
         try await insertAsset(
@@ -262,12 +263,12 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let count = try await reconciler.remoteOnlyTrackCount()
-        XCTAssertEqual(count, 1)
+        #expect(count == 1)
     }
 
     /// A `trackInserted` outbox event for a remote-only track is drained
     /// (no infinite outbox loop) without ever creating a job.
-    func testTrackInsertedOutboxEventSkipsARemoteOnlyTrack() async throws {
+    @Test func testTrackInsertedOutboxEventSkipsARemoteOnlyTrack() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         try await insertAsset(
@@ -279,16 +280,16 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let remainingChanges = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
         }
-        XCTAssertEqual(remainingChanges, 0, "the outbox rows must still be drained")
+        #expect(remainingChanges == 0, "the outbox rows must still be drained")
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNil(job)
+        #expect(job == nil)
     }
 
     /// Real-installs cleanup: `pruneJobsForUndownloadedTracks()` removes an
     /// existing `waitingForAsset` job for a track that is (and always was)
     /// remote-only, but leaves alone a `waitingForAsset` job for a track
     /// that genuinely has a local asset (some other, real wait reason).
-    func testPruneRemovesOnlyJobsForTracksWithNoLocalAsset() async throws {
+    @Test func testPruneRemovesOnlyJobsForTracksWithNoLocalAsset() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
@@ -320,18 +321,18 @@ final class DiscoveryReconcilerTests: XCTestCase {
         }
 
         let pruned = try await reconciler.pruneJobsForUndownloadedTracks()
-        XCTAssertEqual(pruned, 1)
+        #expect(pruned == 1)
         let remainingRemoteJob = try await repo.job(id: remoteJob.id)
-        XCTAssertNil(remainingRemoteJob, "the remote-only track's job must be gone")
+        #expect(remainingRemoteJob == nil, "the remote-only track's job must be gone")
         let remainingLocalJob = try await repo.job(id: localJob.id)
-        XCTAssertNotNil(remainingLocalJob, "a track with a real local asset must be untouched")
-        XCTAssertEqual(remainingLocalJob?.state, .waitingForAsset)
+        #expect(remainingLocalJob != nil, "a track with a real local asset must be untouched")
+        #expect(remainingLocalJob?.state == .waitingForAsset)
     }
 
     /// trackDeleted/sourceDeleted changes: the FK cascade already removed
     /// the job; the reconciler must still drain (delete) the outbox row
     /// rather than looping on it forever.
-    func testDeletedTrackChangeIsDrainedWithoutError() async throws {
+    @Test func testDeletedTrackChangeIsDrainedWithoutError() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue)
         let repo = IndexJobRepository(writer: queue)
@@ -345,11 +346,11 @@ final class DiscoveryReconcilerTests: XCTestCase {
             try db.execute(sql: "DELETE FROM track WHERE id = ?", arguments: [trackID])
         }
         let processed = try await reconciler.processOutbox()
-        XCTAssertEqual(processed, 1)
+        #expect(processed == 1)
         let remaining = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_change")!
         }
-        XCTAssertEqual(remaining, 0)
+        #expect(remaining == 0)
     }
 
     // MARK: - Legacy remote node backfill (real report: "the button doesn't
@@ -404,7 +405,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
         }
     }
 
-    func testBackfillMatchesLegacyRemoteAssetBySizeAndPersistsNodeReference() async throws {
+    @Test func testBackfillMatchesLegacyRemoteAssetBySizeAndPersistsNodeReference() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertRemoteSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Song One")
@@ -421,18 +422,18 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let provider = FakeRemoteProvider(tree: ["": [node]])
 
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
-        XCTAssertEqual(backfilled, 1)
+        #expect(backfilled == 1)
 
         let row = try await queue.read { db -> [String?] in
             let row = try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!
             return [row["remoteNodeID"], row["remoteNodePath"]]
         }
-        XCTAssertEqual(row[0], "node-1")
-        XCTAssertEqual(row[1], "/music/song1.mp3")
+        #expect(row[0] == "node-1")
+        #expect(row[1] == "/music/song1.mp3")
     }
 
-    func testBackfillDoesNothingWhenRemoteIndexingIsDisabled() async throws {
+    @Test func testBackfillDoesNothingWhenRemoteIndexingIsDisabled() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertRemoteSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Song One")
@@ -445,12 +446,12 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let provider = FakeRemoteProvider(tree: ["": [node]])
 
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
-        XCTAssertEqual(backfilled, 0, "must not make network calls when the setting is off")
+        #expect(backfilled == 0, "must not make network calls when the setting is off")
     }
 
     /// When size is unknown (or ambiguous), falls back to matching by
     /// normalized title.
-    func testBackfillFallsBackToTitleMatchWhenSizeIsUnavailable() async throws {
+    @Test func testBackfillFallsBackToTitleMatchWhenSizeIsUnavailable() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertRemoteSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Unique Title")
@@ -463,18 +464,18 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let provider = FakeRemoteProvider(tree: ["": [node]])
 
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
-        XCTAssertEqual(backfilled, 1)
+        #expect(backfilled == 1)
 
         let nodePath = try await queue.read { db in
             try Row.fetchOne(db, sql: "SELECT remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!["remoteNodePath"] as String?
         }
-        XCTAssertEqual(nodePath, "/music/x.mp3")
+        #expect(nodePath == "/music/x.mp3")
     }
 
     /// Recurses into `.directory`/`.collection` container nodes to find
     /// leaf tracks nested below the root.
-    func testBackfillRecursesIntoDirectories() async throws {
+    @Test func testBackfillRecursesIntoDirectories() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertRemoteSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Nested Song")
@@ -492,13 +493,13 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let provider = FakeRemoteProvider(tree: ["": [folder], "/Album": [node]])
 
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in provider }
-        XCTAssertEqual(backfilled, 1)
+        #expect(backfilled == 1)
 
         let nodePath = try await queue.read { db in
             try Row.fetchOne(db, sql: "SELECT remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!["remoteNodePath"] as String?
         }
-        XCTAssertEqual(nodePath, "/Album/nested.mp3")
+        #expect(nodePath == "/Album/nested.mp3")
     }
 
     /// Real root cause found auditing the first backfill fix:
@@ -512,7 +513,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
     /// what `IARemoteLibraryProvider.browse` itself would construct. This
     /// must not call `providerFactory` at all (that closure is set up to
     /// fail in this test, to prove the network path isn't used).
-    func testBackfillUsesRemoteURLDirectlyForArchiveOrgSourcesNoNetworkCall() async throws {
+    @Test func testBackfillUsesRemoteURLDirectlyForArchiveOrgSourcesNoNetworkCall() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertIASource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "IA Track")
@@ -524,18 +525,18 @@ final class DiscoveryReconcilerTests: XCTestCase {
             writer: queue, jobs: repo, pipelineVersion: 1, remoteIndexingEnabled: { true })
 
         let backfilled = await reconciler.backfillRemoteNodeReferences { _ in
-            XCTFail("must not construct/crawl a provider for an Internet Archive source")
+            Issue.record("must not construct/crawl a provider for an Internet Archive source")
             throw URLError(.unsupportedURL)
         }
-        XCTAssertEqual(backfilled, 1)
+        #expect(backfilled == 1)
 
         let row = try await queue.read { db -> [String?] in
             let row = try Row.fetchOne(db, sql: "SELECT remoteNodeID, remoteNodePath FROM asset WHERE id = ?",
                 arguments: [assetID])!
             return [row["remoteNodeID"], row["remoteNodePath"]]
         }
-        XCTAssertEqual(row[0], "https://archive.org/download/some-item/track01.mp3")
-        XCTAssertEqual(row[1], "https://archive.org/download/some-item/track01.mp3")
+        #expect(row[0] == "https://archive.org/download/some-item/track01.mp3")
+        #expect(row[1] == "https://archive.org/download/some-item/track01.mp3")
     }
 
     // MARK: - Jamendo tracks only index once genuinely "in My Music" (real report: only index
@@ -577,7 +578,7 @@ final class DiscoveryReconcilerTests: XCTestCase {
     /// remote track with the same asset shape already is (see
     /// `testBootstrapSkipsATrackWhoseOnlyAssetIsRemote`/`testBootstrapStillEnqueuesATrackWithNoAssetRowsYet`
     /// for the normal, unaffected behavior that must stay unaffected for non-Jamendo sources).
-    func testJamendoTrackWithNoUsageSignalIsNotEnqueued() async throws {
+    @Test func testJamendoTrackWithNoUsageSignalIsNotEnqueued() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertJamendoSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Browsed Only")
@@ -585,12 +586,12 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 0, "a merely-browsed Jamendo track must not be enqueued")
+        #expect(enqueued == 0, "a merely-browsed Jamendo track must not be enqueued")
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNil(job)
+        #expect(job == nil)
     }
 
-    func testJamendoTrackBecomesEligibleOnceListenedTo() async throws {
+    @Test func testJamendoTrackBecomesEligibleOnceListenedTo() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertJamendoSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Listened")
@@ -599,12 +600,12 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1)
+        #expect(enqueued == 1)
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
+        #expect(job != nil)
     }
 
-    func testJamendoTrackBecomesEligibleOnceDownloaded() async throws {
+    @Test func testJamendoTrackBecomesEligibleOnceDownloaded() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertJamendoSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Downloaded")
@@ -613,12 +614,12 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1)
+        #expect(enqueued == 1)
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
+        #expect(job != nil)
     }
 
-    func testJamendoTrackBecomesEligibleOnceAddedToAPlaylist() async throws {
+    @Test func testJamendoTrackBecomesEligibleOnceAddedToAPlaylist() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertJamendoSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Playlisted")
@@ -627,15 +628,15 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1)
+        #expect(enqueued == 1)
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
+        #expect(job != nil)
     }
 
     /// A non-Jamendo remote track with the exact same asset-free shape as the skipped Jamendo
     /// track above is unaffected by this gate — it's eligible with a nil selected asset exactly
     /// as before (`testBootstrapStillEnqueuesATrackWithNoAssetRowsYet`'s normal behavior).
-    func testNonJamendoRemoteTrackIsUnaffectedByTheJamendoGate() async throws {
+    @Test func testNonJamendoRemoteTrackIsUnaffectedByTheJamendoGate() async throws {
         let queue = try makeQueue()
         let sourceID = try await insertRemoteSource(queue)
         let trackID = try await insertTrack(queue, sourceId: sourceID, title: "Not Jamendo")
@@ -643,8 +644,8 @@ final class DiscoveryReconcilerTests: XCTestCase {
         let reconciler = DiscoveryReconciler(writer: queue, jobs: repo, pipelineVersion: 1)
 
         let enqueued = try await reconciler.bootstrapAllTracks()
-        XCTAssertEqual(enqueued, 1, "only Jamendo sources are gated by usage signal")
+        #expect(enqueued == 1, "only Jamendo sources are gated by usage signal")
         let job = try await repo.job(trackId: trackID, pipelineVersion: 1)
-        XCTAssertNotNil(job)
+        #expect(job != nil)
     }
 }

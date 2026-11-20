@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 
 /// Issue #201: CLAP is bundled (no ODR tags) and a release archive fails closed
 /// without it. Deterministic fixtures only — no network, no xcodegen.
-final class ClapBundlingScriptTests: XCTestCase {
+@Suite struct ClapBundlingScriptTests {
     private let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
 
@@ -10,7 +11,6 @@ final class ClapBundlingScriptTests: XCTestCase {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
         return dir
     }
 
@@ -49,49 +49,54 @@ final class ClapBundlingScriptTests: XCTestCase {
 
     private let clap = ["CLAPAudioEncoder.mlpackage", "CLAPTextEncoder.mlpackage"]
 
-    func testBundledOverlayHasCLAPEntriesWithoutResourceTags() throws {
+    @Test func testBundledOverlayHasCLAPEntriesWithoutResourceTags() throws {
         let (status, output, repo) = try generate(models: clap + ["DemucsStems.mlpackage"], require: true)
-        XCTAssertEqual(status, 0, output)
+        defer { try? FileManager.default.removeItem(at: repo) }
+        #expect(status == 0, "\(output)")
         let bundled = try read(repo, "models-bundled.yml")
-        XCTAssertTrue(bundled.contains("Resources/Models/CLAPAudioEncoder.mlpackage"))
-        XCTAssertTrue(bundled.contains("Resources/Models/CLAPTextEncoder.mlpackage"))
-        XCTAssertFalse(bundled.contains("resourceTags"))
-        XCTAssertFalse(bundled.contains("clap-audio"))
-        XCTAssertFalse(bundled.contains("demucs"))
+        #expect(bundled.contains("Resources/Models/CLAPAudioEncoder.mlpackage"))
+        #expect(bundled.contains("Resources/Models/CLAPTextEncoder.mlpackage"))
+        #expect(!bundled.contains("resourceTags"))
+        #expect(!bundled.contains("clap-audio"))
+        #expect(!bundled.contains("demucs"))
     }
 
-    func testOptionalOverlayContainsOnlyDemucsTag() throws {
+    @Test func testOptionalOverlayContainsOnlyDemucsTag() throws {
         let (status, output, repo) = try generate(models: clap + ["DemucsStems.mlpackage"], require: false)
-        XCTAssertEqual(status, 0, output)
+        defer { try? FileManager.default.removeItem(at: repo) }
+        #expect(status == 0, "\(output)")
         let odr = try read(repo, "models-odr.yml")
-        XCTAssertTrue(odr.contains("- demucs-stems"))
-        XCTAssertFalse(odr.contains("clap"))
-        XCTAssertFalse(odr.contains("CLAP"))
+        #expect(odr.contains("- demucs-stems"))
+        #expect(!odr.contains("clap"))
+        #expect(!odr.contains("CLAP"))
     }
 
-    func testMissingModelsWithoutRequirementIsHonestNoOp() throws {
+    @Test func testMissingModelsWithoutRequirementIsHonestNoOp() throws {
         let (status, output, repo) = try generate(models: [], require: false)
-        XCTAssertEqual(status, 0, output)
-        XCTAssertTrue(try read(repo, "models-bundled.yml").contains("targets: {}"))
-        XCTAssertTrue(try read(repo, "models-odr.yml").contains("targets: {}"))
+        defer { try? FileManager.default.removeItem(at: repo) }
+        #expect(status == 0, "\(output)")
+        #expect(try read(repo, "models-bundled.yml").contains("targets: {}"))
+        #expect(try read(repo, "models-odr.yml").contains("targets: {}"))
     }
 
-    func testRequireBundledCLAPFailsWhenEitherPackageMissing() throws {
+    @Test func testRequireBundledCLAPFailsWhenEitherPackageMissing() throws {
         for present in [[clap[0]], [clap[1]], []] {
-            let (status, output, _) = try generate(models: present, require: true)
-            XCTAssertNotEqual(status, 0)
+            let (status, output, repo) = try generate(models: present, require: true)
+            defer { try? FileManager.default.removeItem(at: repo) }
+            #expect(status != 0)
             let missing = clap.filter { !present.contains($0) }
             for name in missing {
-                XCTAssertTrue(output.contains("Required bundled CLAP package missing"), output)
-                XCTAssertTrue(output.contains(name), output)
+                #expect(output.contains("Required bundled CLAP package missing"), "\(output)")
+                #expect(output.contains(name), "\(output)")
             }
-            XCTAssertTrue(output.contains("make models"), output)
+            #expect(output.contains("make models"), "\(output)")
         }
     }
 
-    func testRequireBundledCLAPSucceedsWithBothPackages() throws {
-        let (status, output, _) = try generate(models: clap, require: true)
-        XCTAssertEqual(status, 0, output)
+    @Test func testRequireBundledCLAPSucceedsWithBothPackages() throws {
+        let (status, output, repo) = try generate(models: clap, require: true)
+        defer { try? FileManager.default.removeItem(at: repo) }
+        #expect(status == 0, "\(output)")
     }
 
     // MARK: - Archive audit
@@ -107,29 +112,35 @@ final class ClapBundlingScriptTests: XCTestCase {
         return archive
     }
 
-    func testArchiveAuditPassesWithBothCompiledModels() throws {
+    @Test func testArchiveAuditPassesWithBothCompiledModels() throws {
         let archive = try makeArchive(compiled: ["CLAPAudioEncoder", "CLAPTextEncoder"])
+        defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
         let result = try run("scripts/audit-clap-archive.sh", [archive.path])
-        XCTAssertEqual(result.status, 0, result.output)
+        #expect(result.status == 0, "\(result.output)")
     }
 
-    func testArchiveAuditFailsWhenCompiledModelAbsent() throws {
+    @Test func testArchiveAuditFailsWhenCompiledModelAbsent() throws {
         for present in [["CLAPAudioEncoder"], ["CLAPTextEncoder"], []] {
             let archive = try makeArchive(compiled: present)
-            XCTAssertNotEqual(try run("scripts/audit-clap-archive.sh", [archive.path]).status, 0)
+            defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
+            let status = try run("scripts/audit-clap-archive.sh", [archive.path]).status
+            #expect(status != 0)
         }
     }
 
-    func testArchiveAuditFailsWhenCLAPOnlyInAssetPack() throws {
+    @Test func testArchiveAuditFailsWhenCLAPOnlyInAssetPack() throws {
         let archive = try makeArchive(compiled: [], assetPacks: ["guru.parso.tonearm.clap-audio-abc", "guru.parso.tonearm.clap-text-abc"])
-        XCTAssertNotEqual(try run("scripts/audit-clap-archive.sh", [archive.path]).status, 0)
+        defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
+        let status = try run("scripts/audit-clap-archive.sh", [archive.path]).status
+        #expect(status != 0)
     }
 
-    func testArchiveAuditFailsWhenAssetPackAlsoPresent() throws {
+    @Test func testArchiveAuditFailsWhenAssetPackAlsoPresent() throws {
         let archive = try makeArchive(
             compiled: ["CLAPAudioEncoder", "CLAPTextEncoder"], assetPacks: ["guru.parso.tonearm.clap-text-abc"])
+        defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
         let result = try run("scripts/audit-clap-archive.sh", [archive.path])
-        XCTAssertNotEqual(result.status, 0)
-        XCTAssertTrue(result.output.contains("bundled, not an ODR asset pack"))
+        #expect(result.status != 0)
+        #expect(result.output.contains("bundled, not an ODR asset pack"))
     }
 }

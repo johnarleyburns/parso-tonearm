@@ -3,15 +3,14 @@ import Foundation
 import AVFoundation
 import ParsoAudioStreaming
 import Combine
-import Network
 
 extension AudioPlayer {
     // MARK: - Session / Remote
 
     func observeNetworkPath() {
-        pathMonitor.pathUpdateHandler = { [weak self] path in
+        pathMonitor.pathUpdateHandler = { [weak self] isExpensive in
             Task { @MainActor in
-                self?.pathIsExpensive = path.isExpensive
+                self?.pathIsExpensive = isExpensive
             }
         }
         pathMonitor.start(queue: pathMonitorQueue)
@@ -114,10 +113,10 @@ extension AudioPlayer {
             provenance.append(entry.provenance)
         }
         guard !ids.isEmpty else {
-            PlaybackStateStore.clear()
+            persistor.stateStore.clear()
             return
         }
-        PlaybackStateStore.save(PlaybackStateSnapshot(
+        persistor.stateStore.save(PlaybackStateSnapshot(
             trackIDs: ids,
             trackSyncIDs: syncIDs,
             currentIndex: currentIndex,

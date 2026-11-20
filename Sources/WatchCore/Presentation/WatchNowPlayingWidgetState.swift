@@ -1,4 +1,5 @@
 import Foundation
+import TonearmWatchProtocol
 
 /// Watch redesign A2 — what the Smart Stack widget shows: whatever is playing on either device.
 /// The watch app writes it to the shared App Group; the widget extension only reads it.
@@ -44,14 +45,14 @@ public enum WatchNowPlayingWidgetStore {
     public static let appGroup = "group.guru.parso.tonearm"
     static let key = "watch.nowPlayingWidget.v1"
 
-    public static func save(_ state: WatchNowPlayingWidgetState?, defaults: UserDefaults? = nil) {
-        let store = defaults ?? UserDefaults(suiteName: appGroup)
+    public static func save(_ state: WatchNowPlayingWidgetState?, defaults: (any DefaultsStoring)? = nil) {
+        let store: (any DefaultsStoring)? = defaults ?? UserDefaults(suiteName: appGroup)
         guard let state else { store?.removeObject(forKey: key); return }
         if let data = try? JSONEncoder().encode(state) { store?.set(data, forKey: key) }
     }
 
-    public static func load(defaults: UserDefaults? = nil) -> WatchNowPlayingWidgetState? {
-        let store = defaults ?? UserDefaults(suiteName: appGroup)
+    public static func load(defaults: (any DefaultsStoring)? = nil) -> WatchNowPlayingWidgetState? {
+        let store: (any DefaultsStoring)? = defaults ?? UserDefaults(suiteName: appGroup)
         guard let data = store?.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(WatchNowPlayingWidgetState.self, from: data)
     }

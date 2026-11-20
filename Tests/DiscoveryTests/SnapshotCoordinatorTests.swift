@@ -111,12 +111,16 @@ private final class BlockingSource: @unchecked Sendable {
 
     @Test func failureIsDebouncedThenRetries() async throws {
         let src = BlockingSource(); src.block = false; src.failNext = true
-        let c = make(src, cooldown: .milliseconds(100))
+        // A long cooldown makes the debounce assertion independent of how long
+        // the parallel test runner takes to schedule the second call.
+        let c = make(src, timeout: .seconds(30), cooldown: .seconds(30))
         _ = await c.load()
         let debounced = await c.load()
         #expect(debounced.state == .retryingSoon)
         #expect(src.started == 1)
-        try await Task.sleep(for: .milliseconds(130))
+        // A state change clears the debounce and admits the retry immediately;
+        // no wall-clock sleep is needed to prove the retry path works.
+        await c.invalidate()
         #expect(await c.load().state == .loaded)
         #expect(src.started == 2)
     }

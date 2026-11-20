@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class RemoteIntegrationTests: XCTestCase {
-    func testCloudOAuthExchangeBrowseResolveAndRefreshAgainstLocalServer() async throws {
+@Suite struct RemoteIntegrationTests {
+    @Test func testCloudOAuthExchangeBrowseResolveAndRefreshAgainstLocalServer() async throws {
         let baseURL = try integrationBaseURL()
 
         for provider in CloudDriveAPI.Provider.allCases {
@@ -16,18 +17,18 @@ final class RemoteIntegrationTests: XCTestCase {
             let callbackURL = URL(string: "tonearm://oauth/\(provider.rawValue)?code=code-1&state=state-\(provider.rawValue)")!
             let token = try await OAuthTokenClient().exchange(session: authSession, callbackURL: callbackURL)
 
-            XCTAssertEqual(token.provider, provider)
-            XCTAssertEqual(token.accessToken, "\(provider.rawValue)-access-initial")
-            XCTAssertEqual(token.refreshToken, "\(provider.rawValue)-refresh")
+            #expect(token.provider == provider)
+            #expect(token.accessToken == "\(provider.rawValue)-access-initial")
+            #expect(token.refreshToken == "\(provider.rawValue)-refresh")
 
             let remote = CloudDriveProvider(
                 provider: provider,
                 accessProvider: OAuthCloudDriveAccessProvider(token: token)
             )
             let nodes = try await remote.browse(path: "")
-            let audio = try XCTUnwrap(nodes.first { $0.kind == .audio }, "\(provider) should expose one audio node")
+            let audio = try #require(nodes.first { $0.kind == .audio }, "\(provider) should expose one audio node")
             let resolved = try await remote.resolve(node: audio)
-            XCTAssertFalse(resolved.url.absoluteString.isEmpty)
+            #expect(!resolved.url.absoluteString.isEmpty)
 
             let expired = OAuthToken(
                 provider: provider,
@@ -42,11 +43,11 @@ final class RemoteIntegrationTests: XCTestCase {
             )
             let accessProvider = OAuthCloudDriveAccessProvider(token: expired)
             let refreshed = try await accessProvider.access()
-            XCTAssertEqual(refreshed.accessToken, "\(provider.rawValue)-access-refreshed")
+            #expect(refreshed.accessToken == "\(provider.rawValue)-access-refreshed")
         }
     }
 
-    func testServerBackendsBrowseAndResolveAgainstLocalServer() async throws {
+    @Test func testServerBackendsBrowseAndResolveAgainstLocalServer() async throws {
         let baseURL = try integrationBaseURL()
 
         // Verify that bad auth is rejected for non-cloud backends.
@@ -57,9 +58,9 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         do {
             _ = try await badSubsonic.refresh()
-            XCTFail("Bad subsonic credentials should be rejected")
+            Issue.record("Bad subsonic credentials should be rejected")
         } catch {
-            XCTAssertNotNil(error as? URLError)
+            #expect(error as? URLError != nil)
         }
 
         let badWebDAV = WebDAVProvider(
@@ -69,9 +70,9 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         do {
             _ = try await badWebDAV.refresh()
-            XCTFail("Bad webdav credentials should be rejected")
+            Issue.record("Bad webdav credentials should be rejected")
         } catch {
-            XCTAssertNotNil(error as? URLError)
+            #expect(error as? URLError != nil)
         }
 
         let badJellyfin = JellyfinProvider(
@@ -81,9 +82,9 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         do {
             _ = try await badJellyfin.refresh()
-            XCTFail("Bad jellyfin token should be rejected")
+            Issue.record("Bad jellyfin token should be rejected")
         } catch {
-            XCTAssertNotNil(error as? URLError)
+            #expect(error as? URLError != nil)
         }
 
         let badPlex = PlexProvider(
@@ -92,9 +93,9 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         do {
             _ = try await badPlex.refresh()
-            XCTFail("Bad plex token should be rejected")
+            Issue.record("Bad plex token should be rejected")
         } catch {
-            XCTAssertNotNil(error as? URLError)
+            #expect(error as? URLError != nil)
         }
 
         let subsonic = SubsonicProvider(
@@ -104,20 +105,20 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         try await subsonic.refresh()
         let subsonicArtists = try await subsonic.browse(path: "")
-        let subsonicArtist = try XCTUnwrap(subsonicArtists.first)
+        let subsonicArtist = try #require(subsonicArtists.first)
         let subsonicAlbums = try await subsonic.browse(path: subsonicArtist.path)
-        let subsonicAlbum = try XCTUnwrap(subsonicAlbums.first)
+        let subsonicAlbum = try #require(subsonicAlbums.first)
         let subsonicTracks = try await subsonic.browse(path: subsonicAlbum.path)
-        let subsonicTrack = try XCTUnwrap(subsonicTracks.first)
-        XCTAssertEqual(subsonicTrack.metadata?.artist, "Artist")
-        XCTAssertEqual(subsonicTrack.metadata?.album, "Album")
-        XCTAssertEqual(subsonicTrack.metadata?.trackNumber, 1)
-        XCTAssertEqual(subsonicTrack.metadata?.codec, "FLAC")
-        XCTAssertEqual(subsonicTrack.metadata?.sampleRate, 44_100)
-        XCTAssertEqual(subsonicTrack.metadata?.bitRateKbps, 900)
-        XCTAssertTrue(subsonicTrack.metadata?.artwork?.url?.absoluteString.contains("getCoverArt.view") == true)
+        let subsonicTrack = try #require(subsonicTracks.first)
+        #expect(subsonicTrack.metadata?.artist == "Artist")
+        #expect(subsonicTrack.metadata?.album == "Album")
+        #expect(subsonicTrack.metadata?.trackNumber == 1)
+        #expect(subsonicTrack.metadata?.codec == "FLAC")
+        #expect(subsonicTrack.metadata?.sampleRate == 44_100)
+        #expect(subsonicTrack.metadata?.bitRateKbps == 900)
+        #expect(subsonicTrack.metadata?.artwork?.url?.absoluteString.contains("getCoverArt.view") == true)
         let subsonicAsset = try await subsonic.resolve(node: subsonicTrack)
-        XCTAssertTrue(subsonicAsset.url.absoluteString.contains("stream.view"))
+        #expect(subsonicAsset.url.absoluteString.contains("stream.view"))
         try await assertAudioRequest(subsonicAsset, expectedStatus: 206)
         try await assertArtworkRequest(subsonicTrack.metadata?.artwork)
 
@@ -128,11 +129,11 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         try await subsonicNonRange.refresh()
         let nonRangeArtists = try await subsonicNonRange.browse(path: "")
-        let nonRangeArtist = try XCTUnwrap(nonRangeArtists.first)
+        let nonRangeArtist = try #require(nonRangeArtists.first)
         let nonRangeAlbums = try await subsonicNonRange.browse(path: nonRangeArtist.path)
-        let nonRangeAlbum = try XCTUnwrap(nonRangeAlbums.first)
+        let nonRangeAlbum = try #require(nonRangeAlbums.first)
         let nonRangeTracks = try await subsonicNonRange.browse(path: nonRangeAlbum.path)
-        let nonRangeTrack = try XCTUnwrap(nonRangeTracks.first)
+        let nonRangeTrack = try #require(nonRangeTracks.first)
         let nonRangeAsset = try await subsonicNonRange.resolve(node: nonRangeTrack)
         try await assertAudioRequest(nonRangeAsset, expectedStatus: 200)
 
@@ -143,9 +144,9 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         try await webDAV.refresh()
         let webDAVNodes = try await webDAV.browse(path: "")
-        let webDAVTrack = try XCTUnwrap(webDAVNodes.first { $0.kind == .audio })
+        let webDAVTrack = try #require(webDAVNodes.first { $0.kind == .audio })
         let webDAVAsset = try await webDAV.resolve(node: webDAVTrack)
-        XCTAssertTrue(webDAVAsset.url.absoluteString.contains("Track.flac"))
+        #expect(webDAVAsset.url.absoluteString.contains("Track.flac"))
 
         let jellyfin = JellyfinProvider(
             baseURL: baseURL.appendingPathComponent("jellyfin"),
@@ -154,21 +155,21 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         try await jellyfin.refresh()
         let jellyfinArtists = try await jellyfin.browse(path: "")
-        let jellyfinArtist = try XCTUnwrap(jellyfinArtists.first)
+        let jellyfinArtist = try #require(jellyfinArtists.first)
         let jellyfinAlbums = try await jellyfin.browse(path: jellyfinArtist.path)
-        let jellyfinAlbum = try XCTUnwrap(jellyfinAlbums.first)
+        let jellyfinAlbum = try #require(jellyfinAlbums.first)
         let jellyfinTracks = try await jellyfin.browse(path: jellyfinAlbum.path)
-        let jellyfinTrack = try XCTUnwrap(jellyfinTracks.first)
-        XCTAssertEqual(jellyfinTrack.metadata?.artist, "Artist")
-        XCTAssertEqual(jellyfinTrack.metadata?.album, "Album")
-        XCTAssertEqual(jellyfinTrack.metadata?.trackNumber, 1)
-        XCTAssertEqual(jellyfinTrack.metadata?.codec, "FLAC")
-        XCTAssertEqual(jellyfinTrack.metadata?.sampleRate, 44_100)
-        XCTAssertEqual(jellyfinTrack.metadata?.bitRateKbps, 900)
+        let jellyfinTrack = try #require(jellyfinTracks.first)
+        #expect(jellyfinTrack.metadata?.artist == "Artist")
+        #expect(jellyfinTrack.metadata?.album == "Album")
+        #expect(jellyfinTrack.metadata?.trackNumber == 1)
+        #expect(jellyfinTrack.metadata?.codec == "FLAC")
+        #expect(jellyfinTrack.metadata?.sampleRate == 44_100)
+        #expect(jellyfinTrack.metadata?.bitRateKbps == 900)
         let jellyfinAsset = try await jellyfin.resolve(node: jellyfinTrack)
-        XCTAssertTrue(jellyfinAsset.url.absoluteString.contains("/Audio/track-1/stream"))
-        XCTAssertNotNil(jellyfinAsset.headers["Authorization"])
-        XCTAssertNil(jellyfinAsset.headers["X-Emby-Authorization"])
+        #expect(jellyfinAsset.url.absoluteString.contains("/Audio/track-1/stream"))
+        #expect(jellyfinAsset.headers["Authorization"] != nil)
+        #expect(jellyfinAsset.headers["X-Emby-Authorization"] == nil)
         try await assertAudioRequest(jellyfinAsset, expectedStatus: 206)
         try await assertArtworkRequest(jellyfinTrack.metadata?.artwork)
 
@@ -178,25 +179,25 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         try await plex.refresh()
         let plexSections = try await plex.browse(path: "")
-        let plexSection = try XCTUnwrap(plexSections.first)
+        let plexSection = try #require(plexSections.first)
         let plexArtists = try await plex.browse(path: plexSection.path)
-        let plexArtist = try XCTUnwrap(plexArtists.first)
+        let plexArtist = try #require(plexArtists.first)
         let plexAlbums = try await plex.browse(path: plexArtist.path)
-        let plexAlbum = try XCTUnwrap(plexAlbums.first)
+        let plexAlbum = try #require(plexAlbums.first)
         let plexTracks = try await plex.browse(path: plexAlbum.path)
-        let plexTrack = try XCTUnwrap(plexTracks.first)
-        XCTAssertEqual(plexTrack.metadata?.artist, "Artist")
-        XCTAssertEqual(plexTrack.metadata?.album, "Album")
-        XCTAssertEqual(plexTrack.metadata?.trackNumber, 1)
-        XCTAssertEqual(plexTrack.metadata?.codec, "FLAC")
+        let plexTrack = try #require(plexTracks.first)
+        #expect(plexTrack.metadata?.artist == "Artist")
+        #expect(plexTrack.metadata?.album == "Album")
+        #expect(plexTrack.metadata?.trackNumber == 1)
+        #expect(plexTrack.metadata?.codec == "FLAC")
         let plexAsset = try await plex.resolve(node: plexTrack)
-        XCTAssertTrue(plexAsset.url.absoluteString.contains("/plex/audio/test.flac"))
-        XCTAssertNotNil(plexAsset.headers["X-Plex-Token"])
+        #expect(plexAsset.url.absoluteString.contains("/plex/audio/test.flac"))
+        #expect(plexAsset.headers["X-Plex-Token"] != nil)
         try await assertAudioRequest(plexAsset, expectedStatus: 206)
         try await assertArtworkRequest(plexAsset.metadata?.artwork)
     }
 
-    func testSMBFixtureBrowseAndResolveWithoutNetwork() async throws {
+    @Test func testSMBFixtureBrowseAndResolveWithoutNetwork() async throws {
         _ = try integrationBaseURL()
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("tonearm-smb-\(UUID().uuidString)", isDirectory: true)
@@ -205,17 +206,17 @@ final class RemoteIntegrationTests: XCTestCase {
         let trackURL = root.appendingPathComponent("Track.flac")
         try Data("audio".utf8).write(to: trackURL)
 
-        let bookmark = try XCTUnwrap(BookmarkVault.makeBookmark(for: root))
+        let bookmark = try #require(BookmarkVault.makeBookmark(for: root))
         let smb = SMBProvider(rootBookmark: bookmark)
         let nodes = try await smb.browse(path: "")
-        let track = try XCTUnwrap(nodes.first { $0.kind == .audio })
+        let track = try #require(nodes.first { $0.kind == .audio })
         let resolved = try await smb.resolve(node: track)
 
-        XCTAssertEqual(resolved.url.lastPathComponent, "Track.flac")
-        XCTAssertFalse(resolved.supportsByteRanges)
+        #expect(resolved.url.lastPathComponent == "Track.flac")
+        #expect(!resolved.supportsByteRanges)
     }
 
-    func testCloudOAuthReconnectRequiredOnInvalidRefreshToken() async throws {
+    @Test func testCloudOAuthReconnectRequiredOnInvalidRefreshToken() async throws {
         let baseURL = try integrationBaseURL()
         let provider = CloudDriveAPI.Provider.dropbox
         let token = OAuthToken(
@@ -232,15 +233,15 @@ final class RemoteIntegrationTests: XCTestCase {
         let accessProvider = OAuthCloudDriveAccessProvider(token: token)
         do {
             _ = try await accessProvider.access()
-            XCTFail("Refresh with bogus token should throw")
+            Issue.record("Refresh with bogus token should throw")
         } catch let error as OAuthError {
-            XCTAssertEqual(error, .refreshRequired)
+            #expect(error == .refreshRequired)
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
-    func testCloudOAuthReconnectRequiredWithoutRefreshToken() async throws {
+    @Test func testCloudOAuthReconnectRequiredWithoutRefreshToken() async throws {
         let baseURL = try integrationBaseURL()
         let provider = CloudDriveAPI.Provider.googleDrive
         let token = OAuthToken(
@@ -257,15 +258,15 @@ final class RemoteIntegrationTests: XCTestCase {
         let accessProvider = OAuthCloudDriveAccessProvider(token: token)
         do {
             _ = try await accessProvider.access()
-            XCTFail("Refresh without refresh token should throw")
+            Issue.record("Refresh without refresh token should throw")
         } catch let error as OAuthError {
-            XCTAssertEqual(error, .refreshRequired)
+            #expect(error == .refreshRequired)
         } catch {
-            XCTFail("Unexpected error: \(error)")
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
-    func testCloudDriveBrowseRejectedWithBadAccessToken() async throws {
+    @Test func testCloudDriveBrowseRejectedWithBadAccessToken() async throws {
         let baseURL = try integrationBaseURL()
         let provider = CloudDriveAPI.Provider.oneDrive
         let remote = CloudDriveProvider(
@@ -276,16 +277,16 @@ final class RemoteIntegrationTests: XCTestCase {
         )
         do {
             _ = try await remote.browse(path: "")
-            XCTFail("Browse with bad token should throw")
+            Issue.record("Browse with bad token should throw")
         } catch {
-            XCTAssertNotNil(error as? URLError)
+            #expect(error as? URLError != nil)
         }
     }
 
     private func integrationBaseURL() throws -> URL {
         guard let raw = ProcessInfo.processInfo.environment["TONEARM_REMOTE_INTEGRATION_BASE_URL"],
               let url = URL(string: raw), url.scheme?.hasPrefix("http") == true else {
-            throw XCTSkip("Set TONEARM_REMOTE_INTEGRATION_BASE_URL to run remote integration tests")
+            try Test.cancel("Set TONEARM_REMOTE_INTEGRATION_BASE_URL to run remote integration tests")
         }
         return url
     }
@@ -316,39 +317,39 @@ final class RemoteIntegrationTests: XCTestCase {
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
 
         let (_, response) = try await URLSession.shared.data(for: request)
-        let http = try XCTUnwrap(response as? HTTPURLResponse)
-        XCTAssertEqual(http.statusCode, expectedStatus)
+        let http = try #require(response as? HTTPURLResponse)
+        #expect(http.statusCode == expectedStatus)
         if expectedStatus == 206 {
-            XCTAssertEqual(
+            #expect(
                 RemoteStreamingResponsePolicy.probeResult(
                     statusCode: http.statusCode,
                     contentRange: http.value(forHTTPHeaderField: "Content-Range"),
                     expectedContentLength: http.expectedContentLength
-                ),
+                ) ==
                 .ranged(totalBytes: Int64("tonearm-remote-test-audio".utf8.count))
             )
         } else if expectedStatus == 200 {
-            XCTAssertEqual(
+            #expect(
                 RemoteStreamingResponsePolicy.probeResult(
                     statusCode: http.statusCode,
                     contentRange: nil,
                     expectedContentLength: http.expectedContentLength
-                ),
+                ) ==
                 .fullBody(totalBytes: Int64("tonearm-remote-test-audio".utf8.count))
             )
         }
     }
 
     private func assertArtworkRequest(_ artwork: RemoteArtwork?) async throws {
-        let artwork = try XCTUnwrap(artwork)
-        let url = try XCTUnwrap(artwork.url)
+        let artwork = try #require(artwork)
+        let url = try #require(artwork.url)
         var request = URLRequest(url: url)
         for (field, value) in artwork.headers {
             request.setValue(value, forHTTPHeaderField: field)
         }
         let (data, response) = try await URLSession.shared.data(for: request)
-        let http = try XCTUnwrap(response as? HTTPURLResponse)
-        XCTAssertEqual(http.statusCode, 200)
-        XCTAssertFalse(data.isEmpty)
+        let http = try #require(response as? HTTPURLResponse)
+        #expect(http.statusCode == 200)
+        #expect(!data.isEmpty)
     }
 }

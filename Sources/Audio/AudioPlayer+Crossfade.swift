@@ -70,8 +70,7 @@ extension AudioPlayer {
         }
         if !transitionStartedForCurrentEdge {
             // Starting an item that hasn't loaded raises; the outgoing keeps full level until it has.
-            guard incomingPlayer.status == .readyToPlay,
-                  incomingPlayer.currentItem?.status == .readyToPlay else {
+            guard incomingPlayer.isReady else {
                 player.volume = outputLevel
                 incomingPlayer.volume = 0
                 if outgoingNow >= currentDuration { cancelCrossfade(resetVolume: true) }
@@ -140,13 +139,13 @@ extension AudioPlayer {
             preloadedNextTrackId = nil
             preloadedNextLoader = nil
         } else {
-            built = buildItem(for: asset)
+            built = ordinaryBuildItemHook?(asset) ?? buildItem(for: asset)
         }
 
         guard let built else { return false }
         applyEQ(to: built.item, row: row)
 
-        let nextPlayer = AVPlayer(playerItem: built.item)
+        let nextPlayer = makeCrossfadePlayer(built.item)
         nextPlayer.volume = 0
         crossfadePlayer = nextPlayer
         crossfadeNextTrackId = row.track.id
@@ -257,16 +256,14 @@ extension AudioPlayer {
     /// Same failure detection `replaceItem` wires for ordinary loads, for crossfade-promoted items.
     func observePromotedItemFailure(_ item: AVPlayerItem?) {
         guard let item else { itemStatusCancellable = nil; return }
-        itemStatusCancellable = item.publisher(for: \.status)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak item] status in
-                guard let self, let item, status == .failed, self.player.currentItem === item else { return }
-                if self.ordinaryJamendoLoad != nil {
-                    self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: nil)
-                } else if item is LocalPlayerItem {
-                    self.failLocalPlayback(.unreadableMedia)
-                }
+        itemStatusCancellable = player.observeItemStatus(item) { [weak self, weak item] status in
+            guard let self, let item, status == .failed, self.player.currentItem === item else { return }
+            if self.ordinaryJamendoLoad != nil {
+                self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: nil)
+            } else if item is LocalPlayerItem {
+                self.failLocalPlayback(.unreadableMedia)
             }
+        }
     }
 
     func cancelCrossfade(resetVolume: Bool) {

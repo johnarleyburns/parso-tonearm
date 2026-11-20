@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class SmartPlaylistTests: XCTestCase {
-    func testEvaluatorAndSQLCompilerAgreeForEveryFieldAndOperator() async throws {
+@Suite struct SmartPlaylistTests {
+    @Test func testEvaluatorAndSQLCompilerAgreeForEveryFieldAndOperator() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
 
@@ -24,7 +25,7 @@ final class SmartPlaylistTests: XCTestCase {
         }
     }
 
-    func testNestedGroupsRequireAnyWithinAll() async throws {
+    @Test func testNestedGroupsRequireAnyWithinAll() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
         let playlist = SmartPlaylist(
@@ -42,10 +43,10 @@ final class SmartPlaylistTests: XCTestCase {
 
         let ids = try await assertEvaluatorAndCompilerAgree(playlist, rows: rows, store: fixture.store)
 
-        XCTAssertEqual(ids, [fixture.ids.kobresia, fixture.ids.sinnerman])
+        #expect(ids == [fixture.ids.kobresia, fixture.ids.sinnerman])
     }
 
-    func testEmptyRuleSetMatchesWholeLibrary() async throws {
+    @Test func testEmptyRuleSetMatchesWholeLibrary() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
         let playlist = SmartPlaylist(
@@ -54,7 +55,7 @@ final class SmartPlaylistTests: XCTestCase {
 
         let ids = try await assertEvaluatorAndCompilerAgree(playlist, rows: rows, store: fixture.store)
 
-        XCTAssertEqual(ids, [
+        #expect(ids == [
             fixture.ids.acroyear,
             fixture.ids.guestCut,
             fixture.ids.kobresia,
@@ -63,7 +64,7 @@ final class SmartPlaylistTests: XCTestCase {
         ])
     }
 
-    func testContradictoryRulesReturnNoRows() async throws {
+    @Test func testContradictoryRulesReturnNoRows() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
         let playlist = SmartPlaylist(
@@ -74,10 +75,10 @@ final class SmartPlaylistTests: XCTestCase {
 
         let ids = try await assertEvaluatorAndCompilerAgree(playlist, rows: rows, store: fixture.store)
 
-        XCTAssertEqual(ids, [])
+        #expect(ids == [])
     }
 
-    func testLimitAndSortInteractAfterFiltering() async throws {
+    @Test func testLimitAndSortInteractAfterFiltering() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
         let playlist = SmartPlaylist(
@@ -87,10 +88,10 @@ final class SmartPlaylistTests: XCTestCase {
 
         let ids = try await assertEvaluatorAndCompilerAgree(playlist, rows: rows, store: fixture.store)
 
-        XCTAssertEqual(ids, [fixture.ids.guestCut, fixture.ids.acroyear])
+        #expect(ids == [fixture.ids.guestCut, fixture.ids.acroyear])
     }
 
-    func testNilFieldValuesUseExplicitEmptySemantics() async throws {
+    @Test func testNilFieldValuesUseExplicitEmptySemantics() async throws {
         let fixture = try await SmartPlaylistFixture.seed()
         let rows = try await fixture.store.allTrackRows()
         let cases: [(String, SmartPlaylist, [Int64])] = [
@@ -137,11 +138,11 @@ final class SmartPlaylistTests: XCTestCase {
                 rows: rows,
                 store: fixture.store,
                 label: label)
-            XCTAssertEqual(ids, expected, label)
+            #expect(ids == expected, "\(label)")
         }
     }
 
-    func testEvaluatorHandlesTenThousandTracksWithinInteractiveBudget() {
+    @Test func testEvaluatorHandlesTenThousandTracksWithinInteractiveBudget() {
         let rows = (0..<10_000).map(performanceRow)
         let playlist = SmartPlaylist(
             root: SmartPlaylistRuleGroup(conjunction: .all, predicates: [
@@ -156,9 +157,9 @@ final class SmartPlaylistTests: XCTestCase {
         let result = playlist.evaluate(rows: rows)
         let elapsed = Date().timeIntervalSince(startedAt)
 
-        XCTAssertEqual(result.count, 50)
-        XCTAssertEqual(result.first?.track.title, "Track 00010")
-        XCTAssertLessThan(elapsed, 2.0)
+        #expect(result.count == 50)
+        #expect(result.first?.track.title == "Track 00010")
+        #expect(elapsed < 2.0)
     }
 
     @discardableResult
@@ -168,7 +169,7 @@ final class SmartPlaylistTests: XCTestCase {
                                                  label: String = "") async throws -> [Int64] {
         let evaluated = playlist.evaluate(rows: rows).map(\.id)
         let compiled = try await store.smartPlaylistRows(playlist).map(\.id)
-        XCTAssertEqual(evaluated, compiled, label)
+        #expect(evaluated == compiled, "\(label)")
         return evaluated
     }
 
@@ -365,7 +366,7 @@ private struct SmartPlaylistFixture {
 
         let pastel = try await store.insertAlbum(Album(
             id: nil,
-            sourceId: try XCTUnwrap(local.id),
+            sourceId: try #require(local.id),
             title: "Pastel Blues",
             artist: "Nina Simone",
             artistId: nina.id,
@@ -375,7 +376,7 @@ private struct SmartPlaylistFixture {
             artworkId: nil))
         let substrata = try await store.insertAlbum(Album(
             id: nil,
-            sourceId: try XCTUnwrap(subsonic.id),
+            sourceId: try #require(subsonic.id),
             title: "Substrata",
             artist: "Biosphere",
             artistId: biosphere.id,
@@ -385,7 +386,7 @@ private struct SmartPlaylistFixture {
             artworkId: nil))
         let mixtape = try await store.insertAlbum(Album(
             id: nil,
-            sourceId: try XCTUnwrap(compilation.id),
+            sourceId: try #require(compilation.id),
             title: "The Mixtape",
             artist: "Various Artists",
             artistId: nil,
@@ -395,7 +396,7 @@ private struct SmartPlaylistFixture {
             artworkId: nil))
         let lp5 = try await store.insertAlbum(Album(
             id: nil,
-            sourceId: try XCTUnwrap(hiRes.id),
+            sourceId: try #require(hiRes.id),
             title: "LP5",
             artist: "Autechre",
             artistId: autechre.id,
@@ -407,7 +408,7 @@ private struct SmartPlaylistFixture {
         let sinnerman = try await store.insertTrack(Track(
             id: nil,
             albumId: pastel.id,
-            sourceId: try XCTUnwrap(local.id),
+            sourceId: try #require(local.id),
             title: "Sinnerman",
             trackNo: 1,
             discNo: 1,
@@ -423,7 +424,7 @@ private struct SmartPlaylistFixture {
         let kobresia = try await store.insertTrack(Track(
             id: nil,
             albumId: substrata.id,
-            sourceId: try XCTUnwrap(subsonic.id),
+            sourceId: try #require(subsonic.id),
             title: "Kobresia",
             trackNo: 2,
             discNo: 1,
@@ -439,7 +440,7 @@ private struct SmartPlaylistFixture {
         let untitled = try await store.insertTrack(Track(
             id: nil,
             albumId: nil,
-            sourceId: try XCTUnwrap(blank.id),
+            sourceId: try #require(blank.id),
             title: "Untitled",
             trackNo: nil,
             discNo: nil,
@@ -454,7 +455,7 @@ private struct SmartPlaylistFixture {
         let guestCut = try await store.insertTrack(Track(
             id: nil,
             albumId: mixtape.id,
-            sourceId: try XCTUnwrap(compilation.id),
+            sourceId: try #require(compilation.id),
             title: "Guest Cut",
             trackNo: 4,
             discNo: 1,
@@ -469,7 +470,7 @@ private struct SmartPlaylistFixture {
         let acroyear = try await store.insertTrack(Track(
             id: nil,
             albumId: lp5.id,
-            sourceId: try XCTUnwrap(hiRes.id),
+            sourceId: try #require(hiRes.id),
             title: "Acroyear2",
             trackNo: 3,
             discNo: 2,
@@ -483,10 +484,10 @@ private struct SmartPlaylistFixture {
             artistId: autechre.id,
             rgTrackGain: -3.25))
 
-        let sinnermanID = try XCTUnwrap(sinnerman.id)
-        let kobresiaID = try XCTUnwrap(kobresia.id)
-        let guestCutID = try XCTUnwrap(guestCut.id)
-        let acroyearID = try XCTUnwrap(acroyear.id)
+        let sinnermanID = try #require(sinnerman.id)
+        let kobresiaID = try #require(kobresia.id)
+        let guestCutID = try #require(guestCut.id)
+        let acroyearID = try #require(acroyear.id)
         _ = try await store.insertAsset(Asset(
             id: nil,
             trackId: sinnermanID,
@@ -533,7 +534,7 @@ private struct SmartPlaylistFixture {
             ids: IDs(
                 sinnerman: sinnermanID,
                 kobresia: kobresiaID,
-                untitled: try XCTUnwrap(untitled.id),
+                untitled: try #require(untitled.id),
                 guestCut: guestCutID,
                 acroyear: acroyearID))
     }

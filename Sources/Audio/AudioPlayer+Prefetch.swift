@@ -57,6 +57,7 @@ extension AudioPlayer {
     private func startPrefetchLoader(trackId: Int64, row: TrackRow, asset: Asset) {
         guard let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { return }
         prefetchedURLs[trackId] = remote
+        guard prefetchLoaderEnabled else { return }
         let loader = CachingResourceLoader(originalURL: remote, store: AudioCache.shared, config: AudioCache.loaderConfig(headers: asset.transientRemoteHeaders))
         prefetchLoaders[trackId] = loader
         loader.warm(upTo: 2 * 1024 * 1024)  // warm 2 MB to seed near-gapless

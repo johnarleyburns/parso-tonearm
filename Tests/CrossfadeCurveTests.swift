@@ -1,50 +1,48 @@
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class CrossfadeCurveTests: XCTestCase {
-    func testEqualPowerMaintainsConstantPower() {
+@Suite struct CrossfadeCurveTests {
+    @Test func testEqualPowerMaintainsConstantPower() {
         for position in stride(from: 90.0, through: 100.0, by: 1.0) {
             let gains = CrossfadeCurve.gains(position: position,
                                              duration: 100,
                                              fadeSeconds: 10,
                                              curve: .equalPower)
-            XCTAssertEqual(gains.outgoing * gains.outgoing + gains.incoming * gains.incoming,
-                           1,
-                           accuracy: 0.000_001)
+            #expect(abs(gains.outgoing * gains.outgoing + gains.incoming * gains.incoming - 1) <= 0.000_001)
         }
     }
 
-    func testEndpointsAreExact() {
+    @Test func testEndpointsAreExact() {
         let start = CrossfadeCurve.gains(position: 90,
                                          duration: 100,
                                          fadeSeconds: 10,
                                          curve: .equalPower)
-        XCTAssertTrue(start.active)
-        XCTAssertEqual(start.outgoing, 1)
-        XCTAssertEqual(start.incoming, 0)
+        #expect(start.active)
+        #expect(start.outgoing == 1)
+        #expect(start.incoming == 0)
 
         let end = CrossfadeCurve.gains(position: 100,
                                        duration: 100,
                                        fadeSeconds: 10,
                                        curve: .equalPower)
-        XCTAssertTrue(end.active)
-        XCTAssertEqual(end.outgoing, 0)
-        XCTAssertEqual(end.incoming, 1)
+        #expect(end.active)
+        #expect(end.outgoing == 0)
+        #expect(end.incoming == 1)
     }
 
-    func testLinearCurveMidpoint() {
+    @Test func testLinearCurveMidpoint() {
         let gains = CrossfadeCurve.gains(position: 95,
                                          duration: 100,
                                          fadeSeconds: 10,
                                          curve: .linear)
 
-        XCTAssertTrue(gains.active)
-        XCTAssertEqual(gains.outgoing, 0.5)
-        XCTAssertEqual(gains.incoming, 0.5)
+        #expect(gains.active)
+        #expect(gains.outgoing == 0.5)
+        #expect(gains.incoming == 0.5)
     }
 
-    func testFadeLongerThanTrackUsesWholeTrack() {
+    @Test func testFadeLongerThanTrackUsesWholeTrack() {
         let start = CrossfadeCurve.gains(position: 0,
                                          duration: 4,
                                          fadeSeconds: 10,
@@ -58,25 +56,25 @@ final class CrossfadeCurveTests: XCTestCase {
                                        fadeSeconds: 10,
                                        curve: .linear)
 
-        XCTAssertEqual(start, .init(outgoing: 1, incoming: 0, active: true))
-        XCTAssertEqual(middle, .init(outgoing: 0.5, incoming: 0.5, active: true))
-        XCTAssertEqual(end, .init(outgoing: 0, incoming: 1, active: true))
+        #expect(start == .init(outgoing: 1, incoming: 0, active: true))
+        #expect(middle == .init(outgoing: 0.5, incoming: 0.5, active: true))
+        #expect(end == .init(outgoing: 0, incoming: 1, active: true))
     }
 
-    func testZeroLengthFadeIsInactive() {
-        XCTAssertEqual(CrossfadeCurve.gains(position: 0,
+    @Test func testZeroLengthFadeIsInactive() {
+        #expect(CrossfadeCurve.gains(position: 0,
                                             duration: 100,
                                             fadeSeconds: 0,
-                                            curve: .equalPower),
-                       .init(outgoing: 1, incoming: 0, active: false))
-        XCTAssertEqual(CrossfadeCurve.gains(position: 100,
+                                            curve: .equalPower)
+                       == .init(outgoing: 1, incoming: 0, active: false))
+        #expect(CrossfadeCurve.gains(position: 100,
                                             duration: 100,
                                             fadeSeconds: 0,
-                                            curve: .equalPower),
-                       .init(outgoing: 1, incoming: 0, active: false))
+                                            curve: .equalPower)
+                       == .init(outgoing: 1, incoming: 0, active: false))
     }
 
-    func testGaplessAlbumDetectionSuppressesAdjacentAlbumTracks() {
+    @Test func testGaplessAlbumDetectionSuppressesAdjacentAlbumTracks() {
         let current = CrossfadeCurve.AlbumContinuity(albumID: 7,
                                                      sourceID: 1,
                                                      albumTitle: "Live",
@@ -90,10 +88,10 @@ final class CrossfadeCurveTests: XCTestCase {
                                                   discNumber: 1,
                                                   trackNumber: 4)
 
-        XCTAssertTrue(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
+        #expect(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
     }
 
-    func testGaplessAlbumDetectionSuppressesDiscBoundary() {
+    @Test func testGaplessAlbumDetectionSuppressesDiscBoundary() {
         let current = CrossfadeCurve.AlbumContinuity(albumID: 7,
                                                      sourceID: 1,
                                                      albumTitle: "Live",
@@ -107,10 +105,10 @@ final class CrossfadeCurveTests: XCTestCase {
                                                   discNumber: 2,
                                                   trackNumber: 1)
 
-        XCTAssertTrue(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
+        #expect(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
     }
 
-    func testGaplessAlbumDetectionUsesFallbackIdentity() {
+    @Test func testGaplessAlbumDetectionUsesFallbackIdentity() {
         let current = CrossfadeCurve.AlbumContinuity(albumID: nil,
                                                      sourceID: 1,
                                                      albumTitle: "Beyonce Live",
@@ -124,20 +122,20 @@ final class CrossfadeCurveTests: XCTestCase {
                                                   discNumber: nil,
                                                   trackNumber: nil)
 
-        XCTAssertTrue(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
+        #expect(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
     }
 
-    func testGaplessAlbumDetectionIgnoresUnnumberedCollectionBuckets() {
+    @Test func testGaplessAlbumDetectionIgnoresUnnumberedCollectionBuckets() {
         // Mood Starter genre albums: one album id, no album artist, no track numbers.
         let current = CrossfadeCurve.AlbumContinuity(albumID: 7, sourceID: 1, albumTitle: "Folk",
                                                      albumArtist: nil, discNumber: nil, trackNumber: nil)
         let next = CrossfadeCurve.AlbumContinuity(albumID: 7, sourceID: 1, albumTitle: "Folk",
                                                   albumArtist: nil, discNumber: nil, trackNumber: nil)
 
-        XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
+        #expect(!CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: next))
     }
 
-    func testGaplessAlbumDetectionDoesNotSuppressDifferentOrNonAdjacentAlbums() {
+    @Test func testGaplessAlbumDetectionDoesNotSuppressDifferentOrNonAdjacentAlbums() {
         let current = CrossfadeCurve.AlbumContinuity(albumID: 7,
                                                      sourceID: 1,
                                                      albumTitle: "Live",
@@ -157,7 +155,7 @@ final class CrossfadeCurveTests: XCTestCase {
                                                          discNumber: 1,
                                                          trackNumber: 5)
 
-        XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: differentAlbum))
-        XCTAssertFalse(CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: nonAdjacent))
+        #expect(!CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: differentAlbum))
+        #expect(!CrossfadeCurve.suppressesForGaplessAlbum(current: current, next: nonAdjacent))
     }
 }

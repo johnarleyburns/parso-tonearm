@@ -1,12 +1,13 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class RemoteLibraryProviderTests: XCTestCase {
+@Suite struct RemoteLibraryProviderTests {
 
-    func testFakeProviderConformanceRoutesBrowseResolveAndRefresh() async throws {
-        let audioURL = try XCTUnwrap(URL(string: "https://example.com/audio/track.flac"))
+    @Test func testFakeProviderConformanceRoutesBrowseResolveAndRefresh() async throws {
+        let audioURL = try #require(URL(string: "https://example.com/audio/track.flac"))
         let node = RemoteNode(
             id: "track-1",
             title: "Track 1",
@@ -28,40 +29,40 @@ final class RemoteLibraryProviderTests: XCTestCase {
         )
 
         let browsed = try await provider.browse(path: "Albums")
-        let resolved = try await provider.resolve(node: try XCTUnwrap(browsed.first))
+        let resolved = try await provider.resolve(node: try #require(browsed.first))
         try await provider.refresh()
 
-        XCTAssertEqual(provider.sourceKind, .subsonic)
-        XCTAssertEqual(browsed, [node])
-        XCTAssertEqual(resolved.url, audioURL)
-        XCTAssertEqual(resolved.headers["Authorization"], "Bearer token")
-        XCTAssertEqual(provider.refreshCount, 1)
+        #expect(provider.sourceKind == .subsonic)
+        #expect(browsed == [node])
+        #expect(resolved.url == audioURL)
+        #expect(resolved.headers["Authorization"] == "Bearer token")
+        #expect(provider.refreshCount == 1)
     }
 
-    func testIAResolverIsARemoteLibraryProvider() {
+    @Test func testIAResolverIsARemoteLibraryProvider() {
         let provider: any RemoteLibraryProvider = IARemoteLibraryProvider(preferFLAC: false)
 
-        XCTAssertEqual(provider.sourceKind, .iaItem)
+        #expect(provider.sourceKind == .iaItem)
     }
 
-    func testSourceKindIncludesPhaseERemoteProviders() {
-        XCTAssertTrue(SourceKind.allCases.contains(.subsonic))
-        XCTAssertTrue(SourceKind.allCases.contains(.webDAV))
-        XCTAssertTrue(SourceKind.allCases.contains(.smb))
-        XCTAssertTrue(SourceKind.allCases.contains(.jellyfin))
-        XCTAssertTrue(SourceKind.allCases.contains(.plex))
-        XCTAssertTrue(SourceKind.allCases.contains(.dropbox))
-        XCTAssertTrue(SourceKind.allCases.contains(.googleDrive))
-        XCTAssertTrue(SourceKind.allCases.contains(.oneDrive))
-        XCTAssertTrue(SourceKind.allCases.contains(.pCloud))
-        XCTAssertTrue(SourceKind.allCases.contains(.box))
-        XCTAssertTrue(SourceKind.allCases.contains(.yandexDisk))
-        XCTAssertTrue(SourceKind.allCases.contains(.emby))
+    @Test func testSourceKindIncludesPhaseERemoteProviders() {
+        #expect(SourceKind.allCases.contains(.subsonic))
+        #expect(SourceKind.allCases.contains(.webDAV))
+        #expect(SourceKind.allCases.contains(.smb))
+        #expect(SourceKind.allCases.contains(.jellyfin))
+        #expect(SourceKind.allCases.contains(.plex))
+        #expect(SourceKind.allCases.contains(.dropbox))
+        #expect(SourceKind.allCases.contains(.googleDrive))
+        #expect(SourceKind.allCases.contains(.oneDrive))
+        #expect(SourceKind.allCases.contains(.pCloud))
+        #expect(SourceKind.allCases.contains(.box))
+        #expect(SourceKind.allCases.contains(.yandexDisk))
+        #expect(SourceKind.allCases.contains(.emby))
     }
 
-    func testProviderFactoryDeclaresEveryProductRemoteKindSupported() {
+    @Test func testProviderFactoryDeclaresEveryProductRemoteKindSupported() {
         for kind in RemoteLibraryAccessPolicy.productSourceKinds {
-            XCTAssertTrue(RemoteLibraryProviderFactory.supports(kind), "\(kind) should have a product provider path")
+            #expect(RemoteLibraryProviderFactory.supports(kind), "\(kind) should have a product provider path")
         }
     }
 
@@ -71,14 +72,14 @@ final class RemoteLibraryProviderTests: XCTestCase {
     /// both `RemoteSparseAssetResolver`'s analysis-time re-authentication
     /// and the remote-indexing backfill for what is very likely this app's
     /// single largest remote-library source type.
-    func testProviderFactoryConstructsAnIAProviderForEveryArchiveKind() throws {
+    @Test func testProviderFactoryConstructsAnIAProviderForEveryArchiveKind() throws {
         for kind in [SourceKind.iaItem, .iaList, .iaCollection, .iaFavorites] {
             let source = Source(
                 id: 1, kind: kind, iaIdentifier: "some-item", originalURL: "https://archive.org/details/some-item",
                 title: "Test", addedAt: Date(), lastResolvedAt: Date(), followUpdates: false,
                 licenseText: nil, memberCapHit: false)
             let provider = try RemoteLibraryProviderFactory.provider(for: source)
-            XCTAssertTrue(provider is IARemoteLibraryProvider, "\(kind) should construct an IARemoteLibraryProvider")
+            #expect(provider is IARemoteLibraryProvider, "\(kind) should construct an IARemoteLibraryProvider")
         }
     }
 
@@ -86,14 +87,14 @@ final class RemoteLibraryProviderTests: XCTestCase {
     /// password (`AppState.addIASource`, account "ia-private:<sourceID>")
     /// was never returned here, so `AppState.deleteSource` never cleaned
     /// it up on delete — the credential stayed in the Keychain forever.
-    func testCredentialAccountsIncludesIAPrivateListAccount() {
+    @Test func testCredentialAccountsIncludesIAPrivateListAccount() {
         for kind in [SourceKind.iaItem, .iaList, .iaCollection, .iaFavorites] {
             let accounts = RemoteLibraryProviderFactory.credentialAccounts(for: 42, kind: kind)
-            XCTAssertEqual(accounts, ["ia-private:42"], "\(kind) should report its private-list credential account")
+            #expect(accounts == ["ia-private:42"], "\(kind) should report its private-list credential account")
         }
     }
 
-    func testV11MigrationAcceptsRemoteProviderSourceKind() throws {
+    @Test func testV11MigrationAcceptsRemoteProviderSourceKind() throws {
         let dbQueue = try DatabaseQueue()
         try Schema.migrator(upTo: "v11").migrate(dbQueue)
 
@@ -107,7 +108,7 @@ final class RemoteLibraryProviderTests: XCTestCase {
                 arguments: [SourceKind.subsonic.rawValue, Date(timeIntervalSince1970: 1)]
             )
             let kind = try String.fetchOne(db, sql: "SELECT kind FROM source")
-            XCTAssertEqual(kind, SourceKind.subsonic.rawValue)
+            #expect(kind == SourceKind.subsonic.rawValue)
         }
     }
 

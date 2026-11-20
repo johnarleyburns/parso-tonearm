@@ -1,20 +1,21 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class ListeningStatsTests: XCTestCase {
-    func testEmptyHistory() {
+@Suite struct ListeningStatsTests {
+    @Test func testEmptyHistory() {
         let summary = ListeningStats.summarize(events: [], tracks: [], now: Date(timeIntervalSince1970: 0))
 
-        XCTAssertEqual(summary.totalPlayCount, 0)
-        XCTAssertEqual(summary.totalListeningTime, 0)
-        XCTAssertEqual(summary.currentStreakDays, 0)
-        XCTAssertEqual(summary.longestStreakDays, 0)
-        XCTAssertTrue(summary.topArtists.isEmpty)
-        XCTAssertTrue(summary.dailyRollups.isEmpty)
+        #expect(summary.totalPlayCount == 0)
+        #expect(summary.totalListeningTime == 0)
+        #expect(summary.currentStreakDays == 0)
+        #expect(summary.longestStreakDays == 0)
+        #expect(summary.topArtists.isEmpty)
+        #expect(summary.dailyRollups.isEmpty)
     }
 
-    func testSingleEventBuildsTotalsAndTopLists() {
+    @Test func testSingleEventBuildsTotalsAndTopLists() {
         let row = track(id: 1, title: "Song", artist: "Artist", album: "Album", duration: 180)
         let date = Date(timeIntervalSince1970: 10_000)
         let summary = ListeningStats.summarize(
@@ -22,14 +23,14 @@ final class ListeningStatsTests: XCTestCase {
             tracks: [row],
             now: date)
 
-        XCTAssertEqual(summary.totalPlayCount, 1)
-        XCTAssertEqual(summary.totalListeningTime, 180)
-        XCTAssertEqual(summary.topTracks.map { $0.row.track.title }, ["Song"])
-        XCTAssertEqual(summary.topArtists.map(\.name), ["Artist"])
-        XCTAssertEqual(summary.topAlbums.map(\.name), ["Album"])
+        #expect(summary.totalPlayCount == 1)
+        #expect(summary.totalListeningTime == 180)
+        #expect(summary.topTracks.map { $0.row.track.title } == ["Song"])
+        #expect(summary.topArtists.map(\.name) == ["Artist"])
+        #expect(summary.topAlbums.map(\.name) == ["Album"])
     }
 
-    func testDeterministicTieBreaking() {
+    @Test func testDeterministicTieBreaking() {
         let beta = track(id: 2, title: "Beta", artist: "Same", album: "Album", duration: 100)
         let alpha = track(id: 1, title: "Alpha", artist: "Same", album: "Album", duration: 100)
         let summary = ListeningStats.summarize(
@@ -40,10 +41,10 @@ final class ListeningStatsTests: XCTestCase {
             tracks: [beta, alpha],
             now: Date(timeIntervalSince1970: 2))
 
-        XCTAssertEqual(summary.topTracks.map { $0.row.track.title }, ["Alpha", "Beta"])
+        #expect(summary.topTracks.map { $0.row.track.title } == ["Alpha", "Beta"])
     }
 
-    func testDSTBoundaryKeepsConsecutiveDayStreaks() {
+    @Test func testDSTBoundaryKeepsConsecutiveDayStreaks() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Chicago")!
         let dates = [
@@ -59,12 +60,12 @@ final class ListeningStatsTests: XCTestCase {
             calendar: calendar,
             now: dates[2])
 
-        XCTAssertEqual(summary.currentStreakDays, 3)
-        XCTAssertEqual(summary.longestStreakDays, 3)
-        XCTAssertEqual(summary.dailyRollups.map(\.playCount), [1, 1, 1])
+        #expect(summary.currentStreakDays == 3)
+        #expect(summary.longestStreakDays == 3)
+        #expect(summary.dailyRollups.map(\.playCount) == [1, 1, 1])
     }
 
-    func testYearBoundarySeparatesYearlyRollupsAndReview() {
+    @Test func testYearBoundarySeparatesYearlyRollupsAndReview() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let row = track(id: 1, title: "Year Song", artist: "Artist", duration: 120)
@@ -77,13 +78,13 @@ final class ListeningStatsTests: XCTestCase {
             calendar: calendar,
             now: jan1)
 
-        XCTAssertEqual(summary.yearlyRollups.map(\.playCount), [1, 1])
-        XCTAssertEqual(summary.yearInReview.year, 2026)
-        XCTAssertEqual(summary.yearInReview.playCount, 1)
-        XCTAssertTrue(summary.yearInReview.shareText.contains("Year Song"))
+        #expect(summary.yearlyRollups.map(\.playCount) == [1, 1])
+        #expect(summary.yearInReview.year == 2026)
+        #expect(summary.yearInReview.playCount == 1)
+        #expect(summary.yearInReview.shareText.contains("Year Song"))
     }
 
-    func testDeletedTracksStillCountInHistoryButNotTopListsOrDuration() {
+    @Test func testDeletedTracksStillCountInHistoryButNotTopListsOrDuration() {
         let row = track(id: 1, title: "Existing", artist: "Artist", duration: 90)
         let day = Date(timeIntervalSince1970: 20_000)
         let summary = ListeningStats.summarize(
@@ -94,11 +95,11 @@ final class ListeningStatsTests: XCTestCase {
             tracks: [row],
             now: day)
 
-        XCTAssertEqual(summary.totalPlayCount, 2)
-        XCTAssertEqual(summary.totalListeningTime, 90)
-        XCTAssertEqual(summary.topTracks.map { $0.row.id }, [1])
-        XCTAssertEqual(summary.dailyRollups.map(\.playCount), [2])
-        XCTAssertEqual(summary.dailyRollups.map(\.listeningTime), [90])
+        #expect(summary.totalPlayCount == 2)
+        #expect(summary.totalListeningTime == 90)
+        #expect(summary.topTracks.map { $0.row.id } == [1])
+        #expect(summary.dailyRollups.map(\.playCount) == [2])
+        #expect(summary.dailyRollups.map(\.listeningTime) == [90])
     }
 
     private func track(

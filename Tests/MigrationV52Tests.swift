@@ -1,20 +1,21 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// v52: adds `watch`/`folderBookmark` columns to `sources`. Folder imports no longer
 /// auto-create/populate a playlist (real report: "do not add any of the files shown to a
 /// playlist automatically"), so "watch this folder" moves onto `Source` itself — additively,
 /// mirroring `Playlist.watch`/`folderBookmark`'s own column types exactly.
-final class MigrationV52Tests: XCTestCase {
-    func testV52AddsWatchAndFolderBookmarkColumnsToSources() throws {
+@Suite struct MigrationV52Tests {
+    @Test func testV52AddsWatchAndFolderBookmarkColumnsToSources() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v51").migrate(queue)
 
         try queue.read { db in
             let columns = try db.columns(in: "source").map(\.name)
-            XCTAssertFalse(columns.contains("watch"))
-            XCTAssertFalse(columns.contains("folderBookmark"))
+            #expect(!columns.contains("watch"))
+            #expect(!columns.contains("folderBookmark"))
         }
 
         // Migrate to head (v52).
@@ -22,12 +23,12 @@ final class MigrationV52Tests: XCTestCase {
 
         try queue.read { db in
             let columns = try db.columns(in: "source").map(\.name)
-            XCTAssertTrue(columns.contains("watch"))
-            XCTAssertTrue(columns.contains("folderBookmark"))
+            #expect(columns.contains("watch"))
+            #expect(columns.contains("folderBookmark"))
         }
     }
 
-    func testExistingSourceRowsAreNotWatchedAfterMigration() throws {
+    @Test func testExistingSourceRowsAreNotWatchedAfterMigration() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v51").migrate(queue)
         try queue.write { db in
@@ -46,10 +47,10 @@ final class MigrationV52Tests: XCTestCase {
             try Row.fetchOne(db, sql: "SELECT watch FROM source WHERE title = 'Existing Folder'")
         }
         let watch: Int? = row?["watch"]
-        XCTAssertNil(watch, "pre-existing rows must read back as not watched (nil), not a crash or a stray true")
+        #expect(watch == nil, "pre-existing rows must read back as not watched (nil), not a crash or a stray true")
     }
 
-    func testMigratingTwiceIsIdempotent() throws {
+    @Test func testMigratingTwiceIsIdempotent() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
         try Schema.migrator().migrate(queue)

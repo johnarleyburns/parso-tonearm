@@ -1,8 +1,8 @@
-import XCTest
+import Testing
 @testable import TonearmWatchCore
 
-final class WatchArtworkResolverTests: XCTestCase {
-    func testResolutionPrecedenceAndUnavailableFallbacks() {
+@Suite struct WatchArtworkResolverTests {
+    @Test func testResolutionPrecedenceAndUnavailableFallbacks() {
         let cases: [(String?, String?, Set<String>, WatchArtworkSource, String?)] = [
             ("custom", "cover", ["custom", "cover"], .custom, "custom"),
             ("custom", "cover", ["cover"], .cover, "cover"),
@@ -15,8 +15,8 @@ final class WatchArtworkResolverTests: XCTestCase {
             let result = WatchArtworkResolver.resolve(
                 customArtworkID: custom, coverArtworkID: cover,
                 installed: installedIDs.contains)
-            XCTAssertEqual(result.0, expectedSource)
-            XCTAssertEqual(result.artworkID, expectedID)
+            #expect(result.0 == expectedSource)
+            #expect(result.artworkID == expectedID)
         }
     }
 }

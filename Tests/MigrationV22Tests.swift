@@ -1,5 +1,6 @@
 import GRDB
-import XCTest
+import Foundation
+import Testing
 @testable import TonearmCore
 
 /// v22: persisted `asset.remoteNodeID`/`remoteNodePath` — the real
@@ -7,8 +8,8 @@ import XCTest
 /// caller can re-authenticate via `RemoteLibraryProvider.resolve(node:)`
 /// instead of trusting a possibly-stale `remoteURL` alone (real bug fix —
 /// see docs/plans/remote-sparse-indexing.md, "Phase 0").
-final class MigrationV22Tests: XCTestCase {
-    func testV22AddsRemoteNodeColumnsWithoutLosingExistingAssetData() throws {
+@Suite struct MigrationV22Tests {
+    @Test func testV22AddsRemoteNodeColumnsWithoutLosingExistingAssetData() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator(upTo: "v21").migrate(queue)
 
@@ -39,17 +40,17 @@ final class MigrationV22Tests: XCTestCase {
             let row = try Row.fetchOne(
                 db, sql: "SELECT remoteURL, remoteNodeID, remoteNodePath FROM asset WHERE trackId = ?",
                 arguments: [trackId])
-            XCTAssertEqual(row?["remoteURL"] as String?, "https://example.test/pre-existing.mp3")
-            XCTAssertNil(row?["remoteNodeID"] as String?)
-            XCTAssertNil(row?["remoteNodePath"] as String?)
+            #expect(row?["remoteURL"] as String? == "https://example.test/pre-existing.mp3")
+            #expect(row?["remoteNodeID"] as String? == nil)
+            #expect(row?["remoteNodePath"] as String? == nil)
 
             let columns = try db.columns(in: "asset").map(\.name)
-            XCTAssertTrue(columns.contains("remoteNodeID"))
-            XCTAssertTrue(columns.contains("remoteNodePath"))
+            #expect(columns.contains("remoteNodeID"))
+            #expect(columns.contains("remoteNodePath"))
         }
     }
 
-    func testMigratingTwiceIsIdempotent() throws {
+    @Test func testMigratingTwiceIsIdempotent() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
         try Schema.migrator().migrate(queue)
@@ -59,7 +60,7 @@ final class MigrationV22Tests: XCTestCase {
     /// `transientRemoteHeaders`/`transientRemoteSupportsByteRanges`, which
     /// are deliberately excluded from `Asset.CodingKeys` and must NOT survive
     /// a save/reload.
-    func testAssetRoundTripsRemoteNodeFieldsButKeepsHeadersTransient() throws {
+    @Test func testAssetRoundTripsRemoteNodeFieldsButKeepsHeadersTransient() throws {
         let queue = try DatabaseQueue()
         try Schema.migrator().migrate(queue)
 
@@ -87,9 +88,9 @@ final class MigrationV22Tests: XCTestCase {
         try queue.write { db in try asset.insert(db) }
 
         let reloaded = try queue.read { db in try Asset.filter(Column("trackId") == trackId).fetchOne(db) }
-        XCTAssertEqual(reloaded?.remoteNodeID, "song-42")
-        XCTAssertEqual(reloaded?.remoteNodePath, "artist/album/song-42")
-        XCTAssertTrue(reloaded?.transientRemoteHeaders.isEmpty == true,
+        #expect(reloaded?.remoteNodeID == "song-42")
+        #expect(reloaded?.remoteNodePath == "artist/album/song-42")
+        #expect(reloaded?.transientRemoteHeaders.isEmpty == true,
                       "transient headers must never survive a DB round trip")
     }
 }

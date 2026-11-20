@@ -1,63 +1,67 @@
-import XCTest
+import Foundation
+import Testing
 
 @testable import TonearmCore
 
-final class CloudDriveAPITests: XCTestCase {
+@Suite struct CloudDriveAPITests {
 
-    func testDropboxListAndTemporaryLinkRequests() throws {
+    @Test func testDropboxListAndTemporaryLinkRequests() throws {
         let list = try CloudDriveAPI.request(provider: .dropbox, endpoint: .list(containerID: "id:folder"), accessToken: "token")
-        let listBody = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(list.httpBody)) as? [String: Any])
+        let listBodyData = try #require(list.httpBody)
+        let listBody = try #require(try JSONSerialization.jsonObject(with: listBodyData) as? [String: Any])
 
-        XCTAssertEqual(list.url?.absoluteString, "https://api.dropboxapi.com/2/files/list_folder")
-        XCTAssertEqual(list.httpMethod, "POST")
-        XCTAssertEqual(list.value(forHTTPHeaderField: "Authorization"), "Bearer token")
-        XCTAssertEqual(listBody["path"] as? String, "id:folder")
-        XCTAssertEqual(listBody["recursive"] as? Bool, false)
+        #expect(list.url?.absoluteString == "https://api.dropboxapi.com/2/files/list_folder")
+        #expect(list.httpMethod == "POST")
+        #expect(list.value(forHTTPHeaderField: "Authorization") == "Bearer token")
+        #expect(listBody["path"] as? String == "id:folder")
+        #expect(listBody["recursive"] as? Bool == false)
 
         let link = try CloudDriveAPI.request(provider: .dropbox, endpoint: .resolveFile(id: "id:file", path: nil), accessToken: "token")
-        XCTAssertEqual(link.url?.absoluteString, "https://api.dropboxapi.com/2/files/get_temporary_link")
+        #expect(link.url?.absoluteString == "https://api.dropboxapi.com/2/files/get_temporary_link")
     }
 
-    func testGoogleDriveRequestsUseReadonlyDriveEndpoints() throws {
+    @Test func testGoogleDriveRequestsUseReadonlyDriveEndpoints() throws {
         let list = try CloudDriveAPI.request(provider: .googleDrive, endpoint: .list(containerID: "folder 1"), accessToken: "token")
-        let listComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(list.url), resolvingAgainstBaseURL: false))
+        let listURL = try #require(list.url)
+        let listComponents = try #require(URLComponents(url: listURL, resolvingAgainstBaseURL: false))
         let query = Dictionary(uniqueKeysWithValues: (listComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
 
-        XCTAssertEqual(listComponents.host, "www.googleapis.com")
-        XCTAssertEqual(listComponents.path, "/drive/v3/files")
-        XCTAssertEqual(query["q"], "'folder 1' in parents and trashed = false")
-        XCTAssertEqual(query["supportsAllDrives"], "true")
-        XCTAssertEqual(list.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(listComponents.host == "www.googleapis.com")
+        #expect(listComponents.path == "/drive/v3/files")
+        #expect(query["q"] == "'folder 1' in parents and trashed = false")
+        #expect(query["supportsAllDrives"] == "true")
+        #expect(list.value(forHTTPHeaderField: "Authorization") == "Bearer token")
 
         let media = try CloudDriveAPI.request(provider: .googleDrive, endpoint: .resolveFile(id: "file 1", path: nil), accessToken: "token")
-        let mediaComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(media.url), resolvingAgainstBaseURL: false))
+        let mediaURL = try #require(media.url)
+        let mediaComponents = try #require(URLComponents(url: mediaURL, resolvingAgainstBaseURL: false))
         let mediaQuery = Dictionary(uniqueKeysWithValues: (mediaComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(mediaComponents.percentEncodedPath, "/drive/v3/files/file%201")
-        XCTAssertEqual(mediaQuery["alt"], "media")
+        #expect(mediaComponents.percentEncodedPath == "/drive/v3/files/file%201")
+        #expect(mediaQuery["alt"] == "media")
     }
 
-    func testOneDriveRequestsUseGraphChildrenAndContent() throws {
+    @Test func testOneDriveRequestsUseGraphChildrenAndContent() throws {
         let root = try CloudDriveAPI.request(provider: .oneDrive, endpoint: .list(containerID: nil), accessToken: "token")
         let child = try CloudDriveAPI.request(provider: .oneDrive, endpoint: .list(containerID: "folder 1"), accessToken: "token")
         let content = try CloudDriveAPI.request(provider: .oneDrive, endpoint: .resolveFile(id: "file 1", path: nil), accessToken: "token")
 
-        XCTAssertEqual(root.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/root/children")
-        XCTAssertEqual(child.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/items/folder%201/children")
-        XCTAssertEqual(content.url?.absoluteString, "https://graph.microsoft.com/v1.0/me/drive/items/file%201/content")
-        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
-        XCTAssertEqual(content.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(root.url?.absoluteString == "https://graph.microsoft.com/v1.0/me/drive/root/children")
+        #expect(child.url?.absoluteString == "https://graph.microsoft.com/v1.0/me/drive/items/folder%201/children")
+        #expect(content.url?.absoluteString == "https://graph.microsoft.com/v1.0/me/drive/items/file%201/content")
+        #expect(root.value(forHTTPHeaderField: "Authorization") == "Bearer token")
+        #expect(content.value(forHTTPHeaderField: "Authorization") == "Bearer token")
     }
 
-    func testPCloudRequestsUseBearerAuthAndFolderIDs() throws {
+    @Test func testPCloudRequestsUseBearerAuthAndFolderIDs() throws {
         let list = try CloudDriveAPI.request(provider: .pCloud, endpoint: .list(containerID: "12345"), accessToken: "token")
         let resolve = try CloudDriveAPI.request(provider: .pCloud, endpoint: .resolveFile(id: "67890", path: nil), accessToken: "token")
 
-        XCTAssertEqual(list.url?.absoluteString, "https://api.pcloud.com/listfolder?folderid=12345")
-        XCTAssertEqual(resolve.url?.absoluteString, "https://api.pcloud.com/getfilelink?fileid=67890")
-        XCTAssertEqual(list.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(list.url?.absoluteString == "https://api.pcloud.com/listfolder?folderid=12345")
+        #expect(resolve.url?.absoluteString == "https://api.pcloud.com/getfilelink?fileid=67890")
+        #expect(list.value(forHTTPHeaderField: "Authorization") == "Bearer token")
     }
 
-    func testDecodesDropboxListingAndFiltersAudio() throws {
+    @Test func testDecodesDropboxListingAndFiltersAudio() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .dropbox, data: data("""
         {
           "entries": [
@@ -68,19 +72,19 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(items[0].kind, .folder)
-        XCTAssertTrue(items[1].isAudio)
-        XCTAssertFalse(items[2].isAudio)
-        XCTAssertEqual(items[1].sizeBytes, 1_234)
+        #expect(items[0].kind == .folder)
+        #expect(items[1].isAudio)
+        #expect(!items[2].isAudio)
+        #expect(items[1].sizeBytes == 1_234)
         // Real report: a Dropbox track played fine on first stream, then never again once fully
         // cached — Dropbox's own API never returns a content type (unlike Google Drive's
         // `mimeType`), and the cached file's extensionless blob name gave AVFoundation no format
         // hint either. Derive it from the listing's own file name, the one place Dropbox does
         // carry the extension.
-        XCTAssertEqual(items[1].contentType, "audio/flac")
+        #expect(items[1].contentType == "audio/flac")
     }
 
-    func testDecodesGoogleDriveListing() throws {
+    @Test func testDecodesGoogleDriveListing() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .googleDrive, data: data("""
         {
           "files": [
@@ -90,13 +94,13 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(items[0].kind, .folder)
-        XCTAssertEqual(items[1].contentType, "audio/mp4")
-        XCTAssertEqual(items[1].sizeBytes, 5_678)
-        XCTAssertTrue(items[1].isAudio)
+        #expect(items[0].kind == .folder)
+        #expect(items[1].contentType == "audio/mp4")
+        #expect(items[1].sizeBytes == 5_678)
+        #expect(items[1].isAudio)
     }
 
-    func testDecodesOneDriveListingWithDownloadURL() throws {
+    @Test func testDecodesOneDriveListingWithDownloadURL() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .oneDrive, data: data("""
         {
           "value": [
@@ -108,12 +112,12 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(items[0].kind, .folder)
-        XCTAssertEqual(items[1].temporaryURL?.absoluteString, "https://download.example.com/song.mp3")
-        XCTAssertTrue(items[1].isAudio)
+        #expect(items[0].kind == .folder)
+        #expect(items[1].temporaryURL?.absoluteString == "https://download.example.com/song.mp3")
+        #expect(items[1].isAudio)
     }
 
-    func testDecodesPCloudListingAndResolvedLink() throws {
+    @Test func testDecodesPCloudListingAndResolvedLink() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .pCloud, data: data("""
         {
           "result": 0,
@@ -130,13 +134,13 @@ final class CloudDriveAPITests: XCTestCase {
         { "result": 0, "hosts": ["c123.pcloud.com"], "path": "/dl/abc/Song.ogg" }
         """), fallbackSize: items[1].sizeBytes)
 
-        XCTAssertEqual(items[0].id, "10")
-        XCTAssertEqual(items[1].sizeBytes, 3_456)
-        XCTAssertEqual(resolved.url.absoluteString, "https://c123.pcloud.com/dl/abc/Song.ogg")
-        XCTAssertEqual(resolved.sizeBytes, 3_456)
+        #expect(items[0].id == "10")
+        #expect(items[1].sizeBytes == 3_456)
+        #expect(resolved.url.absoluteString == "https://c123.pcloud.com/dl/abc/Song.ogg")
+        #expect(resolved.sizeBytes == 3_456)
     }
 
-    func testDropboxResolvedLinkCarriesSize() throws {
+    @Test func testDropboxResolvedLinkCarriesSize() throws {
         let resolved = try CloudDriveAPI.decodeResolvedAsset(provider: .dropbox, data: data("""
         {
           "metadata": { ".tag": "file", "name": "Song.flac", "id": "id:file", "size": 12345 },
@@ -144,24 +148,25 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(resolved.url.absoluteString, "https://dl.dropboxusercontent.com/temp/song.flac")
-        XCTAssertEqual(resolved.sizeBytes, 12_345)
+        #expect(resolved.url.absoluteString == "https://dl.dropboxusercontent.com/temp/song.flac")
+        #expect(resolved.sizeBytes == 12_345)
     }
 
-    func testBoxRequestsUseFixedRootIdAndContentEndpoint() throws {
+    @Test func testBoxRequestsUseFixedRootIdAndContentEndpoint() throws {
         let root = try CloudDriveAPI.request(provider: .box, endpoint: .list(containerID: nil), accessToken: "token")
-        let rootComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(root.url), resolvingAgainstBaseURL: false))
+        let rootURL = try #require(root.url)
+        let rootComponents = try #require(URLComponents(url: rootURL, resolvingAgainstBaseURL: false))
         let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(rootComponents.path, "/2.0/folders/0/items")
-        XCTAssertEqual(rootQuery["limit"], "1000")
-        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(rootComponents.path == "/2.0/folders/0/items")
+        #expect(rootQuery["limit"] == "1000")
+        #expect(root.value(forHTTPHeaderField: "Authorization") == "Bearer token")
 
         let child = try CloudDriveAPI.request(provider: .box, endpoint: .list(containerID: "123"), accessToken: "token")
-        XCTAssertTrue(child.url?.absoluteString.hasPrefix("https://api.box.com/2.0/folders/123/items") ?? false)
+        #expect(child.url?.absoluteString.hasPrefix("https://api.box.com/2.0/folders/123/items") ?? false)
 
         let content = try CloudDriveAPI.request(provider: .box, endpoint: .resolveFile(id: "456", path: nil), accessToken: "token")
-        XCTAssertEqual(content.url?.absoluteString, "https://api.box.com/2.0/files/456/content")
-        XCTAssertEqual(content.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(content.url?.absoluteString == "https://api.box.com/2.0/files/456/content")
+        #expect(content.value(forHTTPHeaderField: "Authorization") == "Bearer token")
     }
 
     /// Real report: Box login works, browsing and tapping play work, but it "spins for 30
@@ -199,7 +204,7 @@ final class CloudDriveAPITests: XCTestCase {
         }
     }
 
-    func testBoxResolveFollowsTheRedirectItselfAndDropsTheBearerHeaderForTheCDNURL() async throws {
+    @Test func testBoxResolveFollowsTheRedirectItselfAndDropsTheBearerHeaderForTheCDNURL() async throws {
         BoxRedirectStub.capturedCDNRequestHeaders = nil
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [BoxRedirectStub.self]
@@ -210,14 +215,14 @@ final class CloudDriveAPITests: XCTestCase {
 
         let resolved = try await remote.resolve(node: node)
 
-        XCTAssertEqual(resolved.url, BoxRedirectStub.cdnURL)
-        XCTAssertTrue(resolved.headers.isEmpty,
+        #expect(resolved.url == BoxRedirectStub.cdnURL)
+        #expect(resolved.headers.isEmpty,
             "the boxcloud.com CDN URL is pre-signed and must never receive Tonearm's Box OAuth bearer header")
-        XCTAssertNil(BoxRedirectStub.capturedCDNRequestHeaders,
+        #expect(BoxRedirectStub.capturedCDNRequestHeaders == nil,
             "resolve(node:) must decline the redirect itself, never actually fetch the CDN URL (let alone with a bearer header)")
     }
 
-    func testDecodesBoxListing() throws {
+    @Test func testDecodesBoxListing() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .box, data: data("""
         {
           "entries": [
@@ -227,42 +232,48 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(items[0].kind, .folder)
-        XCTAssertEqual(items[1].id, "222")
-        XCTAssertEqual(items[1].sizeBytes, 7_890)
-        XCTAssertTrue(items[1].isAudio)
+        #expect(items[0].kind == .folder)
+        #expect(items[1].id == "222")
+        #expect(items[1].sizeBytes == 7_890)
+        #expect(items[1].isAudio)
         // Same gap as Dropbox (see testDecodesDropboxListingAndFiltersAudio): Box's listing
         // never returns a content type either.
-        XCTAssertEqual(items[1].contentType, "audio/flac")
+        #expect(items[1].contentType == "audio/flac")
     }
 
-    func testBoxResolvedAssetIsUnsupportedLikeGoogleAndOneDrive() {
-        XCTAssertThrowsError(try CloudDriveAPI.decodeResolvedAsset(provider: .box, data: data("{}"))) { error in
-            XCTAssertEqual(error as? CloudDriveAPI.Error, .unsupportedProvider)
+    @Test func testBoxResolvedAssetIsUnsupportedLikeGoogleAndOneDrive() {
+        do {
+            _ = try CloudDriveAPI.decodeResolvedAsset(provider: .box, data: data("{}"))
+            Issue.record("expected decodeResolvedAsset(provider: .box) to throw")
+        } catch {
+            #expect(error as? CloudDriveAPI.Error == .unsupportedProvider)
         }
     }
 
-    func testYandexDiskRequestsUseResourcesEndpointAndDiskRootPath() throws {
+    @Test func testYandexDiskRequestsUseResourcesEndpointAndDiskRootPath() throws {
         let root = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: nil), accessToken: "token")
-        let rootComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(root.url), resolvingAgainstBaseURL: false))
+        let rootURL = try #require(root.url)
+        let rootComponents = try #require(URLComponents(url: rootURL, resolvingAgainstBaseURL: false))
         let rootQuery = Dictionary(uniqueKeysWithValues: (rootComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(rootComponents.path, "/v1/disk/resources")
-        XCTAssertEqual(rootQuery["path"], "disk:/")
-        XCTAssertEqual(root.value(forHTTPHeaderField: "Authorization"), "Bearer token")
+        #expect(rootComponents.path == "/v1/disk/resources")
+        #expect(rootQuery["path"] == "disk:/")
+        #expect(root.value(forHTTPHeaderField: "Authorization") == "Bearer token")
 
         let child = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .list(containerID: "disk:/Music"), accessToken: "token")
-        let childComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(child.url), resolvingAgainstBaseURL: false))
+        let childURL = try #require(child.url)
+        let childComponents = try #require(URLComponents(url: childURL, resolvingAgainstBaseURL: false))
         let childQuery = Dictionary(uniqueKeysWithValues: (childComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(childQuery["path"], "disk:/Music")
+        #expect(childQuery["path"] == "disk:/Music")
 
         let download = try CloudDriveAPI.request(provider: .yandexDisk, endpoint: .resolveFile(id: "disk:/Music/song.mp3", path: nil), accessToken: "token")
-        let downloadComponents = try XCTUnwrap(URLComponents(url: try XCTUnwrap(download.url), resolvingAgainstBaseURL: false))
+        let downloadURL = try #require(download.url)
+        let downloadComponents = try #require(URLComponents(url: downloadURL, resolvingAgainstBaseURL: false))
         let downloadQuery = Dictionary(uniqueKeysWithValues: (downloadComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-        XCTAssertEqual(downloadComponents.path, "/v1/disk/resources/download")
-        XCTAssertEqual(downloadQuery["path"], "disk:/Music/song.mp3")
+        #expect(downloadComponents.path == "/v1/disk/resources/download")
+        #expect(downloadQuery["path"] == "disk:/Music/song.mp3")
     }
 
-    func testDecodesYandexDiskListingFromEmbeddedItems() throws {
+    @Test func testDecodesYandexDiskListingFromEmbeddedItems() throws {
         let items = try CloudDriveAPI.decodeListing(provider: .yandexDisk, data: data("""
         {
           "name": "Music",
@@ -278,30 +289,39 @@ final class CloudDriveAPITests: XCTestCase {
         }
         """))
 
-        XCTAssertEqual(items[0].kind, .folder)
-        XCTAssertEqual(items[0].id, "disk:/Music/Albums")
-        XCTAssertEqual(items[1].sizeBytes, 2_468)
-        XCTAssertTrue(items[1].isAudio)
+        #expect(items[0].kind == .folder)
+        #expect(items[0].id == "disk:/Music/Albums")
+        #expect(items[1].sizeBytes == 2_468)
+        #expect(items[1].isAudio)
     }
 
-    func testYandexDiskResolvedAssetDecodesHref() throws {
+    @Test func testYandexDiskResolvedAssetDecodesHref() throws {
         let resolved = try CloudDriveAPI.decodeResolvedAsset(provider: .yandexDisk, data: data("""
         { "href": "https://downloader.dst.yandex.ru/disk/abc/Song.mp3", "method": "GET", "templated": false }
         """), fallbackSize: 9_999)
 
-        XCTAssertEqual(resolved.url.absoluteString, "https://downloader.dst.yandex.ru/disk/abc/Song.mp3")
-        XCTAssertEqual(resolved.sizeBytes, 9_999)
+        #expect(resolved.url.absoluteString == "https://downloader.dst.yandex.ru/disk/abc/Song.mp3")
+        #expect(resolved.sizeBytes == 9_999)
     }
 
-    func testMalformedResponsesThrowProviderErrors() {
-        XCTAssertThrowsError(try CloudDriveAPI.decodeListing(provider: .dropbox, data: data("{}"))) { error in
-            XCTAssertEqual(error as? CloudDriveAPI.Error, .missingField("entries"))
+    @Test func testMalformedResponsesThrowProviderErrors() {
+        do {
+            _ = try CloudDriveAPI.decodeListing(provider: .dropbox, data: data("{}"))
+            Issue.record("expected decodeListing(provider: .dropbox) with empty object to throw")
+        } catch {
+            #expect(error as? CloudDriveAPI.Error == .missingField("entries"))
         }
-        XCTAssertThrowsError(try CloudDriveAPI.decodeListing(provider: .googleDrive, data: data("not-json"))) { error in
-            XCTAssertEqual(error as? CloudDriveAPI.Error, .malformedResponse)
+        do {
+            _ = try CloudDriveAPI.decodeListing(provider: .googleDrive, data: data("not-json"))
+            Issue.record("expected decodeListing(provider: .googleDrive) with non-JSON data to throw")
+        } catch {
+            #expect(error as? CloudDriveAPI.Error == .malformedResponse)
         }
-        XCTAssertThrowsError(try CloudDriveAPI.decodeResolvedAsset(provider: .googleDrive, data: data("{}"))) { error in
-            XCTAssertEqual(error as? CloudDriveAPI.Error, .unsupportedProvider)
+        do {
+            _ = try CloudDriveAPI.decodeResolvedAsset(provider: .googleDrive, data: data("{}"))
+            Issue.record("expected decodeResolvedAsset(provider: .googleDrive) to throw")
+        } catch {
+            #expect(error as? CloudDriveAPI.Error == .unsupportedProvider)
         }
     }
 

@@ -1,10 +1,10 @@
 import GRDB
-import XCTest
+import Testing
 
 @testable import TonearmCore
 
-final class FolderPlaylistMigrationTests: XCTestCase {
-    func testMigrationLinksFolderPlaylistsBySourceAndPreservesItems() throws {
+@Suite struct FolderPlaylistMigrationTests {
+    @Test func testMigrationLinksFolderPlaylistsBySourceAndPreservesItems() throws {
         let db = try DatabaseQueue()
         try Schema.migrator(upTo: "v12").migrate(db)
         try db.write { db in
@@ -31,11 +31,11 @@ final class FolderPlaylistMigrationTests: XCTestCase {
 
         try Schema.migrator().migrate(db)
 
-        try db.read { db in
+        try db.read { db throws in
             let sourceID: Int64? = try Row.fetchOne(db, sql: "SELECT sourceId FROM playlist WHERE id = 1")?["sourceId"]
-            XCTAssertEqual(sourceID, 1)
-            XCTAssertEqual(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 1"), 1)
-            XCTAssertEqual(try String.fetchOne(db, sql: "SELECT sectionTitle FROM playlist_item WHERE playlistId = 1"), "Disc 1")
+            #expect(sourceID == 1)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE playlistId = 1") == 1)
+            #expect(try String.fetchOne(db, sql: "SELECT sectionTitle FROM playlist_item WHERE playlistId = 1") == "Disc 1")
         }
     }
 }
