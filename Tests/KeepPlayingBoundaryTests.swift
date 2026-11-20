@@ -117,6 +117,8 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testTerminalEmptyResultBecomesExplicitExhaustedStateWithoutHiddenRetryLoop() async throws {
+            // Deliberately no shared-library fallback; see KeepPlayingLibrary.
+            player.keepPlayingLibrary = .empty
             player.keepPlayingProvider = ImmediateKeepPlayingProvider(result: .unavailable)
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)

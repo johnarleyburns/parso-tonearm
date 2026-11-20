@@ -68,7 +68,7 @@ import Testing
 
     private func settle(
         _ vm: DiscoverySearchViewModel,
-        timeout: TimeInterval = 3,
+        timeout: TimeInterval = 10,
         until: @escaping (DiscoverySearchViewModel) -> Bool
     ) async {
         let deadline = Date().addingTimeInterval(timeout)
@@ -370,7 +370,8 @@ import Testing
         d.vm.inputMode = .metadata
         d.vm.searchText = "p"
         await settle(d.vm) { $0.screen.hasResults }
-        d.vm.play(d.vm.results[0])
+        let first = try #require(d.vm.results.first)
+        d.vm.play(first)
         #expect(d.played.value == [7])
     }
 

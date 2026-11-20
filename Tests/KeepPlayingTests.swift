@@ -424,6 +424,9 @@ extension SharedProductionSingletonTests {
         /// (a real "no matches" or empty fallback pool) — must NOT force a
         /// resume into an unchanged, still-exhausted queue.
         @Test func testNextAtEndOfQueueStaysStoppedWhenExtensionFindsNothing() async {
+            // No shared-library fallback: another parallel suite's tracks must
+            // never turn this deliberate "nothing playable" case into a resume.
+            player.keepPlayingLibrary = .empty
             let tracks = [makeTrack(1)]
             playWithoutAutoExtending(player, tracks: tracks, startAt: 0)
 

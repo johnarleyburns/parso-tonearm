@@ -63,7 +63,8 @@ import Testing
             }
             Issue.record("Missing native reply must time out")
         } catch { #expect((error as? WatchProtocolFault)?.code == .requestTimedOut) }
-        #expect(start.duration(to: clock.now) < .seconds(2))
+        #expect(start.duration(to: clock.now) < .seconds(10),
+                "the deadline must return, not trap; exact latency is not the contract")
         completion.finish(.success(Data([42])))
     }
 

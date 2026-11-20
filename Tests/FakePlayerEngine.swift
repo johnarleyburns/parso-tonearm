@@ -146,18 +146,10 @@ extension AudioPlayer {
                 return engine
             })
         player.persistor = PlaybackPositionPersistor(stateStore: InMemoryPlaybackStatePersistence())
-        // Never build a real remote item in a test: `buildItem` would create a
-        // `CachingResourceLoader`/URLSession that outlives the test and keeps the
-        // process alive. Tests that specifically exercise item construction call
-        // `buildItem(for:)` directly (LocalAssetResolverTests) or replace this hook.
-        player.ordinaryBuildItemHook = { _ in
-            (AVPlayerItem(asset: AVMutableComposition()), nil)
-        }
-        // No speculative remote prefetch in tests: it would create a real
-        // CachingResourceLoader/URLSession for an unreachable URL. Tests that
-        // specifically cover prefetch set this back to a positive value.
-        player.prefetchDepth = 0
-        player.prefetchLoaderEnabled = false
+        // Keep the real item/prefetch path by default: tests that cover cached
+        // playback, preload and prefetch need it. A test that must avoid the
+        // network can set `ordinaryBuildItemHook`, `prefetchDepth = 0`, or
+        // `prefetchLoaderEnabled = false` explicitly.
         return player
     }
 

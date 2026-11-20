@@ -10,7 +10,10 @@ import ParsoAudioStreaming
 /// `SparseCacheStoreTests` in parso-audio-engine; here we assert Tonearm's
 /// wiring: its key identity, provider auth headers, the Opus→CAF derived
 /// artifact, and pinned-download eviction protection.
-@Suite struct StreamingCacheTests {
+/// Serialized because `URLProtocol` registration is process-wide and
+/// `RangeStub`'s blob/offline/requestCount/lastHeaders live in static storage
+/// shared by every test here; concurrent tests reset each other's stub.
+@Suite(.serialized) struct StreamingCacheTests {
 
     // MARK: - URLProtocol range stub
 

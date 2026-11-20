@@ -150,6 +150,9 @@ public final class AudioPlayer: ObservableObject {
 
     public var streamOnCellular = true
     public var prefetchDepth = 2
+    /// Keep Playing's library access; tests inject `.empty` so concurrent
+    /// suites cannot see each other's tracks.
+    public var keepPlayingLibrary = KeepPlayingLibrary.live
     /// Test seam: record the prefetched URL without creating a real
     /// `CachingResourceLoader`/URLSession. Production keeps this `true`.
     var prefetchLoaderEnabled = true

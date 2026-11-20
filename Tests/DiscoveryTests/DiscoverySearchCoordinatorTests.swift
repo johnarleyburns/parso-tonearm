@@ -42,7 +42,14 @@ import Testing
                 delivered.record(response)
             }
         }
-        try await Task.sleep(for: .milliseconds(400))
+        // Wait for the final delivery instead of assuming the search finishes
+        // in a fixed 400 ms under a parallel test runner, then give any
+        // superseded submissions a bounded chance to (incorrectly) land.
+        let deadline = Date().addingTimeInterval(10)
+        while delivered.count == 0 && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        try await Task.sleep(for: .milliseconds(250))
         #expect(delivered.count == 1, "only the final submission should deliver")
         #expect(delivered.last?.state == .ready)
     }
