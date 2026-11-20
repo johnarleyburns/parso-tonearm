@@ -272,10 +272,7 @@ import Testing
     }
 
     @Test func testPlaybackStateStoreRoundTripsQueueIndexAndTime() throws {
-        let suiteName = "guru.parso.tonearm.tests.playback-state"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = InMemoryDefaultsStore()
 
         #expect(PlaybackStateStore.load(defaults: defaults) == nil)
 

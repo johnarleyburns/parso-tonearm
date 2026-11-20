@@ -40,17 +40,7 @@ final class FakeSupportDevelopmentPurchasing: SupportDevelopmentPurchasing, @unc
 /// `UserDefaults` suite).
 @MainActor
 @Suite final class SupportDevelopmentStoreTests {
-    private var defaultsSuite: UserDefaults!
-    private var suiteName: String!
-
-    init() {
-        suiteName = "SupportDevelopmentStoreTests.\(UUID().uuidString)"
-        defaultsSuite = UserDefaults(suiteName: suiteName)
-    }
-
-    isolated deinit {
-        defaultsSuite.removePersistentDomain(forName: suiteName)
-    }
+    private let defaultsSuite = InMemoryDefaultsStore()
 
     private func makeStore(purchasing: FakeSupportDevelopmentPurchasing = .init()) -> SupportDevelopmentStore {
         SupportDevelopmentStore(defaults: defaultsSuite, purchasing: purchasing)

@@ -60,8 +60,7 @@ import Testing
         #expect(sources.contains("backAction: showsBackButton ? { dismiss() } : nil"),
             "the pushed Libraries screen needs its own header back button — its nav bar is hidden")
         #expect(!sources.contains("NavigationLink(value: source)"),
-            "configured-library rows must push SourceDetailView with a destination closure; the "
-                + "value-based link flashed and returned when the destination registration was missing")
+            "configured-library rows must push SourceDetailView with a destination closure; the value-based link flashed and returned when the destination registration was missing")
         #expect(sources.contains("NavigationLink {\n                                SourceDetailView(source: source)"),
             "local library rows open SourceDetailView directly")
 

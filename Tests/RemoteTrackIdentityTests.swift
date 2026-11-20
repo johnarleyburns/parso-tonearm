@@ -95,24 +95,18 @@ import GRDB
                 """, arguments: [Date()])
         }
         let q2 = try DatabaseQueue(path: path, configuration: config)
-        let barrier = DispatchSemaphore(value: 0)
-        let group = DispatchGroup()
         let results = LockedBox<[Int64]>([])
         let sharedTrack = track("T")
-        for (i, q) in [q1, q2].enumerated() {
+        // Both writes start together on separate connections; `concurrentPerform`
+        // joins them without a semaphore gate.
+        DispatchQueue.concurrentPerform(iterations: 2) { i in
+            let q = i == 0 ? q1 : q2
             let sharedAsset = asset("same", "https://u/\(i)")
-            group.enter()
-            DispatchQueue.global().async {
-                barrier.wait()
-                let outcome = try? q.write { db in
-                    try RemoteTrackUpsert.upsert(db: db, sourceID: 1, track: sharedTrack, asset: sharedAsset)
-                }
-                if let outcome { results.append(outcome.trackID) }
-                group.leave()
+            let outcome = try? q.write { db in
+                try RemoteTrackUpsert.upsert(db: db, sourceID: 1, track: sharedTrack, asset: sharedAsset)
             }
+            if let outcome { results.append(outcome.trackID) }
         }
-        barrier.signal(); barrier.signal()
-        group.wait()
         #expect(Set(results.value).count == 1)
         #expect(results.value.count == 2)
         // A "recreated process": a fresh connection still enforces the durable constraint.

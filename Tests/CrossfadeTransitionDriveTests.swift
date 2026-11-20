@@ -13,7 +13,7 @@ extension SharedProductionSingletonTests {
     /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
     @Suite
     final class CrossfadeTransitionDriveTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
         private let outgoingSeconds = 6.0
         private var files: [URL] = []
         private var savedCrossfade = 0.0
@@ -30,11 +30,11 @@ extension SharedProductionSingletonTests {
 
         /// The TestFlight 521 crash: the fade window arrives while the incoming stream is still
         /// loading. The outgoing track must play out at full level, and the edge must end cleanly.
-        @Test func testIncomingTrackThatNeverLoadsNeverRaisesAndNeverFades() throws {
+        @Test func testIncomingTrackThatNeverLoadsNeverRaisesAndNeverFades() async throws {
             let player = try prepareOutgoing(fadeSeconds: 2)
             player.queue = [row(1), row(2, remoteURL: "https://example.invalid/never-loads.mp3")]
 
-            sweep(player, through: 0...(outgoingSeconds + 0.5))
+            await sweep(player, through: 0...(outgoingSeconds + 0.5))
 
             #expect(!player.transitionStartedForCurrentEdge)
             #expect(player.player.volume == player.outputLevel, "the outgoing track keeps full level")
@@ -44,7 +44,7 @@ extension SharedProductionSingletonTests {
 
         /// The normal case once the stream has loaded: the incoming track starts, the outgoing one
         /// fades, and the crossfade hands over the queue.
-        @Test func testIncomingTrackThatIsReadyBlendsAndHandsOver() throws {
+        @Test func testIncomingTrackThatIsReadyBlendsAndHandsOver() async throws {
             let player = try prepareOutgoing(fadeSeconds: 2)
             let incoming = row(2, remoteURL: "https://example.invalid/preloaded.mp3")
             player.queue = [row(1), incoming]
@@ -54,7 +54,8 @@ extension SharedProductionSingletonTests {
             let fadeStart = outgoingSeconds - 2
             #expect(player.prepareCrossfadePlayer(for: incoming, at: 1))
             let crossfade = try #require(player.crossfadePlayer)
-            #expect(waitUntil { isLoaded(crossfade) }, "local item should load")
+            let loaded = await waitUntil { isLoaded(crossfade) }
+            #expect(loaded, "local item should be ready in the fake")
 
             var sawBlend = false
             for position in stride(from: fadeStart, through: outgoingSeconds + 0.5, by: 0.1) {
@@ -97,7 +98,7 @@ extension SharedProductionSingletonTests {
             let player = try prepareOutgoing(fadeSeconds: 3)
             player.queue = [row(1), row(2, remoteURL: "https://example.invalid/stale.mp3")]
             player.index = 1
-            player.crossfadePlayer = AVPlayer() // no item: not promotable
+            player.crossfadePlayer = FakePlayerEngine() // no item: not promotable
             player.crossfadeNextIndex = 1
             player.crossfadeNextTrackId = 2
 
@@ -148,7 +149,7 @@ extension SharedProductionSingletonTests {
         /// (e.g. a slow-opening stream). Promoting it anyway would strand playback on a paused item
         /// nothing watches for a stall; the natural boundary must fall back to the ordinary load path
         /// instead.
-        @Test func testNaturalEndFallsBackToOrdinaryLoadWhenTheCrossfadeCandidateIsntReady() throws {
+        @Test func testNaturalEndFallsBackToOrdinaryLoadWhenTheCrossfadeCandidateIsntReady() async throws {
             let outgoingItem = AVPlayerItem(url: try audioFile(seconds: 1))
             player.player.replaceCurrentItem(with: outgoingItem)
             player.observeEnd(of: outgoingItem)
@@ -158,7 +159,9 @@ extension SharedProductionSingletonTests {
             player.index = 0
             // A crossfade candidate was prepared (the fade-lead window was reached) but never
             // became ready before the outgoing item ran out.
-            player.crossfadePlayer = AVPlayer(playerItem: AVPlayerItem(url: URL(string: "https://example.invalid/never-ready.mp3")!))
+            let unready = FakePlayerEngine()
+            unready.replaceCurrentItem(with: AVPlayerItem(url: URL(string: "https://example.invalid/never-ready.mp3")!))
+            player.crossfadePlayer = unready
             player.crossfadeNextIndex = 1
             player.crossfadeNextTrackId = 2
 
@@ -170,8 +173,9 @@ extension SharedProductionSingletonTests {
 
             NotificationCenter.default.post(name: .AVPlayerItemDidPlayToEndTime, object: outgoingItem)
 
-            #expect(waitUntil { player.index == 1 },
-                         "the natural boundary must still advance the queue even when the crossfade candidate wasn't ready")
+            let advanced = await waitUntil { player.index == 1 }
+            #expect(advanced,
+                    "the natural boundary must still advance the queue even when the crossfade candidate wasn't ready")
             #expect(player.crossfadePlayer == nil, "an unready crossfade candidate must be cancelled, not promoted")
             #expect(builtURLs == ["https://example.invalid/ordinary-fallback.mp3"],
                           "must fall back to the ordinary resolve/build path, not promote the unready item")
@@ -180,7 +184,7 @@ extension SharedProductionSingletonTests {
         /// With Smart Transitions gone, this plain crossfade is the only track-to-track transition
         /// left — the shipped default must already be a real, audible blend, not `0` (a silent
         /// hard cut) that a setting nobody has found yet would need to raise first.
-        @Test func testShippedDefaultCrossfadeSecondsProducesABlendWithoutAnyOverride() throws {
+        @Test func testShippedDefaultCrossfadeSecondsProducesABlendWithoutAnyOverride() async throws {
             #expect(savedCrossfade == 3, "the shipped default must be a real, nonzero blend")
             let player = try prepareOutgoing(fadeSeconds: savedCrossfade)
             let incoming = row(2, remoteURL: "https://example.invalid/default-blend.mp3")
@@ -191,7 +195,8 @@ extension SharedProductionSingletonTests {
             let fadeStart = outgoingSeconds - savedCrossfade
             #expect(player.prepareCrossfadePlayer(for: incoming, at: 1))
             let crossfade = try #require(player.crossfadePlayer)
-            #expect(waitUntil { isLoaded(crossfade) }, "local item should load")
+            let loaded = await waitUntil { isLoaded(crossfade) }
+            #expect(loaded, "local item should be ready in the fake")
 
             var sawBlend = false
             for position in stride(from: fadeStart, through: outgoingSeconds + 0.5, by: 0.1) {
@@ -207,7 +212,7 @@ extension SharedProductionSingletonTests {
         }
 
         /// The incoming track finishes loading partway through the fade window: the fade starts then.
-        @Test func testIncomingTrackThatLoadsMidFadeStartsLate() throws {
+        @Test func testIncomingTrackThatLoadsMidFadeStartsLate() async throws {
             let player = try prepareOutgoing(fadeSeconds: 4)
             let incoming = row(2, remoteURL: "https://example.invalid/late.mp3")
             player.queue = [row(1), incoming]
@@ -221,7 +226,8 @@ extension SharedProductionSingletonTests {
                 #expect(!player.transitionStartedForCurrentEdge)
                 #expect(player.player.volume == player.outputLevel)
             }
-            #expect(waitUntil { isLoaded(crossfade) })
+            let loaded = await waitUntil { isLoaded(crossfade) }
+            #expect(loaded)
             player.updateCrossfade(position: outgoingSeconds - 2)
             #expect(player.transitionStartedForCurrentEdge, "the fade starts once the track is ready")
         }
@@ -265,28 +271,26 @@ extension SharedProductionSingletonTests {
             let item = AVPlayerItem(url: try audioFile(seconds: outgoingSeconds))
             player.player.automaticallyWaitsToMinimizeStalling = false
             player.player.replaceCurrentItem(with: item)
-            #expect(waitUntil { item.status == .readyToPlay }, "outgoing item should load")
+            #expect(player.player.isItemReady(item), "outgoing item should be ready in the fake")
             player.index = 0
             player.duration = outgoingSeconds
             return player
         }
 
-        private func isLoaded(_ player: AVPlayer) -> Bool {
-            player.status == .readyToPlay && player.currentItem?.status == .readyToPlay
-        }
+        private func isLoaded(_ player: any PlayerEngine) -> Bool { player.isReady }
 
-        private func sweep(_ player: AudioPlayer, through range: ClosedRange<Double>) {
+        private func sweep(_ player: AudioPlayer, through range: ClosedRange<Double>) async {
             for position in stride(from: range.lowerBound, through: range.upperBound, by: 0.1) {
                 player.updateCrossfade(position: position)
-                RunLoop.current.run(until: Date().addingTimeInterval(0.005))
+                try? await Task.sleep(for: .milliseconds(5))
             }
         }
 
-        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async -> Bool {
             let deadline = Date().addingTimeInterval(timeout)
             while !condition() {
                 if Date() > deadline { return false }
-                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+                try? await Task.sleep(for: .milliseconds(20))
             }
             return true
         }

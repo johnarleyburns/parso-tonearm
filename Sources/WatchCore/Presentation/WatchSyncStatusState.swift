@@ -16,12 +16,12 @@ public final class WatchSyncStatusState: ObservableObject, WatchConnectivityObse
 
     public func setPhoneReachable(_ reachable: Bool) { phoneReachable = reachable }
 
-    private let defaults: UserDefaults
+    private let defaults: any DefaultsStoring
     private let now: @Sendable () -> Date
     private let latestInstallation: @Sendable () async -> Date?
     private var currentRequestID: UUID?
 
-    public init(defaults: UserDefaults = .standard,
+    public init(defaults: any DefaultsStoring = UserDefaults.standard,
                 now: @escaping @Sendable () -> Date = { Date() },
                 latestInstallation: @escaping @Sendable () async -> Date? = { nil }) {
         self.defaults = defaults; self.now = now; self.latestInstallation = latestInstallation

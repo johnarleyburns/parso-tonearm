@@ -56,9 +56,8 @@ import Testing
         #expect(decoded == settings)
     }
 
-    @Test func testPersistenceRoundTripsThroughUserDefaults() {
-        let defaults = UserDefaults(suiteName: "ProAudioSettingsTests")!
-        defaults.removePersistentDomain(forName: "ProAudioSettingsTests")
+    @Test func testPersistenceRoundTripsThroughDefaultsStore() {
+        let defaults = InMemoryDefaultsStore()
         var settings = ProAudioSettings.default
         settings.crossfeedEnabled = true
         settings.convolutionTaps = 64

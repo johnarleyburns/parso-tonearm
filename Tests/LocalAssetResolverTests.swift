@@ -119,8 +119,6 @@ private final class Counter: @unchecked Sendable {
         #expect(c.stops == 2)
     }
 
-    private func drain() { RunLoop.current.run(until: Date().addingTimeInterval(1)) }
-
     @Test func testLocalFailureSetsMessageAndDoesNotBuildItem() {
         let c = Counter()
         let player = AudioPlayer.makeForTesting()

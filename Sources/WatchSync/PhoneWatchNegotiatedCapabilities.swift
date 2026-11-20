@@ -4,13 +4,16 @@ import TonearmWatchProtocol
 /// Background relaunch must not forget the protocol already negotiated with this
 /// paired watch. A different watch has a different WCSession watch-directory ID.
 public actor PhoneWatchNegotiatedCapabilities {
-    private let defaults: UserDefaults
+    private let defaults: any DefaultsStoring
     private let watchIdentifier: @Sendable () -> String?
     private var capabilities: Set<WatchCapability> = []
     private var negotiatedWatchID: String?
 
-    public init(suiteName: String? = nil, watchIdentifier: @escaping @Sendable () -> String? = { nil }) {
-        self.defaults = suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
+    /// `defaults` is injectable so a test can model a relaunch with an
+    /// `InMemoryDefaultsStore` instead of a real preferences suite.
+    public init(defaults: any DefaultsStoring = UserDefaults.standard,
+                watchIdentifier: @escaping @Sendable () -> String? = { nil }) {
+        self.defaults = defaults
         self.watchIdentifier = watchIdentifier
     }
 

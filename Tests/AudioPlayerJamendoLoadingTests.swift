@@ -40,7 +40,7 @@ extension SharedProductionSingletonTests {
     /// `Tests/SharedProductionSingletonTests.swift`'s doc comment.
     @Suite
     final class AudioPlayerJamendoLoadingTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
         private let stale = "https://example.test/stale.mp3"
         private let fresh = URL(string: "https://example.test/fresh.mp3")!
 
@@ -395,8 +395,15 @@ extension SharedProductionSingletonTests {
             }
             player.networkSkipMessage = nil
             load([jamendo()])
+            for _ in 0..<100 where player.player.currentItem == nil {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            let item = try #require(player.player.currentItem)
+            // Deterministic stand-in for AVFoundation reporting `status == .failed`
+            // for a statusless Jamendo item.
+            player.fakeEngine?.sendItemStatus(.failed, for: item)
             for _ in 0..<100 where player.networkSkipMessage == nil {
-                try? await Task.sleep(nanoseconds: 50_000_000)
+                try? await Task.sleep(nanoseconds: 20_000_000)
             }
             #expect(player.networkSkipMessage == RemotePlaybackFailure.jamendoLocatorUnavailable.userMessage)
             #expect(player.player.currentItem == nil)

@@ -36,22 +36,21 @@ import TonearmWatchProtocol
         #expect(afterCurrentAttempt.isEmpty, "A real rejection of the current attempt must still fail visibly")
     }
     @Test func testBackgroundRelaunchRemembersChunkCapabilityOnlyForTheSamePairedWatch() async {
-        let suite = "watch-capabilities-" + UUID().uuidString
-        defer { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
-        let first = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
+        let defaults = InMemoryDefaultsStore()
+        let first = PhoneWatchNegotiatedCapabilities(defaults: defaults, watchIdentifier: { "watch-a" })
         let unknown = await first.supports(.resumableAudioChunks)
         #expect(!unknown)
         await first.set([.resumableAudioChunks])
-        let relaunched = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
+        let relaunched = PhoneWatchNegotiatedCapabilities(defaults: defaults, watchIdentifier: { "watch-a" })
         let remembered = await relaunched.supports(.resumableAudioChunks)
         #expect(remembered)
-        let other = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-b" })
+        let other = PhoneWatchNegotiatedCapabilities(defaults: defaults, watchIdentifier: { "watch-b" })
         let reused = await other.supports(.resumableAudioChunks)
         #expect(!reused)
         await relaunched.set([])
         let revoked = await first.supports(.resumableAudioChunks)
         // A fresh process must see the capability removal, not an old in-memory negotiation.
-        let fresh = PhoneWatchNegotiatedCapabilities(suiteName: suite, watchIdentifier: { "watch-a" })
+        let fresh = PhoneWatchNegotiatedCapabilities(defaults: defaults, watchIdentifier: { "watch-a" })
         let freshValue = await fresh.supports(.resumableAudioChunks)
         #expect(!freshValue)
         #expect(revoked, "The first actor still represents its original live negotiation")

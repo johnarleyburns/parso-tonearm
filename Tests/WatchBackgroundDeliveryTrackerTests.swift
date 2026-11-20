@@ -7,9 +7,7 @@ import TonearmWatchProtocol
 @Suite struct WatchBackgroundDeliveryTrackerTests {
     @MainActor
     @Test func testLiveSyncWaitsForPhonePushAndDoesNotCallRequestAcceptanceAnUpdate() async {
-        let suite = "phone-push-sync-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let state = WatchSyncStatusState(defaults: defaults)
         let request = state.requestedSync()
         state.completedSync(.sent, requestID: request)
@@ -24,9 +22,7 @@ import TonearmWatchProtocol
     }
     @MainActor
     @Test func testLateMetadataCheckCannotOverwriteANewerStartupOrManualCheck() {
-        let suite = "metadata-sync-generation-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let state = WatchSyncStatusState(defaults: defaults)
         let old = state.requestedSync()
         state.completedSync(.failed(.requestTimedOut), requestID: old)
@@ -42,9 +38,7 @@ import TonearmWatchProtocol
     }
     @MainActor
     @Test func testMetadataSyncControlFinishesForQueuedFailureAndConfirmedResults() {
-        let suite = "metadata-sync-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let state = WatchSyncStatusState(defaults: defaults)
         for result: WatchMetadataSyncResult in [.queued, .failed(.requestTimedOut), .confirmed] {
             state.requestedSync()
@@ -90,9 +84,7 @@ import TonearmWatchProtocol
 
     @MainActor
     @Test func testOldProgressIsMarkedStaleUntilANewPhoneReportArrives() async {
-        let suite = "sync-staleness-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let now = Date(timeIntervalSince1970: 1000)
         let state = WatchSyncStatusState(defaults: defaults, now: { now })
         await state.didReceiveDownloadStatus(.init(revision: 1, activeCount: 1, generatedAt: now))

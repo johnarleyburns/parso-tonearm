@@ -4,11 +4,7 @@ import Testing
 
 @Suite struct WatchPositionStoreTests {
 
-    let suite = UserDefaults(suiteName: "WatchPositionStoreTests")!
-
-    init() {
-        suite.removePersistentDomain(forName: "WatchPositionStoreTests")
-    }
+    let suite = InMemoryDefaultsStore()
 
     @Test func testSaveAndLoad() {
         let snapshot = WatchQueueSnapshot(trackKeys: ["a", "b"], currentIndex: 1,

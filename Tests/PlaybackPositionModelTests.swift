@@ -32,7 +32,8 @@ extension SharedProductionSingletonTests {
 
     private func runOne(seed: UInt64) async throws {
         let fakeCloud = FakePlaybackCloudBackend()
-        let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
+        let stateStore = InMemoryPlaybackStatePersistence()
+        let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud, stateStore: stateStore)
         let rng = RNG(seed: seed)
         let ids: [Int64] = [1, 2, 3, 4, 5]
         let syncs: [String] = ["s1", "s2", "s3", "s4", "s5"]
@@ -74,7 +75,7 @@ extension SharedProductionSingletonTests {
                 isPlaying: isPlaying, savedAt: Date())
             persistor.save(candidate: snap, reason: reason)
 
-            let durable = PlaybackStateFileStore.load()
+            let durable = stateStore.load()
             if let d = durable, d.trackIDs == ids, d.currentIndex == index {
                 if reason == .tick || reason == .background {
                     let reg = lastDurableElapsed - d.elapsed
@@ -92,10 +93,7 @@ extension SharedProductionSingletonTests {
 
             if event == .uninstall {
                 fakeCloud.save(snap)
-                PlaybackStateStore.clear()
-                if let url = PlaybackStateFileStore.fileURL() {
-                    try? FileManager.default.removeItem(at: url)
-                }
+                stateStore.clear()
             }
         }
 

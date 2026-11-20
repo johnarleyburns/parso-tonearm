@@ -1,4 +1,5 @@
 import Foundation
+import TonearmWatchProtocol
 
 /// The last few committed search queries, newest first. §9 W2 lists these before the user types.
 /// Backed by `UserDefaults` so they survive a launch; capped so the list stays a glance, not a log.
@@ -10,16 +11,16 @@ public protocol WatchRecentSearchStoring {
 
 public struct WatchRecentSearchStore: WatchRecentSearchStoring {
     public static let capacity = 6
-    private let defaults: UserDefaults
+    private let defaults: any DefaultsStoring
     private let key: String
 
-    public init(defaults: UserDefaults = .standard, key: String = "watch.search.recents") {
+    public init(defaults: any DefaultsStoring = UserDefaults.standard, key: String = "watch.search.recents") {
         self.defaults = defaults
         self.key = key
     }
 
     public func load() -> [String] {
-        (defaults.array(forKey: key) as? [String]) ?? []
+        defaults.stringArray(forKey: key) ?? []
     }
 
     public func record(_ query: String) {

@@ -58,15 +58,15 @@ import Testing
     /// Real report: the home page showed only a heart; the word "Supporter" was missing. A
     /// `Label` in a navigation-bar toolbar collapses to its icon, so the badge must spell the
     /// text out explicitly (the same HStack shape voxglass uses).
-    func testBadgeRendersTheWordSupporterBesideTheHeart() throws {
+    @Test func testBadgeRendersTheWordSupporterBesideTheHeart() throws {
         let source = try listenViewSource()
-        let declRange = try XCTUnwrap(source.range(of: "private var supporterBadge: some View {"))
-        let closeRange = try XCTUnwrap(source.range(of: "\n    }", range: declRange.upperBound..<source.endIndex))
+        let declRange = try #require(source.range(of: "private var supporterBadge: some View {"))
+        let closeRange = try #require(source.range(of: "\n    }", range: declRange.upperBound..<source.endIndex))
         let body = source[declRange.upperBound..<closeRange.lowerBound]
-        XCTAssertTrue(body.contains("Image(systemName: \"heart.fill\")"))
-        XCTAssertTrue(body.contains("Text(\"Supporter\")"),
+        #expect(body.contains("Image(systemName: \"heart.fill\")"))
+        #expect(body.contains("Text(\"Supporter\")"),
             "the toolbar renders a Label icon-only; the word must be an explicit Text")
-        XCTAssertFalse(body.contains("Label(\"Supporter\""),
+        #expect(!body.contains("Label(\"Supporter\""),
             "Label collapses to heart-only in a nav-bar toolbar")
     }
 

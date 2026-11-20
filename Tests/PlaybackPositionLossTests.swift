@@ -3,54 +3,16 @@ import Testing
 import AVFoundation
 @testable import TonearmCore
 
-final class SpyingUserDefaults: UserDefaults {
-    private static let stateKey = "guru.parso.tonearm.playback.state.v1"
-    private(set) var recordedSnapshots: [PlaybackStateSnapshot] = []
-    let suiteName: String
-
-    init?(suiteName: String) {
-        self.suiteName = suiteName
-        super.init(suiteName: suiteName)
-    }
-
-    override func set(_ value: Any?, forKey defaultName: String) {
-        super.set(value, forKey: defaultName)
-        guard defaultName == Self.stateKey,
-              let data = value as? Data,
-              let snapshot = try? JSONDecoder().decode(PlaybackStateSnapshot.self, from: data)
-        else { return }
-        recordedSnapshots.append(snapshot)
-    }
-
-    func clearRecorded() { recordedSnapshots.removeAll() }
-}
-
 extension SharedProductionSingletonTests {
     @MainActor
     @Suite final class PlaybackPositionLossTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
+        private let persistence = InMemoryPlaybackStatePersistence()
 
-        // XCTest's synchronous teardown hook is nonisolated even though this test case is main-actor
-        // isolated. XCTest invokes setup/tests/teardown serially for one instance, so this small piece
-        // of lifecycle bookkeeping is explicitly safe to read from that hook.
-        nonisolated(unsafe) private var createdSuites: [String] = []
-
-        private func ephemeralSuite() throws -> UserDefaults {
-            let name = "test.loss.\(UUID().uuidString)"
-            let suite = try #require(UserDefaults(suiteName: name))
-            suite.removePersistentDomain(forName: name)
-            createdSuites.append(name)
-            return suite
-        }
-
-        isolated deinit {
-            let suites = createdSuites
-            createdSuites.removeAll()
-            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
-            PlaybackStateFileStore.fileURLOverride = nil
-            for name in suites {
-                UserDefaults().removePersistentDomain(forName: name)
-            }
+        /// Points the player's persistence funnel at this test's in-memory
+        /// store; no real defaults domain or App Support file is involved.
+        private func usePersistence() {
+            player.persistor = PlaybackPositionPersistor(stateStore: persistence)
         }
 
         private func resetPlayer(_ player: AudioPlayer) {
@@ -133,8 +95,8 @@ extension SharedProductionSingletonTests {
         // MARK: - Test 1: A current-time tick persists a crash-resume checkpoint
 
         @Test func testPlaybackTickPersistsElapsedEvenWhenTransportStateLags() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
 
             resetPlayer(player)
             let row = TrackRow(
@@ -149,7 +111,6 @@ extension SharedProductionSingletonTests {
             // was a red test because persistTick returned while isAdvancing was
             // false, losing the last checkpoint during a state transition.
             PlaybackStateStore.clear(defaults: suite)
-            player.persistor = PlaybackPositionPersistor()
             player.queue = [row]
             player.index = 0
             player.currentTime = 2.25
@@ -163,10 +124,9 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testPlaybackCheckpointIsWrittenOnBackgroundEvenWhenPaused() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
             resetPlayer(player)
-            player.persistor = PlaybackPositionPersistor()
             player.queue = [TrackRow(
                 track: Track(id: 10, albumId: nil, sourceId: 1, title: "Paused",
                              trackNo: 1, discNo: nil, durationSec: 90, codec: "WAV",
@@ -183,8 +143,8 @@ extension SharedProductionSingletonTests {
         // MARK: - Tests 2–4: Control surfaces on empty queue (Loss #2)
 
         @Test func testResumeOnEmptyQueuePreservesSnapshot() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
             resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
@@ -198,8 +158,8 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testPauseOnEmptyQueuePreservesSnapshot() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
             resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
@@ -213,8 +173,8 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testTogglePlayPauseOnEmptyQueuePreservesSnapshot() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
             resetPlayer(player)
 
             PlaybackStateStore.save(PlaybackStateSnapshot(
@@ -233,25 +193,21 @@ extension SharedProductionSingletonTests {
             let relPath = try createTestWAV(duration: 4.0)
             let (_, trackId) = try await insertTestTrack(relPath: relPath)
 
-            guard let spySuite = SpyingUserDefaults(suiteName: "spy.loss5.\(UUID().uuidString)") else {
-                Issue.record("could not create spy suite")
-                return
-            }
-            defer { spySuite.removePersistentDomain(forName: spySuite.suiteName) }
-            PlaybackStateStore.defaultsProvider = { spySuite }
+            let suite = persistence.defaults
+            usePersistence()
 
             resetPlayer(player)
 
             let seed = PlaybackStateSnapshot(
                 trackIDs: [trackId], currentIndex: 0, elapsed: 190,
                 isPlaying: false, savedAt: Date())
-            PlaybackStateStore.save(seed, defaults: spySuite)
-            spySuite.clearRecorded()
+            PlaybackStateStore.save(seed, defaults: suite)
+            persistence.clearRecorded()
 
             player.resetRestoreForTesting()
             await player.restorePersistedQueue()
 
-            let regressed = spySuite.recordedSnapshots.filter {
+            let regressed = persistence.savedSnapshots.filter {
                 $0.trackIDs == [trackId] && $0.elapsed < 190
             }
 
@@ -265,8 +221,8 @@ extension SharedProductionSingletonTests {
             let relPath = try createTestWAV(duration: 4.0)
             let (_, realId) = try await insertTestTrack(relPath: relPath)
 
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
 
             resetPlayer(player)
 
@@ -284,29 +240,10 @@ extension SharedProductionSingletonTests {
         // MARK: - Test 7: Snapshot survives reinstall (Loss #4) — F8 proof
 
         @Test func testSnapshotSurvivesReinstall() async throws {
-            // This test is the only one in the file that reads/writes the file +
-            // defaults tiers directly (via PlaybackStateStore.clear() and
-            // PlaybackStateFileStore.fileURL()) rather than going through
-            // AudioPlayer — it must isolate both exactly like every other test
-            // here, or it races the real shared UserDefaults/file location
-            // against whatever else is running concurrently. Without this, a
-            // parallel test that legitimately owns the shared location at that
-            // moment can write its own snapshot in between this test's wipe and
-            // its read-back, producing a result that belongs to a different
-            // test entirely (observed in CI: two trailing nil syncIDs from
-            // another test's two-track snapshot, not this test's one track).
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
-            let tmpFile = FileManager.default.temporaryDirectory
-                .appendingPathComponent("tonearm-reinstall-\(UUID().uuidString)")
-                .appendingPathComponent("playback-state.v2.json")
-            try FileManager.default.createDirectory(
-                at: tmpFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-            PlaybackStateFileStore.fileURLOverride = tmpFile
-            defer { PlaybackStateFileStore.fileURLOverride = nil }
-
+            // Both local tiers live in this test's in-memory store, so nothing
+            // races the real App Group defaults or App Support file.
             let fakeCloud = FakePlaybackCloudBackend()
-            let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud)
+            let persistor = PlaybackPositionPersistor(cloudBackend: fakeCloud, stateStore: persistence)
 
             let snapshot = PlaybackStateSnapshot(
                 trackIDs: [77], trackSyncIDs: ["cloud-sync-id-777"],
@@ -315,11 +252,8 @@ extension SharedProductionSingletonTests {
             // Save through persistor: admission + composite store (file + defaults + cloud).
             persistor.save(candidate: snapshot, reason: .userSeek)
 
-            // Simulate uninstall: wipe file + defaults tiers.
-            PlaybackStateStore.clear()
-            if let url = PlaybackStateFileStore.fileURL() {
-                try? FileManager.default.removeItem(at: url)
-            }
+            // Simulate uninstall: wipe the local tiers.
+            persistence.clear()
 
             // Cloud tier must retain the snapshot.
             let cloudSnapshot = await fakeCloud.load()
@@ -340,8 +274,8 @@ extension SharedProductionSingletonTests {
         // MARK: - Test 8: Snapshot stores stable track identity (F1)
 
         @Test func testSnapshotStoresStableTrackIdentity() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
+            usePersistence()
 
             resetPlayer(player)
 
@@ -368,24 +302,6 @@ extension SharedProductionSingletonTests {
                 "trackSyncIDs must be populated from the queued track's syncID")
         }
     }
-}
-
-// MARK: - Poll helper
-
-private func pollUntil<Object: AnyObject, Value: Comparable>(
-    keyPath: KeyPath<Object, Value>,
-    greaterThan threshold: Value,
-    on object: Object,
-    timeout: TimeInterval
-) -> Bool {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if object[keyPath: keyPath] > threshold {
-            return true
-        }
-        Thread.sleep(forTimeInterval: 0.1)
-    }
-    return false
 }
 
 private enum TestError: Error {

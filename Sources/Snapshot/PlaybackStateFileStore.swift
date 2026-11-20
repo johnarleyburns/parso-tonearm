@@ -10,18 +10,10 @@ import Foundation
 public enum PlaybackStateFileStore {
     private static let filename = "playback-state.v2.json"
     private static let tmpSuffix = ".tmp"
-    private static let overrideState = LockedValue<URL?>(nil)
-    static var fileURLOverride: URL? {
-        get { overrideState.read() }
-        set { overrideState.write(newValue) }
-    }
 
     // MARK: - Location
 
     public static func fileURL() -> URL? {
-        if let fileURLOverride {
-            return fileURLOverride
-        }
         if let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: WidgetSnapshotStore.appGroupIdentifier) {
             return container.appendingPathComponent(filename)
@@ -36,7 +28,13 @@ public enum PlaybackStateFileStore {
     // MARK: - Atomic save
 
     public static func save(_ snapshot: PlaybackStateSnapshot) {
-        guard let url = fileURL() else { return }
+        save(snapshot, to: fileURL())
+    }
+
+    /// Writes to an explicit location. Tests use this with a per-test URL so no
+    /// suite shares the process-wide Application Support file.
+    public static func save(_ snapshot: PlaybackStateSnapshot, to url: URL?) {
+        guard let url = url else { return }
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
 
         let dir = url.deletingLastPathComponent()
@@ -55,11 +53,21 @@ public enum PlaybackStateFileStore {
     /// Returns the snapshot from the file tier, or nil on decode failure.
     /// Never deletes the file on failure — a later good write replaces it.
     public static func load() -> PlaybackStateSnapshot? {
-        guard let url = fileURL(),
+        load(from: fileURL())
+    }
+
+    /// Reads from an explicit location (see `save(_:to:)`).
+    public static func load(from url: URL?) -> PlaybackStateSnapshot? {
+        guard let url = url,
               let data = try? Data(contentsOf: url),
               let snapshot = try? JSONDecoder().decode(PlaybackStateSnapshot.self, from: data)
         else { return nil }
         return snapshot
+    }
+
+    public static func remove(at url: URL?) {
+        guard let url = url else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 }
 

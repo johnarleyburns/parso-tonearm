@@ -226,7 +226,7 @@ public final class AudioPlayer: ObservableObject {
     /// prefetch loader is.
     var preloadFreshenTask: Task<Void, Never>?
     var loadedSourceSampleRate: Double = 0
-    var crossfadePlayer: AVPlayer?
+    var crossfadePlayer: (any PlayerEngine)?
     var crossfadeNextTrackId: Int64?
     var crossfadeNextIndex: Int?
     var crossfadeNextLoader: CachingResourceLoader?
@@ -241,6 +241,10 @@ public final class AudioPlayer: ObservableObject {
     /// preloaded next item so EQ survives near-gapless swaps.
     var eqTap: EQAudioTap?
     let pathMonitor: any NetworkPathMonitoring
+    /// Builds the incoming player for a crossfade. Production gets a real
+    /// `AVPlayer`; tests get a deterministic fake so no crossfade test needs a
+    /// real player.
+    let makeCrossfadePlayer: (AVPlayerItem?) -> any PlayerEngine
     /// Whether the network path is currently usable (for pre-playback preparation gates).
     public var isNetworkAvailable: Bool { pathMonitor.isAvailable }
     let pathMonitorQueue = DispatchQueue(label: "guru.parso.tonearm.network")
@@ -278,9 +282,14 @@ public final class AudioPlayer: ObservableObject {
     /// tests, not external API. `player`/`pathMonitor` default to the real
     /// production path; tests that don't need genuine `AVPlayer`/`NWPathMonitor`
     /// behavior can inject lightweight fakes instead (see `AudioPlayer.makeForTesting()`).
-    init(player: any PlayerEngine = AVPlayer(), pathMonitor: any NetworkPathMonitoring = RealNetworkPathMonitor()) {
+    init(
+        player: any PlayerEngine = AVPlayer(),
+        pathMonitor: any NetworkPathMonitoring = RealNetworkPathMonitor(),
+        makeCrossfadePlayer: @escaping (AVPlayerItem?) -> any PlayerEngine = { AVPlayer(playerItem: $0) }
+    ) {
         self.player = player
         self.pathMonitor = pathMonitor
+        self.makeCrossfadePlayer = makeCrossfadePlayer
         addPeriodicObserver()
         observeTimeControlStatus()
         observeNetworkPath()

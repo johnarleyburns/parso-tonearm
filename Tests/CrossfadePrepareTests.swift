@@ -12,7 +12,7 @@ extension SharedProductionSingletonTests {
     /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
     @Suite
     final class CrossfadePrepareTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
         private let source = Source(id: 1, kind: .iaItem, iaIdentifier: "x", originalURL: nil,
                                     title: "Test Source", addedAt: Date(), lastResolvedAt: nil,
                                     followUpdates: false, licenseText: nil, memberCapHit: false)

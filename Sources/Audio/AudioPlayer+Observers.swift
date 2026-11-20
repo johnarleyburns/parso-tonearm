@@ -39,7 +39,7 @@ extension AudioPlayer {
                     }
                     let target = pending.seconds
                     let pos = time.seconds
-                    if self.player.currentItem?.status == .readyToPlay,
+                    if self.player.isItemReady(self.player.currentItem),
                        abs(pos - target) > 2 {
                         // Re-issue the seek
                         let cmTime = CMTime(seconds: target, preferredTimescale: 600)

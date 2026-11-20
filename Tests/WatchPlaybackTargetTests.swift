@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import TonearmWatchCore
+import TonearmWatchProtocol
 
 /// Watch redesign §6.4 — reachability, search scope and the banner come from one source.
 @MainActor
@@ -30,7 +31,7 @@ import Testing
 /// Watch redesign A2 — the Smart Stack widget state round-trips and reloads only on real changes.
 @Suite struct WatchNowPlayingWidgetStateTests {
     @Test func testRoundTripAndStructuralChange() {
-        let defaults = UserDefaults(suiteName: "widget-\(UUID().uuidString)")!
+        let defaults = InMemoryDefaultsStore()
         let anchor = Date(timeIntervalSince1970: 1_000)
         let state = WatchNowPlayingWidgetState(title: "Teardrop", subtitle: "Massive Attack", target: .iPhone,
                                                isPlaying: true, elapsed: 60, duration: 300, anchorDate: anchor)

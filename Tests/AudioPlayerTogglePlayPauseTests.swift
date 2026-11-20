@@ -61,55 +61,24 @@ extension SharedProductionSingletonTests {
         }
 
         /// Drives the real `togglePlayPause()`, not just the pure `shouldIgnoreToggle` function: the
-        /// branch decision must come from the real `AVPlayer`, never the cached `isPlaying` flag.
+        /// branch decision must come from the player's own state, never the cached `isPlaying` flag.
         /// `isPlaying` is forced out of sync with a genuinely paused player here (the kind of drift
         /// that can happen because the flag and `handleTimeControlChange`'s mirror of real state are
-        /// two independent writers) — a tap must still start real playback, not call `pause()` on an
+        /// two independent writers) — a tap must still start playback, not call `pause()` on an
         /// already-paused player and merely "fix" the flag without producing any audio.
-        @Test func testToggleDecidesFromTheRealPlayerNotTheCachedFlag() throws {
-            let player = AudioPlayer()
-            let url = try audioFile(seconds: 2)
-            defer { try? FileManager.default.removeItem(at: url) }
-            let item = AVPlayerItem(url: url)
-            player.player.automaticallyWaitsToMinimizeStalling = false
-            player.player.replaceCurrentItem(with: item)
-            #expect(waitUntil { item.status == .readyToPlay }, "item should load")
+        @Test func testToggleDecidesFromTheRealPlayerNotTheCachedFlag() {
+            let player = AudioPlayer.makeForTesting()
             player.player.pause()
-            #expect(waitUntil { player.player.timeControlStatus == .paused })
+            #expect(player.player.timeControlStatus == .paused)
 
             // Simulate drift: the cached flag claims "playing" while the real player is paused.
             player.isPlaying = true
 
             player.togglePlayPause()
 
-            #expect(waitUntil { player.player.timeControlStatus != .paused },
-                "a tap must start real playback when the real player is paused, regardless of what the cached flag claimed")
+            #expect(player.player.timeControlStatus != .paused,
+                "a tap must start playback when the player is paused, regardless of what the cached flag claimed")
             #expect(player.isPlaying)
-
-            player.player.pause()
-            player.player.replaceCurrentItem(with: nil)
-        }
-
-        /// A short silent audio file AVFoundation loads locally (no network in tests).
-        private func audioFile(seconds: Double) throws -> URL {
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("toggle-\(UUID().uuidString).caf")
-            let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2))
-            let file = try AVAudioFile(forWriting: url, settings: format.settings)
-            let frames = AVAudioFrameCount(seconds * 44_100)
-            let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
-            buffer.frameLength = frames
-            try file.write(from: buffer)
-            return url
-        }
-
-        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
-            let deadline = Date().addingTimeInterval(timeout)
-            while !condition() {
-                if Date() > deadline { return false }
-                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
-            }
-            return true
         }
     }
 }

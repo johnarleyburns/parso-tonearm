@@ -1,6 +1,7 @@
 import SwiftData
 import Foundation
 import Testing
+import TonearmWatchProtocol
 @testable import TonearmWatchCore
 
 @Suite struct WatchStoreBootstrapTests {
@@ -10,8 +11,8 @@ import Testing
         let legacy = folder.appendingPathComponent("WatchAudio")
         let inbox = folder.appendingPathComponent("tmp")
         let suite = "watch-reset-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { try? FileManager.default.removeItem(at: folder); defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
+        defer { try? FileManager.default.removeItem(at: folder) }
         for directory in [root, legacy, inbox] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
@@ -37,8 +38,7 @@ import Testing
 
     @Test func testResetRejectsBroadDirectoryWithoutClearingConsent() throws {
         let suite = "watch-reset-guard-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         defaults.set(true, forKey: WatchStoreBootstrap.resetPendingKey)
         do {
             _ = try WatchStoreBootstrap.performPendingReset(root: FileManager.default.temporaryDirectory,

@@ -1,4 +1,5 @@
 import Foundation
+import TonearmWatchProtocol
 
 /// User-facing Pro Audio state (parametric EQ, crossfeed, convolution, bit-perfect
 /// request). A pure value: no UI frameworks, no AVFoundation, no I/O. The realtime
@@ -83,7 +84,7 @@ public struct ProAudioSettings: Equatable, Codable, Sendable {
 public enum ProAudioSettingsPersistence {
     private static let settingsKey = "proaudio.settings.payload"
 
-    public static func load(defaults: UserDefaults = .standard) -> ProAudioSettings {
+    public static func load(defaults: any DefaultsStoring = UserDefaults.standard) -> ProAudioSettings {
         guard let data = defaults.data(forKey: settingsKey),
               let settings = try? JSONDecoder().decode(ProAudioSettings.self, from: data) else {
             return .default
@@ -91,7 +92,7 @@ public enum ProAudioSettingsPersistence {
         return settings
     }
 
-    public static func save(_ settings: ProAudioSettings, defaults: UserDefaults = .standard) {
+    public static func save(_ settings: ProAudioSettings, defaults: any DefaultsStoring = UserDefaults.standard) {
         guard let data = try? JSONEncoder().encode(settings) else { return }
         defaults.set(data, forKey: settingsKey)
     }

@@ -99,9 +99,7 @@ import TonearmWatchProtocol
     @Test func testProductionFanoutDeliversCatalogMetadataAndUnblocksDeferredInstallation() async throws {
         let fx = try Fixture()
         let repository = fx.repository
-        let suite = "watch-sync-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let defaults = InMemoryDefaultsStore()
         let receipt = Date(timeIntervalSince1970: 50_000)
         let status = WatchSyncStatusState(defaults: defaults, now: { receipt },
             latestInstallation: { try? await repository.lastAudioInstallationDate() })

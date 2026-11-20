@@ -10,12 +10,17 @@ public final class PlaybackPositionPersistor {
     public static let cloudPushInterval: TimeInterval = 30
 
     public var cloudBackend: PlaybackCloudBackend?
+    /// File + defaults tiers. Injectable so tests can use an in-memory store
+    /// instead of the process-wide App Group file/domain.
+    let stateStore: any PlaybackStatePersistence
 
     private(set) var lastPersistAt: Date = .distantPast
     private(set) var lastCloudPushAt: Date = .distantPast
 
-    public init(cloudBackend: PlaybackCloudBackend? = nil) {
+    public init(cloudBackend: PlaybackCloudBackend? = nil,
+                stateStore: any PlaybackStatePersistence = CompositePlaybackStatePersistence()) {
         self.cloudBackend = cloudBackend
+        self.stateStore = stateStore
     }
 
     /// Saves `candidate` (nil means "clear") after admission, then distributes
@@ -26,15 +31,15 @@ public final class PlaybackPositionPersistor {
         candidate: PlaybackStateSnapshot?,
         reason: PlaybackWriteReason
     ) {
-        let existing = PlaybackStateStore.load()
+        let existing = stateStore.load()
         guard PlaybackWritePolicy.admits(candidate: candidate, existing: existing, reason: reason) else {
             return
         }
 
         if let candidate {
-            PlaybackStateStore.save(candidate)
+            stateStore.save(candidate)
         } else {
-            PlaybackStateStore.clear()
+            stateStore.clear()
         }
 
         lastPersistAt = Date()
@@ -60,7 +65,7 @@ public final class PlaybackPositionPersistor {
     /// defaults → cloud, max-by-savedAt).
     public func loadBest() async -> PlaybackStateSnapshot? {
         // Production path (no cloud) or cloud attached.
-        let local = PlaybackStateStore.load()
+        let local = stateStore.load()
         if let backend = cloudBackend, let remote = await backend.load() {
             if let loc = local {
                 return loc.savedAt >= remote.savedAt ? loc : remote

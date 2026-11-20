@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import TonearmWatchProtocol
 
 @Model
 public final class WatchStoreMetadata {
@@ -46,7 +47,7 @@ public enum WatchStoreBootstrap {
     /// Only called before opening the model container. Never delete an active store.
     @discardableResult
     public static func performPendingReset(root: URL, legacyDirectories: [URL] = [],
-        temporaryDirectory: URL? = nil, defaults: UserDefaults = .standard,
+        temporaryDirectory: URL? = nil, defaults: any DefaultsStoring = UserDefaults.standard,
         defaultsDomain: String) throws -> Bool {
         guard defaults.bool(forKey: resetPendingKey) else { return false }
         guard root.isFileURL, root.lastPathComponent == storeName,

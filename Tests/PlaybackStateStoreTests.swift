@@ -6,6 +6,7 @@ extension SharedProductionSingletonTests {
     @MainActor
     @Suite final class PlaybackStateStoreTests {
 
+        private let persistence = InMemoryPlaybackStatePersistence()
         private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                                   originalURL: nil, title: "Test Source",
                                   addedAt: Date(), lastResolvedAt: nil,
@@ -24,21 +25,14 @@ extension SharedProductionSingletonTests {
             return TrackRow(track: t, album: album, source: src, asset: a)
         }
 
-        deinit {
-            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
-        }
-
-        private func ephemeralSuite() throws -> UserDefaults {
-            let name = "test.playback.\(UUID().uuidString)"
-            let suite = try #require(UserDefaults(suiteName: name))
-            suite.removePersistentDomain(forName: name)
-            return suite
+        private func usePersistence(_ player: AudioPlayer) {
+            player.persistor = PlaybackPositionPersistor(stateStore: persistence)
         }
 
         // MARK: - Round-trip (v1 save/load/clear with injected suite)
 
         @Test func testPlaybackStateStoreRoundTripsQueueIndexAndTime() throws {
-            let suite = try ephemeralSuite()
+            let suite = persistence.defaults
             #expect(PlaybackStateStore.load(defaults: suite) == nil)
 
             let saved = PlaybackStateSnapshot(
@@ -64,10 +58,10 @@ extension SharedProductionSingletonTests {
         // MARK: - Seek persists immediately
 
         @Test func testSeekPersistsElapsedImmediately() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
 
-            let player = AudioPlayer()
+            let player = AudioPlayer.makeForTesting()
+            usePersistence(player)
             resetForTest(player)
 
             let row = fakeTrackRow(1)
@@ -84,10 +78,10 @@ extension SharedProductionSingletonTests {
         // MARK: - Pause persists the current elapsed
 
         @Test func testPausePersistsCurrentElapsed() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
 
-            let player = AudioPlayer()
+            let player = AudioPlayer.makeForTesting()
+            usePersistence(player)
             resetForTest(player)
 
             let row = fakeTrackRow(1)
@@ -105,10 +99,10 @@ extension SharedProductionSingletonTests {
         // MARK: - Ambient guard
 
         @Test func testPersistPlaybackStateNoOpsInAmbientMode() throws {
-            let suite = try ephemeralSuite()
-            PlaybackStateStore.defaultsProvider = { suite }
+            let suite = persistence.defaults
 
-            let player = AudioPlayer()
+            let player = AudioPlayer.makeForTesting()
+            usePersistence(player)
             resetForTest(player)
 
             let row = fakeTrackRow(1)

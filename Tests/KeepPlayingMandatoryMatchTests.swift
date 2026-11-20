@@ -24,7 +24,7 @@ extension SharedProductionSingletonTests {
 
     @MainActor
     @Suite final class KeepPlayingMandatoryMatchTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
 
         private final class ScriptedProvider: KeepPlayingSimilarityProviding, @unchecked Sendable {
             let strict: KeepPlayingLookup

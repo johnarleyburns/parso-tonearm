@@ -650,11 +650,7 @@ extension AudioPlayer {
         // real underlying error if AVFoundation ever reports one, which
         // print-based debugging of this exact bug has never captured yet.
         let trackTitle = currentTrack?.track.title ?? "?"
-        itemStatusCancellable = item.publisher(for: \.status)
-            // KVO fires on an AVFoundation queue; this closure is main-actor isolated
-            // (Swift 6), so it must be delivered on the main queue or the runtime traps.
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self, weak item] status in
+        itemStatusCancellable = player.observeItemStatus(item) { [weak self, weak item] status in
                 if let self, status == .failed, let item, self.player.currentItem === item,
                    self.ordinaryJamendoLoad != nil {
                     self.handleOrdinaryJamendoTerminalLoaderFailure(httpStatus: Self.httpStatus(of: item))
@@ -761,7 +757,7 @@ extension AudioPlayer {
                     // playing — would strand playback silently: nothing watches it for a stall.
                     // Fall back to the ordinary load path instead, which installs the full
                     // observer set from a clean start.
-                    if self.crossfadePlayer?.currentItem?.status == .readyToPlay {
+                    if self.crossfadePlayer?.isReady == true {
                         self.finishCrossfade(to: nextIndex, row: self.queue[nextIndex])
                     } else {
                         self.cancelCrossfade(resetVolume: true)

@@ -7,10 +7,6 @@ import Testing
 /// iCloud sync is free for all users.
 @Suite final class SyncGatingTests {
 
-    deinit {
-        UserDefaults.standard.removeObject(forKey: "sync.icloud.enabled")
-    }
-
     @Test func testRunsOnlyWithToggleAndAccount() {
         #expect(SyncGating.shouldRun(toggleOn: true, account: .available))
     }
@@ -37,14 +33,15 @@ import Testing
     }
 
     @Test func testToggleDefaultsOff() {
-        UserDefaults.standard.removeObject(forKey: "sync.icloud.enabled")
-        #expect(!SyncGating.isEnabled, "iCloud sync must default OFF (privacy stance)")
+        let defaults = InMemoryDefaultsStore()
+        #expect(!SyncGating.isEnabled(in: defaults), "iCloud sync must default OFF (privacy stance)")
     }
 
     @Test func testTogglePersists() {
-        SyncGating.isEnabled = true
-        #expect(SyncGating.isEnabled)
-        SyncGating.isEnabled = false
-        #expect(!SyncGating.isEnabled)
+        let defaults = InMemoryDefaultsStore()
+        SyncGating.setEnabled(true, in: defaults)
+        #expect(SyncGating.isEnabled(in: defaults))
+        SyncGating.setEnabled(false, in: defaults)
+        #expect(!SyncGating.isEnabled(in: defaults))
     }
 }

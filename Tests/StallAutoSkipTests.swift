@@ -16,7 +16,7 @@ extension SharedProductionSingletonTests {
     /// `@Suite` declaration and `Tests/SharedProductionSingletonTests.swift`.
     @Suite
     final class StallAutoSkipTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
         private let trackSeconds = 2.0
         private var files: [URL] = []
 
@@ -33,7 +33,7 @@ extension SharedProductionSingletonTests {
         /// A single-track queue with nowhere to skip to: `next()` on an unconfirmed track just
         /// pauses, which is still an unambiguous, directly-observable signal that the stall watch
         /// fired and acted, without needing a second real asset to resolve.
-        @Test func testNeverConfirmedTrackIsSkippedAfterTheStallTimeoutAndPausesWithNowhereToGo() throws {
+        @Test func testNeverConfirmedTrackIsSkippedAfterTheStallTimeoutAndPausesWithNowhereToGo() async throws {
             let savedTimeout = player.stallEvaluationTimeout
             defer { player.stallEvaluationTimeout = savedTimeout }
             player.stallEvaluationTimeout = .milliseconds(80)
@@ -46,17 +46,18 @@ extension SharedProductionSingletonTests {
             player.player.automaticallyWaitsToMinimizeStalling = false
             player.isPlaying = true
             player.replaceItem(item, autoplay: true)
-            // Deliberately never confirmed: the real player never actually plays, so the periodic
-            // time observer's clock never advances and `confirmPlayback` never fires.
+            // Deliberately never confirmed: the fake never advances its clock, so
+            // `confirmPlayback` never fires.
             player.player.pause()
 
-            #expect(waitUntil(timeout: 2) { player.isPlaying == false },
+            let paused = await waitUntil(timeout: 2) { player.isPlaying == false }
+            #expect(paused,
                 "an unconfirmed autoplaying track with nowhere to skip to must pause, not hang forever")
         }
 
         /// The counterpart: a track that becomes ready and is never watched at all when it wasn't
         /// an autoplay load (the user loaded it paused) — nothing should happen at the timeout.
-        @Test func testManuallyPausedLoadIsNeverWatchedForStalling() throws {
+        @Test func testManuallyPausedLoadIsNeverWatchedForStalling() async throws {
             let savedTimeout = player.stallEvaluationTimeout
             defer { player.stallEvaluationTimeout = savedTimeout }
             player.stallEvaluationTimeout = .milliseconds(80)
@@ -72,13 +73,13 @@ extension SharedProductionSingletonTests {
             #expect(player.stallWatchTask == nil, "a non-autoplaying load must never even start a stall watch")
 
             // Give the (never-started) watch a chance to have fired if it mistakenly started anyway.
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            try await Task.sleep(for: .milliseconds(300))
             #expect(!player.isPlaying, "a manually-paused load must stay exactly as the caller left it")
         }
 
         /// Issue #271: a remote (non-file) stream gets the longer remote window, so a slow-starting
         /// cloud-drive/Jamendo track is not declared stalled and paused after the local-file window.
-        @Test func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() throws {
+        @Test func testSlowStartingRemoteItemIsNotSkippedWithinTheRemoteWindow() async throws {
             let savedLocal = player.stallEvaluationTimeout
             let savedRemote = player.remoteStallEvaluationTimeout
             defer {
@@ -96,7 +97,7 @@ extension SharedProductionSingletonTests {
             player.isPlaying = true
             player.replaceItem(item, autoplay: true)
 
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            try await Task.sleep(for: .milliseconds(500))
             #expect(player.stallModel.consecutiveSkips == 0,
                 "a remote load must not be evaluated as stalled by the short local-file window")
         }
@@ -123,11 +124,11 @@ extension SharedProductionSingletonTests {
 
         // MARK: - Helpers
 
-        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) -> Bool {
+        private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async -> Bool {
             let deadline = Date().addingTimeInterval(timeout)
             while !condition() {
                 if Date() > deadline { return false }
-                RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+                try? await Task.sleep(for: .milliseconds(20))
             }
             return true
         }

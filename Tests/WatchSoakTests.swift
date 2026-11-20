@@ -106,9 +106,7 @@ import Testing
     // MARK: - six-hour local playback state simulation
 
     @Test func testSixHoursOfLocalPlaybackStateStaysBoundedAndConsistent() {
-        let suiteName = "watch-soak-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let defaults = InMemoryDefaultsStore()
 
         let queue = (0..<12).map { "track-\($0)" }
         var engine = WatchPlayerEngine(queue: queue, startIndex: 0)

@@ -22,10 +22,7 @@ import Testing
 extension SharedProductionSingletonTests {
     @MainActor
     @Suite final class KeepPlayingTests {
-        private let player = AudioPlayer()
-
-        nonisolated(unsafe) private var playbackStateDirectory: URL?
-        nonisolated(unsafe) private var playbackStateSuiteName: String?
+        private let player = AudioPlayer.makeForTesting()
 
         private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                                   originalURL: nil, title: "Test Source",
@@ -46,34 +43,9 @@ extension SharedProductionSingletonTests {
         }
 
         init() throws {
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("tonearm-keep-playing-\(UUID().uuidString)", isDirectory: true)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            playbackStateDirectory = directory
-            PlaybackStateFileStore.fileURLOverride = directory.appendingPathComponent("playback-state.v2.json")
-
-            let suiteName = "test.keep-playing.\(UUID().uuidString)"
-            let defaults = try #require(UserDefaults(suiteName: suiteName))
-            defaults.removePersistentDomain(forName: suiteName)
-            playbackStateSuiteName = suiteName
-            PlaybackStateStore.defaultsProvider = { defaults }
-
+            player.persistor = PlaybackPositionPersistor(
+                stateStore: InMemoryPlaybackStatePersistence())
             Self.resetPlayerForTest(player)
-        }
-
-        isolated deinit {
-            let directory = playbackStateDirectory
-            let suiteName = playbackStateSuiteName
-            PlaybackStateStore.defaultsProvider = { PlaybackStateStore.sharedDefaults() }
-            PlaybackStateFileStore.fileURLOverride = nil
-            if let directory {
-                try? FileManager.default.removeItem(at: directory)
-            }
-            if let suiteName {
-                UserDefaults().removePersistentDomain(forName: suiteName)
-            }
-            playbackStateDirectory = nil
-            playbackStateSuiteName = nil
         }
 
         private static func resetPlayerForTest(_ player: AudioPlayer) {

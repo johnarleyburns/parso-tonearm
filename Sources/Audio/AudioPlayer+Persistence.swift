@@ -113,10 +113,10 @@ extension AudioPlayer {
             provenance.append(entry.provenance)
         }
         guard !ids.isEmpty else {
-            PlaybackStateStore.clear()
+            persistor.stateStore.clear()
             return
         }
-        PlaybackStateStore.save(PlaybackStateSnapshot(
+        persistor.stateStore.save(PlaybackStateSnapshot(
             trackIDs: ids,
             trackSyncIDs: syncIDs,
             currentIndex: currentIndex,

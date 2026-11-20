@@ -55,7 +55,7 @@ extension SharedProductionSingletonTests {
     /// completions are released through an actor gate, never wall-clock sleeps.
     @MainActor
     @Suite final class KeepPlayingBoundaryTests {
-        private let player = AudioPlayer()
+        private let player = AudioPlayer.makeForTesting()
         private let src = Source(id: 1, kind: .iaItem, iaIdentifier: "x",
                                  originalURL: nil, title: "Test Source",
                                  addedAt: Date(), lastResolvedAt: nil,
@@ -81,13 +81,9 @@ extension SharedProductionSingletonTests {
         }
 
         init() async throws {
-            PlaybackStateFileStore.fileURLOverride = FileManager.default.temporaryDirectory
-                .appendingPathComponent("tonearm-boundary-\(UUID().uuidString).json")
+            player.persistor = PlaybackPositionPersistor(
+                stateStore: InMemoryPlaybackStatePersistence())
             reset(player)
-        }
-
-        isolated deinit {
-            PlaybackStateFileStore.fileURLOverride = nil
         }
 
         /// Yields the main actor until `condition` holds (bounded by iterations, not time).

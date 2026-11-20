@@ -1,4 +1,5 @@
 import Foundation
+import TonearmWatchProtocol
 
 /// Pure gating rules for iCloud sync so `SyncGatingTests` can assert the engine
 /// only runs under the right conditions without instantiating CloudKit. The
@@ -9,9 +10,20 @@ public enum SyncGating {
     /// The persisted opt-in toggle, default **OFF** (privacy stance, C1/C5).
     private static let enabledKey = "sync.icloud.enabled"
 
+    /// Production accessor (the app's standard defaults). Tests pass an
+    /// `InMemoryDefaultsStore` to `isEnabled(in:)`/`setEnabled(_:in:)` instead
+    /// of mutating the process-wide standard domain.
     public static var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: enabledKey) }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+        get { isEnabled(in: UserDefaults.standard) }
+        set { setEnabled(newValue, in: UserDefaults.standard) }
+    }
+
+    public static func isEnabled(in defaults: any DefaultsStoring) -> Bool {
+        defaults.bool(forKey: enabledKey)
+    }
+
+    public static func setEnabled(_ enabled: Bool, in defaults: any DefaultsStoring) {
+        defaults.set(enabled, forKey: enabledKey)
     }
 
     /// iCloud account availability, mirrors `CKAccountStatus.available`.
