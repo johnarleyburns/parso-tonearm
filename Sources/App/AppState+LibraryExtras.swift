@@ -53,15 +53,17 @@ extension AppState {
     func eliminateDuplicates(in groups: [DuplicateDetection.Group]) async -> Int {
         var deletedCount = 0
         for group in groups {
-            for candidate in group.candidates.dropFirst() {
-                guard let idPrefix = candidate.id.split(separator: ":").first,
-                      let trackId = Int64(idPrefix) else { continue }
-                do {
-                    try await store.deleteTrack(id: trackId)
-                    deletedCount += 1
-                } catch {
-                    AppLogger.app.error("Duplicate cleanup failed for track \(trackId): \(error.localizedDescription, privacy: .public)")
-                }
+            let trackIDs = group.candidates.compactMap { candidate -> Int64? in
+                guard let idPrefix = candidate.id.split(separator: ":").first else { return nil }
+                return Int64(idPrefix)
+            }
+            guard trackIDs.count > 1 else { continue }
+            do {
+                // Merge instead of delete: the survivor keeps every favorite,
+                // play-history row and playlist membership from the others.
+                deletedCount += try await store.mergeDuplicateTracks(trackIDs: trackIDs)
+            } catch {
+                AppLogger.app.error("Duplicate cleanup failed: \(error.localizedDescription, privacy: .public)")
             }
         }
         if deletedCount > 0 { await reload() }

@@ -75,6 +75,36 @@ import Testing
         #expect(sources.count == 1, "repeated imports must reuse the single 'Local Files' source, not duplicate it")
     }
 
+    /// The size+duration key cannot match when the already-imported copy has no
+    /// duration metadata. The stored 128 KB sample fingerprint must still catch
+    /// the same bytes at a second path.
+    @Test func testSameBytesMatchByFingerprintWhenDurationMetadataIsMissing() async throws {
+        let store = try LibraryStore(inMemory: true)
+        let source = try #require(BuiltInContentProvider.bundledAudioURL(forChannelId: "ambient-ocean"))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ingest-hash-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let firstPath = root.appendingPathComponent("first.wav")
+        let secondPath = root.appendingPathComponent("second.wav")
+        try FileManager.default.copyItem(at: source, to: firstPath)
+        try FileManager.default.copyItem(at: source, to: secondPath)
+
+        let first = await IngestService().addFiles([firstPath], into: store)
+        #expect(first.imported == 1)
+        // Simulate a file whose metadata never yielded a duration.
+        try await store.dbQueue.write { db in
+            try db.execute(sql: "UPDATE track SET durationSec = NULL")
+        }
+
+        let second = await IngestService().addFiles([secondPath], into: store)
+        #expect(second.imported == 0, "identical bytes must not be imported twice")
+        #expect(second.skippedDuplicates == 1)
+        let stored = try await store.allTrackRows()
+        #expect(stored.count == 1)
+        #expect(stored.first?.asset?.contentSampleHash != nil)
+    }
+
     /// Real report: adding one file, then later adding the folder that contains
     /// the same file, duplicated it. Both paths already call the size+duration
     /// duplicate check; this pins the cross-path behavior with a real audio

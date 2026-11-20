@@ -193,6 +193,92 @@ extension LibraryStore {
         }
     }
 
+    /// Content-identity match for a local file whose metadata duration is
+    /// missing or slightly different from the already-ingested copy.
+    public func findExistingTrackId(sizeBytes: Int64, contentSampleHash: String) throws -> Int64? {
+        try dbQueue.read { db in
+            try Int64.fetchOne(
+                db,
+                sql: """
+                    SELECT t.id FROM track t JOIN asset a ON a.trackId = t.id
+                    WHERE a.kind = 'localRef' AND a.sizeBytes = ?
+                      AND a.contentSampleHash = ?
+                    LIMIT 1
+                    """,
+                arguments: [sizeBytes, contentSampleHash])
+        }
+    }
+
+    /// Local assets that predate the content-fingerprint column. Returned in
+    /// id order so a bounded background backfill resumes where it left off.
+    public func localFingerprintCandidates(limit: Int = 200) throws -> [LocalFingerprintCandidate] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: """
+                SELECT id, bookmark, relPath, remoteURL FROM asset
+                WHERE kind = 'localRef' AND contentSampleHash IS NULL
+                ORDER BY id LIMIT ?
+                """, arguments: [limit]).map {
+                    LocalFingerprintCandidate(
+                        assetId: $0["id"], bookmark: $0["bookmark"],
+                        relPath: $0["relPath"], remoteURL: $0["remoteURL"])
+                }
+        }
+    }
+
+    public func applyContentFingerprints(
+        _ values: [(assetId: Int64, hash: String, sizeBytes: Int64)]
+    ) throws {
+        guard !values.isEmpty else { return }
+        try dbQueue.write { db in
+            for value in values {
+                try db.execute(sql: """
+                    UPDATE asset SET contentSampleHash = ?,
+                        sizeBytes = COALESCE(sizeBytes, ?)
+                    WHERE id = ?
+                    """, arguments: [value.hash, value.sizeBytes, value.assetId])
+            }
+        }
+    }
+
+    /// Merges one duplicate group chosen by the Tools scanner, moving
+    /// favorites/history/playlist rows onto the chosen survivor instead of
+    /// deleting them with the loser.
+    @discardableResult
+    public func mergeDuplicateTracks(trackIDs: [Int64]) throws -> Int {
+        try dbQueue.write { db in
+            let unique = Array(Set(trackIDs))
+            guard unique.count > 1 else { return 0 }
+            let survivor = try TrackMerger.chooseSurvivor(db: db, tracks: unique)
+            let losers = unique.filter { $0 != survivor }
+            guard !losers.isEmpty else { return 0 }
+            try TrackMerger.mergeGroup(db: db, survivor: survivor, losers: losers)
+            try Self.refreshSearchIndex(trackID: survivor, db: db)
+            return losers.count
+        }
+    }
+
+    public func consolidateLocalDuplicates() throws -> LocalTrackConsolidator.Report {
+        try dbQueue.write { db in try LocalTrackConsolidator.run(db: db) }
+    }
+
+    /// Old source ids whose Keychain credentials should be removed after v53
+    /// merged their source rows into a canonical one.
+    public func mergedSourceAudit() throws -> [(oldSourceId: Int64, kind: SourceKind)] {
+        try dbQueue.read { db in
+            try Row.fetchAll(db, sql: "SELECT oldSourceId, kind FROM merged_source")
+                .compactMap { row -> (oldSourceId: Int64, kind: SourceKind)? in
+                    let kindRaw: String = row["kind"]
+                    let oldSourceId: Int64 = row["oldSourceId"]
+                    guard let kind = SourceKind(rawValue: kindRaw) else { return nil }
+                    return (oldSourceId, kind)
+                }
+        }
+    }
+
+    public func clearMergedSourceAudit() throws {
+        try dbQueue.write { db in try db.execute(sql: "DELETE FROM merged_source") }
+    }
+
     public func fillAlbumMetadataIfEmpty(
         id: Int64,
         artistId: Int64?,

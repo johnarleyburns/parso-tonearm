@@ -656,5 +656,30 @@ extension Schema {
                 }
             }
         }
+        if shouldRegister("v53", upTo: target) {
+            migrator.registerMigration("v53") { db in
+                // Content identity for local re-adds (add a file, then add the
+                // folder containing it) and the one-time cleanup of sources
+                // duplicated by detach/reattach (Google Drive and every other
+                // account/endpoint-based provider).
+                try db.alter(table: "asset") { t in
+                    t.add(column: "contentSampleHash", .text)
+                }
+                // Audit rows let the app delete the orphaned Keychain item for
+                // a source row the migration merges away. The canonical source
+                // is the newest one, so its credential is the one kept.
+                try db.create(table: "merged_source") { t in
+                    t.column("oldSourceId", .integer).primaryKey()
+                    t.column("canonicalSourceId", .integer).notNull()
+                    t.column("kind", .text).notNull()
+                }
+                // Merge duplicate remote sources, then the duplicate tracks
+                // those sources contained. Local byte-identical files that
+                // arrived via different routes are consolidated too.
+                try SourceConsolidator.run(db: db)
+                try LocalTrackConsolidator.run(db: db)
+            }
+        }
+
     }
 }

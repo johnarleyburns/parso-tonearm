@@ -228,15 +228,25 @@ public struct IngestService {
 
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 }
             .map(Int64.init)
+        let fingerprint = Self.contentFingerprint(for: url)
+        let resolvedSize = fileSize ?? fingerprint.map(\.sizeBytes)
 
         // Real report: "import multiple folders locally and sometimes have
         // the same track in two different places and it shows up twice" —
         // a cheap size+duration match against every already-ingested track,
-        // before doing any of the artist/album work below.
-        if let fileSize, let duration = meta.durationSec {
-            let existingId = (try? await store.findExistingTrackId(
-                sizeBytes: fileSize, durationSec: duration)) ?? nil
-            if existingId != nil { return .skippedDuplicate }
+        // then a size+sample-fingerprint match for files whose duration
+        // metadata is missing or differs slightly.
+        if let resolvedSize {
+            if let duration = meta.durationSec {
+                let existingId = (try? await store.findExistingTrackId(
+                    sizeBytes: resolvedSize, durationSec: duration)) ?? nil
+                if existingId != nil { return .skippedDuplicate }
+            }
+            if let hash = fingerprint?.sampleHash {
+                let existingId = (try? await store.findExistingTrackId(
+                    sizeBytes: resolvedSize, contentSampleHash: hash)) ?? nil
+                if existingId != nil { return .skippedDuplicate }
+            }
         }
 
         let artistName = meta.artist ?? meta.albumArtist
@@ -265,9 +275,18 @@ public struct IngestService {
         guard let tid = track.id else { return .failed }
         let asset = Asset(id: nil, trackId: tid, kind: .localRef, bookmark: bookmark,
                           relPath: nil, remoteURL: url.absoluteString, altRemoteURL: nil,
-                          sizeBytes: fileSize, unsupportedReason: unsupported)
+                          sizeBytes: resolvedSize,
+                          contentSampleHash: fingerprint?.sampleHash,
+                          unsupportedReason: unsupported)
         try await store.insertAsset(asset)
         return .inserted(tid)
+    }
+
+    /// First+last 128 KB SHA-256 sample; mapped so a large file is not read
+    /// into memory. Used only for duplicate identity, never for playback.
+    private static func contentFingerprint(for url: URL) -> DuplicateDetection.Fingerprint? {
+        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]) else { return nil }
+        return DuplicateDetection.fingerprint(bytes: data)
     }
 
     private func extractMetadata(_ url: URL) async -> TrackMetadata {
