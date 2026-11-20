@@ -303,6 +303,25 @@ public final class AudioPlayer: ObservableObject {
     /// process unable to exit cleanly after every test has already reported passed.
     isolated deinit {
         pathMonitor.cancel()
+        // A test process that is kept alive by an in-flight task, observer or
+        // resource-loader URLSession never exits, which looks like a CI hang.
+        // Tear everything down explicitly; every one of these is idempotent.
+        transitionTicker?.cancel()
+        stallWatchTask?.cancel()
+        keepPlayingExtensionTask?.cancel()
+        catalogPlaybackLoadTask?.cancel()
+        localReadinessTask?.cancel()
+        restoreTask?.cancel()
+        preloadFreshenTask?.cancel()
+        sleepTimerTask?.cancel()
+        for task in prefetchFreshenTasks.values { task.cancel() }
+        for loader in loaders { loader.shutdown() }
+        for loader in prefetchLoaders.values { loader.shutdown() }
+        preloadedNextLoader?.shutdown()
+        crossfadeNextLoader?.shutdown()
+        if let timeObserver { player.removeTimeObserver(timeObserver) }
+        if let itemEndObserver { NotificationCenter.default.removeObserver(itemEndObserver) }
+        timeControlCancellable?.cancel()
     }
 
     /// Installs the real platform bridge and starts the iOS-only integrations

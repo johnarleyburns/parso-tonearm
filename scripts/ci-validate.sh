@@ -55,7 +55,32 @@ endstep
 
 step "Swift package tests"
 # The mandatory production harness just passed above; do not execute it twice.
-swift test --skip TonearmProductionRegressionTests
+#
+# Watchdog: a suite that leaks a URLSession/AVFoundation resource can leave the
+# test process alive forever after the run summary. Fail at 12 minutes with the
+# tail of the log so the hung suite is visible instead of burning the job's
+# 90-minute timeout with no output.
+TEST_LOG=".build/tonearm-swift-test.log"
+mkdir -p .build
+rm -f "$TEST_LOG"
+set +e
+swift test --skip TonearmProductionRegressionTests >"$TEST_LOG" 2>&1 &
+TEST_PID=$!
+( sleep 720; kill -TERM "$TEST_PID" 2>/dev/null ) &
+WATCHDOG_PID=$!
+wait "$TEST_PID"
+TEST_STATUS=$?
+kill "$WATCHDOG_PID" 2>/dev/null
+wait "$WATCHDOG_PID" 2>/dev/null
+if [ "$TEST_STATUS" -ne 0 ]; then
+  echo "swift test failed or timed out (status $TEST_STATUS); last 400 lines:"
+  tail -400 "$TEST_LOG"
+  pkill -TERM -P "$TEST_PID" 2>/dev/null || true
+  pkill -f "TonearmCoreTests.xctest" 2>/dev/null || true
+  pkill -f "swiftpm-testing" 2>/dev/null || true
+fi
+set -e
+[ "$TEST_STATUS" -eq 0 ]
 endstep
 
 step "Repository hygiene"
