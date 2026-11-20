@@ -423,8 +423,8 @@ import Testing
         let result = ModelDownloadProgress.aggregate([audioFinished, textNotStarted])
 
         #expect(result != nil, "a finished tag's bytes must not disappear from the total")
-        #expect(result?.completedBytes == 137 * 1_048_576)
-        #expect(result?.totalBytes == 137 * 1_048_576)
+        #expect(result?.completedBytes == Int64(137 * 1_048_576))
+        #expect(result?.totalBytes == Int64(137 * 1_048_576))
     }
 
     /// Once the second tag starts reporting its own (small) total, it joins
@@ -437,8 +437,8 @@ import Testing
 
         let result = ModelDownloadProgress.aggregate([audioFinished, textInProgress])
 
-        #expect(result?.completedBytes == 138 * 1_048_576)
-        #expect(result?.totalBytes == 141 * 1_048_576)
+        #expect(result?.completedBytes == Int64(138 * 1_048_576))
+        #expect(result?.totalBytes == Int64(141 * 1_048_576))
     }
 
     /// Before either tag has reported a byte count at all (both still

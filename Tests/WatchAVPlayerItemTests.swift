@@ -7,8 +7,15 @@ import TonearmWatchProtocol
 
 /// Exercises the real AVPlayerItem state machine on the host. AVAudioSession itself is an iOS/watchOS
 /// service and is therefore exercised by WatchSmokeUITests plus the on-device audio pass.
+///
+/// Serialized deliberately: these are the one suite that must use real
+/// AVFoundation/CoreAudio media services (`AVAssetReader`/`AVAssetWriter` and
+/// `AVPlayerItem`). Concurrent real encodes deadlock inside MediaToolbox
+/// (`FigSemaphoreWaitRelative` while several `copyNextSampleBuffer` calls run),
+/// which is a genuine process-wide shared resource, not something a fake can
+/// replace without deleting what the test asserts.
 @MainActor
-@Suite struct WatchAVPlayerItemTests {
+@Suite(.serialized) struct WatchAVPlayerItemTests {
     @Test func testJamendoQueryOnlyCachedMP3ConvertsToPlayableWatchAAC() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

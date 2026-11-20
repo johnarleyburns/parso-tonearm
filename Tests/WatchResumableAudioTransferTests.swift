@@ -244,7 +244,7 @@ import TonearmWatchProtocol
             try await sender.ingestManifest(fx.manifest(await assembler.partialDownloads(), at: index + 1))
         }
         let halfway = await assembler.partialDownloads()
-        #expect(halfway.first?.retainedBytes == 50 * 1_048_576)
+        #expect(halfway.first?.retainedBytes == Int64(50 * 1_048_576))
         #expect(halfway.first?.fractionRetained == 0.5)
         await sender.suspend(trackID: "track")
         sender = fx.sender()
