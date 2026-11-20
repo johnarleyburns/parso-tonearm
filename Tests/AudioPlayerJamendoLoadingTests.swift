@@ -226,19 +226,14 @@ extension SharedProductionSingletonTests {
             let spy = Spy()
             try install(spy: spy)
             let staleURL = try #require(URL(string: stale))
-            let key = AudioCache.key(for: staleURL)
-            let blob = AudioCache.fileURL(for: key)
-            try FileManager.default.createDirectory(at: blob.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(count: 1000).write(to: blob)
-            await AudioCache.shared.adoptCompleteFile(byteCount: 1000, for: key, durable: false)
-            #expect(AudioCache.completeCacheExists(for: staleURL))
+            // The real cache gate is process-wide on-disk state; inject it so
+            // this test neither needs nor races that shared directory.
+            player.cachedPlaybackURL = { $0 == staleURL ? $0 : nil }
 
             load([jamendo()])
             await settle()
             #expect(spy.refreshes == 0, "complete local file must not hit the network resolver")
             #expect(spy.urls == [stale], "item is built from the cached URL, not a re-signed one")
-
-            await AudioCache.shared.remove(keys: [key])
         }
 
         /// Architecture-review finding: the near-gapless preload built an `AVPlayerItem` straight

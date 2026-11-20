@@ -354,10 +354,11 @@ import Testing
         _ = await controller.register()
 
         let invocation = FakeInvocation(identifier: "test.discovery-index")
-        // Fire expiration after a few windows have been persisted, but before
-        // the job can finalize.
+        // Fire expiration after the first window has had a chance to persist,
+        // while several windows still remain. Tying this to the fourth snapshot
+        // read raced finalization: the last window could already be committed.
         box.onRead = { count, _ in
-            if count == 4 { invocation.fireExpiration() }
+            if count == 2 { invocation.fireExpiration() }
         }
         await controller.run(invocation)
 

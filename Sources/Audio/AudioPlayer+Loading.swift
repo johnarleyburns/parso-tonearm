@@ -147,7 +147,7 @@ extension AudioPlayer {
             // under the URL it was cached with instead of re-resolving (a re-signed URL is a
             // different cache key and would needlessly stream a file already on disk).
             if let cachedString = asset.remoteURL, let cachedURL = URL(string: cachedString),
-               AudioCache.playableCompleteBlobURL(for: cachedURL) != nil {
+               cachedPlaybackURL(cachedURL) != nil {
                 finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
                 return
             }
@@ -390,7 +390,7 @@ extension AudioPlayer {
             // play it directly and provide AVFoundation the format hint it cannot infer
             // from the extensionless cache filename.  This also makes cached playback
             // independent of Jamendo's current signed URL response.
-            if let cachedURL = AudioCache.playableCompleteBlobURL(for: remote) {
+            if let cachedURL = cachedPlaybackURL(remote) {
                 var cachedOptions = assetOptions
                 if cachedOptions[AVURLAssetOverrideMIMETypeKey] == nil,
                    let prefix = AudioFileSniffer.readPrefix(of: cachedURL),
@@ -525,7 +525,7 @@ extension AudioPlayer {
               let remote = URL(string: urlString) else {
             return asset.kind != .remote
         }
-        return AudioCache.playableCompleteBlobURL(for: remote) != nil
+        return cachedPlaybackURL(remote) != nil
     }
 
     func skipCurrentForWiFiOnly(row: TrackRow) {

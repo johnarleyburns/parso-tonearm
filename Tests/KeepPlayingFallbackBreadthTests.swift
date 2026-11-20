@@ -18,7 +18,7 @@ import Testing
         let block = text[start.lowerBound..<end.lowerBound]
 
         #expect(block.contains("if candidates.isEmpty {"))
-        #expect(block.contains("LibraryStore.shared.allTrackRows()"),
+        #expect(block.contains("keepPlayingLibrary.allTrackRows()"),
                 "an exhausted source-scoped pool must broaden to the library, never dead air")
         #expect(block.contains("excluded.contains(id)") || block.contains("!excluded.contains(id)"),
                 "the broadened pool must still honor the exclusions")

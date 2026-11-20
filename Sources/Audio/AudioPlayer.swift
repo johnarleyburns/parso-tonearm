@@ -153,6 +153,9 @@ public final class AudioPlayer: ObservableObject {
     /// Keep Playing's library access; tests inject `.empty` so concurrent
     /// suites cannot see each other's tracks.
     public var keepPlayingLibrary = KeepPlayingLibrary.live
+    /// Test seam for the "already fully cached" gate. Production reads the real
+    /// sparse cache; tests can avoid touching the shared on-disk cache.
+    var cachedPlaybackURL: (URL) -> URL? = { AudioCache.playableCompleteBlobURL(for: $0) }
     /// Test seam: record the prefetched URL without creating a real
     /// `CachingResourceLoader`/URLSession. Production keeps this `true`.
     var prefetchLoaderEnabled = true

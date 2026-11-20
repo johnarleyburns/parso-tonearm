@@ -28,11 +28,14 @@ private final class Counter: @unchecked Sendable {
                                                 onWatchOnly: false)
         })
         presenter.query = "Home Cooking"
-        try await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineNoResults }
         #expect(presenter.phase == .offlineNoResults)
         try await repository.upsertTrack(.init(trackID: "home", title: "Home Cooking I"))
         presenter.refresh()
-        try await Task.sleep(for: .milliseconds(50))
+        await waitUntil {
+            if case .offlineResults = presenter.phase { return true }
+            return false
+        }
         guard case .offlineResults(let rows) = presenter.phase else {
             Issue.record("Typed query must refresh when catalog metadata arrives")
             return
@@ -53,6 +56,17 @@ private final class Counter: @unchecked Sendable {
             debounce: .zero, sleep: { _ in })
     }
 
+    /// Polls the presenter instead of assuming a fixed 50 ms is enough while
+    /// 1,600 other tests compete for the machine.
+    private func waitUntil(timeout: TimeInterval = 10, _ condition: () -> Bool) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        Issue.record("presenter condition not met in time")
+    }
+
     @Test func testStartsOnRecents() {
         let presenter = makePresenter(mode: .connected, recents: .init(["ambient", "piano"]))
         #expect(presenter.phase == .recent(["ambient", "piano"]))
@@ -61,7 +75,7 @@ private final class Counter: @unchecked Sendable {
     @Test func testShortQueryIsTooShortWhileTyping() async {
         let presenter = makePresenter(mode: .connected)
         presenter.query = "a"
-        await Task.yield()
+        await waitUntil { presenter.phase == .tooShort }
         #expect(presenter.phase == .tooShort)
     }
 
@@ -73,11 +87,11 @@ private final class Counter: @unchecked Sendable {
                                                 rows: q == "empty" ? [] : [row("t1")]))
         })
         presenter.query = "piano"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .results([row("t1")]) }
         #expect(presenter.phase == .results([row("t1")]))
 
         presenter.query = "empty"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .noResults }
         #expect(presenter.phase == .noResults)
         #expect(calls.count == 2)
     }
@@ -85,22 +99,29 @@ private final class Counter: @unchecked Sendable {
     @Test func testConnectedFaultBecomesUnreachable() async {
         let presenter = makePresenter(mode: .connected, connected: { _, _ in .failed(.init(code: .phoneUnavailable)) })
         presenter.query = "piano"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .unreachable(fallback: []) }
         #expect(presenter.phase == .unreachable(fallback: []))
     }
 
     @Test func testSupersededReplyDoesNotRepaint() async {
+        let slowStarted = Counter()
+        let slowFinished = Counter()
         let presenter = makePresenter(mode: .connected, connected: { q, gen in
             if q == "slow" {
+                slowStarted.bump()
                 try? await Task.sleep(for: .milliseconds(80))
+                slowFinished.bump()
                 return .superseded
             }
             return .results(WatchSearchResponse(generation: gen, query: q, rows: [row("fresh")]))
         })
         presenter.query = "slow"
-        try? await Task.sleep(for: .milliseconds(10))
+        await waitUntil { slowStarted.count == 1 }
         presenter.query = "fresh"
-        try? await Task.sleep(for: .milliseconds(150))
+        await waitUntil { presenter.phase == .results([row("fresh")]) }
+        // Wait for the superseded reply to actually arrive, then assert it did
+        // not repaint over the newer query.
+        await waitUntil { slowFinished.count == 1 }
         #expect(presenter.phase == .results([row("fresh")]),
                        "a late superseded reply must not overwrite the newer query's results")
     }
@@ -108,11 +129,11 @@ private final class Counter: @unchecked Sendable {
     @Test func testOfflineModeUsesLocalSearch() async {
         let presenter = makePresenter(mode: .offline, offline: { q in q == "rain" ? [row("local1")] : [] })
         presenter.query = "rain"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineResults([row("local1")]) }
         #expect(presenter.phase == .offlineResults([row("local1")]))
 
         presenter.query = "nothing"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineNoResults }
         #expect(presenter.phase == .offlineNoResults)
     }
 
@@ -120,7 +141,7 @@ private final class Counter: @unchecked Sendable {
         let recents = WatchInMemoryRecentSearchStore()
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] }, recents: recents)
         presenter.submit("jazz")
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineResults([row("x")]) }
         #expect(recents.load() == ["jazz"])
         #expect(presenter.phase == .offlineResults([row("x")]))
     }
@@ -131,12 +152,12 @@ private final class Counter: @unchecked Sendable {
             connected: { _, _ in .failed(.init(code: .phoneUnavailable)) },
             offline: { _ in [row("localhit")] })
         presenter.query = "piano"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .unreachable(fallback: [row("localhit")]) }
         #expect(presenter.phase == .unreachable(fallback: [row("localhit")]),
                        "a phone fault falls back to the watch's downloads and says so")
 
         presenter.setMode(.offline)
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineResults([row("localhit")]) }
         #expect(presenter.phase == .offlineResults([row("localhit")]))
     }
 
@@ -144,9 +165,9 @@ private final class Counter: @unchecked Sendable {
         let presenter = makePresenter(mode: .offline, offline: { _ in [row("x")] },
                                       recents: .init(["old"]))
         presenter.query = "abc"
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitUntil { presenter.phase == .offlineResults([row("x")]) }
         presenter.query = ""
-        await Task.yield()
+        await waitUntil { presenter.phase == .recent(["old"]) }
         #expect(presenter.phase == .recent(["old"]))
     }
 }
