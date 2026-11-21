@@ -112,7 +112,7 @@ extension AudioPlayer {
             loadingLog.error("loadCurrent: no current track at index \(self.index, privacy: .public) of \(self.queue.count, privacy: .public)")
             return
         }
-        guard let asset = row.asset else {
+        guard var asset = row.asset else {
             loadingLog.error("loadCurrent: track \(row.track.id ?? -1, privacy: .public) \"\(row.track.title, privacy: .public)\" has no asset row — nothing to play")
             return
         }
@@ -174,11 +174,19 @@ extension AudioPlayer {
                       self.catalogPlaybackLoadGeneration == generation,
                       self.queueOccurrences.indices.contains(self.index),
                       self.queueOccurrences[self.index] == occurrence else { return }
-                self.finishOrdinaryLoad(row: fresh, asset: fresh.asset ?? asset,
+                var freshAsset = fresh.asset ?? asset
+                if self.prepareOpusIfNeeded(
+                    row: fresh, asset: &freshAsset,
+                    occurrence: self.queueOccurrences[self.index],
+                    generation: self.catalogPlaybackLoadGeneration,
+                    autoplay: self.catalogPlaybackAutoplay) { return }
+                self.finishOrdinaryLoad(row: fresh, asset: freshAsset,
                                         autoplay: self.catalogPlaybackAutoplay)
             }
             return
         }
+        if prepareOpusIfNeeded(row: row, asset: &asset, occurrence: occurrence,
+                               generation: generation, autoplay: autoplay) { return }
         finishOrdinaryLoad(row: row, asset: asset, autoplay: autoplay)
     }
 
@@ -187,6 +195,8 @@ extension AudioPlayer {
         catalogPlaybackLoadGeneration &+= 1
         catalogPlaybackLoadTask?.cancel()
         catalogPlaybackLoadTask = nil
+        opusPreparationTask?.cancel()
+        opusPreparationTask = nil
         ordinaryJamendoLoad = nil
     }
 
@@ -293,6 +303,79 @@ extension AudioPlayer {
             error = current.userInfo[NSUnderlyingErrorKey] as? NSError
         }
         return nil
+    }
+
+    /// Ogg Opus cannot be handed to AVFoundation. If the currently playable
+    /// source is Opus and its CAF sibling isn't ready yet, download/remux it
+    /// asynchronously and finish the load only for the still-current queue
+    /// occurrence. Returns true when it took over the load.
+    private func prepareOpusIfNeeded(row: TrackRow, asset: inout Asset,
+                                     occurrence: QueueOccurrenceID?, generation: Int,
+                                     autoplay: Bool) -> Bool {
+        guard OpusPlaybackPreparation.isOpusAsset(asset) else { return false }
+
+        let isLocal = asset.kind == .localRef || asset.kind == .managedCopy
+        let source: URL?
+        if isLocal {
+            let resolved = try? localResolver.resolve(asset)
+            source = resolved?.url
+            resolved?.lease?.release()
+        } else {
+            source = OpusPlaybackPreparation.remoteSourceURL(for: asset)
+        }
+        guard let source else { return false }
+
+        // Transient: tells `buildItem` which CAF to prefer once preparation
+        // finishes. Never persisted.
+        asset.opusRemoteURL = source.absoluteString
+        if FileManager.default.fileExists(atPath: AudioCache.cafURL(forRemoteOpus: source).path) {
+            return false
+        }
+
+        // `asset` is inout, so copy it: an escaping task cannot capture it.
+        let snapshot = asset
+        stopOutgoingItemForAsyncResolve(newDuration: row.track.durationSec ?? 0)
+        catalogPlaybackAutoplay = autoplay
+        opusPreparationTask?.cancel()
+        opusPreparationTask = Task { @MainActor [weak self, snapshot] in
+            guard let self else { return }
+            do {
+                let preparedSource: URL
+                if isLocal {
+                    let resolved = try self.localResolver.resolve(snapshot)
+                    defer { resolved.lease?.release() }
+                    _ = try await OpusPlaybackPreparation.prepare(
+                        source: resolved.url,
+                        cacheKey: AudioCache.key(for: resolved.url),
+                        headers: [:])
+                    preparedSource = resolved.url
+                } else {
+                    guard let remote = OpusPlaybackPreparation.remoteSourceURL(for: snapshot)
+                    else { return }
+                    _ = try await OpusPlaybackPreparation.prepare(
+                        source: remote,
+                        cacheKey: AudioCache.key(for: remote),
+                        headers: snapshot.transientRemoteHeaders)
+                    preparedSource = remote
+                }
+                guard !Task.isCancelled,
+                      self.catalogPlaybackLoadGeneration == generation,
+                      self.queueOccurrences.indices.contains(self.index),
+                      self.queueOccurrences[self.index] == occurrence else { return }
+                var transient = snapshot
+                transient.opusRemoteURL = preparedSource.absoluteString
+                self.finishOrdinaryLoad(row: row, asset: transient,
+                                        autoplay: self.catalogPlaybackAutoplay)
+            } catch {
+                guard !Task.isCancelled else { return }
+                if isLocal {
+                    self.failLocalPlayback(.unreadableMedia)
+                } else {
+                    self.skipUnplayableEntry()
+                }
+            }
+        }
+        return true
     }
 
     /// Existing body of `loadCurrent` after its Starter/MixDeck checks. It receives the resolved
@@ -573,6 +656,8 @@ extension AudioPlayer {
         // `needsJamendoResolve`).
         guard !needsJamendoResolve(row) else { return }
         guard playbackDecision(for: asset) != .skipWiFiOnly else { return }
+        // Ogg Opus needs an async remux first; the ordinary load path owns that.
+        guard !OpusPlaybackPreparation.isOpusAsset(asset) else { return }
         guard preloadedNextTrackId != row.track.id else { return }
         // Same gap `loadCurrent`/`prefetchNext` close: an OAuth/cloud-drive row's stored URL is
         // stale and its auth headers are never persisted. Real report: the near-gapless preload
