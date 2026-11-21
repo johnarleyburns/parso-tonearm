@@ -244,7 +244,7 @@ final class AppState: ObservableObject {
         let updated = await LocalContentFingerprintBackfill.run(store: store)
         if updated > 0 {
             let report = (try? await store.consolidateLocalDuplicates())
-                ?? LocalTrackConsolidator.Report()
+                ?? (groupsMerged: 0, tracksRemoved: 0)
             if report.tracksRemoved > 0 {
                 await reload()
                 AppLogger.app.notice("Consolidated \(report.groupsMerged, privacy: .public) duplicate local track group(s)")

@@ -257,8 +257,11 @@ extension LibraryStore {
         }
     }
 
-    func consolidateLocalDuplicates() throws -> LocalTrackConsolidator.Report {
-        try dbQueue.write { db in try LocalTrackConsolidator.run(db: db) }
+    public func consolidateLocalDuplicates() throws -> (groupsMerged: Int, tracksRemoved: Int) {
+        try dbQueue.write { db in
+            let report = try LocalTrackConsolidator.run(db: db)
+            return (report.groupsMerged, report.tracksRemoved)
+        }
     }
 
     /// Old source ids whose Keychain credentials should be removed after v53
