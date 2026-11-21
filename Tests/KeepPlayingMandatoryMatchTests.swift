@@ -84,7 +84,10 @@ extension SharedProductionSingletonTests {
                 })
         }
 
+        private let picks: [Int64] = [101, 102]
+
         private func start(provider: ScriptedProvider?, mix: KeepPlayingMixProviding? = nil) -> AudioPlayer {
+            player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             player.keepPlayingEnabled = false
             player.play(tracks: [1, 2, 3].map { makeTrack(Int64($0)) }, startAt: 2)
             player.keepPlayingEnabled = true
@@ -100,12 +103,9 @@ extension SharedProductionSingletonTests {
             }
         }
 
-        private let picks: [Int64] = [101, 102]
-
         @Test func testMixSequenceSkipsClapProvider() async throws {
             let provider = ScriptedProvider(strict: .ready([]), broader: .ready([]))
             let player = start(provider: provider, mix: FixedMix(ids: picks))
-            player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes.isEmpty)
             #expect(Set(keepPlayingReasons(player)) == [.mixMatched])
@@ -114,7 +114,6 @@ extension SharedProductionSingletonTests {
         @Test func testStrictClapAppendsMixMatched() async throws {
             let provider = ScriptedProvider(strict: .ready(picks), broader: .ready([]))
             let player = start(provider: provider, mix: FixedMix(ids: []))
-            player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes == [.djCompatible(anchorTrackID: 3)])
             #expect(Set(keepPlayingReasons(player)) == [.mixMatched])
@@ -124,7 +123,6 @@ extension SharedProductionSingletonTests {
         @Test func testBroaderClapAppendsSoundSimilar() async throws {
             let provider = ScriptedProvider(strict: .unavailable, broader: .ready(picks))
             let player = start(provider: provider)
-            player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes == [.djCompatible(anchorTrackID: 3), .broaderSimilarity])
             #expect(Set(keepPlayingReasons(player)) == [.soundSimilar])
