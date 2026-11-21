@@ -96,7 +96,11 @@ extension SharedProductionSingletonTests {
         }
 
         @Test func testTerminalQueueWaitResumesExactlyOnceWhenAsyncContinuationAppendsRows() async throws {
-            let library = (try? await LibraryStore.shared.allTrackRows()) ?? []
+            // Exclude this suite's fixture ids (1...2) for the same reason as
+            // KeepPlayingTests: a parallel suite's temporary shared-library row
+            // must not be confused with a new continuation candidate.
+            let library = ((try? await LibraryStore.shared.allTrackRows()) ?? [])
+                .filter { !(1...2).contains($0.track.id ?? -1) }
             if library.isEmpty { try Test.cancel("Needs a library track to hydrate against") }
             let pick = try #require(library.first?.track.id)
             let gate = AsyncGate()

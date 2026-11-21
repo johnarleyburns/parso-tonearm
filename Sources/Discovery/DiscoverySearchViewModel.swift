@@ -219,7 +219,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
                 referenceTrackID: referenceTrackID,
                 matchingReferenceTrackID: matchingReferenceTrackID,
                 matchingTracksOnly: matchingTracksOnly,
-                requireFullyIndexed: indexed) { response in
+                requireFullyIndexed: indexed) { [weak self] response in
                 Task { @MainActor [weak self] in
                     self?.apply(response, gen: gen)
                 }
@@ -238,12 +238,14 @@ public final class DiscoverySearchViewModel: ObservableObject {
         let service = self.service
         let matchingTracksOnly = self.matchingTracksOnly
         let matchingReferenceTrackID = self.matchingReferenceTrackID
-        // Debounce and search OFF the main actor: this view model is main-actor
-        // bound, so an inherited `Task` would spend one main-actor turn just to
-        // start, another after the debounce, and another to apply — and under a
-        // busy launch (or a large parallel test run) those turns queue behind
-        // all other main-actor work, leaving the screen on `.loading` long
-        // after the metadata answer is ready. Only the final apply hops back.
+        // Deliberately detached: the debounce interval and the metadata/DB work
+        // must not be scheduled on the MainActor. Upstream of any UI state, a
+        // MainActor-bound debounce can be delayed indefinitely behind unrelated
+        // main-thread work (observed under the full test suite), leaving the
+        // screen on `.loading` after the search itself was ready. This view
+        // model is main-actor bound, so an inherited `Task` would also spend a
+        // main-actor turn just to start and another to apply. Only the final
+        // state publication hops back to the MainActor.
         metadataTask = Task.detached(priority: .userInitiated) { [weak self] in
             try? await Task.sleep(for: DiscoverySearchCoordinator.debounceInterval)
             if Task.isCancelled { return }

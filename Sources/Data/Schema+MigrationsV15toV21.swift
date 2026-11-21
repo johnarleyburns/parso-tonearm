@@ -681,5 +681,17 @@ extension Schema {
             }
         }
 
+        if shouldRegister("v54", upTo: target) {
+            migrator.registerMigration("v54") { db in
+                // A raw bearer token or an older OAuth token response may not
+                // carry an account label, leaving two cloud Sources for the
+                // same account. Provider-native node IDs are stable and unique
+                // per file, so near-total overlap proves the same account even
+                // without a label. Disjoint/weakly-overlapping accounts stay
+                // separate.
+                try SourceConsolidator.runNodeOverlap(db: db)
+            }
+        }
+
     }
 }

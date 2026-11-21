@@ -89,9 +89,15 @@ import Testing
 
     /// Waits on the view model's own screen-change signal instead of polling
     /// from many busy loops while the rest of the 1,900-test suite runs.
+    ///
+    /// The full package suite runs thousands of tests in parallel; on CI a
+    /// MainActor-scheduled completion can legitimately take far longer than a
+    /// few seconds to land even though nothing is hung. The timeout is a
+    /// generous upper bound, not an expected duration — a satisfied condition
+    /// returns immediately.
     private func settle(
         _ vm: DiscoverySearchViewModel,
-        timeout: TimeInterval = 10,
+        timeout: TimeInterval = 30,
         until: @escaping (DiscoverySearchViewModel) -> Bool
     ) async {
         if until(vm) { return }

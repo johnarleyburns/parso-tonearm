@@ -36,13 +36,93 @@ enum SourceConsolidator {
             }
         }
         guard !canonicalIDs.isEmpty else { return report }
+        try finish(db: db, canonicalIDs: canonicalIDs, report: &report)
+        return report
+    }
 
-        report.albumsMerged = try mergeAlbums(db: db, sourceIDs: canonicalIDs)
+    /// Sources whose provider gave us no account label or endpoint (e.g. a
+    /// raw bearer token, or a token response that omitted the account field).
+    /// Merge only when the provider-native node IDs prove they are the same
+    /// account: at least two shared files and either 100% of the smaller
+    /// source for tiny libraries or 80% for normal ones. Two genuinely
+    /// different accounts with a few shared files stay separate.
+    static func runNodeOverlap(db: Database) throws -> Report {
+        let cloudKinds: Set<SourceKind> = [
+            .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk,
+        ]
+        let candidates = try Source.fetchAll(db).filter {
+            cloudKinds.contains($0.kind) && RemoteSourceIdentity.canonicalKey(for: $0) == nil
+        }
+        guard candidates.count > 1 else { return Report() }
+
+        var nodesBySource: [Int64: Set<String>] = [:]
+        let rows = try Row.fetchAll(db, sql: """
+            SELECT t.sourceId AS sourceId, a.remoteNodeID AS nodeID
+            FROM asset a JOIN track t ON t.id = a.trackId
+            WHERE a.kind = 'remote' AND a.remoteNodeID IS NOT NULL
+            """)
+        for row in rows {
+            let sourceID: Int64 = row["sourceId"]
+            guard let node: String = row["nodeID"],
+                  !node.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            nodesBySource[sourceID, default: []].insert(node)
+        }
+
+        var report = Report()
+        var canonicalIDs = Set<Int64>()
+        for kind in cloudKinds {
+            let group = candidates.filter { $0.kind == kind }
+            guard group.count > 1 else { continue }
+            let ids = group.compactMap(\.id)
+            var parent = Dictionary(uniqueKeysWithValues: ids.map { ($0, $0) })
+            func find(_ raw: Int64) -> Int64 {
+                var value = raw
+                while let next = parent[value], next != value { value = next }
+                return value
+            }
+            func union(_ a: Int64, _ b: Int64) {
+                let rootA = find(a), rootB = find(b)
+                if rootA != rootB { parent[rootA] = rootB }
+            }
+
+            for i in group.indices {
+                guard let a = group[i].id, let nodesA = nodesBySource[a], !nodesA.isEmpty else { continue }
+                for j in group.indices where j > i {
+                    guard let b = group[j].id, let nodesB = nodesBySource[b], !nodesB.isEmpty else { continue }
+                    let overlap = nodesA.intersection(nodesB).count
+                    let smaller = min(nodesA.count, nodesB.count)
+                    guard smaller >= 2 else { continue }
+                    let required = smaller >= 5 ? 0.8 : 1.0
+                    guard Double(overlap) / Double(smaller) >= required else { continue }
+                    union(a, b)
+                }
+            }
+
+            let clusters = Dictionary(grouping: ids, by: find)
+            for (_, cluster) in clusters where cluster.count > 1 {
+                guard let canonicalID = cluster.max() else { continue }
+                canonicalIDs.insert(canonicalID)
+                for oldID in cluster where oldID != canonicalID {
+                    guard let old = group.first(where: { $0.id == oldID }) else { continue }
+                    try mergeSource(db: db, old: old, oldID: oldID, canonicalID: canonicalID)
+                    report.sourcesMerged += 1
+                }
+            }
+        }
+
+        guard !canonicalIDs.isEmpty else { return report }
+        try finish(db: db, canonicalIDs: canonicalIDs, report: &report)
+        return report
+    }
+
+    private static func finish(db: Database, canonicalIDs: Set<Int64>,
+                               report: inout Report) throws {
+        report.albumsMerged += try mergeAlbums(db: db, sourceIDs: canonicalIDs)
         // Now that duplicate tracks from a reattached source share one source
         // id, the existing source-scoped identity consolidator can merge them
         // (and move favorites/history/playlist rows onto the survivor).
         let remote = try RemoteTrackConsolidator.run(db: db)
-        report.remoteGroupsMerged = remote.groupsMerged
+        report.remoteGroupsMerged += remote.groupsMerged
         report.tracksRemoved += remote.tracksRemoved
 
         // Album title/artist may have been filled in from a loser; rebuild the
@@ -54,7 +134,6 @@ enum SourceConsolidator {
             let trackID: Int64 = row["id"]
             try LibraryStore.refreshSearchIndex(trackID: trackID, db: db)
         }
-        return report
     }
 
     private static func mergeSource(db: Database, old: Source, oldID: Int64,
