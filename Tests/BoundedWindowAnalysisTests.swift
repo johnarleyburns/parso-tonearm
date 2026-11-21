@@ -39,12 +39,21 @@ import Testing
         let short = Click(seconds: 300), long = Click(seconds: 3 * 3600)
         let a = BoundedWindowAnalyzer(), s = a.analyze(source: short, fingerprint: "s")
         let l = a.analyze(source: long, fingerprint: "l")
-        #expect(abs(s.peakBytes - l.peakBytes) <= s.peakBytes / 4)
+        let peakDelta = abs(s.peakBytes - l.peakBytes)
+        let peakTolerance = s.peakBytes / 4
+        #expect(peakDelta <= peakTolerance)
         #expect(l.peakBytes <= a.budget.maxBytes)
-        #expect(l.decodedFrames == Int64(2 * 30 * 44_100))
-        let tailStart = long.totalFrames - Int64(30 * 44_100)
-        #expect(long.requests.map(\.0).filter { $0 >= Int64(30 * 44_100) && $0 < tailStart }.count == 0)
-        #expect(long.requests.last!.0 + Int64(long.requests.last!.1) == long.totalFrames)
+        let thirtySeconds = Int64(30 * 44_100)
+        #expect(l.decodedFrames == Int64(2) * thirtySeconds)
+        let tailStart = long.totalFrames - thirtySeconds
+        let interiorRequests = long.requests.map(\.0).filter { $0 >= thirtySeconds && $0 < tailStart }
+        #expect(interiorRequests.isEmpty)
+        guard let last = long.requests.last else {
+            Issue.record("expected at least one read request")
+            return
+        }
+        let lastEnd = last.0 + Int64(last.1)
+        #expect(lastEnd == long.totalFrames)
         #expect(l.coverage < 0.01)
         #expect(!l.claimsFullTrackStructure); #expect(!l.claimsInteriorDoubleDrop)
     }
