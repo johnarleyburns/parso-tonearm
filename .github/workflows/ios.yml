@@ -60,7 +60,7 @@ jobs:
       - name: Run Swift Package Tests
         run: |
           set -eo pipefail
-          swift test 2>&1 | tee test.log
+          swift test --no-parallel 2>&1 | tee test.log
 
       - name: Upload Test Log on Failure
         if: failure()
