@@ -73,6 +73,8 @@ public final class DiscoverySearchViewModel: ObservableObject {
     /// nothing").
     private var generation: Int64 = 0
     private var metadataTask: Task<Void, Never>?
+    /// Tail of the ordered coordinator-submission chain (see `submitToCoordinator`).
+    private var submitChain: Task<Void, Never>?
 
     /// Mood's mix-compatible gate (migration v46 `track.indexed`): when true, every search this
     /// view model runs through `coordinator.submit`/`service.search` is restricted to tracks
@@ -158,7 +160,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
         // Trivial query with no explicit scope → the idle starting state, not
         // a needless browse round-trip.
         if referenceTrackID == nil, isTrivial(query) {
-            Task { await coordinator.cancelPending() }
+            cancelPendingCoordinatorWork()
             results = []
             coverage = nil
             lastResponse = nil
@@ -182,18 +184,42 @@ public final class DiscoverySearchViewModel: ObservableObject {
         submitToCoordinator(query, referenceTrackID: nil, gen: gen)
     }
 
+    /// Cancels the coordinator's in-flight search in submission order, so a
+    /// later submit enqueued by the same `refresh()` is not cancelled by an
+    /// earlier idle transition (and vice versa).
+    private func cancelPendingCoordinatorWork() {
+        let coordinator = self.coordinator
+        let previous = submitChain
+        submitChain = Task.detached(priority: .userInitiated) {
+            await previous?.value
+            await coordinator.cancelPending()
+        }
+    }
+
     private func submitToCoordinator(
         _ query: DiscoverySearchQuery, referenceTrackID: Int64?, gen: Int64,
         requireFullyIndexed: Bool? = nil
     ) {
-        Task { [weak self] in
+        let coordinator = self.coordinator
+        let matchingReferenceTrackID = self.matchingReferenceTrackID
+        let matchingTracksOnly = self.matchingTracksOnly
+        let indexed = requireFullyIndexed ?? self.requireFullyIndexed
+        // Starting a submission must not consume a main-actor turn: an
+        // inherited `Task` has to wait for one before it can even hand the
+        // query to the coordinator, which under a busy launch leaves the
+        // screen on `.loading` after the query should have started. Submissions
+        // are chained so the coordinator still receives them in the order
+        // `refresh()` produced them (its generation guard assumes that order).
+        let previous = submitChain
+        submitChain = Task.detached(priority: .userInitiated) { [weak self] in
+            await previous?.value
             guard let self else { return }
-            await self.coordinator.submit(
+            await coordinator.submit(
                 query,
                 referenceTrackID: referenceTrackID,
-                matchingReferenceTrackID: self.matchingReferenceTrackID,
-                matchingTracksOnly: self.matchingTracksOnly,
-                requireFullyIndexed: requireFullyIndexed ?? self.requireFullyIndexed) { response in
+                matchingReferenceTrackID: matchingReferenceTrackID,
+                matchingTracksOnly: matchingTracksOnly,
+                requireFullyIndexed: indexed) { [weak self] response in
                 Task { @MainActor [weak self] in
                     self?.apply(response, gen: gen)
                 }
@@ -216,7 +242,9 @@ public final class DiscoverySearchViewModel: ObservableObject {
         // must not be scheduled on the MainActor. Upstream of any UI state, a
         // MainActor-bound debounce can be delayed indefinitely behind unrelated
         // main-thread work (observed under the full test suite), leaving the
-        // screen on `.loading` after the search itself was ready. Only the final
+        // screen on `.loading` after the search itself was ready. This view
+        // model is main-actor bound, so an inherited `Task` would also spend a
+        // main-actor turn just to start and another to apply. Only the final
         // state publication hops back to the MainActor.
         metadataTask = Task.detached(priority: .userInitiated) { [weak self] in
             try? await Task.sleep(for: DiscoverySearchCoordinator.debounceInterval)
