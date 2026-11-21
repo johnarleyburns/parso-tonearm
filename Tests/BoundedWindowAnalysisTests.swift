@@ -42,8 +42,10 @@ import Testing
         #expect(abs(s.peakBytes - l.peakBytes) <= s.peakBytes / 4)
         #expect(l.peakBytes <= a.budget.maxBytes)
         #expect(l.decodedFrames == Int64(2 * 30 * 44_100))
-        let tailStart = long.totalFrames - Int64(30 * 44_100)
-        #expect(long.requests.map(\.0).filter { $0 >= Int64(30 * 44_100) && $0 < tailStart }.count == 0)
+        let tailWindowFrames = Int64(30 * 44_100)
+        let tailStart = long.totalFrames - tailWindowFrames
+        let interiorRequests = long.requests.map(\.0).filter { $0 >= tailWindowFrames && $0 < tailStart }
+        #expect(interiorRequests.isEmpty)
         #expect(long.requests.last!.0 + Int64(long.requests.last!.1) == long.totalFrames)
         #expect(l.coverage < 0.01)
         #expect(!l.claimsFullTrackStructure); #expect(!l.claimsInteriorDoubleDrop)
