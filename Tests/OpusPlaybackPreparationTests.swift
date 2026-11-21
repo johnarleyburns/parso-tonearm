@@ -80,6 +80,7 @@ import Testing
         let row = TrackRow(track: track, album: nil, source: nil, asset: asset)
 
         let player = AudioPlayer.makeForTesting()
+        player.keepPlayingEnabled = false
         // App-owned relPath resolution against this test's temp directory, so
         // the test never depends on security-scoped bookmarks in CI.
         player.localResolver.managedBase = { directory }
