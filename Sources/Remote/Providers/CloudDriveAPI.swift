@@ -475,6 +475,89 @@ public enum CloudDriveAPI {
         let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/\\"))
         return raw.addingPercentEncoding(withAllowedCharacters: allowed) ?? raw
     }
+
+    /// Provider-native "who is this account" request, used to persist an OAuth
+    /// account label so detach/reattach can reuse the same library Source.
+    /// OneDrive requires the `User.Read` delegated scope; Google's Drive
+    /// `about` works with `drive.readonly`; Dropbox requires
+    /// `account_info.read`.
+    public static func accountRequest(provider: Provider, accessToken: String,
+                                      environment: Environment? = nil) -> URLRequest? {
+        let environment = environment ?? .production(provider: provider)
+        func get(_ components: (URL) -> URL) -> URLRequest {
+            var request = URLRequest(url: components(environment.baseURL))
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+        }
+        switch provider {
+        case .googleDrive:
+            var components = URLComponents(
+                url: environment.baseURL.appendingPathComponent("drive")
+                    .appendingPathComponent("v3").appendingPathComponent("about"),
+                resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "fields", value: "user(emailAddress,permissionId)")]
+            var request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+        case .oneDrive:
+            var components = URLComponents(
+                url: environment.baseURL.appendingPathComponent("v1.0")
+                    .appendingPathComponent("me"),
+                resolvingAgainstBaseURL: false)!
+            components.queryItems = [URLQueryItem(name: "$select", value: "id,userPrincipalName,mail")]
+            var request = URLRequest(url: components.url!)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+        case .dropbox:
+            var request = URLRequest(url: environment.baseURL
+                .appendingPathComponent("2").appendingPathComponent("users")
+                .appendingPathComponent("get_current_account"))
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = Data("null".utf8)
+            return request
+        case .box:
+            return get { $0.appendingPathComponent("2.0").appendingPathComponent("users")
+                .appendingPathComponent("me") }
+        case .pCloud:
+            return get { $0.appendingPathComponent("userinfo") }
+        case .yandexDisk:
+            return get { $0.appendingPathComponent("v1").appendingPathComponent("disk") }
+        }
+    }
+
+    /// Extracts a stable account label from the provider's own account response.
+    public static func decodeAccountLabel(provider: Provider, data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        func text(_ value: Any?) -> String? {
+            let raw: String?
+            if let string = value as? String { raw = string }
+            else if let number = value as? NSNumber { raw = number.stringValue }
+            else { raw = nil }
+            guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty else { return nil }
+            return trimmed
+        }
+        switch provider {
+        case .googleDrive:
+            let user = object["user"] as? [String: Any]
+            return text(user?["emailAddress"]) ?? text(user?["permissionId"])
+        case .oneDrive:
+            return text(object["userPrincipalName"]) ?? text(object["mail"]) ?? text(object["id"])
+        case .dropbox:
+            return text(object["email"]) ?? text(object["account_id"])
+        case .box:
+            return text(object["login"]) ?? text(object["id"])
+        case .pCloud:
+            return text(object["email"]) ?? text(object["userid"])
+        case .yandexDisk:
+            let user = object["user"] as? [String: Any]
+            return text(user?["login"]) ?? text(user?["uid"]) ?? text(user?["display_name"])
+        }
+    }
 }
 
 public struct CloudDriveItem: Equatable {

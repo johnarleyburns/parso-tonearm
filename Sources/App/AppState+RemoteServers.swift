@@ -23,10 +23,15 @@ extension AppState {
         switch source.kind {
         case .dropbox, .googleDrive, .oneDrive, .pCloud, .box, .yandexDisk:
             guard let cloud = CloudDriveAPI.Provider(sourceKind: source.kind),
-                  let oauthToken, oauthToken.provider == cloud else { throw OAuthError.refreshRequired }
+                  var oauthToken, oauthToken.provider == cloud else { throw OAuthError.refreshRequired }
+            let cloudProvider = CloudDriveProvider(
+                provider: cloud, accessProvider: OAuthCloudDriveAccessProvider(token: oauthToken))
+            if oauthToken.accountLabel == nil {
+                oauthToken.accountLabel = try? await cloudProvider.accountLabel()
+            }
             try requireSameAccount(oauthToken.accountLabel)
             credential = try JSONEncoder().encode(oauthToken)
-            provider = CloudDriveProvider(provider: cloud, accessProvider: OAuthCloudDriveAccessProvider(token: oauthToken))
+            provider = cloudProvider
         case .smb:
             guard let folderBookmark else { throw IngestError.failedToCreateBookmark }
             credential = folderBookmark
@@ -195,12 +200,15 @@ extension AppState {
         let token = rawToken.trimmingCharacters(in: .whitespacesAndNewlines)
         let provider = CloudDriveProvider(provider: cloudProvider, accessToken: token)
         try await provider.refresh()
+        // Persist the provider's own account label when the token has the
+        // account scope; it is the strongest identity for reattach dedup.
+        let label = try? await provider.accountLabel()
 
         try await insertRemoteSource(
             kind: cloudProvider.sourceKind,
             title: CloudDriveServerPolicy.displayName(provider: cloudProvider),
             originalURL: nil,
-            iaIdentifier: nil,
+            iaIdentifier: label,
             credential: Data(token.utf8),
             credentialAccount: { sourceID in
                 CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: cloudProvider)
@@ -209,18 +217,22 @@ extension AppState {
     }
 
     func addCloudDrive(provider cloudProvider: CloudDriveAPI.Provider, oauthToken token: OAuthToken) async throws {
+        var oauthToken = token
         let provider = CloudDriveProvider(
             provider: cloudProvider,
-            accessProvider: OAuthCloudDriveAccessProvider(token: token)
+            accessProvider: OAuthCloudDriveAccessProvider(token: oauthToken)
         )
         try await provider.refresh()
+        if oauthToken.accountLabel == nil {
+            oauthToken.accountLabel = try? await provider.accountLabel()
+        }
 
         try await insertRemoteSource(
             kind: cloudProvider.sourceKind,
             title: CloudDriveServerPolicy.displayName(provider: cloudProvider),
             originalURL: nil,
-            iaIdentifier: token.accountLabel,
-            credential: try JSONEncoder().encode(token),
+            iaIdentifier: oauthToken.accountLabel,
+            credential: try JSONEncoder().encode(oauthToken),
             credentialAccount: { sourceID in
                 CloudDriveServerPolicy.credentialAccount(sourceID: sourceID, provider: cloudProvider)
             }
