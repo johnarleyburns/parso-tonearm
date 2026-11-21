@@ -195,6 +195,7 @@ final class AppState: ObservableObject {
         }
         #endif
         await fixLegacySourceTitles()
+        await cleanupMergedSourceCredentials()
         await repairDuplicatePlaylistsOnce()
         await cleanupLegacyMoodStarterIfNeeded()
         // Before DiscoveryRuntimeController.startAfterBootstrap() (called
@@ -207,6 +208,7 @@ final class AppState: ObservableObject {
         applySettingsToPlayer()
         await AudioPlayer.shared.restorePersistedQueue()
         await reload()
+        Task { [weak self] in await self?.backfillLocalContentFingerprintsOnce() }
         await AudioCache.shared.garbageCollectStalePartials()
         Task { await warmLocalSourceArtwork() }
         #if os(iOS)
@@ -214,6 +216,48 @@ final class AppState: ObservableObject {
         await watchRuntime.activate()
         startWatchTransferTick()
         #endif
+    }
+
+    /// v53 merges duplicate reattached sources (and their tracks) at DB open.
+    /// The migration keeps the newest source, so its credential is already the
+    /// current one; this deletes the orphaned Keychain items for the rows it
+    /// removed.
+    private func cleanupMergedSourceCredentials() async {
+        guard let audit = try? await store.mergedSourceAudit(), !audit.isEmpty else { return }
+        let credentials = CredentialStore()
+        for row in audit {
+            for account in RemoteLibraryProviderFactory.credentialAccounts(
+                for: row.oldSourceId, kind: row.kind) {
+                try? credentials.delete(account: account)
+            }
+        }
+        try? await store.clearMergedSourceAudit()
+        AppLogger.app.notice("Merged \(audit.count, privacy: .public) duplicate reattached source(s)")
+    }
+
+    /// Bounded, resumable hash backfill plus local duplicate consolidation.
+    /// New imports already store a fingerprint; this catches libraries that
+    /// existed before v53. A large library continues on the next launch.
+    private func backfillLocalContentFingerprintsOnce() async {
+        let key = "dedup.localContentFingerprint.v1"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let updated = await LocalContentFingerprintBackfill.run(store: store)
+        if updated > 0 {
+            let report = (try? await store.consolidateLocalDuplicates())
+                ?? (groupsMerged: 0, tracksRemoved: 0)
+            if report.tracksRemoved > 0 {
+                await reload()
+                AppLogger.app.notice("Consolidated \(report.groupsMerged, privacy: .public) duplicate local track group(s)")
+            }
+        }
+        // Stop retrying a batch that cannot make progress (unavailable files);
+        // otherwise continue on the next launch until the library is covered.
+        if updated == 0 {
+            UserDefaults.standard.set(true, forKey: key)
+        } else if let remaining = try? await store.localFingerprintCandidates(limit: 1),
+                  remaining.isEmpty {
+            UserDefaults.standard.set(true, forKey: key)
+        }
     }
 
     /// Real report: Libraries > On This Device should no longer show "Mood Starter" (#444 removed

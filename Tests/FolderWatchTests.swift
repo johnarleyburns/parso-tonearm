@@ -81,7 +81,7 @@ import Testing
             .appendingPathComponent("legacy-watch-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: legacyFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: legacyFolder) }
-        try Data(count: 2048).write(to: legacyFolder.appendingPathComponent("legacy-first.mp3"))
+        try Data(repeating: 1, count: 2048).write(to: legacyFolder.appendingPathComponent("legacy-first.mp3"))
 
         var legacySource = Source(id: nil, kind: .local, iaIdentifier: nil, originalURL: nil,
                                   title: legacyFolder.lastPathComponent, addedAt: Date(),
@@ -103,7 +103,7 @@ import Testing
             .appendingPathComponent("new-watch-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: newFolder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: newFolder) }
-        try Data(count: 2048).write(to: newFolder.appendingPathComponent("new-first.mp3"))
+        try Data(repeating: 2, count: 2048).write(to: newFolder.appendingPathComponent("new-first.mp3"))
         try await IngestService().addFolder(newFolder, includeSubfolders: true, keepOrder: true,
                                              watch: true, into: store)
         let newSource = try await store.firstSource(title: newFolder.lastPathComponent, kind: .local)
@@ -112,8 +112,8 @@ import Testing
         #expect(playlistCountAfterNewImport == 1, "only the legacy folder has a playlist")
 
         // Drop a new file into each folder, then rescan once.
-        try Data(count: 4096).write(to: legacyFolder.appendingPathComponent("legacy-second.flac"))
-        try Data(count: 4096).write(to: newFolder.appendingPathComponent("new-second.flac"))
+        try Data(repeating: 3, count: 4096).write(to: legacyFolder.appendingPathComponent("legacy-second.flac"))
+        try Data(repeating: 4, count: 4096).write(to: newFolder.appendingPathComponent("new-second.flac"))
         let added = await FolderWatchService.shared.rescanWatchedFolders(store: store)
         #expect(added >= 2)
 

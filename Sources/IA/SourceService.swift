@@ -39,8 +39,17 @@ public struct SourceService {
     /// Persists the source and, for items, its tracks. Members resolve lazily elsewhere.
     @discardableResult
     public func add(preview: SourcePreview, followUpdates: Bool, store: LibraryStore) async throws -> Source {
+        let identifier = identifier(for: preview.parsed)
+        // Re-adding the same archive item/list/collection must reuse its
+        // Source, not create a second one whose tracks then duplicate in
+        // Favorites / Jump Back In (same root cause as cloud-drive reattach).
+        if let existing = RemoteSourceIdentity.existingSource(
+            in: (try? await store.allSources()) ?? [], kind: preview.kind,
+            iaIdentifier: identifier, originalURL: preview.originalURL) {
+            return existing
+        }
         var source = Source(id: nil, kind: preview.kind,
-                            iaIdentifier: identifier(for: preview.parsed),
+                            iaIdentifier: identifier,
                             originalURL: preview.originalURL, title: preview.title,
                             addedAt: Date(), lastResolvedAt: Date(),
                             followUpdates: followUpdates,

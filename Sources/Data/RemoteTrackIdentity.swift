@@ -158,9 +158,6 @@ public enum RemoteTrackConsolidator {
 
     struct InjectedFailure: Error {}
 
-    /// Tables whose rows are handled specially or rebuilt rather than blindly re-pointed.
-    private static let skippedTables: Set<String> = ["asset", "track_identity", "remote_track_identity"]
-
     @discardableResult
     static func run(db: Database, failBeforeDelete: Bool = false) throws -> Report {
         var report = Report()
@@ -184,19 +181,19 @@ public enum RemoteTrackConsolidator {
             if groups[identity.key] == nil { groups[identity.key] = (identity, []); order.append(identity.key) }
             groups[identity.key]!.tracks.append(trackID)
         }
-        let children = try foreignKeyChildren(db: db)
+        let children = try TrackMerger.foreignKeyChildren(db: db)
         for key in order {
             guard let group = groups[key] else { continue }
             let tracks = group.tracks
             var survivor = tracks[0]
             if tracks.count > 1 {
-                survivor = try chooseSurvivor(db: db, tracks: tracks)
+                survivor = try TrackMerger.chooseSurvivor(db: db, tracks: tracks)
                 let losers = tracks.filter { $0 != survivor }
                 try db.inSavepoint {
-                    try merge(db: db, survivor: survivor, losers: losers, children: children)
+                    try TrackMerger.merge(db: db, survivor: survivor, losers: losers, children: children)
                     if failBeforeDelete { throw InjectedFailure() }
                     // GRDB runs migrations with foreign keys off, so cascades are applied by hand.
-                    for loser in losers { try deleteLoser(db: db, loser: loser, children: children) }
+                    for loser in losers { try TrackMerger.deleteLoser(db: db, loser: loser, children: children) }
                     try db.execute(sql: """
                         INSERT OR REPLACE INTO remote_track_identity (sourceId, identity, trackId)
                         VALUES (?, ?, ?)
@@ -215,114 +212,4 @@ public enum RemoteTrackConsolidator {
         }
         return report
     }
-
-    /// Most user data first, then most complete asset, then lowest track ID (deterministic).
-    private static func chooseSurvivor(db: Database, tracks: [Int64]) throws -> Int64 {
-        func count(_ sql: String, _ id: Int64) throws -> Int {
-            try Int.fetchOne(db, sql: sql, arguments: [id]) ?? 0
-        }
-        var best: (score: Int, completeness: Int, id: Int64)?
-        for id in tracks {
-            var score = 0
-            score += try count("SELECT COUNT(*) FROM favorite WHERE trackId = ?", id) * 4
-            score += try count("SELECT COUNT(*) FROM custom_artwork WHERE trackId = ?", id) * 4
-            score += try count("SELECT COUNT(*) FROM playlist_item WHERE trackId = ?", id) * 2
-            score += try count("SELECT COUNT(*) FROM play_history WHERE trackId = ?", id)
-            score += try count("""
-                SELECT COUNT(*) FROM cache_entry c JOIN asset a ON a.id = c.assetId WHERE a.trackId = ?
-                """, id)
-            let asset = try Asset.filter(Column("trackId") == id).fetchOne(db)
-            let completeness = [asset?.remoteURL, asset?.remoteContentType, asset?.remoteNodePath]
-                .compactMap { $0 }.count + (asset?.sizeBytes == nil ? 0 : 1)
-            let candidate = (score, completeness, id)
-            if let current = best {
-                if candidate.0 > current.score || (candidate.0 == current.score
-                    && (candidate.1 > current.completeness
-                        || (candidate.1 == current.completeness && candidate.2 < current.id))) {
-                    best = candidate
-                }
-            } else { best = candidate }
-        }
-        return best!.id
-    }
-
-    private struct Child { let table: String; let column: String; let parent: String; let setNull: Bool }
-
-    private static func foreignKeyChildren(db: Database) throws -> [Child] {
-        var result: [Child] = []
-        let tables = try String.fetchAll(db, sql:
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-        for table in tables where !skippedTables.contains(table) {
-            for fk in try Row.fetchAll(db, sql: "SELECT * FROM pragma_foreign_key_list(?)", arguments: [table]) {
-                let parent: String = fk["table"]
-                if parent == "track" || parent == "asset" {
-                    let action: String = fk["on_delete"]
-                    result.append(Child(table: table, column: fk["from"], parent: parent,
-                                        setNull: action.uppercased() == "SET NULL"))
-                }
-            }
-        }
-        return result
-    }
-
-    private static func merge(db: Database, survivor: Int64, losers: [Int64], children: [Child]) throws {
-        let survivorAssetID = try Int64.fetchOne(db, sql:
-            "SELECT id FROM asset WHERE trackId = ? ORDER BY id LIMIT 1", arguments: [survivor])
-        // Locator policy: the most recently stored locator in the group refreshes the survivor
-        // (rotated URLs expire, so the newest is the likeliest to still work); never null-out.
-        if let survivorAssetID {
-            for loser in losers.sorted() {
-                if let l = try Asset.filter(Column("trackId") == loser && Column("kind") == AssetKind.remote.rawValue)
-                    .fetchOne(db), let url = l.remoteURL,
-                   var s = try Asset.fetchOne(db, key: survivorAssetID) {
-                    s.remoteURL = url
-                    s.sizeBytes = l.sizeBytes ?? s.sizeBytes
-                    s.remoteContentType = l.remoteContentType ?? s.remoteContentType
-                    s.altRemoteURL = l.altRemoteURL ?? s.altRemoteURL
-                    s.remoteNodePath = l.remoteNodePath ?? s.remoteNodePath
-                    try s.update(db)
-                }
-            }
-        }
-        for loser in losers {
-            // One membership per playlist: drop a loser's item when the survivor is already there.
-            try db.execute(sql: """
-                DELETE FROM playlist_item WHERE trackId = ?1
-                  AND playlistId IN (SELECT playlistId FROM playlist_item WHERE trackId = ?2)
-                """, arguments: [loser, survivor])
-            for child in children where child.parent == "track" {
-                try db.execute(sql: "UPDATE OR IGNORE \(quote(child.table)) SET \(quote(child.column)) = ? WHERE \(quote(child.column)) = ?",
-                               arguments: [survivor, loser])
-            }
-            if let survivorAssetID {
-                let loserAssets = try Int64.fetchAll(db, sql: "SELECT id FROM asset WHERE trackId = ?", arguments: [loser])
-                for loserAsset in loserAssets {
-                    for child in children where child.parent == "asset" {
-                        try db.execute(sql: "UPDATE OR IGNORE \(quote(child.table)) SET \(quote(child.column)) = ? WHERE \(quote(child.column)) = ?",
-                                       arguments: [survivorAssetID, loserAsset])
-                    }
-                }
-            }
-        }
-    }
-
-    private static func deleteLoser(db: Database, loser: Int64, children: [Child]) throws {
-        let assets = try Int64.fetchAll(db, sql: "SELECT id FROM asset WHERE trackId = ?", arguments: [loser])
-        func clear(_ child: Child, _ id: Int64) throws {
-            let t = quote(child.table), c = quote(child.column)
-            if child.setNull {
-                try db.execute(sql: "UPDATE \(t) SET \(c) = NULL WHERE \(c) = ?", arguments: [id])
-            } else {
-                try db.execute(sql: "DELETE FROM \(t) WHERE \(c) = ?", arguments: [id])
-            }
-        }
-        for asset in assets { for child in children where child.parent == "asset" { try clear(child, asset) } }
-        for child in children where child.parent == "track" { try clear(child, loser) }
-        try db.execute(sql: "DELETE FROM asset WHERE trackId = ?", arguments: [loser])
-        try db.execute(sql: "DELETE FROM track_identity WHERE trackId = ?", arguments: [loser])
-        try db.execute(sql: "DELETE FROM remote_track_identity WHERE trackId = ?", arguments: [loser])
-        try db.execute(sql: "DELETE FROM track WHERE id = ?", arguments: [loser])
-    }
-
-    private static func quote(_ name: String) -> String { "\"\(name.replacingOccurrences(of: "\"", with: "\"\""))\"" }
 }
