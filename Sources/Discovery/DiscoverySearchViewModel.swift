@@ -45,7 +45,11 @@ public final class DiscoverySearchViewModel: ObservableObject {
 
     // MARK: - Outputs (observed by the view)
 
-    @Published public private(set) var screen: DiscoverySearchScreenState = .idle
+    @Published public private(set) var screen: DiscoverySearchScreenState = .idle {
+        didSet { screenDidChange?(screen) }
+    }
+    /// Observation seam for deterministic tests; never used by the app.
+    var screenDidChange: ((DiscoverySearchScreenState) -> Void)?
     @Published public private(set) var results: [DiscoverySearchResult] = []
     @Published public private(set) var coverage: SearchRepository.Coverage?
     @Published public private(set) var lastResponse: DiscoverySearchResponse?
