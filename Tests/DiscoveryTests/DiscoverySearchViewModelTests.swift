@@ -66,9 +66,14 @@ import Testing
         return Deps(vm: vm, queue: queue, played: played, analyzed: analyzed, downloadModelsCalls: dl)
     }
 
+    /// The full package suite runs thousands of tests in parallel; on CI a
+    /// MainActor-scheduled completion can legitimately take far longer than a
+    /// few seconds to land even though nothing is hung. This is a generous
+    /// upper bound, not an expected duration — a satisfied condition returns
+    /// immediately.
     private func settle(
         _ vm: DiscoverySearchViewModel,
-        timeout: TimeInterval = 10,
+        timeout: TimeInterval = 30,
         until: @escaping (DiscoverySearchViewModel) -> Bool
     ) async {
         let deadline = Date().addingTimeInterval(timeout)

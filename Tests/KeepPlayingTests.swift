@@ -291,7 +291,12 @@ extension SharedProductionSingletonTests {
         /// about) to prove the non-fallback path appends exactly what the
         /// provider returned and marks it as Keep Playing's own.
         @Test func testReadySimilarityPicksAppendWithoutFallbackMarker() async throws {
-            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            // Exclude the fixture ids this suite queues (1...3): another parallel
+            // suite's temporary shared-library rows must never be mistaken for
+            // new continuation candidates, or the extension correctly dedupes
+            // them and these assertions see a fallback instead.
+            let realIDs = ((try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? [])
+                .filter { !(1...3).contains($0) }
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
@@ -310,7 +315,12 @@ extension SharedProductionSingletonTests {
         // MARK: - Turning Keep Playing off removes the not-yet-played auto-added tail
 
         @Test func testTurningOffKeepPlayingRemovesUnplayedAutoAddedTracksOnly() async throws {
-            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            // Exclude the fixture ids this suite queues (1...3): another parallel
+            // suite's temporary shared-library rows must never be mistaken for
+            // new continuation candidates, or the extension correctly dedupes
+            // them and these assertions see a fallback instead.
+            let realIDs = ((try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? [])
+                .filter { !(1...3).contains($0) }
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
@@ -335,7 +345,12 @@ extension SharedProductionSingletonTests {
         /// extension — it already played, so it's history, not a pending
         /// auto-add to undo.
         @Test func testClearAutoAddedNeverRemovesAlreadyPlayedTracks() async throws {
-            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            // Exclude the fixture ids this suite queues (1...3): another parallel
+            // suite's temporary shared-library rows must never be mistaken for
+            // new continuation candidates, or the extension correctly dedupes
+            // them and these assertions see a fallback instead.
+            let realIDs = ((try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? [])
+                .filter { !(1...3).contains($0) }
             if realIDs.count < 2 { try Test.cancel("Needs at least two tracks in the shared library to hydrate against") }
             let picks = Array(realIDs.prefix(2))
 
@@ -391,7 +406,12 @@ extension SharedProductionSingletonTests {
         // time to complete)
 
         @Test func testNextAtEndOfQueueResumesOnceInFlightExtensionLands() async throws {
-            let realIDs = (try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? []
+            // Exclude the fixture ids this suite queues (1...3): another parallel
+            // suite's temporary shared-library rows must never be mistaken for
+            // new continuation candidates, or the extension correctly dedupes
+            // them and these assertions see a fallback instead.
+            let realIDs = ((try? await LibraryStore.shared.allTrackRows())?.compactMap { $0.track.id } ?? [])
+                .filter { !(1...3).contains($0) }
             if realIDs.isEmpty { try Test.cancel("Needs at least one track in the shared library to hydrate against") }
             let pick = realIDs[0]
 
