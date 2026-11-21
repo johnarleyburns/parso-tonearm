@@ -55,6 +55,15 @@ extension AudioPlayer {
     }
 
     private func startPrefetchLoader(trackId: Int64, row: TrackRow, asset: Asset) {
+        // A generic/Ogg Opus row is not streamable or playable directly; warm
+        // its CAF instead. This runs on the freshened asset when a provider
+        // re-resolve happened, so the download uses a live URL/headers.
+        if OpusPlaybackPreparation.isOpusAsset(asset),
+           let source = OpusPlaybackPreparation.remoteSourceURL(for: asset),
+           !source.isFileURL {
+            prefetchOpusAndRemux(source, headers: asset.transientRemoteHeaders)
+            return
+        }
         guard let urlString = remoteURLString(for: asset), let remote = URL(string: urlString) else { return }
         prefetchedURLs[trackId] = remote
         guard prefetchLoaderEnabled else { return }
@@ -65,7 +74,7 @@ extension AudioPlayer {
         // CAF so the NEXT play/repeat of this track upgrades to Opus. Cold play
         // above stays on the instant FLAC/MP3 — no added latency on the tap.
         if let opusString = asset.opusRemoteURL, let opusURL = URL(string: opusString) {
-            prefetchOpusAndRemux(opusURL)
+            prefetchOpusAndRemux(opusURL, headers: asset.transientRemoteHeaders)
         }
         // Cache the artwork alongside its music so prefetched tracks are
         // fully available offline, not just their audio bytes.
@@ -76,7 +85,7 @@ extension AudioPlayer {
     /// to a sibling CAF. Skips work when a CAF already exists or the key was
     /// already marked unavailable. Fire-and-forget; failures fall back silently.
 #if !os(watchOS)
-    func prefetchOpusAndRemux(_ opusURL: URL) {
+    func prefetchOpusAndRemux(_ opusURL: URL, headers: [String: String] = [:]) {
         let caf = AudioCache.cafURL(forRemoteOpus: opusURL)
         guard !FileManager.default.fileExists(atPath: caf.path) else { return }
         let key = AudioCache.key(for: opusURL)
@@ -85,22 +94,38 @@ extension AudioPlayer {
             // Touch the store so its on-disk roots (blobs/ and derived/) exist.
             _ = await AudioCache.shared.currentLimit()
             let dest = AudioCache.fileURL(for: key)
+
+            // Download failures are transient (expired signed URL, offline) and
+            // must NOT mark the key permanently unavailable — the real load path
+            // retries with a freshly resolved URL. Only the remux itself, which
+            // marks its own failures, is conclusive.
+            let downloaded: (URL, URLResponse)
             do {
-                let (tmp, response) = try await URLSession.shared.download(from: opusURL)
-                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return }
-                try? FileManager.default.removeItem(at: dest)
-                try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(),
-                                                       withIntermediateDirectories: true)
-                try FileManager.default.moveItem(at: tmp, to: dest)
-                let bytes = (try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? Int64) ?? nil
-                if let b = bytes { await AudioCache.shared.setContentLength(b, for: key) }
-                try FileManager.default.createDirectory(at: caf.deletingLastPathComponent(),
-                                                       withIntermediateDirectories: true)
-                let cafURL = try await OpusRemuxer.shared.remux(opusFileURL: dest, cacheKey: key, outputURL: caf)
-                let cafSize = (try? FileManager.default.attributesOfItem(atPath: cafURL.path)[.size] as? Int64) ?? nil
-                await AudioCache.shared.recordDerivedBytes(cafSize ?? 0, name: AudioCache.cafArtifactName, for: key)
+                var request = URLRequest(url: opusURL)
+                for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+                downloaded = try await URLSession.shared.download(for: request)
             } catch {
-                await OpusRemuxer.shared.markUnavailable(key)
+                return
+            }
+            let (tmp, response) = downloaded
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return }
+            try? FileManager.default.removeItem(at: dest)
+            try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            try? FileManager.default.moveItem(at: tmp, to: dest)
+
+            if let attributes = try? FileManager.default.attributesOfItem(atPath: dest.path),
+               let bytes = attributes[.size] as? Int64 {
+                await AudioCache.shared.setContentLength(bytes, for: key)
+            }
+            try? FileManager.default.createDirectory(at: caf.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+            guard let cafURL = try? await OpusRemuxer.shared.remux(
+                opusFileURL: dest, cacheKey: key, outputURL: caf) else { return }
+            if let attributes = try? FileManager.default.attributesOfItem(atPath: cafURL.path),
+               let bytes = attributes[.size] as? Int64 {
+                await AudioCache.shared.recordDerivedBytes(
+                    bytes, name: AudioCache.cafArtifactName, for: key)
             }
         }
     }

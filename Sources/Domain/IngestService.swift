@@ -20,7 +20,7 @@ public enum IngestError: LocalizedError {
 /// FR-1 local ingestion: files and folders referenced in place via security-scoped
 /// bookmarks. Metadata via AVFoundation with filename fallback.
 public struct IngestService {
-    public static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "aif", "aiff", "caf"]
+    public static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "flac", "wav", "aif", "aiff", "caf", "opus"]
 
     public struct ScannedFile {
         public let url: URL

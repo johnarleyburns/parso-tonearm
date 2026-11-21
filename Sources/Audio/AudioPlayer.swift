@@ -122,6 +122,9 @@ public final class AudioPlayer: ObservableObject {
     var keepPlayingExtensionTask: Task<Void, Never>?
     var catalogPlaybackURLResolver = CatalogPlaybackURLResolver.live()
     var catalogPlaybackLoadTask: Task<Void, Never>?
+    /// Async Ogg-Opus download/remux before playback; separate from the catalog
+    /// resolve task so either one can be superseded independently.
+    var opusPreparationTask: Task<Void, Never>?
     /// Re-resolves a provider-backed remote row (fresh URL + auth headers) just before it loads.
     /// Installed by the app layer, which owns the providers and credentials. `public` — the app
     /// layer (`AppState.applySettingsToPlayer()`, in `Sources/App`) is outside this module and
