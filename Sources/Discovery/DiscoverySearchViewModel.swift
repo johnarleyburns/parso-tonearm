@@ -210,8 +210,15 @@ public final class DiscoverySearchViewModel: ObservableObject {
         }
         let search = metadataSearch
         let service = self.service
-        metadataTask = Task { [weak self] in
-            guard let self else { return }
+        let matchingTracksOnly = self.matchingTracksOnly
+        let matchingReferenceTrackID = self.matchingReferenceTrackID
+        // Deliberately detached: the debounce interval and the metadata/DB work
+        // must not be scheduled on the MainActor. Upstream of any UI state, a
+        // MainActor-bound debounce can be delayed indefinitely behind unrelated
+        // main-thread work (observed under the full test suite), leaving the
+        // screen on `.loading` after the search itself was ready. Only the final
+        // state publication hops back to the MainActor.
+        metadataTask = Task.detached(priority: .userInitiated) { [weak self] in
             try? await Task.sleep(for: DiscoverySearchCoordinator.debounceInterval)
             if Task.isCancelled { return }
             let outcome = await search(query)
@@ -230,7 +237,7 @@ public final class DiscoverySearchViewModel: ObservableObject {
                     let allowed = Set(await service.candidateTrackIDs(filterOnly))
                     rows = rows.filter { allowed.contains($0.id) }
                 }
-                if self.matchingTracksOnly, let referenceID = self.matchingReferenceTrackID {
+                if matchingTracksOnly, let referenceID = matchingReferenceTrackID {
                     let allowed = Set(await service.matchingTrackIDs(
                         query, referenceTrackID: referenceID))
                     rows = rows.filter { allowed.contains($0.id) }

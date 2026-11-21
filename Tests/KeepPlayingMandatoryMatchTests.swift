@@ -53,42 +53,43 @@ extension SharedProductionSingletonTests {
             func mixContinuation(after trackID: Int64, excluding: Set<Int64>, limit: Int) async -> [Int64] { ids }
         }
 
-        /// Deterministic picks instead of reading `LibraryStore.shared`, which
-        /// another suite running in parallel can seed with rows that have no DJ
-        /// metadata — that made `.mixMatched` downgrade to `.soundSimilar` here
-        /// for reasons unrelated to the policy under test.
-        private static let fixturePicks: [Int64] = [101, 102]
-
-        /// Fixture library whose tracks carry the BPM/key snapshot a real mix
-        /// continuation has, so `.mixMatched` provenance survives its invariant.
-        private func fixtureLibrary() -> KeepPlayingLibrary {
-            let rows = Self.fixturePicks.map { makeTrack(Int($0)) }
-            let info = Dictionary(uniqueKeysWithValues: Self.fixturePicks.map {
-                ($0, DJLoadTrackInfo(bpm: 120, camelotKey: "8A"))
-            })
-            return KeepPlayingLibrary(
-                allTrackRows: { rows },
-                tracksForSource: { _ in rows },
-                trackRow: { id in rows.first { $0.track.id == id } },
-                excludedTrackIDs: { [] },
-                djLoadTrackInfo: { ids in info.filter { ids.contains($0.key) } }
-            )
-        }
-
-        private func makeTrack(_ i: Int) -> TrackRow {
-            let t = Track(id: Int64(i), albumId: 1, sourceId: 1, title: "Track \(i)", trackNo: i, discNo: nil,
+        private func makeTrack(_ i: Int64) -> TrackRow {
+            let t = Track(id: i, albumId: 1, sourceId: 1, title: "Track \(i)", trackNo: Int(i), discNo: nil,
                           durationSec: 120, codec: "MP3", sampleRate: nil, bitDepthOrBitrate: nil,
                           sortKey: "\(i)")
-            let a = Asset(id: Int64(i), trackId: Int64(i), kind: .remote, bookmark: nil, relPath: nil,
+            let a = Asset(id: i, trackId: i, kind: .remote, bookmark: nil, relPath: nil,
                           remoteURL: "https://archive.org/track\(i).mp3", altRemoteURL: nil,
                           sizeBytes: nil, unsupportedReason: nil)
             return TrackRow(track: t, album: nil, source: nil, asset: a)
         }
 
+        /// A deterministic in-memory Keep Playing library with analyzed picks.
+        /// Using the shared `LibraryStore` here made the mix/sound-similar
+        /// reasons depend on whatever rows a parallel suite had inserted (and
+        /// those rows have no BPM/key, so a `.mixMatched` pick legitimately
+        /// degrades to `.soundSimilar`).
+        private func fixtureLibrary(picks: [Int64]) -> KeepPlayingLibrary {
+            let rows = picks.map(makeTrack)
+            return KeepPlayingLibrary(
+                allTrackRows: { rows },
+                tracksForSource: { _ in rows },
+                trackRow: { id in rows.first { $0.track.id == id } },
+                excludedTrackIDs: { [] },
+                djLoadTrackInfo: { ids in
+                    var info: [Int64: DJLoadTrackInfo] = [:]
+                    for id in ids where rows.contains(where: { $0.track.id == id }) {
+                        info[id] = DJLoadTrackInfo(bpm: 120, camelotKey: "8A")
+                    }
+                    return info
+                })
+        }
+
+        private let picks: [Int64] = [101, 102]
+
         private func start(provider: ScriptedProvider?, mix: KeepPlayingMixProviding? = nil) -> AudioPlayer {
-            player.keepPlayingLibrary = fixtureLibrary()
+            player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             player.keepPlayingEnabled = false
-            player.play(tracks: (1...3).map(makeTrack), startAt: 2)
+            player.play(tracks: [1, 2, 3].map { makeTrack(Int64($0)) }, startAt: 2)
             player.keepPlayingEnabled = true
             player.keepPlayingProvider = provider
             player.keepPlayingMixProvider = mix
@@ -102,16 +103,16 @@ extension SharedProductionSingletonTests {
             }
         }
 
-        @Test func testMixSequenceSkipsClapProvider() async {
+        @Test func testMixSequenceSkipsClapProvider() async throws {
             let provider = ScriptedProvider(strict: .ready([]), broader: .ready([]))
-            let player = start(provider: provider, mix: FixedMix(ids: Self.fixturePicks))
+            let player = start(provider: provider, mix: FixedMix(ids: picks))
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes.isEmpty)
             #expect(Set(keepPlayingReasons(player)) == [.mixMatched])
         }
 
-        @Test func testStrictClapAppendsMixMatched() async {
-            let provider = ScriptedProvider(strict: .ready(Self.fixturePicks), broader: .ready([]))
+        @Test func testStrictClapAppendsMixMatched() async throws {
+            let provider = ScriptedProvider(strict: .ready(picks), broader: .ready([]))
             let player = start(provider: provider, mix: FixedMix(ids: []))
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes == [.djCompatible(anchorTrackID: 3)])
@@ -119,8 +120,8 @@ extension SharedProductionSingletonTests {
             #expect(!player.keepPlayingLastExtensionWasFallback)
         }
 
-        @Test func testBroaderClapAppendsSoundSimilar() async {
-            let provider = ScriptedProvider(strict: .unavailable, broader: .ready(Self.fixturePicks))
+        @Test func testBroaderClapAppendsSoundSimilar() async throws {
+            let provider = ScriptedProvider(strict: .unavailable, broader: .ready(picks))
             let player = start(provider: provider)
             await player.extendKeepPlayingQueueForTesting()
             #expect(provider.scopes == [.djCompatible(anchorTrackID: 3), .broaderSimilarity])
