@@ -257,7 +257,7 @@ extension LibraryStore {
         }
     }
 
-    public func consolidateLocalDuplicates() throws -> LocalTrackConsolidator.Report {
+    func consolidateLocalDuplicates() throws -> LocalTrackConsolidator.Report {
         try dbQueue.write { db in try LocalTrackConsolidator.run(db: db) }
     }
 
