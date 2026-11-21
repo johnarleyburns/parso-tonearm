@@ -48,7 +48,7 @@ check_ratchet() {
 check_ratchet system_size 'system\(size:' 'fixed fonts'
 check_ratchet color_literals 'Color\.(white|black)|Color\(hex:' 'color literals'
 check_ratchet preferred_dark 'preferredColorScheme\(\.dark\)' 'forced dark mode'
-check_ratchet print_calls 'print\(' 'print calls'
+check_ratchet print_calls '\bprint\(' 'print calls'
 check_ratchet animation_calls 'withAnimation|\.animation\(' 'animation calls'
 while IFS='|' read -r kind file token reason; do
   [ "$kind" = "allowlist" ] || continue

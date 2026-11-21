@@ -357,8 +357,14 @@ import Testing
         // Fire expiration after the first window has had a chance to persist,
         // while several windows still remain. Tying this to the fourth snapshot
         // read raced finalization: the last window could already be committed.
-        box.onRead = { count, _ in
-            if count == 2 { invocation.fireExpiration() }
+        box.onRead = { count, box in
+            if count == 2 {
+                // `handleExpiration` drops the grant asynchronously in
+                // production; drop it synchronously here so the scheduler's
+                // very next window sees the block, not a raced later tick.
+                box.mutate { $0.hasBackgroundProcessingGrant = false }
+                invocation.fireExpiration()
+            }
         }
         await controller.run(invocation)
 

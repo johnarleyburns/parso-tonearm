@@ -58,6 +58,27 @@ import Testing
             iaIdentifier: "user-1", originalURL: "https://two.example.com") == nil)
     }
 
+    @Test func testCanonicalKeyIgnoresLocalSources() {
+        #expect(RemoteSourceIdentity.canonicalKey(for: source(kind: .local, account: "x")) == nil)
+    }
+
+    @Test func testCanonicalKeyUsesArchiveIdentifierForIA() {
+        let one = RemoteSourceIdentity.canonicalKey(
+            for: source(kind: .iaItem, account: "item-1"))
+        let two = RemoteSourceIdentity.canonicalKey(
+            for: source(kind: .iaItem, account: "item-1"))
+        #expect(one != nil && one == two)
+        #expect(one != RemoteSourceIdentity.canonicalKey(for: source(kind: .iaItem, account: "item-2")))
+    }
+
+    @Test func testCanonicalKeySeparatesAccountsOnTheSameEndpoint() {
+        let alice = RemoteSourceIdentity.canonicalKey(
+            kind: .webDAV, iaIdentifier: "alice", originalURL: "https://m.example/dav")
+        let bob = RemoteSourceIdentity.canonicalKey(
+            kind: .webDAV, iaIdentifier: "bob", originalURL: "https://m.example/dav")
+        #expect(alice != nil && bob != nil && alice != bob)
+    }
+
     @Test func testRawTokenWithNoAccountOrEndpointIsNeverGuessed() {
         let existing = source(account: nil, url: nil)
         #expect(RemoteSourceIdentity.existingSource(

@@ -21,6 +21,14 @@ extension AppState {
                                             sourcePath: trimmedPath)
         _ = try await provider.catalogueCount(path: trimmedPath)
 
+        if let existing = RemoteSourceIdentity.existingSource(
+            in: (try? await store.allSources()) ?? [], kind: .jamendoGenre,
+            iaIdentifier: trimmedPath, originalURL: nil) {
+            await reload()
+            tab = .myMusic
+            return
+        }
+
         var source = Source(
             id: nil,
             kind: .jamendoGenre,

@@ -157,6 +157,12 @@ public actor LibraryStore {
 
     func refreshSearchIndex(trackID: Int64?, db: Database) throws {
         guard let trackID else { return }
+        try Self.refreshSearchIndex(trackID: trackID, db: db)
+    }
+
+    /// Static so the v53 consolidation migration can rebuild FTS rows after
+    /// moving tracks between sources/albums.
+    static func refreshSearchIndex(trackID: Int64, db: Database) throws {
         try db.execute(sql: "DELETE FROM track_fts WHERE rowid = ?", arguments: [trackID])
         guard let row = try Row.fetchOne(db, sql: """
             SELECT track.title AS title,
@@ -197,7 +203,7 @@ public actor LibraryStore {
             """, arguments: [trackID, title, artist, album, genre, filename])
     }
 
-    func searchFilename(relPath: String?, remoteURL: String?, altRemoteURL: String?) -> String {
+    static func searchFilename(relPath: String?, remoteURL: String?, altRemoteURL: String?) -> String {
         for value in [relPath, remoteURL, altRemoteURL] {
             let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard !trimmed.isEmpty else { continue }

@@ -258,6 +258,10 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
     /// remuxed to CAF by the prefetcher so the next play upgrades to Opus (T2.4).
     public var opusRemoteURL: String? = nil
     public var sizeBytes: Int64?
+    /// First+last 128 KB SHA-256 sample (see `DuplicateDetection`), stored for
+    /// local files so a re-add with different/missing duration metadata still
+    /// matches the same bytes.
+    public var contentSampleHash: String? = nil
     public var unsupportedReason: String?
     /// The provider's own MIME type for this `.remote` asset's file (from
     /// `RemoteNode.contentType`), when known. Real report: a Google Drive track
@@ -315,6 +319,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
                 altRemoteURL: String?,
                 opusRemoteURL: String? = nil,
                 sizeBytes: Int64?,
+                contentSampleHash: String? = nil,
                 unsupportedReason: String?,
                 needsReimport: Bool = false,
                 syncID: String? = nil,
@@ -334,6 +339,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         self.altRemoteURL = altRemoteURL
         self.opusRemoteURL = opusRemoteURL
         self.sizeBytes = sizeBytes
+        self.contentSampleHash = contentSampleHash
         self.unsupportedReason = unsupportedReason
         self.needsReimport = needsReimport
         self.syncID = syncID
@@ -356,6 +362,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
         case altRemoteURL
         case opusRemoteURL
         case sizeBytes
+        case contentSampleHash
         case unsupportedReason
         case needsReimport
         case syncID
