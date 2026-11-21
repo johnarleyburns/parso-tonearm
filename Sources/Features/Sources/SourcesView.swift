@@ -10,15 +10,6 @@ enum LibraryService: String, Hashable, Identifiable {
     var title: String { "Jamendo" }
 }
 
-/// Navigation value for a connected provider's own instance list (`ProviderInstancesView`).
-/// Carries only the connector's id, not the `RemoteConnector` itself — `RemoteConnector` isn't
-/// `Hashable` (and making it so would cascade through `RemoteConnectorTier`/`RemoteConnectorAuthKind`/
-/// `RemoteConnectorGuide`), while `NavigationLink(value:)` needs `Hashable`. The destination looks
-/// the connector back up by id.
-private struct ProviderInstancesTarget: Hashable {
-    let connectorID: String
-}
-
 /// Every place the user pulls music from: local folders, plus one row per remote provider this
 /// app knows how to connect, Jamendo included — not just the ones already connected. A real
 /// report: the old "Personal" list only ever showed connections you'd already made, with no way
@@ -145,16 +136,6 @@ struct SourcesView: View {
             .navigationDestination(for: Source.self) { source in
                 SourceDetailView(source: source)
             }
-            .navigationDestination(for: LibraryService.self) { service in
-                switch service {
-                case .jamendo: JamendoBrowseView()
-                }
-            }
-            .navigationDestination(for: ProviderInstancesTarget.self) { target in
-                if let connector = RemoteConnectorCatalog.connector(byID: target.connectorID) {
-                    ProviderInstancesView(connector: connector, navigationPath: $navigationPath)
-                }
-            }
             .sheet(item: $connectingConnector) { connector in
                 AddServerSheet(fixedConnector: connector) { source in
                     navigationPath.append(source)
@@ -246,7 +227,12 @@ struct SourcesView: View {
     @ViewBuilder
     private var jamendoRow: some View {
         if jamendoEnabled {
-            NavigationLink(value: LibraryService.jamendo) {
+            // Destination closure, not `NavigationLink(value:)`: this screen is
+            // pushed from Settings/My Music, so a destination registered here
+            // is invisible to the parent stack and the push flashed and popped.
+            NavigationLink {
+                JamendoBrowseView()
+            } label: {
                 LibraryCatalogRow(icon: "dot.radiowaves.left.and.right", title: LibraryService.jamendo.title,
                                   subtitle: "Browse by genre or search · streams from Jamendo", isEnabled: true)
             }
@@ -266,7 +252,13 @@ struct SourcesView: View {
     private func remoteCatalogRow(_ connector: RemoteConnector) -> some View {
         let enabled = !instances(of: connector).isEmpty
         if enabled {
-            NavigationLink(value: ProviderInstancesTarget(connectorID: connector.id)) {
+            // Destination closure, not `NavigationLink(value:)` — same real
+            // report as the local rows above: the value link's destination was
+            // registered inside this pushed child, so tapping a connected
+            // provider flashed its instance list and immediately popped back.
+            NavigationLink {
+                ProviderInstancesView(connector: connector, navigationPath: $navigationPath)
+            } label: {
                 LibraryCatalogRow(icon: connector.icon, title: connector.title, subtitle: connector.subtitle, isEnabled: true)
             }
             .buttonStyle(.plain)
