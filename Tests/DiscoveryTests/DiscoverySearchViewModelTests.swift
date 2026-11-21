@@ -66,16 +66,42 @@ import Testing
         return Deps(vm: vm, queue: queue, played: played, analyzed: analyzed, downloadModelsCalls: dl)
     }
 
+    private final class Waiter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var done = false
+        func wait() async {
+            await withCheckedContinuation { c in
+                lock.lock()
+                if done { lock.unlock(); c.resume() } else { continuation = c; lock.unlock() }
+            }
+        }
+        func signal() {
+            lock.lock()
+            if done { lock.unlock(); return }
+            done = true
+            let c = continuation
+            continuation = nil
+            lock.unlock()
+            c?.resume()
+        }
+    }
+
+    /// Waits on the view model's own screen-change signal instead of polling
+    /// from many busy loops while the rest of the 1,900-test suite runs.
     private func settle(
         _ vm: DiscoverySearchViewModel,
         timeout: TimeInterval = 10,
         until: @escaping (DiscoverySearchViewModel) -> Bool
     ) async {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if until(vm) { return }
-            try? await Task.sleep(for: .milliseconds(20))
-        }
+        if until(vm) { return }
+        let waiter = Waiter()
+        vm.screenDidChange = { _ in if until(vm) { waiter.signal() } }
+        let watchdog = Task { try? await Task.sleep(for: .seconds(timeout)); waiter.signal() }
+        await waiter.wait()
+        watchdog.cancel()
+        vm.screenDidChange = nil
+        if !until(vm) { Issue.record("search view model condition not met in time") }
     }
 
     private nonisolated static func trackRow(id: Int64, title: String) -> TrackRow {
