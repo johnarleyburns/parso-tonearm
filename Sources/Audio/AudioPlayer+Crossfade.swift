@@ -128,6 +128,9 @@ extension AudioPlayer {
               // A Jamendo row must go through the ordinary resolve path at the natural boundary
               // instead of crossfading into its raw, unresolved locator (see `needsJamendoResolve`).
               !needsJamendoResolve(row),
+              // Ogg Opus must be remuxed to CAF before it can be promoted; the natural boundary
+              // falls back to the ordinary load path, which owns that preparation.
+              !OpusPlaybackPreparation.isOpusAsset(asset),
               playbackDecision(for: asset) != .skipWiFiOnly else {
             return false
         }
