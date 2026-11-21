@@ -108,9 +108,9 @@ import Testing
 
     @Test func testCloudProviderScopesAreReadOnlyForDropboxGoogleDriveAndOneDrive() throws {
         let providers: [(CloudDriveAPI.Provider, [String])] = [
-            (.dropbox, ["files.metadata.read", "files.content.read"]),
+            (.dropbox, ["files.metadata.read", "files.content.read", "account_info.read"]),
             (.googleDrive, ["https://www.googleapis.com/auth/drive.readonly"]),
-            (.oneDrive, ["offline_access", "Files.Read"]),
+            (.oneDrive, ["offline_access", "Files.Read", "User.Read"]),
         ]
         for (provider, expectedScopes) in providers {
             let config = try OAuthProviderConfig.cloudDrive(

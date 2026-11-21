@@ -248,6 +248,22 @@ public struct CloudDriveProvider: RemoteLibraryProvider {
         _ = try await browse(path: "")
     }
 
+    /// Best-effort stable account identity (email / provider account id) from
+    /// the provider's own account endpoint. Used to persist a Source account
+    /// label so detach/reattach reuses the same library instead of duplicating
+    /// every track. Returns nil (browse still works) if the provider has not
+    /// granted the account scope or the endpoint fails.
+    public func accountLabel() async throws -> String? {
+        let access = try await accessProvider.access()
+        guard let request = CloudDriveAPI.accountRequest(
+            provider: provider, accessToken: access.accessToken,
+            environment: access.environment) else { return nil }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else { return nil }
+        return CloudDriveAPI.decodeAccountLabel(provider: provider, data: data)
+    }
+
     public static func from(source: Source,
                      credentialStore: CredentialStore = CredentialStore()) throws -> CloudDriveProvider {
         guard let sourceID = source.id,

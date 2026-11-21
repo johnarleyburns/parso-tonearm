@@ -101,7 +101,7 @@ public struct OAuthProviderConfig: Equatable, Codable, Sendable {
                 authorizationEndpoint: URL(string: "https://www.dropbox.com/oauth2/authorize")!,
                 tokenEndpoint: URL(string: "https://api.dropboxapi.com/oauth2/token")!,
                 redirectURI: redirectURI,
-                scopes: ["files.metadata.read", "files.content.read"],
+                scopes: ["files.metadata.read", "files.content.read", "account_info.read"],
                 apiEnvironment: .production(provider: provider),
                 additionalAuthorizationParameters: ["token_access_type": "offline"]
             )
@@ -123,7 +123,7 @@ public struct OAuthProviderConfig: Equatable, Codable, Sendable {
                 authorizationEndpoint: URL(string: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize")!,
                 tokenEndpoint: URL(string: "https://login.microsoftonline.com/common/oauth2/v2.0/token")!,
                 redirectURI: redirectURI,
-                scopes: ["offline_access", "Files.Read"],
+                scopes: ["offline_access", "Files.Read", "User.Read"],
                 apiEnvironment: .production(provider: provider)
             )
         case .pCloud:
