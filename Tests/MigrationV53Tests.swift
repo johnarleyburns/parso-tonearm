@@ -19,12 +19,15 @@ import Testing
     @Test func testV53AddsContentFingerprintAndAuditTable() throws {
         let queue = try makeQueue()
         try queue.read { db in
-            #expect(!(try db.columns(in: "asset").map(\.name)).contains("contentSampleHash"))
+            let columns = try db.columns(in: "asset").map(\.name)
+            #expect(!columns.contains("contentSampleHash"))
         }
         try Schema.migrator().migrate(queue)
         try queue.read { db in
-            #expect((try db.columns(in: "asset").map(\.name)).contains("contentSampleHash"))
-            #expect(try db.tableExists("merged_source"))
+            let columns = try db.columns(in: "asset").map(\.name)
+            let hasAuditTable = try db.tableExists("merged_source")
+            #expect(columns.contains("contentSampleHash"))
+            #expect(hasAuditTable)
         }
     }
 
@@ -59,34 +62,47 @@ import Testing
         try Schema.migrator().migrate(queue)
 
         try queue.read { db throws in
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source") == 1,
-                    "the reattached account must collapse to one source")
-            let canonicalID = try #require(try Int64.fetchOne(db, sql: "SELECT id FROM source"))
-            #expect(canonicalID == 2, "the newest source survives so its current credential is kept")
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
-            let survivor = try #require(try Int64.fetchOne(db, sql: "SELECT id FROM track"))
-            #expect(survivor == 1, "the track with the favorite is the survivor")
-            #expect(try Int64.fetchOne(db, sql: "SELECT sourceId FROM track WHERE id = ?",
-                                       arguments: [survivor]) == canonicalID)
-            #expect(try Int64.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?",
-                                       arguments: [survivor]) == 1)
-            #expect(try Int64.fetchOne(db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?",
-                                       arguments: [survivor]) == 1,
-                    "the loser's play history must move to the survivor")
-            #expect(try Int64.fetchOne(db, sql: "SELECT COUNT(*) FROM playlist_item WHERE trackId = ?",
-                                       arguments: [survivor]) == 1)
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM album") == 1,
-                    "same-titled albums from the merged sources collapse to one")
-            #expect(try Int64.fetchOne(db, sql: "SELECT albumId FROM track WHERE id = ?",
-                                       arguments: [survivor]) != nil)
-            #expect(try Int64.fetchOne(db, sql: """
+            let sourceCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source")
+            let canonicalRaw = try Int64.fetchOne(db, sql: "SELECT id FROM source")
+            let canonicalID = try #require(canonicalRaw)
+            let trackCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track")
+            let survivorRaw = try Int64.fetchOne(db, sql: "SELECT id FROM track")
+            let survivor = try #require(survivorRaw)
+            let survivorSource = try Int64.fetchOne(
+                db, sql: "SELECT sourceId FROM track WHERE id = ?", arguments: [survivor])
+            let favoriteCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?", arguments: [survivor])
+            let historyCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?", arguments: [survivor])
+            let playlistCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM playlist_item WHERE trackId = ?", arguments: [survivor])
+            let albumCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM album")
+            let albumID = try Int64.fetchOne(
+                db, sql: "SELECT albumId FROM track WHERE id = ?", arguments: [survivor])
+            let identityTrack = try Int64.fetchOne(db, sql: """
                 SELECT trackId FROM remote_track_identity
                 WHERE sourceId = ? AND identity = 'v1:id:drive-file-1'
-                """, arguments: [canonicalID]) == survivor)
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM merged_source WHERE oldSourceId = 1 AND canonicalSourceId = 2 AND kind = 'googleDrive'") == 1)
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track_fts WHERE rowid = ?",
-                                    arguments: [survivor]) == 1)
-            #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+                """, arguments: [canonicalID])
+            let auditCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM merged_source WHERE oldSourceId = 1 AND canonicalSourceId = 2 AND kind = 'googleDrive'")
+            let ftsCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM track_fts WHERE rowid = ?", arguments: [survivor])
+            let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+
+            #expect(sourceCount == 1, "the reattached account must collapse to one source")
+            #expect(canonicalID == 2, "the newest source survives so its current credential is kept")
+            #expect(trackCount == 1)
+            #expect(survivor == 1, "the track with the favorite is the survivor")
+            #expect(survivorSource == canonicalID)
+            #expect(favoriteCount == 1)
+            #expect(historyCount == 1, "the loser's play history must move to the survivor")
+            #expect(playlistCount == 1)
+            #expect(albumCount == 1, "same-titled albums from the merged sources collapse to one")
+            #expect(albumID != nil)
+            #expect(identityTrack == survivor)
+            #expect(auditCount == 1)
+            #expect(ftsCount == 1)
+            #expect(fkViolations.isEmpty)
         }
     }
 
@@ -103,8 +119,8 @@ import Testing
         }
         try Schema.migrator().migrate(queue)
         try queue.read { db in
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source") == 2,
-                    "different accounts on the same endpoint are different libraries")
+            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source")
+            #expect(count == 2, "different accounts on the same endpoint are different libraries")
         }
     }
 
@@ -121,8 +137,10 @@ import Testing
         }
         try Schema.migrator().migrate(queue)
         try queue.read { db in
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source") == 1)
-            #expect(try Int64.fetchOne(db, sql: "SELECT id FROM source") == 2)
+            let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM source")
+            let canonicalID = try Int64.fetchOne(db, sql: "SELECT id FROM source")
+            #expect(count == 1)
+            #expect(canonicalID == 2)
         }
     }
 
@@ -151,16 +169,23 @@ import Testing
         try Schema.migrator().migrate(queue)
 
         try queue.read { db throws in
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track") == 1)
-            let survivor = try #require(try Int64.fetchOne(db, sql: "SELECT id FROM track"))
+            let trackCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM track")
+            let survivorRaw = try Int64.fetchOne(db, sql: "SELECT id FROM track")
+            let survivor = try #require(survivorRaw)
+            let favoriteCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?", arguments: [survivor])
+            let historyCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?", arguments: [survivor])
+            let assetCount = try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM asset WHERE trackId = ?", arguments: [survivor])
+            let fkViolations = try Row.fetchAll(db, sql: "PRAGMA foreign_key_check")
+
+            #expect(trackCount == 1)
             #expect(survivor == 2, "the favorite makes track 2 the survivor")
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM favorite WHERE trackId = ?",
-                                    arguments: [survivor]) == 1)
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM play_history WHERE trackId = ?",
-                                    arguments: [survivor]) == 1)
-            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM asset WHERE trackId = ?",
-                                    arguments: [survivor]) == 1)
-            #expect(try Row.fetchAll(db, sql: "PRAGMA foreign_key_check").isEmpty)
+            #expect(favoriteCount == 1)
+            #expect(historyCount == 1)
+            #expect(assetCount == 1)
+            #expect(fkViolations.isEmpty)
         }
     }
 
