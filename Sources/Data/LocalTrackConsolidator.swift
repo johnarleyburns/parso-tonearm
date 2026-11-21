@@ -74,7 +74,11 @@ enum LocalTrackConsolidator {
         guard !groups.isEmpty else { return Report() }
 
         var report = Report()
-        for group in groups {
+        for rawGroup in groups {
+            // A track can legitimately have more than one local asset row; never
+            // let a duplicate id survive the loser filter and delete itself.
+            let group = Array(Set(rawGroup)).sorted()
+            guard group.count > 1 else { continue }
             let survivor = try TrackMerger.chooseSurvivor(db: db, tracks: group)
             let losers = group.filter { $0 != survivor }
             guard !losers.isEmpty else { continue }

@@ -228,25 +228,23 @@ public struct IngestService {
 
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 }
             .map(Int64.init)
-        let fingerprint = Self.contentFingerprint(for: url)
-        let resolvedSize = fileSize ?? fingerprint.map(\.sizeBytes)
 
         // Real report: "import multiple folders locally and sometimes have
         // the same track in two different places and it shows up twice" —
-        // a cheap size+duration match against every already-ingested track,
-        // then a size+sample-fingerprint match for files whose duration
-        // metadata is missing or differs slightly.
-        if let resolvedSize {
-            if let duration = meta.durationSec {
-                let existingId = (try? await store.findExistingTrackId(
-                    sizeBytes: resolvedSize, durationSec: duration)) ?? nil
-                if existingId != nil { return .skippedDuplicate }
-            }
-            if let hash = fingerprint?.sampleHash {
-                let existingId = (try? await store.findExistingTrackId(
-                    sizeBytes: resolvedSize, contentSampleHash: hash)) ?? nil
-                if existingId != nil { return .skippedDuplicate }
-            }
+        // a cheap size+duration match against every already-ingested track
+        // first (no file read), then a size+sample-fingerprint match for
+        // files whose duration metadata is missing or differs slightly.
+        if let fileSize, let duration = meta.durationSec {
+            let existingId = (try? await store.findExistingTrackId(
+                sizeBytes: fileSize, durationSec: duration)) ?? nil
+            if existingId != nil { return .skippedDuplicate }
+        }
+        let fingerprint = Self.contentFingerprint(for: url)
+        let resolvedSize = fileSize ?? fingerprint.map(\.sizeBytes)
+        if let resolvedSize, let hash = fingerprint?.sampleHash {
+            let existingId = (try? await store.findExistingTrackId(
+                sizeBytes: resolvedSize, contentSampleHash: hash)) ?? nil
+            if existingId != nil { return .skippedDuplicate }
         }
 
         let artistName = meta.artist ?? meta.albumArtist

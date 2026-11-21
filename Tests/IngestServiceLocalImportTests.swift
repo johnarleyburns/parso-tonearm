@@ -12,8 +12,11 @@ import Testing
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("ingest-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        for name in files {
-            try Data(count: 2048).write(to: folder.appendingPathComponent(name))
+        for (index, name) in files.enumerated() {
+            // Distinct bytes per file: identical dummy data is now (correctly)
+            // recognized as the same content by the fingerprint dedup.
+            try Data(repeating: UInt8(index + 1), count: 2048)
+                .write(to: folder.appendingPathComponent(name))
         }
         return folder
     }
