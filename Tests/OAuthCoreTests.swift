@@ -30,7 +30,7 @@ import Testing
         #expect(query["response_type"] == "code")
         #expect(query["state"] == "state-1")
         #expect(query["code_challenge_method"] == "S256")
-        #expect(query["scope"] == "files.metadata.read files.content.read")
+        #expect(query["scope"] == "files.metadata.read files.content.read account_info.read")
         #expect(query["token_access_type"] == "offline")
     }
 
