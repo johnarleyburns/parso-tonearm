@@ -28,6 +28,8 @@ struct AddRemoteTracksSheet: View {
             if available > 1 {
                 Slider(value: Binding(get: { Double(count) }, set: { count = Int($0.rounded()) }),
                        in: 1...Double(available), step: 1)
+                    .accessibilityLabel("Number of tracks")
+                    .accessibilityValue("\(count)")
                     .accessibilityIdentifier("remoteAdd.slider")
             }
             Picker("Playlist", selection: $playlistID) {

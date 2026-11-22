@@ -192,6 +192,7 @@ targets:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: false
         ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: "Platterhead connects only to music servers you add on your local network, such as WebDAV, Jellyfin, Plex, or Subsonic."
         NSSiriUsageDescription: "Siri can play songs, artists and playlists from your Platterhead library when you ask, including in CarPlay. Platterhead itself collects and sends nothing."
         NSMicrophoneUsageDescription: "Platterhead uses the microphone in CarPlay to hear your music searches."
         NSSpeechRecognitionUsageDescription: "Platterhead transcribes your CarPlay music search so you can find tracks hands-free."

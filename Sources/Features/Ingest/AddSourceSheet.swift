@@ -109,6 +109,7 @@ struct AddSourceSheet: View {
             }
             Spacer()
             Toggle("", isOn: $followUpdates).labelsHidden().tint(Palette.accent)
+                .accessibilityLabel("Follow list updates")
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .glassSurface(cornerRadius: 14)

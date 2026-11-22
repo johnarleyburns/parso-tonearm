@@ -4,22 +4,6 @@ import TonearmCore
 import UIKit
 
 extension SettingsView {
-    var musicLibrariesCard: some View {
-        NavigationLink {
-            SourcesView(ownsNavigationStack: false)
-        } label: {
-            SettingsRow(icon: "externaldrive", title: "Music Libraries",
-                        detail: Text("Local folders, servers & cloud"),
-                        count: appState.sources.isEmpty ? nil : appState.sources.count)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("settings.musicLibraries")
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-    }
-
     var behaviorCard: some View {
         VStack(spacing: 0) {
             settingToggle(appState.streamOnCellular ? "Stream on cellular" : "Wi-Fi only",
@@ -64,6 +48,10 @@ extension SettingsView {
                     in: PrefetchDepthPolicy.minimum...PrefetchDepthPolicy.maximum)
             .labelsHidden()
             .fixedSize()
+            // The visible title is a separate Text; without this the switch
+            // control itself is announced as just "Stepper".
+            .accessibilityLabel("Prefetch next tracks")
+            .accessibilityValue("\(appState.prefetchDepth)")
         }
         .padding(.vertical, 6)
     }
@@ -101,6 +89,7 @@ extension SettingsView {
                     }
                 ))
                 .labelsHidden().tint(Palette.accent)
+                .accessibilityLabel("iCloud Sync")
                 .accessibilityIdentifier("settings.icloudSync")
             }
             .padding(.vertical, 8)

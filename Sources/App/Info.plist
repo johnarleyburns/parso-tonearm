@@ -78,6 +78,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Platterhead connects only to music servers you add on your local network, such as WebDAV, Jellyfin, Plex, or Subsonic.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Platterhead uses the microphone in CarPlay to hear your music searches.</string>
 	<key>NSSiriUsageDescription</key>

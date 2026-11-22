@@ -95,6 +95,8 @@ struct EQView: View {
                     .frame(width: 144, height: 28)
                     .frame(width: 30, height: 150)
                     .tint(Palette.accent)
+                    .accessibilityLabel(Text(frequencyLabel(EQEngine.bandFrequencies[index]) + " band"))
+                    .accessibilityValue(Text(gainLabel(settings.bands[index])))
                     Text(frequencyLabel(EQEngine.bandFrequencies[index]))
                         .font(Typography.caption)
                         .foregroundStyle(Palette.inkTertiary)
