@@ -49,6 +49,54 @@
         }
       }
     },
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Info.plist NSLocalNetworkUsageDescription",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Platterhead connects only to music servers you add on your local network, such as WebDAV, Jellyfin, Plex, or Subsonic."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead verbindet sich nur mit Musikservern, die du in deinem lokalen Netzwerk hinzufügst, z. B. WebDAV, Jellyfin, Plex oder Subsonic."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead solo se conecta a servidores de música que añadas en tu red local, como WebDAV, Jellyfin, Plex o Subsonic."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead se connecte uniquement aux serveurs de musique que vous ajoutez sur votre réseau local, comme WebDAV, Jellyfin, Plex ou Subsonic."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterheadは、ローカルネットワーク上で追加した音楽サーバー（WebDAV、Jellyfin、Plex、Subsonicなど）にのみ接続します。"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "O Platterhead se conecta apenas a servidores de música que você adiciona na sua rede local, como WebDAV, Jellyfin, Plex ou Subsonic."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Platterhead 只会连接你在本地网络中添加的音乐服务器，例如 WebDAV、Jellyfin、Plex 或 Subsonic。"
+          }
+        }
+      }
+    },
     "NSMicrophoneUsageDescription" : {
       "comment" : "Info.plist NSMicrophoneUsageDescription",
       "extractionState" : "manual",

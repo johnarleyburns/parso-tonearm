@@ -83,6 +83,7 @@ struct AddFolderSheet: View {
             }
             Spacer()
             Toggle("", isOn: $watch).labelsHidden().tint(Palette.accent)
+                .accessibilityLabel("Watch folder for changes")
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .glassSurface(cornerRadius: 14)
@@ -96,6 +97,7 @@ struct AddFolderSheet: View {
             }
             Spacer()
             Toggle("", isOn: binding).labelsHidden().tint(Palette.accent)
+                .accessibilityLabel(Text(title))
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .glassSurface(cornerRadius: 14)

@@ -275,8 +275,16 @@ jobs:
           set -eo pipefail
           BUILD=$(git rev-list --count HEAD)
           echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
-          echo "MKT_VERSION=0.1.$BUILD" >> "$GITHUB_ENV"
-          echo "Marketing version: 0.1.$BUILD (build $BUILD)"
+          # App Store Connect requires the uploaded build's marketing version
+          # to match the version being submitted. Set the repository variable
+          # TONEARM_MARKETING_VERSION (e.g. "1.0") for a release build; when it
+          # is unset, keep the existing TestFlight-only 0.1.<build> scheme.
+          MKT_VERSION="${{ vars.TONEARM_MARKETING_VERSION }}"
+          if [ -z "$MKT_VERSION" ]; then
+            MKT_VERSION="0.1.$BUILD"
+          fi
+          echo "MKT_VERSION=$MKT_VERSION" >> "$GITHUB_ENV"
+          echo "Marketing version: $MKT_VERSION (build $BUILD)"
 
       - name: Import Provisioning Profile
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
@@ -363,7 +371,9 @@ jobs:
         if: success() && env.HAS_TESTFLIGHT_SECRETS == 'true'
         env:
           GH_TOKEN: ${{ secrets.CLAUDE_WORKFLOW_TOKEN || github.token }}
-          APP_NAME: Tonearm
+          # Product name, not the internal codename — these notes are shown to
+          # TestFlight testers and App Review.
+          APP_NAME: Platterhead
           ARCHIVED_APP: ./build/Tonearm.xcarchive/Products/Applications/Tonearm.app
           ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}

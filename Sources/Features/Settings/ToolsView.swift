@@ -426,6 +426,8 @@ struct ToolsView: View {
                 Text(display).font(Typography.caption.monospacedDigit()).foregroundStyle(Palette.inkTertiary)
             }
             Slider(value: value, in: range).tint(Palette.accent)
+                .accessibilityLabel(Text(title))
+                .accessibilityValue(Text(display))
         }
     }
 

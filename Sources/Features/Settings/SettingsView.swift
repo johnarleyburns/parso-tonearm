@@ -57,7 +57,8 @@ struct SettingsView: View {
                     SiriSettingsCard()
                 }
                 settingsSection("Library", identifier: "settings.section.library") {
-                    musicLibrariesCard
+                    // Libraries live in My Music's toolbar; a second entry here
+                    // was a duplicate of that screen.
                     syncCard
                 }
                 settingsSection("Apple Watch", identifier: "settings.section.watch") {
