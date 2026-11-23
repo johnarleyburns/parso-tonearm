@@ -3,17 +3,18 @@ import WatchKit
 import TonearmWatchCore
 import TonearmWatchProtocol
 
-/// Home shows local Now Playing followed by Search, Playlists, Albums, Songs, Artists and Genres.
+/// Home shows local Now Playing followed by Search, Playlists and Songs.
 /// One layout in both scopes — with the phone away the same doors show what's on the watch. The
 /// connection/sync state is a quiet, single-line status chip at the end of the list — never a
-/// full-width banner above Now Playing. A future refinement could pulse it to the top on a
-/// confirmed disconnect/reconnect (`WatchConnectionChrome.disconnectPulse`/`reconnectPulse`
-/// already exist for this); not built here, since that needs its own tested, timer-based behavior.
+/// full-width banner above Now Playing. Reachability transitions are announced once as an
+/// ephemeral toast (never a persistent "iPhone connected" row), so the home face stays about music.
 struct WatchRootView: View {
     @ObservedObject private var model = WatchAppAssembly.shared.model
     @ObservedObject private var player = WatchPlayer.shared
     @ObservedObject private var syncStatus = WatchAppAssembly.shared.syncStatus
     @ObservedObject private var chrome = WatchAppAssembly.shared.chrome
+    @State private var connectionToast: String?
+    @State private var toastHideTask: Task<Void, Never>?
 
     var body: some View {
         List {
@@ -60,9 +61,49 @@ struct WatchRootView: View {
         .listStyle(.plain)
         .navigationTitle("Platterhead")
         .accessibilityIdentifier("watch.root")
+        .overlay(alignment: .top) { connectionToastView }
+        .onChange(of: chrome.disconnectPulse) { _, _ in
+            showConnectionToast(String(localized: "iPhone disconnected"))
+        }
+        .onChange(of: chrome.reconnectPulse) { _, _ in
+            showConnectionToast(String(localized: "iPhone connected"))
+        }
         .task { await model.refresh() }
+        .onDisappear { toastHideTask?.cancel() }
     }
 
+    /// Ephemeral reachability announcement. The home list itself stays quiet: this is the only
+    /// place a connection transition is surfaced, and it disappears on its own.
+    @ViewBuilder
+    private var connectionToastView: some View {
+        if let connectionToast {
+            HStack(spacing: 6) {
+                Image(systemName: "iphone")
+                    .accessibilityHidden(true)
+                Text(connectionToast)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 1))
+            .padding(.top, 4)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("watch.connection.toast")
+        }
+    }
+
+    private func showConnectionToast(_ text: String) {
+        toastHideTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { connectionToast = text }
+        toastHideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.3)) { connectionToast = nil }
+        }
+    }
 
     private var homeDoors: [HomeDoor] {
         [
@@ -71,21 +112,14 @@ struct WatchRootView: View {
             HomeDoor(nav: .playlists, title: "Playlists",
                      detail: String(localized: "\(model.playlists.count) on this watch"),
                      systemImage: "music.note.list", identifier: "watch.playlists"),
-            HomeDoor(nav: .albums, title: "Albums",
-                     detail: String(localized: "\(model.albums.count) on this watch"),
-                     systemImage: "square.stack", identifier: "watch.albums"),
             HomeDoor(nav: .songs, title: "Songs", detail: onWatchDetail,
-                     systemImage: "music.note", identifier: "watch.downloads"),
-            HomeDoor(nav: .artists, title: "Artists", detail: nil,
-                     systemImage: "person.2", identifier: "watch.artists"),
-            HomeDoor(nav: .genres, title: "Genres", detail: nil,
-                     systemImage: "guitars", identifier: "watch.genres")
+                     systemImage: "music.note", identifier: "watch.downloads")
         ]
     }
 
-    /// The quiet, end-of-list connection/sync indicator Home's own doc comment above already
-    /// promised — driven by real state (`WatchHomeStatusPolicy`), not hardcoded, and tapping it
-    /// opens the same `WatchSyncStatusView` detail screen the old separate door did.
+    /// The quiet, end-of-list sync indicator. Connection transitions are surfaced by the ephemeral
+    /// toast above; when the phone is simply connected and idle this row just opens Sync Status, so
+    /// it never repeats "iPhone connected" on Home.
     private var statusChip: some View {
         let status = WatchHomeStatusPolicy.status(
             banner: chrome.banner, isSyncing: syncStatus.isSyncing, syncResult: syncStatus.syncResult)
@@ -95,7 +129,9 @@ struct WatchRootView: View {
         case .warning: tone = .warning
         case .failure: tone = .failure
         }
-        return WatchStatusChip(title: status.title, tone: tone)
+        let title = status.title == String(localized: "iPhone connected")
+            ? String(localized: "Sync Status") : status.title
+        return WatchStatusChip(title: title, tone: tone)
     }
 
     private func door(_ nav: WatchNav, title: LocalizedStringKey, detail: String?,
@@ -171,8 +207,10 @@ struct WatchHomeHero: View {
                             WatchArtTile(image: hero.image, tint: hero.tint, size: 38)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(hero.title).font(.headline).lineLimit(1)
-                                Text(hero.subtitle).font(.caption2)
-                                    .foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                                if !hero.subtitle.isEmpty {
+                                    Text(hero.subtitle).font(.caption2)
+                                        .foregroundStyle(.white.opacity(0.75)).lineLimit(1)
+                                }
                             }
                             Spacer(minLength: 0)
                         }
@@ -225,7 +263,9 @@ struct WatchHomeHero: View {
 
     private var current: Hero? {
         guard let track = player.currentTrack else { return nil }
-        return Hero(title: track.title, subtitle: track.artist, isPlaying: player.isPlaying,
+        let artist = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtitle = artist.caseInsensitiveCompare(track.title) == .orderedSame ? "" : artist
+        return Hero(title: track.title, subtitle: subtitle, isPlaying: player.isPlaying,
                     elapsed: player.elapsed, duration: player.duration,
                     tint: player.artworkTint ?? WatchPalette.accent, image: player.artwork,
                     toggle: { player.togglePlayPause() })

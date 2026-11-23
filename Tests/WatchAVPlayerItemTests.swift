@@ -62,13 +62,19 @@ import TonearmWatchProtocol
         #expect(jamendo.contains("NavigationLink(node.name, value: node)"))
         #expect(jamendo.contains("loadGeneration == generation"))
     }
-    @Test func testWatchCrownControlsSystemVolumeWithoutAppAttenuation() throws {
+    @Test func testWatchCrownControlsVolumeThroughTransientCenteredHUD() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)
-        #expect(view.contains("WKInterfaceVolumeControl(origin: .local)"))
-        #expect(view.contains("control.focus()"))
-        #expect(view.contains("control.resignFocus()"))
-        #expect(!view.contains(".digitalCrownRotation("), "Native volume control owns direction and system output volume")
+        #expect(view.contains(".digitalCrownRotation("))
+        #expect(view.contains("$player.volume"))
+        #expect(view.contains("if showsVolume { volumeOverlay }"),
+                "the volume HUD must not occupy the now-playing layout permanently")
+        #expect(view.contains("showsVolume = false"),
+                "the HUD fades out after the crown stops moving")
+        #expect(view.contains(".frame(maxWidth: 200)"),
+                "the HUD floats large in the middle of now playing")
+        #expect(!view.contains("WKInterfaceVolumeControl(origin: .local)"),
+                "an always-focused system control is what left the volume popup on screen")
         let output = try String(contentsOf: root.appendingPathComponent("WatchApp/AVPlayerOutput.swift"), encoding: .utf8)
         #expect(output.contains("private var currentVolume: Float = 1.0"))
         let player = try String(contentsOf: root.appendingPathComponent("WatchApp/WatchPlayer.swift"), encoding: .utf8)
@@ -80,8 +86,9 @@ import TonearmWatchProtocol
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
         #expect(home.contains("HomeDoor(nav: .songs, title: \"Songs\""))
-        #expect(home.contains("HomeDoor(nav: .artists"))
-        #expect(home.contains("HomeDoor(nav: .genres"))
+        #expect(!home.contains("HomeDoor(nav: .artists"), "Artists is not useful on the watch home")
+        #expect(!home.contains("HomeDoor(nav: .genres"), "Genres is not useful on the watch home")
+        #expect(!home.contains("HomeDoor(nav: .albums"), "Albums is not useful on the watch home")
         let groups = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchCollectionViews.swift"), encoding: .utf8)
         #expect(groups.contains("model.tracks.filter(\\.isReady)"))
         let search = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchSearchView.swift"), encoding: .utf8)
@@ -493,6 +500,91 @@ import TonearmWatchProtocol
 
         #expect(status == .failed)
         #expect(item.error != nil)
+    }
+
+    /// Field report: a standalone "Apple Watch" pill sat on Now Playing forever. The output chip is
+    /// only useful when it names a real route ("Apple Watch · AirPods Pro").
+    @Test func testNowPlayingHidesBareAppleWatchTargetChip() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)
+        #expect(view.contains("if let output = player.outputName"))
+        #expect(!view.contains("?? String(localized: \"Apple Watch\")"),
+                "no output route means no persistent Apple Watch chip")
+    }
+
+    /// Field report: the no-route card titled itself "Connect Headphones" and then repeated
+    /// "Connect headphones or a speaker to play audio" underneath. The title now carries the whole
+    /// instruction and the redundant body is gone.
+    @Test func testNoRouteProblemCardSaysHeadphonesOrSpeakerWithoutRepeatingBody() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)
+        #expect(view.contains("title: \"Connect Headphones or Speaker\""))
+        #expect(view.contains("message: nil"))
+        #expect(!view.contains("title: \"Connect Headphones\""),
+                "the title must not stop at headphones when a speaker is equally valid")
+    }
+
+    /// Field report: Now Playing repeated the track title in the subtitle, and the vertical gaps
+    /// under the subtitle/times were too large. A subtitle that only restates the title is dropped.
+    @Test func testNowPlayingSubtitleDropsRepeatedTitleAndTightensVerticalSpacing() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let view = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchNowPlayingView.swift"), encoding: .utf8)
+        #expect(view.contains("artist.caseInsensitiveCompare(title) != .orderedSame"))
+        #expect(view.contains("album.caseInsensitiveCompare(title) != .orderedSame"))
+        #expect(view.contains("VStack(spacing: 2)"))
+        #expect(view.contains(".padding(.top, 2)"))
+        #expect(view.contains(".padding(.top, 0)"))
+        let progress = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/Kit/WatchProgressViews.swift"), encoding: .utf8)
+        #expect(progress.contains("VStack(spacing: 1)"))
+        #expect(progress.contains("onSeek == nil ? 3 : 12"))
+    }
+
+    /// Field report: "iPhone connected" lived on Home forever; connection changes belong in a
+    /// transient toast. The same pass removes the equally meaningless launch toast on the phone.
+    @Test func testConnectionChangesAreEphemeralToastsNotPersistentHomeChrome() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let home = try String(contentsOf: root.appendingPathComponent("WatchApp/Views/WatchRootView.swift"), encoding: .utf8)
+        #expect(home.contains("chrome.disconnectPulse"))
+        #expect(home.contains("chrome.reconnectPulse"))
+        #expect(home.contains("showConnectionToast(String(localized: \"iPhone connected\"))"))
+        #expect(home.contains("watch.connection.toast"))
+        #expect(home.contains("String(localized: \"Sync Status\") : status.title"),
+                "Home must not render a persistent 'iPhone connected' label")
+        let phoneRoot = try String(contentsOf: root.appendingPathComponent("Sources/Features/RootView.swift"), encoding: .utf8)
+        #expect(!phoneRoot.contains("announceWatchConnection"))
+        #expect(!phoneRoot.contains("Connecting to Apple Watch…"))
+    }
+
+    /// Field report: On My Watch should add music through a "+" search sheet, and its failure
+    /// notice must dismiss in place instead of navigating to Settings.
+    @Test func testOnMyWatchAddsBySearchAndDismissesFailureNoticeInPlace() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let myMusic = try String(contentsOf: root.appendingPathComponent("Sources/Features/MyMusic/MyMusicView.swift"), encoding: .utf8)
+        #expect(myMusic.contains("mymusic.watch.add"))
+        #expect(myMusic.contains("WatchAddMusicView"))
+        #expect(myMusic.contains("confirmationDialog(\"Download to watch?\""))
+        #expect(myMusic.contains("await appState.downloadToWatch(rows: [row])"))
+        #expect(myMusic.contains("dismissedFailureCount"))
+        #expect(!myMusic.contains("appState.showWatchSettings = true"))
+        #expect(!myMusic.contains("Last watch report:"))
+        #expect(!myMusic.contains("Choose music elsewhere in My Music"))
+        let presenter = try String(contentsOf: root.appendingPathComponent("Sources/WatchSync/PhoneWatchManagementPresenter.swift"), encoding: .utf8)
+        #expect(presenter.contains("Go to the track below and try again"))
+    }
+
+    /// Field report: every Sound Index job failed with a Core ML ML Program prediction error. The
+    /// shipped encoders output 128-D (not the upstream 512-D metadata width), and the app must use
+    /// the synchronous prediction path rather than the OS 27-failing async overload.
+    @Test func testSoundIndexUses128DOutputAndSynchronousPrediction() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let manager = try String(contentsOf: root.appendingPathComponent("Sources/Discovery/ModelManager.swift"), encoding: .utf8)
+        #expect(manager.contains("outputSpec.dimensions = EmbeddingSpace.current.dimensions"))
+        #expect(manager.contains("SynchronousCoreMLSemanticModel("))
+        #expect(manager.contains("model.prediction(from: provider, options: MLPredictionOptions())"))
+        #expect(manager.contains("forceRecompile: true"))
+        #expect(!manager.contains("try await box.model.prediction(from: provider)"))
+        let cache = try String(contentsOf: root.appendingPathComponent("Sources/StarterGeneratorSupport/CompiledModelCache.swift"), encoding: .utf8)
+        #expect(cache.contains("os-\\(version.majorVersion)"))
     }
 
     private func waitForStatus(of item: AVPlayerItem) async -> AVPlayerItem.Status {

@@ -34,6 +34,9 @@ struct MyMusicView: View {
     /// the sheet owns one model for its whole lifetime.
     @StateObject private var indexStatusModel = IndexStatusModel()
     @State private var showIndexStatus = false
+    #if os(iOS)
+    @State private var showWatchMusicPicker = false
+    #endif
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -132,6 +135,19 @@ struct MyMusicView: View {
                         .accessibilityIdentifier("playlists.create")
                     }
                 }
+                #if os(iOS)
+                if scope == .onMyWatch {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showWatchMusicPicker = true } label: {
+                            Image(systemName: "plus")
+                                .font(Typography.body).foregroundStyle(Palette.accent)
+                                .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                        }
+                        .accessibilityLabel("Add Music to Apple Watch")
+                        .accessibilityIdentifier("mymusic.watch.add")
+                    }
+                }
+                #endif
                 ToolbarItemGroup(placement: .primaryAction) {
                     NavigationLink {
                         SourcesView(ownsNavigationStack: false, showsBackButton: true)
@@ -165,6 +181,12 @@ struct MyMusicView: View {
         .sheet(isPresented: $showIndexStatus) {
             IndexStatusView(model: indexStatusModel)
         }
+        #if os(iOS)
+        .sheet(isPresented: $showWatchMusicPicker) {
+            WatchAddMusicView()
+                .environmentObject(appState)
+        }
+        #endif
     }
 
     /// A glyph + tint that visually distinguishes "actively indexing," "paused," "needs
@@ -248,18 +270,121 @@ struct MyMusicView: View {
 }
 
 #if os(iOS)
+/// Search-and-download sheet opened by the "+" button on My Music → On My Watch. Picking a track
+/// asks once before queueing it; the On My Watch list then shows the transfer's live stage.
+private struct WatchAddMusicView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    @State private var pendingRow: TrackRow?
+
+    private var results: [TrackRow] {
+        let sorted = appState.allTracks.sorted {
+            $0.track.title.localizedCaseInsensitiveCompare($1.track.title) == .orderedAscending
+        }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return sorted }
+        return sorted.filter { row in
+            row.track.title.localizedCaseInsensitiveContains(trimmed)
+                || (row.artist?.name.localizedCaseInsensitiveContains(trimmed) ?? false)
+                || (row.album?.title.localizedCaseInsensitiveContains(trimmed) ?? false)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(results) { row in
+                Button { pendingRow = row } label: { rowLabel(row) }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("mymusic.watch.pick.\(row.id)")
+            }
+            .listStyle(.plain)
+            .overlay {
+                if results.isEmpty {
+                    let title: LocalizedStringKey = query.isEmpty ? "No Music Found" : "No Matches"
+                    ContentUnavailableView(
+                        title,
+                        systemImage: "music.note",
+                        description: Text(query.isEmpty
+                            ? "Import or add music, then download it to your watch."
+                            : "Try a different title, artist, or album."))
+                }
+            }
+            .navigationTitle("Add to Watch")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "Search your music")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .confirmationDialog("Download to watch?", isPresented: Binding(
+                get: { pendingRow != nil },
+                set: { if !$0 { pendingRow = nil } }), titleVisibility: .visible) {
+                Button("Yes, download") {
+                    guard let row = pendingRow else { return }
+                    pendingRow = nil
+                    Task {
+                        await appState.downloadToWatch(rows: [row])
+                        dismiss()
+                    }
+                }
+                Button("Cancel", role: .cancel) { pendingRow = nil }
+            } message: {
+                if let row = pendingRow {
+                    Text("“\(row.track.title)” will download to your Apple Watch.")
+                }
+            }
+        }
+        .accessibilityIdentifier("mymusic.watch.addSheet")
+    }
+
+    private func rowLabel(_ row: TrackRow) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.track.title).font(Typography.callout).lineLimit(1)
+                let subtitle = [row.artist?.name, row.album?.title]
+                    .compactMap { $0 }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " — ")
+                if !subtitle.isEmpty {
+                    Text(subtitle).font(Typography.caption)
+                        .foregroundStyle(Palette.inkTertiary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            switch appState.watchGlyphState(for: row) {
+            case .onWatch:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Palette.accent)
+            case .transferring:
+                ProgressView()
+            case .failed:
+                Image(systemName: "arrow.clockwise.circle").foregroundStyle(Palette.danger)
+            case .notOnWatch:
+                Image(systemName: "plus.circle").foregroundStyle(Palette.accent)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
 /// A mirror of watch-confirmed audio plus the phone's explicitly selected transfers.
 private struct OnMyWatchMusicView: View {
     @EnvironmentObject var appState: AppState
     @State private var removal: PhoneWatchManagementPresenter.WatchTrackRow?
     @State private var pendingRemovalIDs: Set<String> = []
+    /// A dismissed failure badge stays dismissed for this batch. A new failure count (or a clean
+    /// slate that later fails again) is a new, actionable condition and may show the badge once.
+    @AppStorage("watch.failureBadgeDismissedCount.v1") private var dismissedFailureCount = 0
 
     var body: some View {
         List {
-            Section {
-                if let message = PhoneWatchManagementPresenter.failureBadgeMessage(failedCount: appState.watchFailedCount) {
+            if let message = PhoneWatchManagementPresenter.failureBadgeMessage(failedCount: appState.watchFailedCount),
+               dismissedFailureCount != appState.watchFailedCount {
+                Section {
                     Button {
-                        appState.showWatchSettings = true
+                        dismissedFailureCount = appState.watchFailedCount
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -268,24 +393,15 @@ private struct OnMyWatchMusicView: View {
                                 .font(Typography.callout)
                                 .foregroundStyle(Palette.danger)
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "xmark")
                                 .foregroundStyle(Palette.inkTertiary)
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(message)
-                    .accessibilityHint("Opens Apple Watch settings")
+                    .accessibilityHint("Dismisses this notice; the failed track is listed below")
                     .accessibilityIdentifier("mymusic.watch.failureBadge")
                 }
-                if let date = appState.watchManagement.syncHistory.lastWatchReportAt {
-                    Text("Last watch report: \(date.formatted(date: .abbreviated, time: .shortened))")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                } else {
-                    Text("No watch report yet. Scheduled transfers below are not confirmed installed.")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Text("Choose music elsewhere in My Music and use Download to Watch to send it here.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             if appState.watchManagement.watchTracks.isEmpty {
                 Text(appState.watchManagement.syncHistory.lastWatchReportAt == nil
@@ -333,6 +449,9 @@ private struct OnMyWatchMusicView: View {
         .onChange(of: appState.watchManagement.watchTracks.map(\.id)) { _, ids in
             // A later re-download of the same stable ID is not the old pending removal.
             pendingRemovalIDs.formIntersection(Set(ids))
+        }
+        .onChange(of: appState.watchFailedCount) { _, count in
+            if count == 0 { dismissedFailureCount = 0 }
         }
         .task {
             while !Task.isCancelled {

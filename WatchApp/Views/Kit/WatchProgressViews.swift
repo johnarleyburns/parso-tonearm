@@ -21,7 +21,7 @@ struct WatchProgressHairline: View {
 
     var body: some View {
         let shown = shownElapsed
-        VStack(spacing: 3) {
+        VStack(spacing: 1) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.18))
@@ -40,7 +40,7 @@ struct WatchProgressHairline: View {
                         commit(target)
                     })
             }
-            .frame(height: onSeek == nil ? 3 : 28)
+            .frame(height: onSeek == nil ? 3 : 12)
             .accessibilityHidden(onSeek == nil)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("Progress"))

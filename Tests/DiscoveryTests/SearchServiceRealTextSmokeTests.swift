@@ -12,7 +12,7 @@ import Testing
 /// the PRODUCTION `ModelManager.textEncoder` path (no injected fake) encodes a
 /// real text prompt with the converted `CLAPTextEncoder` weights + RoBERTa
 /// tokenizer, and `SearchService` ranks real pipeline-quantized audio
-/// embeddings against it — a finite 512-d query vector and a stable ranking.
+/// embeddings against it — a finite 128-d query vector and a stable ranking.
 ///
 /// Gated: skipped when the converted text package / tokenizer sidecars are
 /// not on this host (a clean checkout that has not run `make models`).
@@ -56,7 +56,7 @@ import Testing
     @Test func testRealTextEncoderRanksRealEmbeddings() async throws {
         let (resources, compiledURLToClean) = try await realTextResources()
         defer { if let compiledURLToClean { try? FileManager.default.removeItem(at: compiledURLToClean) } }
-        let dims = 512
+        let dims = EmbeddingSpace.current.dimensions
 
         let cacheURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ssrt-\(UUID().uuidString).bin")

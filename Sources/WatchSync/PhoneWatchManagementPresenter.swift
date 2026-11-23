@@ -170,13 +170,14 @@ public enum PhoneWatchManagementPresenter {
     }
 
     /// The text for the small, tappable warning badge My Music's "On My Watch" section shows on
-    /// an actual transfer failure — `nil` when there is nothing to warn about. Deliberately only
-    /// covers failures: an in-progress transfer is not an error, and each track's own row in that
-    /// section already shows its progress, so this surface never needs a "something is
-    /// transferring" message the way the removed mini-player banner did.
+    /// an actual transfer failure — `nil` when there is nothing to warn about. It deliberately
+    /// points at the failed track rows below instead of sending the user to Settings: dismissing
+    /// the badge is the only action it offers. Deliberately only covers failures: an in-progress
+    /// transfer is not an error, and each track's own row in that section already shows its
+    /// progress, so this surface never needs a "something is transferring" message.
     public static func failureBadgeMessage(failedCount: Int) -> String? {
         guard failedCount > 0 else { return nil }
-        return String(localized: "\(failedCount) downloads failed")
+        return String(localized: "Go to the track below and try again")
     }
 
     // MARK: - Collection detail

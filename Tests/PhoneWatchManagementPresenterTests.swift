@@ -226,9 +226,9 @@ import TonearmWatchProtocol
         #expect(P.failureBadgeMessage(failedCount: 0) == nil)
     }
 
-    @Test func testFailureBadgeMessageDescribesTheFailureCount() {
-        #expect(P.failureBadgeMessage(failedCount: 1) == "1 downloads failed")
-        #expect(P.failureBadgeMessage(failedCount: 3) == "3 downloads failed")
+    @Test func testFailureBadgeMessagePointsAtTheFailedTrack() {
+        #expect(P.failureBadgeMessage(failedCount: 1) == "Go to the track below and try again")
+        #expect(P.failureBadgeMessage(failedCount: 3) == "Go to the track below and try again")
     }
 
     // MARK: reference-aware removal

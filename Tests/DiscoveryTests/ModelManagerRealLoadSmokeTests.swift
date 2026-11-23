@@ -110,7 +110,7 @@ import Testing
         let encoder = try await manager.audioEncoder(context: .foreground)
         let spec = encoder.spec
 
-        #expect(spec.dimensions == 512)
+        #expect(spec.dimensions == EmbeddingSpace.current.dimensions)
         #expect(spec.sampleRate == 48_000)
 
         // A valid-shape log-mel clip (values themselves are arbitrary; a
@@ -118,7 +118,8 @@ import Testing
         let logMel = [Float](repeating: -6.0, count: spec.frames * spec.melBins)
         let embedding = try await encoder.embedAudio(logMel: logMel)
 
-        #expect(embedding.count == 512, "real CLAP audio embedding must be 512-dim")
+        #expect(embedding.count == EmbeddingSpace.current.dimensions,
+                "real CLAP audio embedding must match the persisted embedding space")
         #expect(embedding.allSatisfy { $0.isFinite }, "embedding must be finite")
         let norm = sqrt(embedding.reduce(0) { $0 + Double($1) * Double($1) })
         #expect(norm > 0, "embedding must have non-zero norm")

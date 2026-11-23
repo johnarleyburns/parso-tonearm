@@ -3,29 +3,11 @@ import UIKit
 import WatchKit
 import TonearmWatchCore
 
-/// AVPlayer.volume is only a multiplier. Let watchOS control the actual output volume and
-/// respect the user's crown orientation; never force the system volume to maximum.
-struct WatchSystemVolumeControl: WKInterfaceObjectRepresentable {
-    let enabled: Bool
-
-    func makeWKInterfaceObject(context: Context) -> WKInterfaceVolumeControl {
-        WKInterfaceVolumeControl(origin: .local)
-    }
-
-    func updateWKInterfaceObject(_ control: WKInterfaceVolumeControl, context: Context) {
-        if enabled { control.focus() } else { control.resignFocus() }
-    }
-
-    static func dismantleWKInterfaceObject(_ control: WKInterfaceVolumeControl, coordinator: ()) {
-        control.resignFocus()
-    }
-}
-
 /// Watch redesign §5 N1/N2/S1–S5/T3/A1/A3 — one fixed, non-scrolling Now Playing face for this
 /// watch's local playback. Artwork colours tint the background; the target chip names where the
-/// audio comes out; big round transport; the Digital Crown controls native watch output volume; a
-/// bottom toolbar holds Output · Up Next · More. Failures replace the transport *in place* with a
-/// Problem Card.
+/// audio comes out; big round transport; the Digital Crown controls volume through a custom,
+/// centred HUD that only appears while the crown is being turned; a bottom toolbar holds Output ·
+/// Up Next · More. Failures replace the transport *in place* with a Problem Card.
 struct WatchNowPlayingView: View {
     @ObservedObject private var player = WatchPlayer.shared
     @ObservedObject private var coordinator = WatchPlaybackCoordinator.shared
@@ -38,23 +20,31 @@ struct WatchNowPlayingView: View {
     @State private var choosingRoute = false
     /// Track we asked the phone to download, so the More row shows a spinner until it lands.
     @State private var pendingDownloadTrackID: String?
+    /// Crown volume HUD: shown on every crown-driven volume change, then faded out.
+    @State private var showsVolume = false
+    @State private var volumeHideTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
             background
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 chip
                 localContent
-                WatchSystemVolumeControl(enabled: crownEnabled)
-                    .frame(height: 24)
-                    .accessibilityIdentifier("watch.now.volume")
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 4)
             // The close button and the clock share the top row; the chip gets its own row below
             // them (mockup N1) instead of sliding under both.
             .padding(.top, 8)
+
+            if showsVolume { volumeOverlay }
         }
+        .focusable()
+        .digitalCrownRotation(
+            $player.volume, from: 0, through: 1, by: 0.02,
+            sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
+        .onChange(of: player.volume) { _, _ in revealVolume() }
+        .onDisappear { volumeHideTask?.cancel() }
         // UI-test diagnostics stay readable to XCUITest without taking layout space, so the
         // screen under test is the screen users see.
         .background(alignment: .top) {
@@ -104,14 +94,19 @@ struct WatchNowPlayingView: View {
 
     // MARK: - Target chip
 
+    /// Only shown when there is a real output to name ("Apple Watch · AirPods Pro"). A standalone
+    /// "Apple Watch" pill is just a persistent, meaningless badge on the watch itself.
+    @ViewBuilder
     private var chip: some View {
-        let title = player.outputName.map { String(localized: "Apple Watch · \($0)") }
-            ?? String(localized: "Apple Watch")
-        return WatchTargetChip(systemImage: "applewatch", title: title, tone: .onArtwork)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(chipSpokenLocal))
-            .accessibilityIdentifier("watch.now.target")
-            .accessibilityValue("Apple Watch")
+        if let output = player.outputName {
+            WatchTargetChip(systemImage: "applewatch",
+                            title: String(localized: "Apple Watch · \(output)"),
+                            tone: .onArtwork)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(chipSpokenLocal))
+                .accessibilityIdentifier("watch.now.target")
+                .accessibilityValue("Apple Watch")
+        }
     }
 
     private var chipSpokenLocal: String {
@@ -127,10 +122,10 @@ struct WatchNowPlayingView: View {
     private var localContent: some View {
         if let track = player.currentTrack {
             titles(track.title, subtitle: localSubtitle(track))
-            if let problem = player.audioRouteProblem {
+            if player.audioRouteProblem != nil {
                 WatchProblemCard(
-                    systemImage: "headphones", title: "Connect Headphones",
-                    message: problem,
+                    systemImage: "headphones", title: "Connect Headphones or Speaker",
+                    message: nil,
                     actions: [.init(title: "Choose Output", systemImage: "airplayaudio",
                                     isBusy: choosingRoute, identifier: "watch.now.chooseRoute") {
                         chooseRoute()
@@ -220,7 +215,7 @@ struct WatchNowPlayingView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
-        .padding(.top, 4)
+        .padding(.top, 2)
     }
 
     private func transport(isPlaying: Bool, isBusy: Bool, previous: @escaping () -> Void,
@@ -242,7 +237,7 @@ struct WatchNowPlayingView: View {
                 .accessibilityIdentifier("watch.now.next")
         }
         .padding(.horizontal, 2)
-        .padding(.top, 2)
+        .padding(.top, 0)
     }
 
     private func emptyState(systemImage: String, title: LocalizedStringKey, message: String?) -> some View {
@@ -303,9 +298,57 @@ struct WatchNowPlayingView: View {
 
     // MARK: - Crown volume
 
-    private var crownEnabled: Bool {
-        guard !isLuminanceReduced else { return false }
-        return player.currentTrack != nil && player.audioRouteProblem == nil
+    private var volumeSymbol: String {
+        switch player.volume {
+        case ..<0.01: "speaker.slash.fill"
+        case ..<0.34: "speaker.fill"
+        case ..<0.67: "speaker.wave.1.fill"
+        default: "speaker.wave.2.fill"
+        }
+    }
+
+    private var volumeOverlay: some View {
+        VStack(spacing: 8) {
+            Image(systemName: volumeSymbol)
+                .font(.title2)
+                .foregroundStyle(.white)
+            Text("\(Int((player.volume * 100).rounded()))%")
+                .font(.title3.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.22))
+                Capsule().fill(WatchPalette.accent)
+                    .frame(width: 130 * max(0.02, min(1, player.volume)))
+            }
+            .frame(width: 130, height: 8)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .frame(maxWidth: 200)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.white.opacity(0.16), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
+        .transition(.opacity.combined(with: .scale(scale: 0.88)))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Volume"))
+        .accessibilityValue(Text("\(Int((player.volume * 100).rounded())) percent"))
+        .accessibilityIdentifier("watch.now.volume")
+    }
+
+    /// The HUD is transient: each crown turn re-shows it, and it fades out a moment after the last
+    /// change instead of occupying the screen permanently.
+    private func revealVolume() {
+        volumeHideTask?.cancel()
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showsVolume = true }
+        volumeHideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.35)) { showsVolume = false }
+        }
     }
 
     private func chooseRoute() {
@@ -318,9 +361,17 @@ struct WatchNowPlayingView: View {
     }
 
     private func localSubtitle(_ track: WatchTrackSnapshot) -> String {
+        let title = track.title.trimmingCharacters(in: .whitespacesAndNewlines)
         var parts: [String] = []
-        if !track.artist.isEmpty { parts.append(track.artist) }
-        if !track.albumTitle.isEmpty { parts.append(track.albumTitle) }
+        let artist = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !artist.isEmpty, artist.caseInsensitiveCompare(title) != .orderedSame {
+            parts.append(artist)
+        }
+        let album = track.albumTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !album.isEmpty, album.caseInsensitiveCompare(title) != .orderedSame,
+           !parts.contains(where: { $0.caseInsensitiveCompare(album) == .orderedSame }) {
+            parts.append(album)
+        }
         return parts.joined(separator: " — ")
     }
 
