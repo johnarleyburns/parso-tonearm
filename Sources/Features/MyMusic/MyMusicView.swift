@@ -34,6 +34,9 @@ struct MyMusicView: View {
     /// the sheet owns one model for its whole lifetime.
     @StateObject private var indexStatusModel = IndexStatusModel()
     @State private var showIndexStatus = false
+    #if os(iOS)
+    @State private var showWatchMusicPicker = false
+    #endif
 
     enum Scope: String, CaseIterable, Identifiable {
         case playlists = "Playlists"
@@ -132,6 +135,19 @@ struct MyMusicView: View {
                         .accessibilityIdentifier("playlists.create")
                     }
                 }
+                #if os(iOS)
+                if scope == .onMyWatch {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showWatchMusicPicker = true } label: {
+                            Image(systemName: "plus")
+                                .font(Typography.body).foregroundStyle(Palette.accent)
+                                .frame(width: 33, height: 33).glassSurface(cornerRadius: 16.5)
+                        }
+                        .accessibilityLabel("Add Music to Apple Watch")
+                        .accessibilityIdentifier("mymusic.watch.add")
+                    }
+                }
+                #endif
                 ToolbarItemGroup(placement: .primaryAction) {
                     NavigationLink {
                         SourcesView(ownsNavigationStack: false, showsBackButton: true)
@@ -165,6 +181,12 @@ struct MyMusicView: View {
         .sheet(isPresented: $showIndexStatus) {
             IndexStatusView(model: indexStatusModel)
         }
+        #if os(iOS)
+        .sheet(isPresented: $showWatchMusicPicker) {
+            WatchAddMusicView()
+                .environmentObject(appState)
+        }
+        #endif
     }
 
     /// A glyph + tint that visually distinguishes "actively indexing," "paused," "needs
@@ -253,13 +275,17 @@ private struct OnMyWatchMusicView: View {
     @EnvironmentObject var appState: AppState
     @State private var removal: PhoneWatchManagementPresenter.WatchTrackRow?
     @State private var pendingRemovalIDs: Set<String> = []
+    /// A dismissed failure badge stays dismissed for this batch. A new failure count (or a clean
+    /// slate that later fails again) is a new, actionable condition and may show the badge once.
+    @AppStorage("watch.failureBadgeDismissedCount.v1") private var dismissedFailureCount = 0
 
     var body: some View {
         List {
-            Section {
-                if let message = PhoneWatchManagementPresenter.failureBadgeMessage(failedCount: appState.watchFailedCount) {
+            if let message = PhoneWatchManagementPresenter.failureBadgeMessage(failedCount: appState.watchFailedCount),
+               dismissedFailureCount != appState.watchFailedCount {
+                Section {
                     Button {
-                        appState.showWatchSettings = true
+                        dismissedFailureCount = appState.watchFailedCount
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -268,24 +294,15 @@ private struct OnMyWatchMusicView: View {
                                 .font(Typography.callout)
                                 .foregroundStyle(Palette.danger)
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "xmark")
                                 .foregroundStyle(Palette.inkTertiary)
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(message)
-                    .accessibilityHint("Opens Apple Watch settings")
+                    .accessibilityHint("Dismisses this notice; the failed track is listed below")
                     .accessibilityIdentifier("mymusic.watch.failureBadge")
                 }
-                if let date = appState.watchManagement.syncHistory.lastWatchReportAt {
-                    Text("Last watch report: \(date.formatted(date: .abbreviated, time: .shortened))")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                } else {
-                    Text("No watch report yet. Scheduled transfers below are not confirmed installed.")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Text("Choose music elsewhere in My Music and use Download to Watch to send it here.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
             }
             if appState.watchManagement.watchTracks.isEmpty {
                 Text(appState.watchManagement.syncHistory.lastWatchReportAt == nil
@@ -333,6 +350,9 @@ private struct OnMyWatchMusicView: View {
         .onChange(of: appState.watchManagement.watchTracks.map(\.id)) { _, ids in
             // A later re-download of the same stable ID is not the old pending removal.
             pendingRemovalIDs.formIntersection(Set(ids))
+        }
+        .onChange(of: appState.watchFailedCount) { _, count in
+            if count == 0 { dismissedFailureCount = 0 }
         }
         .task {
             while !Task.isCancelled {

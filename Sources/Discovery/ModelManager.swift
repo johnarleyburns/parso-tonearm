@@ -120,6 +120,11 @@ public actor ModelManager {
             throw ModelManagerError.melFilterBankLoadFailed(error.localizedDescription)
         }
         let spec = EmbeddingModelSpec.musicCLAP(melFilterBank: melFilterBank)
+        // The shipped int4 checkpoints expose the frozen 512 -> 128 projection, exactly like the
+        // persisted vector index and the text encoder. `musicCLAPMetadata` describes the upstream
+        // 512-D checkpoint, so override its width before Core ML output extraction.
+        var outputSpec = spec
+        outputSpec.dimensions = EmbeddingSpace.current.dimensions
         // A resolved `.mlpackage` is a raw, uncompiled package on a real device (see
         // `CompiledModelCache`'s doc) — `MLModel(contentsOf:)` cannot load it directly. A resolved
         // `.mlmodelc` (a bare SwiftPM/dev checkout) passes through unchanged.
@@ -130,8 +135,9 @@ public actor ModelManager {
             throw ModelManagerError.modelCompileFailed(error.localizedDescription)
         }
         let computeUnits: MLComputeUnits = context == .background ? .cpuOnly : .cpuAndGPU
-        let model = CoreMLSemanticModel(
-            kind: .audio, url: loadableURL, spec: spec, computeUnits: computeUnits)
+        let model = SynchronousCoreMLSemanticModel(
+            kind: .audio, url: loadableURL, spec: outputSpec, computeUnits: computeUnits,
+            reload: { try CompiledModelCache.loadableURL(for: encoderURL, forceRecompile: true) })
         cachedModel = model
         cachedContext = context
         return model
@@ -194,9 +200,10 @@ public actor ModelManager {
             throw ModelManagerError.modelCompileFailed(error.localizedDescription)
         }
         let computeUnits: MLComputeUnits = context == .background ? .cpuOnly : .all
-        let model = CoreMLSemanticModel(
+        let model = SynchronousCoreMLSemanticModel(
             kind: .text, url: loadableURL, spec: spec, tokenizer: tokenizer,
-            computeUnits: computeUnits)
+            computeUnits: computeUnits,
+            reload: { try CompiledModelCache.loadableURL(for: encoderURL, forceRecompile: true) })
         cachedTextModel = model
         cachedTextContext = context
         return model
@@ -244,6 +251,135 @@ public actor ModelManager {
         cachedContext = nil
         cachedTextModel = nil
         cachedTextContext = nil
+    }
+}
+
+/// The app's Core ML semantic encoder.
+///
+/// This is deliberately a local wrapper instead of `ParsoAudioNeural.CoreMLSemanticModel`: that
+/// type uses Core ML's `async` prediction overload, whose ML Program path fails on the OS 27
+/// runtime with "Unable to compute the asynchronous prediction using ML Program…" even for a
+/// static-shape, valid model. Calling the synchronous `MLModel.prediction(from:options:)` API from
+/// this actor (never the SwiftUI main actor) keeps prediction off the main thread while using the
+/// execution path that still works.
+private actor SynchronousCoreMLSemanticModel: SemanticModel {
+    enum Kind: Sendable { case audio, text }
+
+    let spec: EmbeddingModelSpec
+    private let kind: Kind
+    private var url: URL
+    private let tokenizer: RoBERTaTokenizer?
+    private let computeUnits: MLComputeUnits
+    private let reload: (@Sendable () throws -> URL)?
+    private var box: ModelBox?
+    /// A compiled program can be left behind by an older OS. Retry one reload/recompile per model
+    /// instance before surfacing the prediction failure, not once per window.
+    private var didRetryReload = false
+
+    /// `MLModel` is not `Sendable`. The actor serializes every touch, so the unchecked box is safe.
+    private final class ModelBox: @unchecked Sendable {
+        let model: MLModel
+        init(_ model: MLModel) { self.model = model }
+
+        func predict(provider: MLDictionaryFeatureProvider, outputName: String,
+                     count: Int) throws -> [Float] {
+            let output = try model.prediction(from: provider, options: MLPredictionOptions())
+            guard let value = output.featureValue(for: outputName)?.multiArrayValue else {
+                throw SemanticModelError.inferenceFailed("missing \(outputName) output")
+            }
+            var result = [Float](repeating: 0, count: count)
+            for i in 0..<count { result[i] = value[i].floatValue }
+            return result
+        }
+    }
+
+    init(kind: Kind, url: URL, spec: EmbeddingModelSpec, tokenizer: RoBERTaTokenizer? = nil,
+         computeUnits: MLComputeUnits? = nil,
+         reload: (@Sendable () throws -> URL)? = nil) {
+        self.kind = kind
+        self.url = url
+        self.spec = spec
+        self.tokenizer = tokenizer
+        self.computeUnits = computeUnits ?? (kind == .audio ? .cpuAndGPU : .all)
+        self.reload = reload
+    }
+
+    func embedText(_ text: String) async throws -> [Float] {
+        guard kind == .text else {
+            throw SemanticModelError.inferenceFailed("text input on an audio encoder")
+        }
+        guard let tokenizer else { throw SemanticModelError.tokenizerUnavailable }
+        let encoded = try tokenizer.encode(text, maxLength: spec.textMaxLength)
+        let ids = try MLMultiArray(shape: [1, NSNumber(value: spec.textMaxLength)], dataType: .int32)
+        let mask = try MLMultiArray(shape: [1, NSNumber(value: spec.textMaxLength)], dataType: .int32)
+        for i in 0..<encoded.ids.count {
+            ids[i] = NSNumber(value: encoded.ids[i])
+            mask[i] = NSNumber(value: encoded.mask[i])
+        }
+        let provider = try MLDictionaryFeatureProvider(dictionary: [
+            "input_ids": MLFeatureValue(multiArray: ids),
+            "attention_mask": MLFeatureValue(multiArray: mask),
+        ])
+        return try predictWithRetry(provider: provider, outputName: "text_embedding",
+                                    count: spec.dimensions)
+    }
+
+    func embedAudio(logMel: [Float]) async throws -> [Float] {
+        guard kind == .audio else {
+            throw SemanticModelError.inferenceFailed("audio input on a text encoder")
+        }
+        let total = spec.frames * spec.melBins
+        guard logMel.count == total else {
+            throw SemanticModelError.inferenceFailed(
+                "log-mel has \(logMel.count) samples, expected \(total)")
+        }
+        let input = try MLMultiArray(
+            shape: [1, 1, NSNumber(value: spec.frames), NSNumber(value: spec.melBins)],
+            dataType: .float32)
+        for i in 0..<total { input[i] = NSNumber(value: logMel[i]) }
+        let provider = try MLDictionaryFeatureProvider(dictionary: [
+            "log_mel": MLFeatureValue(multiArray: input),
+        ])
+        return try predictWithRetry(provider: provider, outputName: "audio_embedding",
+                                    count: spec.dimensions)
+    }
+
+    /// Run the encoder, and once per model instance retry after dropping a compiled program that
+    /// may predate the current OS. An OS update can leave a cached `.mlmodelc` that compiles but
+    /// fails at execution; recompiling under the current runtime is the only recovery available
+    /// without shipping a new model.
+    private func predictWithRetry(provider: MLDictionaryFeatureProvider, outputName: String,
+                                  count: Int) throws -> [Float] {
+        do {
+            return try load().predict(provider: provider, outputName: outputName, count: count)
+        } catch {
+            guard !didRetryReload, let reload else { throw error }
+            didRetryReload = true
+            box = nil
+            do {
+                url = try reload()
+                return try load().predict(provider: provider, outputName: outputName, count: count)
+            } catch {
+                throw error
+            }
+        }
+    }
+
+    private func load() throws -> ModelBox {
+        if let box { return box }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            throw SemanticModelError.modelUnavailable(url.lastPathComponent)
+        }
+        do {
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = computeUnits
+            let loaded = try MLModel(contentsOf: url, configuration: configuration)
+            let box = ModelBox(loaded)
+            self.box = box
+            return box
+        } catch {
+            throw SemanticModelError.modelLoadFailed(error.localizedDescription)
+        }
     }
 }
 #endif

@@ -31,12 +31,12 @@ public enum CompiledModelCache {
 
     /// A URL safe to hand to `MLModel(contentsOf:)`. Compiles and caches on first call for a
     /// given package; later calls for the same, unchanged package are a cheap on-disk check.
-    public static func loadableURL(for packageURL: URL,
+    public static func loadableURL(for packageURL: URL, forceRecompile: Bool = false,
                                    fileManager: FileManager = .default) throws -> URL {
         guard packageURL.pathExtension.lowercased() == "mlpackage" else { return packageURL }
 
         let compiledURL = cacheLocation(for: packageURL, fileManager: fileManager)
-        if isFresh(compiledURL, comparedTo: packageURL, fileManager: fileManager) {
+        if !forceRecompile, isFresh(compiledURL, comparedTo: packageURL, fileManager: fileManager) {
             return compiledURL
         }
 
@@ -61,7 +61,15 @@ public enum CompiledModelCache {
                                          appropriateFor: nil, create: true))
             ?? fileManager.temporaryDirectory
         let name = packageURL.deletingPathExtension().lastPathComponent
+        // A compiled Core ML program is tied to the runtime that compiled it. Reusing a cache
+        // produced by an older OS after a system upgrade is how every Sound Index job can start
+        // failing with a Core ML ML Program execution error while the model package itself is
+        // unchanged. Namespacing the cache by OS version forces exactly one recompile after an
+        // upgrade (and keeps the same compiled artifact for every launch on that OS).
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let osKey = "os-\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
         return base.appendingPathComponent("CompiledModels", isDirectory: true)
+            .appendingPathComponent(osKey, isDirectory: true)
             .appendingPathComponent(name).appendingPathExtension("mlmodelc")
     }
 
