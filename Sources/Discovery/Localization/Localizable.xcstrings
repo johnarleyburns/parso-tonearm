@@ -1,6 +1,53 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    " (CPU — background task)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – Hintergrundaufgabe)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU: tarea en segundo plano)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU – tâche d’arrière-plan)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — バックグラウンドタスク）"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " (CPU — tarefa em segundo plano)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "（CPU — 后台任务）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (CPU — background task)"
+          }
+        }
+      },
+      "comment" : "UI text shown in: Index Status Model (Sources/Discovery/IndexStatusModel.swift)"
+    },
     " (CPU — cooling down)" : {
       "localizations" : {
         "de" : {

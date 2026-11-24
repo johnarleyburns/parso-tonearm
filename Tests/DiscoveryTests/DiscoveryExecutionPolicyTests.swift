@@ -7,17 +7,27 @@ import Testing
         thermalState: DiscoveryThermalState = .nominal,
         continuousFairOrWorseSeconds: TimeInterval = 0,
         isPlaybackActive: Bool = false,
+        isInBackground: Bool = false,
         recentThermalDowngradeCount: Int = 0
     ) -> DiscoveryExecutionPolicy.Snapshot {
         DiscoveryExecutionPolicy.Snapshot(
             thermalState: thermalState,
             continuousFairOrWorseSeconds: continuousFairOrWorseSeconds,
             isPlaybackActive: isPlaybackActive,
+            isInBackground: isInBackground,
             recentThermalDowngradeCount: recentThermalDowngradeCount)
     }
 
     @Test func testPrefersGPUWhenNominalAndIdle() {
         #expect(DiscoveryExecutionPolicy.decide(snapshot()) == .gpuPreferred)
+    }
+
+    /// TestFlight crash (build 1038, iOS 27.3): background indexing reached
+    /// the GPU/MPSGraph int4 dequantize kernel and aborted. Background work
+    /// must select CPU even when the device is cool and nothing is playing.
+    @Test func testBackgroundIndexingForcesCPUEvenWhenNominal() {
+        let decision = DiscoveryExecutionPolicy.decide(snapshot(isInBackground: true))
+        #expect(decision == .cpuOnly(reason: .backgroundTask))
     }
 
     @Test func testPlaybackActiveForcesCPUEvenWhenNominal() {

@@ -216,6 +216,7 @@ final class SchedulingSampler: @unchecked Sendable {
             thermalState: _thermalState,
             continuousFairOrWorseSeconds: fairOrWorseSeconds,
             isPlaybackActive: _isPlaybackActive,
+            isInBackground: _appState == .background || _hasBackgroundProcessingGrant,
             recentThermalDowngradeCount: _thermalDowngradeTimestamps.count)
         let engine = DiscoveryExecutionPolicy.decide(snapshot)
         if engine == .cpuOnly(reason: .thermalSustainedFair), _lastEngine == .gpuPreferred {
