@@ -478,6 +478,7 @@ public struct IndexStatusPresentation: Equatable, Sendable {
         switch engine {
         case .gpuPreferred: return " (GPU)"
         case .cpuOnly(.playbackActive): return String(localized: " (CPU — paused for playback)", bundle: .module)
+        case .cpuOnly(.backgroundTask): return String(localized: " (CPU — background task)", bundle: .module)
         case .cpuOnly(.thermalSeriousOrCritical): return String(localized: " (CPU — device is hot)", bundle: .module)
         case .cpuOnly(.thermalSustainedFair): return String(localized: " (CPU — cooling down)", bundle: .module)
         case .cpuOnly(.recentOscillation): return String(localized: " (CPU — ran warm recently)", bundle: .module)

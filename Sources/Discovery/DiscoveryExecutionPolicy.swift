@@ -55,6 +55,7 @@ public enum DiscoveryExecutionPolicy {
 
     public enum CPUOnlyReason: Equatable, Sendable {
         case playbackActive
+        case backgroundTask
         case thermalSeriousOrCritical
         case thermalSustainedFair
         case recentOscillation
@@ -71,6 +72,12 @@ public enum DiscoveryExecutionPolicy {
         /// pattern, just for the opposite direction).
         public var continuousFairOrWorseSeconds: TimeInterval
         public var isPlaybackActive: Bool
+        /// True while the app is backgrounded or running under a
+        /// BGProcessingTask grant. Background work must be CPU-only: the
+        /// app has no foreground GPU budget, and iOS 27's MPSGraph path can
+        /// abort in its int4 dequantize kernel (`EncodeArrayAffieInt4Dequant`)
+        /// while the app is not frontmost.
+        public var isInBackground: Bool
         /// Number of thermal-triggered GPU→CPU downgrades the caller has
         /// recorded within the trailing `oscillationWindowSeconds`.
         public var recentThermalDowngradeCount: Int
@@ -79,11 +86,13 @@ public enum DiscoveryExecutionPolicy {
             thermalState: DiscoveryThermalState,
             continuousFairOrWorseSeconds: TimeInterval,
             isPlaybackActive: Bool,
+            isInBackground: Bool = false,
             recentThermalDowngradeCount: Int
         ) {
             self.thermalState = thermalState
             self.continuousFairOrWorseSeconds = continuousFairOrWorseSeconds
             self.isPlaybackActive = isPlaybackActive
+            self.isInBackground = isInBackground
             self.recentThermalDowngradeCount = recentThermalDowngradeCount
         }
     }
@@ -93,6 +102,11 @@ public enum DiscoveryExecutionPolicy {
         // concern from thermal signal noise. Not overridable by "prefer
         // GPU": this is about audio-glitch risk, not heat.
         if s.isPlaybackActive { return .cpuOnly(reason: .playbackActive) }
+
+        // Background indexing gets no GPU. Besides the lack of a foreground
+        // GPU budget, iOS 27's MPSGraph int4 dequantize path aborts while the
+        // app is not frontmost (real TestFlight crash in build 1038).
+        if s.isInBackground { return .cpuOnly(reason: .backgroundTask) }
 
         if s.thermalState == .serious || s.thermalState == .critical {
             return .cpuOnly(reason: .thermalSeriousOrCritical)
