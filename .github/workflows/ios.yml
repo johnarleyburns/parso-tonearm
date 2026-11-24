@@ -19,7 +19,7 @@ env:
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: xcode-27
     # Generous vs. observed history (last ~3 days: median 7.5m, p90 8.6m, max
     # 12.2m) — matches this repo's own pr-validation.yml validate job, which
     # does comparable swift-test + guardrail work under the same allowance.
@@ -28,11 +28,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Select latest Xcode
+      - name: Select Xcode 27
         run: |
-          XCODE=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
-          sudo xcode-select -s /Applications/$XCODE
+          XCODE=$(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' ! -iname '*beta*' ! -iname '*rc*' -print | sort -V | tail -1)
+          test -n "$XCODE"
+          sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          XCODE_VERSION=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          XCODE_MAJOR=${XCODE_VERSION%%.*}
+          if [ "$XCODE_MAJOR" -lt 27 ]; then
+            echo "::error::Xcode 27 or newer is required to build with the iOS 27 SDK (found $XCODE_VERSION)"
+            exit 1
+          fi
 
       - name: Accept Xcode License
         run: sudo xcodebuild -license accept
@@ -78,7 +85,7 @@ jobs:
       actions: read
     needs: test
     if: github.event_name != 'pull_request'
-    runs-on: macos-latest
+    runs-on: xcode-27
     # Generous vs. observed history (last ~3 days: median 12.4m, p90 14.5m,
     # max 19.8m) — matches the equivalent archive+export+upload job's
     # allowance in parso-workout-ios-app (150m vs its own ~19.8m max).
@@ -142,12 +149,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Select latest Xcode
+      - name: Select Xcode 27
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
         run: |
-          XCODE=$(ls /Applications/ | grep "^Xcode_" | sort -V | tail -1)
-          sudo xcode-select -s /Applications/$XCODE
+          XCODE=$(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' ! -iname '*beta*' ! -iname '*rc*' -print | sort -V | tail -1)
+          test -n "$XCODE"
+          sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          XCODE_VERSION=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          XCODE_MAJOR=${XCODE_VERSION%%.*}
+          if [ "$XCODE_MAJOR" -lt 27 ]; then
+            echo "::error::Xcode 27 or newer is required to build with the iOS 27 SDK (found $XCODE_VERSION)"
+            exit 1
+          fi
 
       - name: Accept Xcode License
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
@@ -319,6 +333,9 @@ jobs:
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           set -eo pipefail
+          # No deployment-target override here: project.yml is the single source of truth
+          # (IPHONEOS_DEPLOYMENT_TARGET 27.0), so the archived product matches what every
+          # validation build compiles.
           xcodebuild archive \
             -project Tonearm.xcodeproj \
             -scheme Tonearm \
@@ -328,7 +345,6 @@ jobs:
             ARCHS="arm64 arm64_32" \
             MARKETING_VERSION="$MKT_VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-            IPHONEOS_DEPLOYMENT_TARGET=18.0 \
             "DEVELOPMENT_TEAM=$TEAM_ID" \
             2>&1 | tee build.log
           if [ ! -d "./build/Tonearm.xcarchive" ]; then
