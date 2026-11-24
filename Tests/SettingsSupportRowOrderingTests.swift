@@ -24,7 +24,6 @@ import Testing
             "SupportDevelopmentCard() must still be called somewhere in SettingsView.body")
 
         for marker in ["watchCard", "settingsSection(\"Playback\"",
-                       "settingsSection(\"Library\"",
                        "settingsSection(\"Account & About\"", "advancedSection"] {
             let markerRange = try #require(afterBody.range(of: marker),
                 "expected marker \"\(marker)\" not found in SettingsView.body")
@@ -58,7 +57,7 @@ import Testing
         let after = s[body.upperBound...]
         var last = after.startIndex
         for m in ["settingsSection(\"Support\"", "settingsSection(\"Storage & Cache\"",
-                  "settingsSection(\"Playback\"", "settingsSection(\"Library\"",
+                  "settingsSection(\"Playback\"",
                   "settingsSection(\"Apple Watch\"", "settingsSection(\"Account & About\"",
                   "settingsSection(\"Advanced\""] {
             let r = try #require(after.range(of: m), "\(m)")
