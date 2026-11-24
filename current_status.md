@@ -62,15 +62,6 @@ direct `AppState`-level unit test of the persist-then-assign path.)
 - Settings "Custom artwork" card: "Clear Custom Artwork" now also clears the album- and
   source-level tables (and their `ArtworkStore` files); the byte count was already correct
   unchanged, since all three levels share the same `Tonearm/Artwork` directory.
-- **Sync (CloudKit) — explicitly not attempted.** `RecordMapping.swift`'s `CustomArtworkRecord`
-  push/pull pattern was reviewed; wiring `custom_artwork_album`/`custom_artwork_source` into the
-  sync engine (record types, zone push/pull, conflict handling, asset upload/download) is a real,
-  separate undertaking on top of an already-large change, so it was skipped per the task's own
-  "skip and say so" allowance rather than half-done. Note the existing track-level `custom_artwork`
-  table's `syncID` is *also* never populated by `setCustomArtwork` today (`allCustomArtworkRecords()`
-  filters `WHERE syncID IS NOT NULL` and finds nothing) — the new tables match that same
-  already-existing (pre-existing, not introduced here) unwired state rather than regressing it.
-
 ## C — DJ deck artwork affordance — not attempted
 
 Read `Sources/DJ/Features/Workspace/{TwinDeckView,SoloDeckView,DeckModuleSlot,DeckLoader}.swift`.
@@ -153,8 +144,6 @@ also fixes the same staleness for source tiles' existing embedded/iTunes/IA art.
 
 - **C (DJ deck artwork affordance):** not attempted — see above; needs its own scoped
   dependency-injection design to reach `AppState` from `TonearmDJ`.
-- **B's CloudKit sync wiring** for `custom_artwork_album`/`custom_artwork_source`: not attempted —
-  see above.
 - **Pre-existing `PlaylistCrateImporterTests` crash** (unrelated to this work, in `TonearmDJTests`,
   blocks `swift test` and `make test-local` from completing cleanly): left as found per the "don't
   touch CLAP/DJ work" instruction; flagging here since it currently blocks CI-shaped verification for

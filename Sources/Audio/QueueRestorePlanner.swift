@@ -18,7 +18,7 @@ public struct RestorePlan: Sendable {
 
 /// Pure, testable planner that rebuilds a play queue from a `PlaybackStateSnapshot`.
 /// Resolves tracks by rowid, falling back to syncID for reinstall scenarios where
-/// rowids have changed after CloudKit resync (G6).
+/// rowids have changed after a library restore (G6).
 public enum QueueRestorePlanner {
 
     /// Plans a restore given resolution closures. `resolveByID` looks up a row

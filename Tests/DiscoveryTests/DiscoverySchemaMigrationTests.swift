@@ -103,7 +103,7 @@ import Testing
     }
 
     @Test func testDiscoveryTablesHaveNoSyncIDColumn() throws {
-        // Plan §4: device-local tables are excluded from CloudKit export.
+        // Device-local tables are excluded from any library export.
         // This repo's sync export list is keyed off syncID columns (v7), so
         // the absence of syncID is the structural guarantee.
         //

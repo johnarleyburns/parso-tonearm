@@ -36,7 +36,6 @@ struct TonearmApp: App {
         // it only sets the permanent Supporter badge flag.
         SupportDevelopmentStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
-        AudioPlayer.shared.persistor.cloudBackend = CloudPlaybackBackend()
 
         // Discovery/CLAP indexing (IMPLEMENT_CLAP_PLAN.md §7): the BGTask
         // handler must be registered before the app finishes launching, from a

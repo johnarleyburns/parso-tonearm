@@ -127,44 +127,4 @@ extension LibraryStore {
             return result
         }
     }
-
-#if !os(watchOS)
-    /// `dj_track_prep` CloudKit records are receive-only now (nothing in this app ever enqueues
-    /// one to push — `enqueueDJTrackPrep` was removed as dead code); this only applies an
-    /// already-pending remote record from an old app version's sync history. Only `bpm`/
-    /// `camelotKey`/`bpmOverride` are real data to accept now; an incoming record's other, now-
-    /// unrepresented fields (hot cues, loops, the analysis-payload blob) are simply never read.
-    public func applyIncomingDJTrackPrep(_ envelope: DJTrackPrepEnvelope) throws -> Int {
-        let ids = try localTrackIds(matching: envelope.trackKeys, trackSyncID: envelope.trackSyncID)
-        guard !ids.isEmpty else { return 0 }
-        var applied = 0
-        try dbQueue.write { db in
-            for id in ids {
-                var local = try DJTrackPrep.fetchOne(db, key: id) ?? DJTrackPrep(trackId: id)
-                let incoming = envelope.prep
-                let incomingIsNewer: Bool = {
-                    guard incoming.bpm != nil || incoming.camelotKey != nil || incoming.analysisUpdatedAt != nil
-                    else { return false }
-                    guard let localDate = local.analysisUpdatedAt else { return true }
-                    guard let incomingDate = incoming.analysisUpdatedAt else { return false }
-                    return incomingDate > localDate
-                }()
-                if incomingIsNewer {
-                    local.bpm = incoming.bpm
-                    local.camelotKey = incoming.camelotKey
-                    local.analysisUpdatedAt = incoming.analysisUpdatedAt
-                    local.bpmOverride = incoming.bpmOverride
-                }
-                local.syncID = local.syncID ?? incoming.syncID
-                try local.save(db)
-                if var track = try Track.fetchOne(db, key: id), track.syncID == nil {
-                    track.syncID = envelope.prep.syncID
-                    try track.update(db)
-                }
-                applied += 1
-            }
-        }
-        return applied
-    }
-#endif
 }

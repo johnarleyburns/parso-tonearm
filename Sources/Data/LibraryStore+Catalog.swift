@@ -450,7 +450,7 @@ extension LibraryStore {
         }
     }
 
-    /// Resolves a track by its stable `syncID` (used after reinstall+CloudKit
+    /// Resolves a track by its stable `syncID` (used after reinstall
     /// resync when rowids have changed — G6).
     public func trackRow(syncID: String) throws -> TrackRow? {
         try dbQueue.read { db in

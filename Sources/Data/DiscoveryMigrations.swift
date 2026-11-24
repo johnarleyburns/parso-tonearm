@@ -7,18 +7,12 @@ import GRDB
 /// `source`/`album`/`artist`/`track`/`asset`/`playlist`/`playlist_item`/
 /// `favorite`/`play_history`/`custom_artwork` or any historical migration.
 ///
-/// All ten tables here were originally device-local derived state,
-/// intentionally NOT added to any CloudKit/sync export list (plan §4 —
-/// "All new tables are device-local: exclude jobs, caches, derived
-/// analysis, model state and checkpoints from CloudKit export"), and none
-/// gained a `syncID` column, unlike the v7 syncedTables migration.
-///
-/// **Updated** (docs/plans/macos-app-cloud-sync-plan.md §4.1, migration
-/// `v25`): `discovery_embedding` and `discovery_track_analysis` are now the
-/// deliberate exception — they hold indexing *outcomes*, not queue/lease/
-/// scratch state, so they're the two tables actually worth sharing across a
-/// user's own devices (index on a Mac, see results on an iPhone). The
-/// other eight tables here stay device-local exactly as before.
+/// All ten tables here are device-local derived state: indexing jobs,
+/// caches, analysis results, model state, and checkpoints. None is exported
+/// or shared between devices. `discovery_embedding` and
+/// `discovery_track_analysis` still carry a `syncID` column from the removed
+/// multi-device indexing experiment; it is retained only so existing stores
+/// keep their schema shape.
 enum DiscoveryMigrations {
     static func v18(_ db: Database) throws {
         try db.create(table: "discovery_asset_state") { t in

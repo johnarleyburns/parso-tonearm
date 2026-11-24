@@ -31,7 +31,6 @@ struct SettingsView: View {
     @State var showCustomCacheLimit = false
     @State var customCacheLimitMB = ""
     @State var customCacheLimitMessage: String?
-    @State var icloudSync = SyncGating.isEnabled
     @State var showWatchSettings = false
     @State var isRepairingCloudDownloads = false
     @AppStorage("appearanceMode") var appearanceMode = AppearanceMode.system.rawValue
@@ -55,11 +54,6 @@ struct SettingsView: View {
                     behaviorCard
                     keepPlayingCard
                     SiriSettingsCard()
-                }
-                settingsSection("Library", identifier: "settings.section.library") {
-                    // Libraries live in My Music's toolbar; a second entry here
-                    // was a duplicate of that screen.
-                    syncCard
                 }
                 settingsSection("Apple Watch", identifier: "settings.section.watch") {
                     watchCard
@@ -169,7 +163,6 @@ struct SettingsView: View {
         case "settings.section.playback": "Listening, crossfade and Siri"
         case "settings.section.support": "Help keep Platterhead free and open source"
         case "settings.section.storage": "Cached audio and custom artwork"
-        case "settings.section.library": "Music sources and sync"
         case "settings.section.watch": "Music on your Apple Watch"
         case "settings.section.advanced": "Tools, credentials and cleanup"
         default: "Appearance, privacy and support"
@@ -200,8 +193,7 @@ struct PrivacyView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Platterhead collects nothing.")
                     .font(Typography.headline)
-                privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead.")
-                privacyPoint("Optional iCloud sync", "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported).")
+                privacyPoint("No accounts", "There is no sign-in and no server that belongs to Platterhead. Your library, playlists, favorites, play history, custom artwork, and settings stay on this device.")
                 privacyPoint("No ads, no analytics", "No tracking of any kind. OAuth tokens are used only for services you explicitly connect.")
                 privacyPoint("Network contact", "Jamendo for its Creative Commons genre libraries, archive.org for libraries you added by URL (public items, lists, and collections require only the URL; private lists require your archive.org username/password stored locally in Keychain), Apple's iTunes Search for missing cover art, and remote-library providers you add yourself: \(RemoteConnectorCatalog.proDisplayList).")
                 privacyPoint("Your files stay yours", "Local music is referenced in place by secure bookmark and never uploaded.")
@@ -307,57 +299,5 @@ struct OptionalAccessibilityIdentifier: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-/// A status surface per CLAUDE.md's "no silent/magic background work" rule — real counts from `CloudSyncEngine`'s
-/// most recent pull pass. A separate view (rather than a computed property
-/// on `SettingsView`) so `@ObservedObject` can actually subscribe to
-/// `CloudSyncEngine`'s `@Published lastSyncActivity` — a computed property
-/// re-reads a plain value once per parent render, which would leave this
-/// stuck at whatever it read when Settings first appeared instead of
-/// updating live as sync passes complete while the screen is open.
-@available(iOS 17.0, *)
-struct DiscoverySyncActivityRow: View {
-    @ObservedObject private var engine = CloudSyncEngine.shared
-
-    var body: some View {
-        let activity = engine.lastSyncActivity
-        let total = activity.accepted + activity.rejectedKeepLocal + activity.rejectedRequeued
-        return VStack(alignment: .leading, spacing: 4) {
-            Text("Sound Index Sync").font(Typography.caption)
-            if activity.pendingTrackImport > 0 {
-                Text("\(activity.pendingTrackImport) indexing results from your other devices are waiting for those tracks to be added here.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                if let oldest = activity.pendingOldestDate {
-                    Text("Oldest waiting result: \(oldest.formatted(date: .abbreviated, time: .shortened))")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                HStack {
-                    Button("Retry matching") { Task { await engine.retryPending() } }
-                    Button("Discard waiting results", role: .destructive) {
-                        Task {
-                            try? await LibraryStore.shared.discardPendingSyncRecords()
-                            await engine.refreshPendingActivity()
-                        }
-                    }
-                }
-                .font(Typography.caption)
-            } else if total == 0 {
-                Text("No indexing results received from another device yet.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            } else {
-                Text("\(activity.accepted) received · \(activity.rejectedKeepLocal) already indexed here"
-                    + (activity.rejectedRequeued > 0
-                        ? " · \(activity.rejectedRequeued) incompatible, re-indexing here" : ""))
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-            if activity.prunedPendingCount > 0 {
-                Text("Automatically removed \(activity.prunedPendingCount) waiting result(s) older than 90 days.")
-                    .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-            }
-        }
-        .padding(.top, 6)
-        .accessibilityIdentifier("settings.icloudSync.discoveryActivity")
     }
 }

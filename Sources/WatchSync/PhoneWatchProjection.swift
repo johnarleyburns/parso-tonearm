@@ -4,7 +4,7 @@ import TonearmWatchProtocol
 /// Two-way stable string identifiers for the phone↔watch boundary.
 ///
 /// §4: "All persistent IDs are stable strings from the phone; no phone GRDB integer primary key
-/// crosses the protocol boundary." A record that already carries a `syncID` (CloudKit-synced rows,
+/// crosses the protocol boundary." A record that already carries a `syncID` (restored rows,
 /// watch-catalog imports) uses it verbatim. A record without one — a purely local album that has
 /// never synced — gets a prefixed row token instead of a bare integer, so the wire form is always
 /// visibly an opaque key and the reverse lookup can tell the two cases apart.

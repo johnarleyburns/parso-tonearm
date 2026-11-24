@@ -9,7 +9,7 @@ import Foundation
 ///
 /// Deliberately local-only (`UserDefaults`, not the synced `LibraryStore`
 /// DB) — this is presentation ordering, not library data, so it doesn't
-/// need iCloud sync or cross-device consistency the way playlist contents
+/// need cross-device consistency the way playlist contents
 /// do.
 enum PinnedPlaylistsStore {
     private static let key = "pinnedPlaylistIds.v1"

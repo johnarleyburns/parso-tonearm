@@ -1387,113 +1387,6 @@
         }
       }
     },
-    "%lld indexing results from your other devices are waiting for those tracks to be added here." : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld Indexierungsergebnis von deinen anderen Geräten wartet darauf, dass der Titel hier hinzugefügt wird."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld Indexierungsergebnisse von deinen anderen Geräten warten darauf, dass die Titel hier hinzugefügt werden."
-                }
-              }
-            }
-          }
-        },
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld indexing result from your other devices is waiting for that track to be added here."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld indexing results from your other devices are waiting for those tracks to be added here."
-                }
-              }
-            }
-          }
-        },
-        "es" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultado de indexación de tus otros dispositivos está esperando a que se añada esa pista aquí."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultados de indexación de tus otros dispositivos están esperando a que se añadan esas pistas aquí."
-                }
-              }
-            }
-          }
-        },
-        "fr" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld résultat d’indexation de vos autres appareils attend que ce morceau soit ajouté ici."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld résultats d’indexation de vos autres appareils attendent que ces morceaux soient ajoutés ici."
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ほかのデバイスからの%lld件のインデックス結果が、対象の曲がここに追加されるのを待っています。"
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultado de indexação dos seus outros dispositivos está aguardando que essa faixa seja adicionada aqui."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultados de indexação dos seus outros dispositivos estão aguardando que essas faixas sejam adicionadas aqui."
-                }
-              }
-            }
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "来自你其他设备的 %lld 个索引结果正在等待这些曲目添加到此设备。"
-          }
-        }
-      }
-    },
     "%lld libraries" : {
       "comment" : "UI text shown in: Genre Picker (Sources/Features/Ingest/GenrePickerView.swift)",
       "localizations" : {
@@ -7302,113 +7195,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "试听"
-          }
-        }
-      }
-    },
-    "Automatically removed %lld waiting result(s) older than 90 days." : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld wartendes Ergebnis, das älter als 90 Tage war, wurde automatisch entfernt."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld wartende Ergebnisse, die älter als 90 Tage waren, wurden automatisch entfernt."
-                }
-              }
-            }
-          }
-        },
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Automatically removed %lld waiting result older than 90 days."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Automatically removed %lld waiting results older than 90 days."
-                }
-              }
-            }
-          }
-        },
-        "es" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "Se eliminó automáticamente %lld resultado en espera con más de 90 días."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "Se eliminaron automáticamente %lld resultados en espera con más de 90 días."
-                }
-              }
-            }
-          }
-        },
-        "fr" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld résultat en attente datant de plus de 90 jours a été supprimé automatiquement."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld résultats en attente datant de plus de 90 jours ont été supprimés automatiquement."
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "90日以上経過した待機中の結果%lld件を自動的に削除しました。"
-          }
-        },
-        "pt-BR" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultado pendente com mais de 90 dias foi removido automaticamente."
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "needs_review",
-                  "value" : "%lld resultados pendentes com mais de 90 dias foram removidos automaticamente."
-                }
-              }
-            }
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "已自动移除 %lld 个超过 90 天的待处理结果。"
           }
         }
       }
@@ -13429,53 +13215,6 @@
         }
       }
     },
-    "Discard waiting results" : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Wartende Ergebnisse verwerfen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard waiting results"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Descartar resultados en espera"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ignorer les résultats en attente"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "待機中の結果を破棄"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Descartar resultados pendentes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "丢弃待处理结果"
-          }
-        }
-      }
-    },
     "Disco" : {
       "comment" : "UI text shown in: Jamendo Genre Provider (Sources/Remote/Providers/JamendoGenreProvider.swift)",
       "localizations" : {
@@ -18411,53 +18150,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "自由爵士"
-          }
-        }
-      }
-    },
-    "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported)." : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Kostenlos für alle, standardmäßig aus. Wenn du es aktivierst, werden „Musik“, Playlists, Favoriten, Wiedergabeverlauf, eigene Cover und Einstellungen über deinen eigenen iCloud-Account synchronisiert – nicht über einen Platterhead-Server. Synchronisiert werden nur Metadaten, Playlists, Cover und Einstellungen; zwischengespeichertes Streaming-Audio wird nie hochgeladen, und lokale Dateien bleiben auf dem Gerät (auf anderen Geräten werden sie als „nicht auf diesem Gerät“ angezeigt, bis sie erneut importiert werden)."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Free for everyone, off by default. When you turn it on, your Music, playlists, favorites, play history, custom artwork, and settings sync through your own iCloud account — not a Platterhead server. Only metadata, playlists, artwork, and settings sync; streamed cache audio is never uploaded, and local files stay on-device (they show as \"not on this device\" elsewhere until re-imported)."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gratis para todos y desactivado de forma predeterminada. Al activarlo, tu Música, playlists, favoritos, historial de reproducción, portadas personalizadas y ajustes se sincronizan a través de tu propia cuenta de iCloud, no de un servidor de Platterhead. Solo se sincronizan metadatos, playlists, portadas y ajustes; el audio en caché de las transmisiones nunca se sube y los archivos locales se quedan en el dispositivo (en otros dispositivos aparecen como «no está en este dispositivo» hasta que se vuelvan a importar)."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gratuit pour tous, désactivé par défaut. Une fois activée, votre Musique, vos playlists, favoris, historique d’écoute, illustrations personnalisées et réglages se synchronisent via votre propre compte iCloud – pas via un serveur Platterhead. Seuls les métadonnées, playlists, illustrations et réglages sont synchronisés ; l’audio en cache des flux n’est jamais envoyé et les fichiers locaux restent sur l’appareil (ailleurs, ils apparaissent comme « absent de cet appareil » jusqu’à leur réimportation)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "誰でも無料で、デフォルトはオフです。オンにすると、ミュージック、プレイリスト、お気に入り、再生履歴、カスタムアートワーク、設定が、Platterheadのサーバではなくあなた自身のiCloudアカウントで同期されます。同期されるのはメタデータ、プレイリスト、アートワーク、設定だけです。ストリーミングのキャッシュ音声がアップロードされることはなく、ローカルファイルはデバイスに残ります（ほかのデバイスでは、再度読み込むまで「このデバイスにありません」と表示されます）。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Gratuito para todos e desativado por padrão. Ao ativar, sua Música, playlists, favoritos, histórico de reprodução, capas personalizadas e ajustes são sincronizados pela sua própria conta do iCloud — não por um servidor do Platterhead. Só metadados, playlists, capas e ajustes são sincronizados; o áudio em cache das transmissões nunca é enviado, e os arquivos locais ficam no dispositivo (em outros aparelhos aparecem como “não está neste dispositivo” até serem importados novamente)."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "对所有人免费，默认关闭。开启后，你的音乐、播放列表、个人收藏、播放历史、自定义插图和设置将通过你自己的 iCloud 账户同步，而不是通过 Platterhead 服务器。只同步元数据、播放列表、插图和设置；串流缓存音频绝不会上传，本地文件保留在设备上（在其他设备上会显示为“不在此设备上”，直到重新导入）。"
           }
         }
       }
@@ -26413,53 +26105,6 @@
         }
       }
     },
-    "Music, playlists & settings across your devices, using your own iCloud" : {
-      "comment" : "UI text shown in: Settings Library Sections (Sources/Features/Settings/SettingsView+LibrarySections.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Musik, Playlists & Einstellungen auf all deinen Geräten – über dein eigenes iCloud"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Music, playlists & settings across your devices, using your own iCloud"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Música, playlists y ajustes en todos tus dispositivos con tu propio iCloud"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Musique, playlists et réglages sur tous vos appareils, via votre propre iCloud"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "音楽、プレイリスト、設定をあなた自身のiCloudでデバイス間に"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Músicas, playlists e ajustes em todos os seus dispositivos, usando seu próprio iCloud"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "通过你自己的 iCloud 在所有设备上同步音乐、播放列表和设置"
-          }
-        }
-      }
-    },
     "Musique Concrète" : {
       "comment" : "UI text shown in: Jamendo Genre Provider (Sources/Remote/Providers/JamendoGenreProvider.swift)",
       "localizations" : {
@@ -27071,53 +26716,6 @@
         }
       }
     },
-    "No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect" : {
-      "comment" : "UI text shown in: Settings Account Sections (Sources/Features/Settings/SettingsView+AccountSections.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Keine eigenen Accounts; optionale Synchronisierung über Apple iCloud · keine Werbung · keine Analyse · kommuniziert nur mit archive.org (nur URL für Öffentliches; Schlüsselbund für private Listen), der Cover-Suche von Apple und Bibliotheken, die du ausdrücklich verbindest"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sin cuentas propias; sincronización opcional con iCloud de Apple · sin anuncios · sin analíticas · solo se comunica con archive.org (solo la URL para lo público; llavero para listas privadas), la búsqueda de portadas de Apple y las bibliotecas que conectes expresamente"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Aucun compte chez nous ; synchronisation iCloud d’Apple facultative · aucune publicité · aucune analyse · communique uniquement avec archive.org (URL seule pour le public ; trousseau pour les listes privées), la recherche d’illustrations d’Apple et les bibliothèques que vous connectez explicitement"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "独自アカウントなし。AppleのiCloud同期は任意 · 広告なし · 分析なし · 通信先はarchive.org（公開項目はURLのみ、非公開リストはキーチェーン）、Appleのアートワーク検索、あなたが明示的に接続したライブラリだけ"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sem contas nossas; sincronização opcional com o iCloud da Apple · sem anúncios · sem análises · fala apenas com o archive.org (só a URL para itens públicos; Chaves para listas privadas), a busca de capas da Apple e as bibliotecas que você conectar explicitamente"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "不需要我们的账户；可选 Apple iCloud 同步 · 无广告 · 无分析 · 仅与 archive.org（公开内容只需网址；私人列表使用钥匙串）、Apple 插图搜索以及你明确连接的资料库通信"
-          }
-        }
-      }
-    },
     "No active processing blockers." : {
       "comment" : "UI text shown in: Tools (Sources/Features/Settings/ToolsView.swift)",
       "localizations" : {
@@ -27631,53 +27229,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "未选择风格"
-          }
-        }
-      }
-    },
-    "No indexing results received from another device yet." : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Noch keine Indexierungsergebnisse von einem anderen Gerät erhalten."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No indexing results received from another device yet."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Aún no se han recibido resultados de indexación de otro dispositivo."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Aucun résultat d’indexation reçu d’un autre appareil pour l’instant."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "ほかのデバイスからのインデックス結果はまだ受信していません。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Nenhum resultado de indexação recebido de outro dispositivo ainda."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "尚未从其他设备收到索引结果。"
           }
         }
       }
@@ -29562,53 +29113,6 @@
         }
       }
     },
-    "Oldest waiting result: %@" : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Ältestes wartendes Ergebnis: %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oldest waiting result: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Resultado en espera más antiguo: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Plus ancien résultat en attente : %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "最も古い待機中の結果：%@"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Resultado pendente mais antigo: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "最早的待处理结果：%@"
-          }
-        }
-      }
-    },
     "On" : {
       "comment" : "UI text shown in: Siri Settings Card (Sources/Features/Settings/SiriSettingsCard.swift)",
       "localizations" : {
@@ -30075,53 +29579,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "打开 Apple Watch 设置"
-          }
-        }
-      }
-    },
-    "Optional iCloud sync" : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Optionale iCloud-Synchronisierung"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Optional iCloud sync"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronización opcional con iCloud"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Synchronisation iCloud facultative"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "任意のiCloud同期"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronização opcional com o iCloud"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "可选 iCloud 同步"
           }
         }
       }
@@ -37944,53 +37401,6 @@
         }
       }
     },
-    "Retry matching" : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Abgleich erneut versuchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retry matching"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Reintentar la coincidencia"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Réessayer la correspondance"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "照合を再試行"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Tentar de novo a correspondência"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "重试匹配"
-          }
-        }
-      }
-    },
     "Returns to the original tempo over %lld beats" : {
       "comment" : "UI text shown in: Mix Explanations (Sources/Features/Mix/MixExplanationViews.swift)",
       "localizations" : {
@@ -40743,53 +40153,6 @@
         }
       }
     },
-    "Sign in to iCloud to sync." : {
-      "comment" : "UI text shown in: Sync Gating (Sources/Sync/SyncGating.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Melde dich bei iCloud an, um zu synchronisieren."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sign in to iCloud to sync."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Inicia sesión en iCloud para sincronizar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Connectez-vous à iCloud pour synchroniser."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "同期するにはiCloudにサインインしてください。"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Inicie sessão no iCloud para sincronizar."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "登录 iCloud 以同步。"
-          }
-        }
-      }
-    },
     "Sign in with %@" : {
       "comment" : "UI text shown in: Add Server Sheet (Sources/Features/Ingest/AddServerSheet.swift)",
       "localizations" : {
@@ -41974,53 +41337,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "声音索引"
-          }
-        }
-      }
-    },
-    "Sound Index Sync" : {
-      "comment" : "UI text shown in: Settings (Sources/Features/Settings/SettingsView.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Klangindex-Synchronisierung"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sound Index Sync"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronización del índice de sonido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Synchronisation de l’index sonore"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "サウンドインデックスの同期"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronização do índice sonoro"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "声音索引同步"
           }
         }
       }
@@ -52406,53 +51722,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "风格"
-          }
-        }
-      }
-    },
-    "iCloud Sync" : {
-      "comment" : "UI text shown in: Settings Library Sections (Sources/Features/Settings/SettingsView+LibrarySections.swift)",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "iCloud-Synchronisierung"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iCloud Sync"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronización con iCloud"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Synchronisation iCloud"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "iCloud同期"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Sincronização com o iCloud"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "iCloud 同步"
           }
         }
       }

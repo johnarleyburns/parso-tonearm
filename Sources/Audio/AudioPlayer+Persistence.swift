@@ -235,7 +235,7 @@ extension AudioPlayer {
 
         guard let plan, !plan.rows.isEmpty, queue.isEmpty, !isAmbient else {
             // Retry: if nothing was restored, allow a second attempt later
-            // (needed for post-CloudKit-reconcile second attempt, F8).
+            // (needed when a later restore attempt can still succeed, F8).
             restoreTask = nil
             return
         }

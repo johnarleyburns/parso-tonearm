@@ -71,7 +71,7 @@ No runtime access to `DJDatabase`, DJLibraryStore or a DJ `.sqlite` path at comp
 
 Append the next unused core migration (v18 at writing); preserve historical core migrations and all source/track/asset/playlist/sync data. Register new SQL in the existing Schema migrator. Disable erase-on-schema-change except in explicit disposable test fixtures.
 
-All derived rows reference core `track.id`, and asset-dependent rows also record `asset.id` and a monotonic content revision. All new tables are device-local: exclude jobs, caches, derived analysis, model state and checkpoints from CloudKit export. Incoming core sync mutations must still enqueue local work. Use foreign keys with cascade deletion and CHECK/UNIQUE constraints for state and identity invariants.
+All derived rows reference core `track.id`, and asset-dependent rows also record `asset.id` and a monotonic content revision. All new tables are device-local: jobs, caches, derived analysis, model state and checkpoints never leave the device. Use foreign keys with cascade deletion and CHECK/UNIQUE constraints for state and identity invariants.
 
 | Table | Required fields/invariants |
 |---|---|

@@ -162,7 +162,7 @@ extension Schema {
 
         if shouldRegister("v7", upTo: target) {
             migrator.registerMigration("v7") { db in
-                // Stable cross-device identity for iCloud sync (Pro). GRDB autoincrement
+                // Stable cross-device identity for Watch handoff and queue restore. GRDB autoincrement
                 // Int64 PKs aren't safe across devices; add a UUID `syncID` to every
                 // synced table and backfill existing rows. Also add `needsReimport` so a
                 // device with no resolvable local file can surface the track as

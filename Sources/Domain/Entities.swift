@@ -55,8 +55,9 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// Remembers which track's embedded artwork represents this source, so the
     /// representative cover is cached and stable across launches.
     public var artworkTrackId: Int64? = nil
-    /// Stable cross-device identity for iCloud sync (schema v7). Local `Int64`
-    /// PKs remain the internal FK join key; `syncID` names the CloudKit record.
+    /// Stable cross-device identity (schema v7). Local `Int64` PKs remain the
+    /// internal FK join key; `syncID` is the durable identity used by the Watch
+    /// handoff and by queue restore after a reinstall.
     public var syncID: String? = nil
     /// Remembers the last folder browsed in a remote source's browser (schema
     /// v45), so reopening it returns there instead of always restarting at the
@@ -74,7 +75,7 @@ public struct Source: Identifiable, Equatable, Codable, Hashable, Sendable {
     /// missing column and simply means "not watched."
     public var watch: Bool? = nil
     /// Security-scoped bookmark for a watched folder import (schema v52). Device-specific — never
-    /// synced via CloudKit, same deliberate exclusion `Playlist.folderBookmark` already has.
+    /// persisted, the same deliberate exclusion `Playlist.folderBookmark` already has.
     public var folderBookmark: Data? = nil
 
     public init(id: Int64?,
@@ -271,7 +272,7 @@ public struct Asset: Identifiable, Equatable, Codable, Sendable {
     /// AVFoundation an explicit format hint instead of guessing from the URL.
     public var remoteContentType: String? = nil
     /// Set on a device where the asset's local file can't be resolved after an
-    /// iCloud pull (the device-specific bookmark doesn't cross devices). The
+    /// library restore (the device-specific bookmark doesn't cross devices). The
     /// track shows greyed / "not on this device" until re-imported (C4).
     public var needsReimport: Bool = false
     public var syncID: String? = nil
