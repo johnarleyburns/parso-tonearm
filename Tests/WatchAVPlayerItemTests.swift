@@ -560,10 +560,11 @@ import TonearmWatchProtocol
     @Test func testOnMyWatchAddsBySearchAndDismissesFailureNoticeInPlace() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let myMusic = try String(contentsOf: root.appendingPathComponent("Sources/Features/MyMusic/MyMusicView.swift"), encoding: .utf8)
+        let picker = try String(contentsOf: root.appendingPathComponent("Sources/Features/MyMusic/WatchAddMusicView.swift"), encoding: .utf8)
         #expect(myMusic.contains("mymusic.watch.add"))
         #expect(myMusic.contains("WatchAddMusicView"))
-        #expect(myMusic.contains("confirmationDialog(\"Download to watch?\""))
-        #expect(myMusic.contains("await appState.downloadToWatch(rows: [row])"))
+        #expect(picker.contains("confirmationDialog(\"Download to watch?\""))
+        #expect(picker.contains("await appState.downloadToWatch(rows: [row])"))
         #expect(myMusic.contains("dismissedFailureCount"))
         #expect(!myMusic.contains("appState.showWatchSettings = true"))
         #expect(!myMusic.contains("Last watch report:"))
