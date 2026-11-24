@@ -1,9 +1,9 @@
 import Foundation
 import GRDB
 
-/// Cache entries, the full sync snapshot reads (iCloud, Pro), and the
-/// single-row deletes/updates/syncID lookups they rely on — split out of
-/// `LibraryStore.swift` (pure reorganization).
+/// Cache entries, full-library snapshot reads, and the single-row
+/// deletes/updates/syncID lookups watch handoff and queue restore rely on —
+/// split out of `LibraryStore.swift` (pure reorganization).
 extension LibraryStore {
 
     // MARK: - Cache entries
@@ -38,11 +38,11 @@ extension LibraryStore {
         _ = try dbQueue.write { db in try CacheEntry.deleteAll(db) }
     }
 
-    // MARK: - Sync snapshot (iCloud, Pro)
+    // MARK: - Library snapshot
 
-    /// All rows of every synced table, for a full push snapshot. Raw domain
-    /// values carry their `syncID`; parent references are resolved via the
-    /// `syncID` lookups below so cross-device identity is stable (C2/C3).
+    /// All rows of each library table. Raw domain values carry their `syncID`;
+    /// parent references can be resolved via the `syncID` lookups below so
+    /// identity is stable when the Watch or queue restore re-links rows.
     public func allAlbums() throws -> [Album] {
         try dbQueue.read { db in try Album.fetchAll(db) }
     }
@@ -65,16 +65,6 @@ extension LibraryStore {
 
     public func allPlayEvents() throws -> [PlayEvent] {
         try dbQueue.read { db in try PlayEvent.fetchAll(db) }
-    }
-
-    public func allCustomArtworkRecords() throws -> [CustomArtworkRecord] {
-        try dbQueue.read { db in
-            let rows = try Row.fetchAll(db, sql: "SELECT syncID, artworkId FROM custom_artwork WHERE syncID IS NOT NULL")
-            return rows.compactMap { row in
-                guard let syncID: String = row["syncID"], let artworkId: String = row["artworkId"] else { return nil }
-                return CustomArtworkRecord(syncID: syncID, artworkId: artworkId)
-            }
-        }
     }
 
     /// Looks up a table's `syncID` for a given local `Int64` PK (parent ref).

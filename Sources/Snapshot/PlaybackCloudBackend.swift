@@ -1,8 +1,8 @@
 import Foundation
 
-/// Testable abstraction over the cloud persistence of playback state (G6).
-/// The production implementation pushes/pulls a `playback-state` CloudKit
-/// record; tests install an in-memory fake to simulate reinstall scenarios.
+/// Testable abstraction over an optional external persistence tier for playback
+/// state (G6). Production leaves it unset; tests install an in-memory fake to
+/// simulate reinstall scenarios.
 public protocol PlaybackCloudBackend: AnyObject, Sendable {
     func load() async -> PlaybackStateSnapshot?
     func save(_ snapshot: PlaybackStateSnapshot)

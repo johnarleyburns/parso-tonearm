@@ -98,7 +98,6 @@ targets:
           - "Remote/**"
           - "Share/**"
           - "Snapshot/**"
-          - "Sync/**"
           # Package-only Objective-C target (TonearmObjCSupport), linked through TonearmCore.
           - "ObjCSupport/**"
           - "WatchPlayback/**"

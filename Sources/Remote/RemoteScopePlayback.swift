@@ -47,8 +47,8 @@ public enum RemoteScopePlayback {
     /// take several round-trip API calls to enumerate, is being scanned (CLAUDE.md: no silent
     /// background work). Cooperatively cancellable via the calling `Task`.
     /// `onFolderVisited` is `@MainActor @Sendable`, matching the established pattern for a
-    /// UI-driving callback elsewhere in this codebase (`CloudSyncEngine.onDJTrackPrepApplied`,
-    /// `PhoneWatchRuntime.onChange`) — `AddFolderToLibrarySheet` passes one that mutates its own
+    /// UI-driving callback elsewhere in this codebase (`PhoneWatchRuntime.onChange`) —
+    /// `AddFolderToLibrarySheet` passes one that mutates its own
     /// `@State foldersVisited`/`tracksFound` directly, and Swift 6 rightly refuses to "send" a
     /// MainActor-isolated closure into a plain, non-isolated parameter (confirmed by a real CI
     /// failure: "sending value of non-Sendable type '(Int, Int) -> Void' risks causing data

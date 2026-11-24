@@ -38,40 +38,6 @@ import GRDB
         #expect(info?.camelotKey == "8A")
     }
 
-    /// A legacy `DJTrackPrep` CloudKit record from an old app version carries fields this app no
-    /// longer stores at all (hot cues, loops, the analysis-payload blob) — `applyIncomingDJTrackPrep`
-    /// must apply the fields that survive (bpm/camelotKey/bpmOverride) without erroring on the rest.
-    @Test func testApplyIncomingDJTrackPrepAcceptsALegacyEnvelopeAndAppliesOnlyKeptFields() async throws {
-        let (store, trackID) = try await makeStoreWithTrack()
-        let syncID = try await store.dbQueue.write { db -> String in
-            let sync = UUID().uuidString
-            try db.execute(sql: "UPDATE track SET syncID = ? WHERE id = ?", arguments: [sync, trackID])
-            return sync
-        }
-
-        let incoming = DJTrackPrep(trackId: 0, bpm: 126, camelotKey: "8A",
-                                   analysisUpdatedAt: Date(timeIntervalSince1970: 100),
-                                   syncID: "PREP-REMOTE-1", bpmOverride: 130)
-        let envelope = DJTrackPrepEnvelope(prep: incoming, trackSyncID: syncID, trackKeys: [])
-        let applied = try await store.applyIncomingDJTrackPrep(envelope)
-        #expect(applied == 1)
-
-        let row = try await store.dbQueue.read { db in try DJTrackPrep.fetchOne(db, key: trackID) }
-        #expect(row?.bpm == 126)
-        #expect(row?.camelotKey == "8A")
-        #expect(row?.bpmOverride == 130)
-        #expect(row?.syncID == "PREP-REMOTE-1")
-
-        // An older incoming update must not clobber a newer local one.
-        let stale = DJTrackPrep(trackId: 0, bpm: 90, camelotKey: "1A",
-                                analysisUpdatedAt: Date(timeIntervalSince1970: 50),
-                                syncID: "PREP-REMOTE-1", bpmOverride: nil)
-        let staleEnvelope = DJTrackPrepEnvelope(prep: stale, trackSyncID: syncID, trackKeys: [])
-        _ = try await store.applyIncomingDJTrackPrep(staleEnvelope)
-        let unchanged = try await store.dbQueue.read { db in try DJTrackPrep.fetchOne(db, key: trackID) }
-        #expect(unchanged?.bpm == 126, "an older update must lose against the already-applied newer one")
-    }
-
     @Test func testLoadBrowserMetadataPrefersCurrentDiscoveryAnalysisAndOverride() async throws {
         let (store, trackID) = try await makeStoreWithTrack()
         let asset = try await store.insertAsset(Asset(

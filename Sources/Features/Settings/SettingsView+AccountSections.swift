@@ -103,7 +103,7 @@ extension SettingsView {
             PrivacyView(ownsNavigationStack: false)
         } label: {
             SettingsRow(icon: "hand.raised", title: "Privacy",
-                        detail: Text("No accounts of ours; optional Apple iCloud sync · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect"))
+                        detail: Text("No accounts of ours · no ads · no analytics · talks only to archive.org (URL only for public; Keychain for private lists), Apple artwork search, and libraries you explicitly connect"))
                 .padding(15)
                 .glassSurface(cornerRadius: 18)
                 .contentShape(Rectangle())

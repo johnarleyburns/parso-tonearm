@@ -151,7 +151,7 @@ extension LibraryStore {
 
     /// Applies an explicit track order while retaining any tracks not present
     /// in the proposed order at the end. Existing playlist-item rows are
-    /// reused so CloudKit identity and per-item metadata remain stable.
+    /// reused so per-item identity and metadata remain stable.
     public func applyPlaylistOrder(id playlistId: Int64, orderedTrackIDs: [Int64]) throws {
         try dbQueue.write { db in
             let original = try playlistItemRecords(playlistId: playlistId, db: db)

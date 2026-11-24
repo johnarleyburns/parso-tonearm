@@ -67,53 +67,6 @@ extension SettingsView {
         .accessibilityIdentifier("settings.eq")
     }
 
-    /// iCloud sync — free for all users. Off by default; the engine runs when
-    /// the toggle is on and an iCloud account is available.
-    var syncCard: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("iCloud Sync").font(Typography.callout)
-                    Text("Music, playlists & settings across your devices, using your own iCloud")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { icloudSync },
-                    set: { newValue in
-                        icloudSync = newValue
-                        SyncGating.isEnabled = newValue
-                        if #available(iOS 17.0, *) {
-                            Task { await CloudSyncEngine.shared.reconcile() }
-                        }
-                    }
-                ))
-                .labelsHidden().tint(Palette.accent)
-                .accessibilityLabel("iCloud Sync")
-                .accessibilityIdentifier("settings.icloudSync")
-            }
-            .padding(.vertical, 8)
-
-            if icloudSync, #available(iOS 17.0, *) {
-                Divider().overlay(Palette.hairline)
-                discoverySyncActivityRow
-            }
-        }
-        .padding(15)
-        .glassSurface(cornerRadius: 18)
-    }
-
-    /// docs/plans/macos-app-cloud-sync-plan.md §4 status surface — real
-    /// counts from `CloudSyncEngine`'s most recent pull pass (CLAUDE.md "no
-    /// silent/magic background work": a user turning this on should be able
-    /// to see what it's actually doing, not just a spinner). `nil` counts
-    /// (nothing synced yet this launch) show a plain waiting line instead
-    /// of a fabricated "0 of 0".
-    @available(iOS 17.0, *)
-    var discoverySyncActivityRow: some View {
-        DiscoverySyncActivityRow()
-    }
-
     var watchCard: some View {
         Button { showWatchSettings = true } label: {
             SettingsRow(icon: "applewatch", title: "Apple Watch",

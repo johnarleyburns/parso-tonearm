@@ -29,8 +29,8 @@ development. It unlocks nothing; it simply adds a Supporter badge as a thank-you
 All formats (FLAC, Opus, ALAC, MP3, AAC, WAV/AIFF) · gapless · 10-band EQ · ReplayGain ·
 crossfade · unlimited cache, any size · any prefetch depth · folder watch · full Music
 browse by artist, album and genre · queue and playlist editing · local import · widgets,
-Shortcuts, share extension · listening stats · scrobbling · lyrics · iCloud Sync (Music,
-playlists, favorites, artwork, presets) · parametric EQ · crossfeed · convolution ·
+Shortcuts, share extension · listening stats · scrobbling · lyrics · parametric EQ ·
+crossfeed · convolution ·
 bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
 **all 14 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud, Box,
 Yandex.Disk, Subsonic/Navidrome, WebDAV, Jellyfin, Emby, Plex, SMB and Jamendo genre libraries)** ·
@@ -183,7 +183,6 @@ Sources/
   Audio/        AudioPlayer, CacheStore, CachingResourceLoader, EQ/, Opus/
   IA/           archive.org: URLGrammar, ItemResolver, List/CollectionResolver
   Support/      The optional Supporter contribution (import StoreKit is CI-fenced to this dir)
-  Sync/         CloudSyncEngine (CKSyncEngine) + pure mapping/merge/gating
   Features/     SwiftUI views — thin
   WatchPlayback/ WatchPlayerEngine, position store, audio output protocol
   WatchSync/     WatchCatalog, transfer queue, sync messages, library filter

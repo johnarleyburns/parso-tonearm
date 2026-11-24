@@ -110,7 +110,6 @@ let package = Package(
                 "Sources/Remote",
                 "Sources/Share",
                 "Sources/Snapshot",
-                "Sources/Sync",
                 "Sources/WatchExports.swift",
                 "Sources/WatchSync"
             ],

@@ -100,7 +100,7 @@ extension Schema {
                 // Album- and source-level custom artwork (mirrors the v5 track-level
                 // `custom_artwork` table). Lets a user set one image for a whole
                 // album or source, not just individual tracks. `syncID` is carried
-                // for CloudKit parity but is not yet wired into the sync engine,
+                // for identity parity, but is not used by the app's local sync paths,
                 // matching `custom_artwork`'s own current (unwired) syncID column.
                 try db.create(table: "custom_artwork_album") { t in
                     t.column("albumId", .integer).notNull().unique()
