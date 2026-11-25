@@ -227,6 +227,7 @@ targets:
       - path: ShareExtension
     resources:
       - path: ShareExtension/Localizable.xcstrings
+      - path: ShareExtension/PrivacyInfo.xcprivacy
     dependencies:
       - package: TonearmCore
     info:
@@ -267,6 +268,7 @@ targets:
       - path: WidgetsExtension
     resources:
       - path: WidgetsExtension/Localizable.xcstrings
+      - path: WidgetsExtension/PrivacyInfo.xcprivacy
     dependencies:
       - package: TonearmCore
     info:
@@ -308,6 +310,7 @@ targets:
       - path: SiriIntentsExtension
     resources:
       - path: SiriIntentsExtension/Localizable.xcstrings
+      - path: SiriIntentsExtension/PrivacyInfo.xcprivacy
     dependencies:
       - package: TonearmCore
       - sdk: Intents.framework
@@ -357,6 +360,7 @@ targets:
         buildPhase: resources
     resources:
       - WatchApp/Localizable.xcstrings
+      - WatchApp/PrivacyInfo.xcprivacy
     dependencies:
       - package: TonearmCore
         product: TonearmWatchProtocol
@@ -412,6 +416,7 @@ targets:
       - path: WatchApp/AppIntents/WatchTogglePlaybackIntent.swift
     resources:
       - path: WatchWidgets/Localizable.xcstrings
+      - path: WatchWidgets/PrivacyInfo.xcprivacy
     dependencies:
       - package: TonearmCore
         product: TonearmWatchCore
