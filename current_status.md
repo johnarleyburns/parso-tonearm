@@ -1,3 +1,10 @@
+## Release readiness — 2026-11-24
+
+- CloudKit/iCloud sync is removed; the app entitlements no longer request iCloud.
+- Background CLAP indexing is CPU-only when the app is backgrounded or a BGProcessingTask is active (build 1038 MPSGraph crash fix).
+- App Store distribution profiles were regenerated with the existing Apple Distribution certificate and refreshed in GitHub Actions.
+- The next TestFlight build is the clean submission candidate.
+
 # Current status — custom artwork: remote-track bug fix + album/source-level artwork
 
 **Date:** 2026-09-11
