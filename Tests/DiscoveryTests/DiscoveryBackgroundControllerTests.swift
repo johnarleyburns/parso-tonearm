@@ -121,6 +121,43 @@ import Testing
         return queue
     }
 
+    private func backgroundSnapshot(
+        charging: Bool = true, grant: Bool = true,
+        thermal: DiscoveryThermalState = .nominal
+    ) -> DiscoverySchedulingSnapshot {
+        DiscoverySchedulingSnapshot(
+            appState: .background, thermalState: thermal, batteryLevel: 0.9, isCharging: charging,
+            isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: false,
+            chargingOnlySetting: false, hasBackgroundProcessingGrant: grant, hasMemoryWarning: false,
+            continuousNominalSeconds: 120)
+    }
+
+    private func foregroundSnapshot() -> DiscoverySchedulingSnapshot {
+        DiscoverySchedulingSnapshot(
+            appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
+            isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: false,
+            chargingOnlySetting: false, hasBackgroundProcessingGrant: false, hasMemoryWarning: false,
+            continuousNominalSeconds: 120)
+    }
+
+    private func writeSineWAV(seconds: Double, to url: URL) throws {
+        let sr = 44_100.0
+        let format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 1)!
+        let file = try AVAudioFile(forWriting: url, settings: format.settings)
+        var remaining = Int((seconds * sr).rounded())
+        var phase = 0.0
+        let inc = 2.0 * Double.pi * 220.0 / sr
+        while remaining > 0 {
+            let n = min(Int(sr), remaining)
+            let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n))!
+            buf.frameLength = AVAudioFrameCount(n)
+            let ch = buf.floatChannelData![0]
+            for i in 0..<n { ch[i] = Float(sin(phase) * 0.25); phase += inc }
+            try file.write(from: buf)
+            remaining -= n
+        }
+    }
+
     @discardableResult
     private func seedTrack(
         _ queue: DatabaseQueue, fileURL: URL?, durationSec: Double?
