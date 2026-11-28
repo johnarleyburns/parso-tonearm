@@ -11006,6 +11006,42 @@
         }
       }
     },
+    "Continue your album" : {
+      "comment" : "UI text shown in: Continue Listening Card (Sources/Features/Listen/ContinueListeningCard.swift)",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Album fortsetzen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue your album" } },
+        "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar tu álbum" } },
+        "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuer votre album" } },
+        "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "アルバムの続きを再生" } },
+        "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar seu álbum" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "继续播放你的专辑" } }
+      }
+    },
+    "Continue your playlist" : {
+      "comment" : "UI text shown in: Continue Listening Card (Sources/Features/Listen/ContinueListeningCard.swift)",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Playlist fortsetzen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue your playlist" } },
+        "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar tu lista de reproducción" } },
+        "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuer votre playlist" } },
+        "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "プレイリストの続きを再生" } },
+        "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar sua playlist" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "继续播放你的播放列表" } }
+      }
+    },
+    "Continue your queue" : {
+      "comment" : "UI text shown in: Continue Listening Card (Sources/Features/Listen/ContinueListeningCard.swift)",
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Warteschlange fortsetzen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Continue your queue" } },
+        "es" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar tu cola" } },
+        "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuer votre file d'attente" } },
+        "ja" : { "stringUnit" : { "state" : "needs_review", "value" : "キューの続きを再生" } },
+        "pt-BR" : { "stringUnit" : { "state" : "needs_review", "value" : "Continuar sua fila" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "needs_review", "value" : "继续播放你的队列" } }
+      }
+    },
     "Continue" : {
       "comment" : "UI text shown in: Onboarding (Sources/Features/Onboarding/OnboardingView.swift)",
       "localizations" : {

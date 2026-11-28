@@ -9,13 +9,19 @@ public struct FindSearchChromeState: Equatable, Sendable {
     public var isQueryFocused: Bool
     public var hasCurrentTrack: Bool
     public var isNowPlayingPresented: Bool
+    /// The Listen tab hosts the larger Continue card instead of the mini player.
+    public var isListenActive: Bool
+    public var showsListenContinue: Bool
 
     public init(isFindActive: Bool, isQueryFocused: Bool, hasCurrentTrack: Bool,
-                isNowPlayingPresented: Bool) {
+                isNowPlayingPresented: Bool, isListenActive: Bool = false,
+                showsListenContinue: Bool = false) {
         self.isFindActive = isFindActive
         self.isQueryFocused = isQueryFocused
         self.hasCurrentTrack = hasCurrentTrack
         self.isNowPlayingPresented = isNowPlayingPresented
+        self.isListenActive = isListenActive
+        self.showsListenContinue = showsListenContinue
     }
 
     /// A stale focus signal never applies off the Find tab or over Now Playing.
@@ -25,7 +31,10 @@ public struct FindSearchChromeState: Equatable, Sendable {
 
     public var hidesNavigationChrome: Bool { isFindEditing }
 
-    public var showsMiniPlayer: Bool { hasCurrentTrack && !isEditing && !isNowPlayingPresented }
+    public var showsMiniPlayer: Bool {
+        hasCurrentTrack && !isEditing && !isNowPlayingPresented
+            && !(isListenActive && showsListenContinue)
+    }
 
     public var accessoryHeight: CGFloat {
         showsMiniPlayer ? Self.trackAccessoryHeight : 0

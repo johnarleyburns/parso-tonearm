@@ -19,6 +19,13 @@ struct ListenView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if let presentation = player.continueListeningPresentation {
+                    ContinueListeningCard(presentation: presentation) {
+                        player.resumePlayback()
+                        appState.showNowPlaying = true
+                    }
+                    .padding(.bottom, 20)
+                }
                 cardRow(title: "Jump Back In", rows: appState.recentlyPlayed,
                         emptyMessage: "Your recently played music will appear here.", identifier: "listen.recent",
                         onClear: { showClearRecentConfirm = true })
