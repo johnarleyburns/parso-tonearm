@@ -288,15 +288,24 @@ jobs:
           BUILD=$(git rev-list --count HEAD)
           echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
           # App Store Connect requires the uploaded build's marketing version
-          # to match the version being submitted. Set the repository variable
-          # TONEARM_MARKETING_VERSION (e.g. "1.0") for a release build; when it
-          # is unset, keep the existing TestFlight-only 0.1.<build> scheme.
+          # to match the version being submitted. project.yml is the source of
+          # truth; the repository variable may override it, but a mismatch
+          # fails instead of silently uploading under the wrong version.
+          project_version="$(ruby -ryaml -e 'puts YAML.load_file("project.yml").dig("settings", "base", "MARKETING_VERSION").to_s')"
           MKT_VERSION="${{ vars.TONEARM_MARKETING_VERSION }}"
           if [ -z "$MKT_VERSION" ]; then
-            MKT_VERSION="0.1.$BUILD"
+            MKT_VERSION="$project_version"
+          fi
+          if [ -z "$MKT_VERSION" ]; then
+            echo "::error title=Missing marketing version::Set project.yml MARKETING_VERSION or the TONEARM_MARKETING_VERSION repository variable."
+            exit 1
+          fi
+          if [ -n "$project_version" ] && [ "$MKT_VERSION" != "$project_version" ]; then
+            echo "::error title=Marketing version mismatch::Workflow would upload '$MKT_VERSION' but project.yml says '$project_version'. Align them before uploading."
+            exit 1
           fi
           echo "MKT_VERSION=$MKT_VERSION" >> "$GITHUB_ENV"
-          echo "Marketing version: $MKT_VERSION (build $BUILD)"
+          echo "Marketing version: $MKT_VERSION (build $BUILD, project.yml $project_version)"
 
       - name: Import Provisioning Profile
         if: env.HAS_TESTFLIGHT_SECRETS == 'true'
