@@ -24,19 +24,19 @@ public struct PlaybackQueueEntry: Identifiable, Equatable, Sendable {
     public private(set) var mixBPM: Double?
     public private(set) var mixCamelotKey: String?
 
-    /// A `.mixMatched` origin without a valid BPM/key snapshot is an invariant failure, so it is
-    /// recorded as the broader `.soundSimilar` origin instead.
+    /// A musical-match origin without a valid BPM/key snapshot is an invariant failure, so it
+    /// is recorded as the plain shuffle origin instead.
     public init(id: QueueOccurrenceID = QueueOccurrenceID(), row: TrackRow, origin: Origin,
                 mixBPM: Double? = nil, mixCamelotKey: String? = nil) {
         self.id = id
         self.row = row
-        if case .keepPlaying(.mixMatched) = origin {
-            if let p = KeepPlayingProvenance(reason: .mixMatched, bpm: mixBPM, camelotKey: mixCamelotKey) {
+        if case .keepPlaying(let reason) = origin, reason.needsMusicalFacts {
+            if let p = KeepPlayingProvenance(reason: reason, bpm: mixBPM, camelotKey: mixCamelotKey) {
                 self.origin = origin
                 self.mixBPM = p.bpm
                 self.mixCamelotKey = p.camelotKey
             } else {
-                self.origin = .keepPlaying(.soundSimilar)
+                self.origin = .keepPlaying(.noMatchShuffle)
             }
         } else {
             self.origin = origin

@@ -1,18 +1,18 @@
 import Foundation
 import GRDB
 
-/// Appended schema for unified-library CLAP indexing/search
-/// (IMPLEMENT_CLAP_PLAN.md §4). Registered as core migration `v18` in
-/// `Schema.swift`. This migration only adds tables — it never touches
+/// Appended schema for unified-library BPM/key/energy indexing. Registered as
+/// the core `v18` migration in `Schema.swift`; `v55` later removes the
+/// historical CLAP embedding tables and columns. This migration only adds
+/// tables — it never touches
 /// `source`/`album`/`artist`/`track`/`asset`/`playlist`/`playlist_item`/
 /// `favorite`/`play_history`/`custom_artwork` or any historical migration.
 ///
-/// All ten tables here are device-local derived state: indexing jobs,
-/// caches, analysis results, model state, and checkpoints. None is exported
-/// or shared between devices. `discovery_embedding` and
-/// `discovery_track_analysis` still carry a `syncID` column from the removed
-/// multi-device indexing experiment; it is retained only so existing stores
-/// keep their schema shape.
+/// These tables are device-local derived state: indexing jobs, caches,
+/// analysis results, and import bookkeeping. `discovery_track_analysis`
+/// carries a `syncID` column from the removed multi-device indexing
+/// experiment; it is retained only so existing stores keep their schema
+/// shape.
 enum DiscoveryMigrations {
     static func v18(_ db: Database) throws {
         try db.create(table: "discovery_asset_state") { t in
@@ -299,6 +299,62 @@ enum DiscoveryMigrations {
               installedAt TEXT NOT NULL
             )
             """)
+    }
+
+    /// Mood/CLAP removal: the semantic-search index is gone, so its derived
+    /// tables and the index job's embedding-stage columns are removed and the
+    /// job table is rebuilt around the one remaining BPM/key/energy stage.
+    /// `track.indexed` existed only to gate Mood's mix-compatible pool; BPM/key
+    /// availability is now read directly from `discovery_track_analysis`.
+    static func v55(_ db: Database) throws {
+        try db.execute(sql: "DROP TABLE IF EXISTS discovery_window_checkpoint")
+        try db.execute(sql: "DROP TABLE IF EXISTS discovery_embedding")
+        try db.execute(sql: "DROP TABLE IF EXISTS discovery_embedding_space")
+        try db.execute(sql: "ALTER TABLE track DROP COLUMN indexed")
+        // The old "Mood Starter" library was already removed as a feature, but
+        // an install that ran an older build can still hold its Source row.
+        // Deleting the source cascades to its albums/tracks/assets/discovery rows.
+        try db.execute(sql: "DELETE FROM source WHERE title = 'Mood Starter' AND kind = 'local'")
+
+        try db.create(table: "discovery_index_job_v55") { t in
+            t.column("id", .text).primaryKey()
+            t.column("trackId", .integer).notNull()
+                .references("track", onDelete: .cascade)
+            t.column("selectedAssetId", .integer)
+                .references("asset", onDelete: .setNull)
+            t.column("assetRevision", .integer)
+            t.column("pipelineVersion", .integer).notNull()
+            t.column("state", .text).notNull()
+            t.column("priority", .integer).notNull().defaults(to: 0)
+            t.column("createdAt", .datetime).notNull()
+            t.column("updatedAt", .datetime).notNull()
+            t.column("nextAttemptAt", .datetime)
+            t.column("attemptCount", .integer).notNull().defaults(to: 0)
+            t.column("leaseToken", .text)
+            t.column("leaseExpiresAt", .datetime)
+            t.column("musicalAnalysisStageState", .text).notNull()
+            t.column("errorCode", .text)
+            t.column("errorMessage", .text)
+        }
+        try db.execute(sql: """
+            INSERT INTO discovery_index_job_v55 (
+                id, trackId, selectedAssetId, assetRevision, pipelineVersion, state,
+                priority, createdAt, updatedAt, nextAttemptAt, attemptCount,
+                leaseToken, leaseExpiresAt, musicalAnalysisStageState, errorCode, errorMessage
+            )
+            SELECT id, trackId, selectedAssetId, assetRevision, pipelineVersion,
+                CASE WHEN state = 'waitingForModel' THEN 'queued' ELSE state END,
+                priority, createdAt, updatedAt, nextAttemptAt, attemptCount,
+                leaseToken, leaseExpiresAt, musicalAnalysisStageState, errorCode, errorMessage
+            FROM discovery_index_job
+            """)
+        try db.drop(table: "discovery_index_job")
+        try db.rename(table: "discovery_index_job_v55", to: "discovery_index_job")
+        try db.create(
+            indexOn: "discovery_index_job", columns: ["trackId", "pipelineVersion"],
+            options: .unique)
+        try db.create(indexOn: "discovery_index_job", columns: ["state", "priority"])
+        try db.create(indexOn: "discovery_index_job", columns: ["nextAttemptAt"])
     }
 
     /// Per-asset-revision TransitionProfile, tied to the embedding space it was derived

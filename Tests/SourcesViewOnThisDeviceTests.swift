@@ -1,10 +1,10 @@
 import Foundation
 import Testing
 
-/// Real reports: Libraries > On This Device should not show "Mood Starter" (a removed feature's
-/// leftover local-row data on upgraded installs) or "Built-in Sounds" (bundled app content, not
-/// a real local folder), and its own "+ Add Local Folder" row duplicates the + menu's entry of
-/// the same name. Source inspection (no simulator), matching this repo's established convention.
+/// Real reports: Libraries > On This Device should not show "Built-in Sounds" (bundled app
+/// content, not a real local folder), and its own "+ Add Local Folder" row duplicates the +
+/// menu's entry of the same name. Source inspection (no simulator), matching this repo's
+/// established convention.
 @Suite struct SourcesViewOnThisDeviceTests {
     private func source() throws -> String {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -13,11 +13,10 @@ import Testing
             encoding: .utf8)
     }
 
-    @Test func testLocalSourcesHidesBuiltInAndMoodStarter() throws {
+    @Test func testLocalSourcesHidesBuiltInContent() throws {
         let text = try source()
         #expect(text.contains("hiddenLocalSourceTitles"))
         #expect(text.contains("\"Built-in Sounds\""))
-        #expect(text.contains("\"Mood Starter\""))
         let declRange = try #require(text.range(of: "private var localSources: [Source] {"))
         let closeRange = try #require(text.range(of: "\n    }", range: declRange.upperBound..<text.endIndex))
         let body = text[declRange.upperBound..<closeRange.lowerBound]

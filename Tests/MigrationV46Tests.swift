@@ -79,7 +79,7 @@ import Testing
             let sourceId = try self.insertSource(db)
             trackId = try self.insertTrack(db, sourceId: sourceId)
         }
-        try Schema.migrator().migrate(queue)
+        try Schema.migrator(upTo: "v46").migrate(queue)
         try queue.read { db in
             let columns = Set(try db.columns(in: "track").map(\.name))
             #expect(columns.contains("indexed"))
@@ -109,7 +109,7 @@ import Testing
             try self.insertJob(
                 db, trackId: trackId, embedding: "complete", analysis: "complete", state: "complete")
         }
-        try Schema.migrator().migrate(queue)
+        try Schema.migrator(upTo: "v46").migrate(queue)
         try queue.read { db in
             let row = try Row.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
             #expect(row?["indexed"] as Int? == 1)
@@ -132,7 +132,7 @@ import Testing
             try self.insertJob(
                 db, trackId: trackId, embedding: "complete", analysis: "failed", state: "complete")
         }
-        try Schema.migrator().migrate(queue)
+        try Schema.migrator(upTo: "v46").migrate(queue)
         try queue.read { db in
             let trackRow = try Row.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
             #expect(trackRow?["indexed"] as Int? == 0, "must not be marked indexed without both tables")
@@ -160,7 +160,7 @@ import Testing
             try self.insertJob(
                 db, trackId: trackId, embedding: "complete", analysis: "pending", state: "queued")
         }
-        try Schema.migrator().migrate(queue)
+        try Schema.migrator(upTo: "v46").migrate(queue)
         try queue.read { db in
             let jobRow = try Row.fetchOne(
                 db, sql: "SELECT embeddingStageState FROM discovery_index_job WHERE trackId = ?",
@@ -185,7 +185,6 @@ import Testing
         try queue.read { db in
             let tracks = try Track.fetchAll(db, sql: "SELECT * FROM track")
             #expect(tracks.count == 1)
-            #expect(tracks.first?.indexed == false, "a pre-v46 row has no column to read -- defaults to false")
         }
     }
 }

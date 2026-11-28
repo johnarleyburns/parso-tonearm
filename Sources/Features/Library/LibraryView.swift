@@ -116,10 +116,10 @@ struct LibraryView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 6)
                             } else if renderedPlaybackRows.isEmpty {
-                                // Real report: Find's Mood/BPM-Key modes showed "Your music is
+                                // Real report: Find's BPM/Key mode showed "Your music is
                                 // empty" (with the add-a-library CTA) for a search that simply
                                 // matched nothing — `appState.searchText` is often empty there
-                                // too, since the query came from mood pills or a BPM/Key filter,
+                                // too, since the query came from a BPM/Key filter,
                                 // not the text field. `LibraryEmptyStatePolicy` distinguishes a
                                 // genuinely empty library from a search/filter with no matches.
                                 let isUnfilteredBrowsing = LibraryEmptyStatePolicy.isUnfilteredBrowsing(
@@ -136,7 +136,7 @@ struct LibraryView: View {
                                     .padding(.top, 6)
                                 } else {
                                     // Find's standard, glass-style "no results" state
-                                    // (search text can be empty for a Mood/BPM query).
+                                    // (search text is empty for a BPM/Key query).
                                     ContentUnavailableView.search(text: appState.searchText)
                                         .frame(maxWidth: .infinity)
                                         .padding(.top, 6)

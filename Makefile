@@ -19,7 +19,7 @@ models:
 	scripts/fetch-models.sh
 
 # Regenerate Tonearm.xcodeproj. USE THIS RATHER THAN BARE `xcodegen generate`:
-# it first writes Config/models-bundled.yml / models-odr.yml from which converted model packages are
+# it first writes Config/models-odr.yml from which converted model packages are
 # on this machine (scripts/generate-project.sh explains why), then generates.
 project:
 	scripts/generate-project.sh

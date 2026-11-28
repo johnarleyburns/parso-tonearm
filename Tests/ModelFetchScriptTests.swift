@@ -57,12 +57,12 @@ import Testing
     @Test func testZipMapsLowercaseRootToCanonicalDestination() throws {
         let (repo, run) = try fixture(
             archiveName: "m.zip", build: "mkdir r.mlpackage && echo x > r.mlpackage/a && zip -qr m.zip r.mlpackage",
-            destination: "CLAPAudioEncoder.mlpackage", archiveRoot: "r.mlpackage")
+            destination: "DemucsStems.mlpackage", archiveRoot: "r.mlpackage")
         defer { try? FileManager.default.removeItem(at: repo) }
         let result = try run()
         #expect(result.0 == 0, "\(result.1)")
         #expect(FileManager.default.fileExists(
-            atPath: repo.appendingPathComponent("Resources/Models/CLAPAudioEncoder.mlpackage/a").path))
+            atPath: repo.appendingPathComponent("Resources/Models/DemucsStems.mlpackage/a").path))
         let repeatRun = try run()
         #expect(repeatRun.0 == 0, "\(repeatRun.1)")
         #expect(repeatRun.1.contains("already present"), "\(repeatRun.1)")
@@ -126,11 +126,10 @@ import Testing
             atPath: repo.appendingPathComponent("Resources/evil").path)))
     }
 
-    @Test func testLockPinsOnlyApprovedClapPair() throws {
+    @Test func testLockPinsOnlyTheApprovedStemsModel() throws {
         let lock = try String(contentsOf: root.appendingPathComponent("Config/models.lock"), encoding: .utf8)
-        #expect(lock.contains("b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a"))
-        #expect(lock.contains("429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86"))
-        #expect(!(lock.contains("CLAPAudioEncoder.mlpackage.tar.gz")))
-        #expect(!(lock.contains("CLAPTextEncoder.mlpackage.tar.gz")))
+        #expect(lock.contains("75a6bf06286287eeb37bb8df3d070af3631a053c8c6266b08fec0a074cdaba97"))
+        #expect(!(lock.contains("CLAPAudioEncoder")))
+        #expect(!(lock.contains("CLAPTextEncoder")))
     }
 }

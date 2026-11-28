@@ -10,9 +10,9 @@ import TonearmCore
 import TonearmDiscovery
 import UIKit
 
-/// The iOS lifecycle adapter for the Discovery/CLAP indexing subsystem
-/// (IMPLEMENT_CLAP_PLAN.md §3: "App UI and iOS background lifecycle adapters
-/// depend on TonearmDiscovery"; §6/§7). It:
+/// The iOS lifecycle adapter for the discovery/analysis indexing subsystem
+/// (app UI and iOS background lifecycle adapters depend on TonearmDiscovery).
+/// It:
 ///
 ///  - owns the single process-wide `DiscoveryAssembly` (plan §7: "only one
 ///    scheduler exists per process"),
@@ -29,7 +29,7 @@ final class DiscoveryRuntimeController {
     static let shared = DiscoveryRuntimeController()
 
     /// Must match `BGTaskSchedulerPermittedIdentifiers` in Info.plist and the
-    /// identifier named in IMPLEMENT_CLAP_PLAN.md §7.
+    /// identifier used by the discovery BG processing task.
     static let backgroundTaskIdentifier = "guru.parso.tonearm.discovery-index"
 
     private let store: LibraryStore
@@ -38,7 +38,6 @@ final class DiscoveryRuntimeController {
     private var assembly: DiscoveryAssembly?
     private(set) var lastStatusError: String?
     private var background: DiscoveryBackgroundController?
-    private var searchVM: DiscoverySearchViewModel?
     private var didRegisterBackgroundTask = false
     private var didStart = false
     private var tickLoop: Task<Void, Never>?
@@ -55,36 +54,7 @@ final class DiscoveryRuntimeController {
         let sampler = self.sampler
         let built = DiscoveryAssembly(
             writer: writer,
-            snapshotProvider: { sampler.snapshot() },
-            // Real CLAP audio-encoder + bundled mel-filterbank resolution
-            // (C04 Apple-host step, plan §8). Returns `.unavailable` — jobs
-            // park at `waitingForModel` — until the `clap-audio` ODR pack is
-            // actually on disk; never a fabricated embedding.
-            modelResourceProvider: { DiscoveryModelResources.shared.currentResources() },
-            // GPU/ANE-preferred by default, falling back to CPU-only only for a real reason —
-            // see `DiscoveryExecutionPolicy`'s doc comment for the incident this replaces (naively
-            // using GPU/ANE whenever the scene was foregrounded made `ProcessInfo.thermalState`
-            // blip from `.nominal` to `.fair` well before the device felt warm, and the old
-            // policy's 60-continuous-second `.fair` recovery rule meant every blip reset the
-            // countdown — indexing spent nearly all its time in a self-triggered debounce loop).
-            // `SchedulingSampler.decideExecutionEngine()` reacts to *sustained* `.fair`, not a
-            // single sample, and `IndexPolicy.decide()` no longer halts indexing outright on
-            // `.fair` either — CPU-only was never what caused that reading, so there is no reason
-            // to also stop CPU-only progress while GPU backs off. Active playback still forces
-            // CPU-only unconditionally (a separate, real concern: GPU/ANE inference contending
-            // with the real-time audio render thread, not a thermal one — see IndexPolicy.swift's
-            // `.foreground` case comment).
-            executionContext: {
-                switch sampler.decideExecutionEngine() {
-                case .gpuPreferred: return .foreground
-                case .cpuOnly: return .background
-                }
-            },
-            modelDownloadProgressProvider: { DiscoveryModelResources.shared.currentDownloadProgress() },
-            modelDownloadErrorProvider: { DiscoveryModelResources.shared.currentDownloadError() },
-            modelDownloadTagDebugProvider: { DiscoveryModelResources.shared.currentPerTagDebugSummary() },
-            modelDiagnosticsProvider: { DiscoveryModelResources.shared.currentDiagnosticsDetail() },
-            executionEngineProvider: { sampler.currentEngine })
+            snapshotProvider: { sampler.snapshot() })
         assembly = built
         return built
     }
@@ -158,16 +128,10 @@ final class DiscoveryRuntimeController {
 
         sampler.beginObserving()
         observePlayback()
-        observeMemoryWarnings()
         await refreshPauseFromStore()
         sampler.setAppState(Self.currentApplicationStateIsBackground() ? .background : .foreground)
-        // Keep Playing (main-library queue continuation) reuses this same
-        // CLAP retrieval engine — wire the real adapter in now that Discovery
-        // is up. Before this runs (and always under `swift test`), the seam
-        // stays `nil` and `AudioPlayer` takes its honest shuffle-continue
-        // fallback instead.
-        AudioPlayer.shared.keepPlayingProvider = KeepPlayingDiscoveryProvider()
-        // …and, first, as an endless mix under Build a Mix's rules.
+        // Keep Playing is an endless mix under Build a Mix's BPM/key/energy
+        // rules; no semantic model is involved.
         AudioPlayer.shared.keepPlayingMixProvider = KeepPlayingMixContinuation(store: LibraryStore.shared)
 
         let assembly = await makeAssembly()
@@ -221,29 +185,6 @@ final class DiscoveryRuntimeController {
                 }
                 try? await Task.sleep(for: .seconds(20))
             }
-        }
-    }
-
-    /// Actually wires up `ModelManager.releaseCachedModel()` (plan §6: "release models/buffers on
-    /// thermal serious/critical or memory warning when safe") — it existed but nothing ever called
-    /// it. Real risk this closes: each CLAP encoder is 130–240 MB; once loaded it stayed resident
-    /// for the rest of the process even under a real memory warning. Indexing now deliberately
-    /// keeps running during playback (a main use case, not paused for it — see `IndexPolicy`), so
-    /// a long locked-screen listening session can hold decoded audio buffers AND a resident CLAP
-    /// model in memory at the same time; not releasing the model on a memory warning is exactly
-    /// the kind of pressure that escalates into a jetsam kill, which matches the real report of
-    /// the app disappearing during locked-screen playback. `SchedulingSampler` already observes
-    /// `UIApplication.didReceiveMemoryWarningNotification` for the scheduling gate (which still
-    /// blocks the NEXT index job) — this adds the actual model release the plan called for
-    /// alongside it. Safe at any time: the model reloads lazily on the next `audioEncoder`/
-    /// `textEncoder` call.
-    private func observeMemoryWarnings() {
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            Task { await self.assembly?.models.releaseCachedModel() }
         }
     }
 
@@ -330,159 +271,12 @@ final class DiscoveryRuntimeController {
         return (count, Int64(count) * RemoteIndexingByteEstimate.perTrackBytes)
     }
 
-    // MARK: - Search surface (plan §10.1, C07)
-
-    /// The one process-wide search view model, wired to the real retrieval
-    /// engine (`DiscoveryAssembly.search`), the existing metadata search
-    /// (`LibraryStore.search` — needs no model download) and the same
-    /// `AppState` playback path an ordinary library row uses.
-    func searchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
-        if let searchVM { return searchVM }
-        let vm = await buildSearchViewModel(appState: appState, player: player, requireFullyIndexed: false)
-        searchVM = vm
-        return vm
-    }
-
-    /// A fresh, independent `DiscoverySearchViewModel` — deliberately NOT
-    /// memoized, unlike `searchViewModel(appState:player:)` above. Built for
-    /// the Listen tab's mood entry point (docs/plans/mood-based-listening-
-    /// plan.md §2's audit note / §5 step 5): that screen's own
-    /// `searchText`/`positiveRefinements` must be independent of "Find by
-    /// sound"'s, or selecting mood pills here would corrupt (or be
-    /// corrupted by) whatever the user has set on that other screen. Still
-    /// reuses the one shared `assembly.search` (`makeAssembly()` memoizes
-    /// that separately from `searchVM`), so the CLAP model itself is never
-    /// loaded twice.
-    /// Mood always requires `indexed` (migration v46 — CLAP + BPM/camelot/energy together, never
-    /// just the former): "so that mood searches ALWAYS return mix-ready results" (owner's own
-    /// words). Discover/"Find by sound" keeps its existing, broader contract.
-    func makeSearchViewModel(appState: AppState, player: AudioPlayer) async -> DiscoverySearchViewModel {
-        await buildSearchViewModel(appState: appState, player: player, requireFullyIndexed: true)
-    }
-
-    private func buildSearchViewModel(
-        appState: AppState, player: AudioPlayer, requireFullyIndexed: Bool
-    ) async -> DiscoverySearchViewModel {
-        let assembly = await makeAssembly()
-        let service = await assembly.search
-        let coordinator = DiscoverySearchCoordinator(service: service)
-        let store = self.store
-
-        return DiscoverySearchViewModel(
-            coordinator: coordinator,
-            service: service,
-            metadataSearch: { query in
-                do {
-                    var rows: [TrackRow]
-                    if let playlistID = query.playlistID {
-                        // Metadata search must preserve the selected scope. The
-                        // DJ LOAD browser uses this path for playlist searches;
-                        // starting with the playlist rows prevents a title
-                        // search from leaking tracks from the full library.
-                        rows = try await store.playlistItems(playlistId: playlistID)
-                        let needle = query.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !needle.isEmpty {
-                            rows = rows.filter { row in
-                                [row.track.title, row.artist?.name, row.album?.title, row.track.genre]
-                                    .compactMap { $0 }
-                                    .contains { $0.localizedCaseInsensitiveContains(needle) }
-                            }
-                        }
-                    } else {
-                        rows = try await store.search(query.text)
-                    }
-                    if let ids = query.sourceIDs {
-                        let set = Set(ids)
-                        rows = rows.filter { set.contains($0.track.sourceId) }
-                    }
-                    return .success(rows)
-                } catch {
-                    return .failure(error)
-                }
-            },
-            onPlay: { [weak appState, weak player] result in
-                guard let appState, let player else { return }
-                Task { @MainActor in
-                    var row = result.track
-                    // prefetchBytes: false — same real report as SourceDetailView+Remote's
-                    // playRemote: persisting only needs the DB rows (a valid id for play-
-                    // history/favorites), not the full file pinned to disk first.
-                    if row.id < 0, let persisted = await appState.persistRemoteTrack(row, prefetchBytes: false) {
-                        row = persisted
-                    }
-                    player.play(tracks: [row], startAt: 0, source: .library)
-                }
-            },
-            onAnalyzeTrack: { trackID in
-                Task { @MainActor in await DiscoveryRuntimeController.shared.analyzeTrack(trackID) }
-            },
-            onDownloadModels: {},
-            onOpenIndexStatus: {},
-            requireFullyIndexed: requireFullyIndexed,
-            fallbackToBroaderWhenFullyIndexedEmpty: requireFullyIndexed)
-    }
-
-    /// "Analyze this track" for a stale/missing reference embedding (plan §9)
-    /// and "Analyze selected next" (plan §10.4): ensure the track has an index
+    /// "Analyze selected next" (plan §10.4): ensure the track has an index
     /// job and kick a foreground drain.
     func analyzeTrack(_ trackID: Int64) async {
         let assembly = await makeAssembly()
         _ = try? await assembly.reconciler.bootstrapAllTracks()
         startForegroundTickLoop()
-    }
-
-    // MARK: - Keep Playing (main-library queue continuation)
-
-    /// The real CLAP nearest-neighbor lookup behind `AudioPlayer`'s
-    /// `KeepPlayingSimilarityProviding` seam: runs the same `SearchService`
-    /// "more like this track" mode (`DiscoverySearchMode.similar`) search
-    /// already used for "More Like This" in Now Playing, against the
-    /// most-recently-played track. Reports `.waitingForModel` /
-    /// `.unavailable` rather than ever silently returning nothing, so
-    /// `AudioPlayer` can fall back honestly and say why (CLAUDE.md
-    /// "no silent/magic background work").
-    func keepPlayingLookup(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope,
-        limit: Int
-    ) async -> KeepPlayingLookup {
-        guard let referenceTrackID = recentlyPlayed.first else { return .unavailable }
-        let matchingTracksOnly: Bool
-        switch scope {
-        case .djCompatible(let anchor):
-            guard anchor == referenceTrackID else { return .unavailable }
-            matchingTracksOnly = true
-        case .broaderSimilarity:
-            matchingTracksOnly = false
-        }
-        let assembly = await makeAssembly()
-        let modelAvailable = await assembly.models.isModelResourceAvailable()
-
-        // Over-fetch so filtering out already-queued/history tracks still
-        // leaves up to `limit` real picks.
-        let requestLimit = min(ValidatedQuery.maxLimit, limit + excluding.count + 5)
-        let query = DiscoverySearchQuery(limit: requestLimit)
-        let response = await assembly.search.search(
-            query,
-            referenceTrackID: referenceTrackID,
-            matchingTracksOnly: matchingTracksOnly)
-
-        switch response.state {
-        case .ready:
-            let ids = response.results.map(\.trackID).filter { !excluding.contains($0) }
-            if !ids.isEmpty { return .ready(Array(ids.prefix(limit))) }
-            return modelAvailable ? .unavailable : .waitingForModel
-        case .modelMissing, .modelDownloadFailed:
-            return .waitingForModel
-        case .matchingReferenceUnavailable, .noMatches, .emptyLibrary, .emptyScope,
-             .unindexedReference:
-            return .unavailable
-        default:
-            // .unindexedReference, .zeroIndexed, .noMatches, .emptyLibrary,
-            // .emptyScope, .sourceUnavailable, .searchFailed,
-            // .validationFailed, .cancelled — the model itself is fine, this
-            // reference/scope just has nothing usable right now.
-            return .unavailable
-        }
     }
 
     // MARK: - Status surface (plan §10, C07)
@@ -576,20 +370,4 @@ final class DiscoveryRuntimeController {
     }
 }
 
-/// Adapts `DiscoveryRuntimeController` to `AudioPlayer`'s
-/// `KeepPlayingSimilarityProviding` seam. This indirection exists because
-/// `TonearmCore` (where `AudioPlayer` lives) cannot import `TonearmDiscovery`
-/// directly — that package already depends on `TonearmCore`, so the reverse
-/// import would cycle — while this file, part of the app target, already
-/// depends on both.
-struct KeepPlayingDiscoveryProvider: KeepPlayingSimilarityProviding {
-    func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope,
-        limit: Int
-    ) async -> KeepPlayingLookup {
-        await DiscoveryRuntimeController.shared.keepPlayingLookup(
-            after: recentlyPlayed, excluding: excluding,
-            scope: scope, limit: limit)
-    }
-}
 #endif

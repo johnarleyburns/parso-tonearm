@@ -80,7 +80,7 @@ import Testing
         #expect(!src.contains("TransferPill"), "the root tab accessory must never show watch transfer status")
     }
 
-    /// The standalone Mood tab was folded into Find's own Mood mode (pills + songs-only).
+    /// The standalone Mood tab is gone; nothing else claims the removed tab.
     @Test func testStandaloneMoodTabIsRemoved() throws {
         let src = try rootViewSource()
         #expect(!src.contains("MoodView()"))

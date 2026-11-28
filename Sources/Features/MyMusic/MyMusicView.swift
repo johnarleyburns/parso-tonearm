@@ -15,8 +15,7 @@ import TonearmDiscovery
 struct MyMusicView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("myMusic.selectedScope.v1") private var scope: Scope = .playlists
-    /// Real gap found auditing the mood-based-listening plan (docs/plans/
-    /// mood-based-listening-plan.md §3.5's second audit note): landing on a
+    /// Real gap found auditing the listening-intent flow: landing on a
     /// specific artist from another tab is a genuinely PUSHED navigation
     /// destination, and there was no way to push into this stack
     /// programmatically before this — a plain `NavigationStack { … }` only
@@ -206,7 +205,7 @@ struct MyMusicView: View {
             Image(systemName: "waveform.slash").foregroundStyle(Palette.inkTertiary)
         case .needsAttention:
             Image(systemName: "waveform.badge.exclamationmark").foregroundStyle(Palette.danger)
-        case .waiting, .waitingForModel, .blockedByPolicy:
+        case .waiting, .blockedByPolicy:
             Image(systemName: "waveform.badge.magnifyingglass").foregroundStyle(Palette.inkTertiary)
         case .upToDate, .emptyLibrary, .idle, nil:
             Image(systemName: "waveform").foregroundStyle(Palette.inkSecondary)
@@ -218,13 +217,13 @@ struct MyMusicView: View {
         case .indexing: return String(localized: "Sound Index: indexing")
         case .paused: return String(localized: "Sound Index: paused")
         case .needsAttention: return String(localized: "Sound Index: needs attention")
-        case .waiting, .waitingForModel, .blockedByPolicy: return String(localized: "Sound Index: waiting")
+        case .waiting, .blockedByPolicy: return String(localized: "Sound Index: waiting")
         default: return String(localized: "Sound Index")
         }
     }
 
     /// One-shot launch-intent consumption for a Top Artist row's tap on the
-    /// Listen tab (docs/plans/mood-based-listening-plan.md §3.5). Resolves
+    /// Listen tab. Resolves
     /// the artist NAME into a real `LibraryBrowse.Entry` — the only existing
     /// way to produce one is rebuilding sections from the current library —
     /// and pushes it. A name with no exact match degrades safely: the

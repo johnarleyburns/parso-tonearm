@@ -59,7 +59,6 @@ let package = Package(
                 "README.md",
                 "Resources/splash_screen.jpg",
                 "Resources/Models",
-                "Resources/CLAP",
                 // Each app bundles its own starter DB (project.yml); copying them into the shared
                 // package bundle put both into the iPhone app and every extension.
                 "Resources/Starter",
@@ -72,7 +71,6 @@ let package = Package(
                 "Sources/ObjCSupport",
                 "Sources/Tools",
                 "design",
-                "IMPLEMENT_CLAP_PLAN.md",
                 "ShareExtension",
                 "SiriIntentsExtension",
                 "Sources/App",
@@ -184,7 +182,6 @@ let package = Package(
                 "TonearmCore",
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "ParsoAudioAnalysis", package: "parso-audio-engine"),
-                .product(name: "ParsoAudioNeural", package: "parso-audio-engine"),
                 // Remote sparse indexing (docs/plans/remote-sparse-indexing.md)
                 // reuses the app's own streaming-cache infrastructure
                 // (CachingResourceLoader/SparseCacheStore) pointed at a

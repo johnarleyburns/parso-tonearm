@@ -1,81 +1,35 @@
 #if !os(watchOS)
 import Foundation
 
-/// One "Keep Playing" continuation lookup's outcome. Mirrors the vocabulary
-/// `Sources/Discovery/IndexStatusModel.swift` already uses for the sound-index
-/// status surface (`waitingForModel` vs. a real "nothing here" case) so the two
-/// features never invent two different ways of saying "the model isn't ready
-/// yet" (CLAUDE.md "no silent/magic background work").
-public enum KeepPlayingLookup: Equatable, Sendable {
-    /// Real CLAP nearest-neighbor candidates, already excluding the caller's
-    /// `excluding` set, ordered best match first.
-    case ready([Int64])
-    /// Sound-similar candidates returned after the requested Camelot/BPM
-    /// gate had no results. This is still surfaced as a visible fallback.
-    case readyFromBroaderSimilarity([Int64])
-    /// The CLAP model/index isn't available yet (downloading, or indexing
-    /// hasn't produced an embedding for the reference track). Distinct from
-    /// `.unavailable` so the fallback can say *why* it's a fallback.
-    case waitingForModel
-    /// The model is available but no usable similarity candidates exist for
-    /// this reference (empty library/scope, a real search failure, etc).
-    case unavailable
+/// Keep Playing as an endless BPM/key/energy mix. The provider returns the
+/// next track ids in play order, plus whether it had to fall back from the
+/// strict ±8%/compatible-key rule to the nearest analysed match.
+public protocol KeepPlayingMixProviding: Sendable {
+    func mixContinuation(after trackID: Int64, excluding: Set<Int64>, limit: Int) async -> KeepPlayingMixResult
 }
 
-/// The CLAP-similarity seam Keep Playing calls to pick its continuation
-/// tracks. `TonearmCore` (this file's target) cannot import
-/// `TonearmDiscovery` — that package already depends on `TonearmCore`, so a
-/// reverse import would cycle — so the app wires in the real implementation
-/// (backed by `SearchService`/`VectorIndex`) after launch via
-/// `AudioPlayer.keepPlayingProvider`. Everything here stays host-testable
-/// with the seam left `nil`, which always takes the honest fallback path.
-public protocol KeepPlayingSimilarityProviding: Sendable {
-    /// - Parameters:
-    ///   - recentlyPlayed: core track ids played this continuous-play
-    ///     session, most-recently-played first. The implementation runs the
-    ///     similarity search against `recentlyPlayed.first`.
-    ///   - excluding: ids that must never appear in the result (already-queued
-    ///     tracks and this session's play history) — the provider is
-    ///     responsible for filtering these out before returning, since only it
-    ///     knows how many extra candidates to fetch to still hit `limit`.
-    ///   - limit: how many track ids to return at most.
-    func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope,
-        limit: Int
-    ) async -> KeepPlayingLookup
-}
+public struct KeepPlayingMixResult: Equatable, Sendable {
+    public let trackIDs: [Int64]
+    /// True when no strict Build-a-Mix pair existed and the nearest analysed
+    /// tracks by BPM/key/energy were used instead.
+    public let isRelaxed: Bool
 
-/// Which candidate pool a CLAP continuation lookup may draw from. `.djCompatible` is the
-/// mandatory BPM (±8%) / Camelot gate anchored on the named track; `.broaderSimilarity` removes
-/// the gate and is used only when the strict pool is empty.
-public enum KeepPlayingSimilarityScope: Sendable, Equatable {
-    case djCompatible(anchorTrackID: Int64)
-    case broaderSimilarity
+    public init(trackIDs: [Int64] = [], isRelaxed: Bool = false) {
+        self.trackIDs = trackIDs
+        self.isRelaxed = isRelaxed
+    }
+
+    public static let empty = KeepPlayingMixResult()
 }
 
 /// Why a Keep Playing extension fell back to a shuffle-continue instead of a
-/// real CLAP similarity pick. Kept distinct from a plain `Bool` so the UI can
-/// give an honest, specific reason instead of a generic "something went
-/// wrong" (CLAUDE.md "no silent/magic background work").
-/// Keep Playing as an endless mix: the next tracks after `trackID` that follow Build a Mix's
-/// rules (±8% BPM, a compatible Camelot key), in play order. Empty when nothing compatible is left
-/// — Keep Playing then falls back to similarity, and says so.
-public protocol KeepPlayingMixProviding: Sendable {
-    func mixContinuation(after trackID: Int64, excluding: Set<Int64>, limit: Int) async -> [Int64]
-}
-
+/// musical pick. Kept distinct from a plain `Bool` so the UI can give an
+/// honest, specific reason instead of a generic "something went wrong"
+/// (CLAUDE.md "no silent/magic background work").
 public enum KeepPlayingFallbackReason: Equatable, Sendable {
-    /// The sound-search model/index isn't ready yet (still downloading, or
-    /// the reference track has no embedding). Not a dead end — it retries
-    /// itself as indexing/model download progresses.
-    case waitingForModel
-    /// The model is available but no similarity candidates exist right now
-    /// (e.g. everything eligible is already in the queue/history, or a real
-    /// search error occurred).
-    case unavailable
-    /// No Camelot/BPM-compatible candidate was available, so Keep Playing
-    /// broadened to ordinary sound similarity.
-    case matchingUnavailable
+    /// No analysed BPM/key/energy candidate was available at all, so Keep
+    /// Playing fell back to a visible shuffle rather than dead air.
+    case noCompatibleTracks
 }
 
 /// The terminal end-of-queue state of Keep Playing, tied to a queue
@@ -89,7 +43,9 @@ enum KeepPlayingBoundaryState: Equatable {
     case exhausted(queueGeneration: Int, terminalIndex: Int)
 
     var isExhausted: Bool {
-        if case .exhausted = self { return true }
+        if case .exhausted = self {
+            return true
+        }
         return false
     }
 }
@@ -165,15 +121,16 @@ extension AudioPlayer {
         guard keepPlayingHorizonBudget > 0 else { return }
         let excluded = await currentKeepPlayingExclusions()
 
-        // Keep Playing is an endless mix: continue from the last queued track under the mixing
-        // rules first; the other continuations below are the fallback when nothing fits.
+        // Keep Playing is an endless mix: continue from the last queued
+        // track under Build a Mix's BPM/key/energy rules first.
         if let mixProvider = keepPlayingMixProvider, let anchor = queue.last?.track.id {
-            let ids = await mixProvider.mixContinuation(after: anchor, excluding: excluded,
-                                                        limit: keepPlayingHorizonBudget)
+            let result = await mixProvider.mixContinuation(
+                after: anchor, excluding: excluded, limit: keepPlayingHorizonBudget)
             guard !Task.isCancelled else { return }
-            if !ids.isEmpty {
-                await appendKeepPlayingSimilarTracks(
-                    ids, isFallback: false, reason: nil, recommendation: .mixMatched)
+            if !result.trackIDs.isEmpty {
+                await appendKeepPlayingMixTracks(
+                    result.trackIDs,
+                    recommendation: result.isRelaxed ? .relaxedMixMatched : .mixMatched)
                 return
             }
         }
@@ -184,74 +141,20 @@ extension AudioPlayer {
             if !rows.isEmpty {
                 finishKeepPlayingExtension(with: rows, isFallback: false, reason: nil)
             } else {
-                await extendWithFallback(reason: .unavailable, excluding: excluded)
+                await extendWithFallback(excluding: excluded)
             }
             return
         }
 
-        guard let provider = keepPlayingProvider else {
-            await extendWithFallback(reason: .unavailable, excluding: excluded)
-            return
-        }
-
-        // `keepPlayingHistory` is stored oldest-first; the provider wants
-        // most-recently-played first so it can search against `.first`.
-        let recent = Array(keepPlayingHistory.reversed())
-        guard let anchorID = recent.first else {
-            await extendWithFallback(reason: .unavailable, excluding: excluded)
-            return
-        }
-
-        // Stage 1: CLAP similarity restricted to the mandatory BPM/Camelot gate.
-        let strict = await provider.continuationTrackIDs(
-            after: recent, excluding: excluded,
-            scope: .djCompatible(anchorTrackID: anchorID), limit: keepPlayingHorizonBudget)
-        guard !Task.isCancelled else { return }
-        switch strict {
-        case .ready(let ids), .readyFromBroaderSimilarity(let ids):
-            // Defensive de-dup/no-repeat even if a provider gets exclusions wrong.
-            let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
-            if !deduped.isEmpty {
-                await appendKeepPlayingSimilarTracks(
-                    deduped, isFallback: false, reason: nil, recommendation: .mixMatched)
-                return
-            }
-        case .waitingForModel:
-            await extendWithFallback(reason: .waitingForModel, excluding: excluded)
-            return
-        case .unavailable:
-            break
-        }
-
-        // Stage 2: broader CLAP similarity with the musical gate removed.
-        let broader = await provider.continuationTrackIDs(
-            after: recent, excluding: excluded, scope: .broaderSimilarity,
-            limit: keepPlayingHorizonBudget)
-        guard !Task.isCancelled else { return }
-        switch broader {
-        case .ready(let ids), .readyFromBroaderSimilarity(let ids):
-            let deduped = KeepPlayingPicker.dedupedCandidates(ids, excluding: excluded)
-            guard !deduped.isEmpty else {
-                await extendWithFallback(reason: .unavailable, excluding: excluded)
-                return
-            }
-            await appendKeepPlayingSimilarTracks(
-                deduped, isFallback: true, reason: .matchingUnavailable,
-                recommendation: .soundSimilar)
-        case .waitingForModel:
-            await extendWithFallback(reason: .waitingForModel, excluding: excluded)
-        case .unavailable:
-            await extendWithFallback(reason: .unavailable, excluding: excluded)
-        }
+        await extendWithFallback(excluding: excluded)
     }
 
-    /// Hydrates similarity-picked core track ids into `TrackRow`s and appends
-    /// them. Falls back if none of the ids could be hydrated (e.g. a track was
-    /// deleted between the lookup and now) rather than silently appending
-    /// nothing.
-    private func appendKeepPlayingSimilarTracks(
-        _ ids: [Int64], isFallback: Bool, reason: KeepPlayingFallbackReason?,
-        recommendation: KeepPlayingRecommendationReason = .soundSimilar
+    /// Hydrates mix-picked core track ids into `TrackRow`s and appends
+    /// them. Falls back if none of the ids could be hydrated (e.g. a track
+    /// was deleted between the lookup and now) rather than silently
+    /// appending nothing.
+    private func appendKeepPlayingMixTracks(
+        _ ids: [Int64], recommendation: KeepPlayingRecommendationReason
     ) async {
         var rows: [TrackRow] = []
         for id in ids {
@@ -259,23 +162,24 @@ extension AudioPlayer {
                 rows.append(row)
             }
         }
-        // Snapshot the analysed BPM/key now so the explanation never changes on a later re-index.
-        let mix = recommendation == .mixMatched
-            ? await keepPlayingLibrary.djLoadTrackInfo(ids) : [:]
+        // Snapshot the analysed BPM/key now so the explanation never changes
+        // on a later re-index.
+        let mix = await keepPlayingLibrary.djLoadTrackInfo(ids)
         guard !Task.isCancelled else { return }
         guard !rows.isEmpty else {
-            await extendWithFallback(reason: .unavailable, excluding: await currentKeepPlayingExclusions())
+            await extendWithFallback(excluding: await currentKeepPlayingExclusions())
             return
         }
         finishKeepPlayingExtension(
-            with: rows, isFallback: isFallback, reason: reason, recommendation: recommendation, mix: mix)
+            with: rows, isFallback: false, reason: nil,
+            recommendation: recommendation, mix: mix)
     }
 
     /// The honest fallback: shuffle-continue from the same source/library
     /// scope already playing, never a silent no-op (CLAUDE.md "no silent/
     /// magic background work") — `keepPlayingLastExtensionWasFallback`/
     /// `keepPlayingFallbackReason` always record that this happened and why.
-    private func extendWithFallback(reason: KeepPlayingFallbackReason, excluding excluded: Set<Int64>) async {
+    private func extendWithFallback(excluding excluded: Set<Int64>) async {
         let pool = await keepPlayingFallbackPool()
         guard !Task.isCancelled else { return }
         func usable(_ rows: [TrackRow]) -> [TrackRow] {
@@ -298,8 +202,8 @@ extension AudioPlayer {
         }
         let picked = keepPlayingFallbackOrder(candidates)
         finishKeepPlayingExtension(
-            with: picked, isFallback: true, reason: reason,
-            recommendation: reason == .waitingForModel ? .modelUnavailableShuffle : .noMatchShuffle)
+            with: picked, isFallback: true, reason: .noCompatibleTracks,
+            recommendation: .noMatchShuffle)
     }
 
     /// The candidate pool for the fallback shuffle-continue: whatever
@@ -326,13 +230,13 @@ extension AudioPlayer {
         }
     }
 
-    /// Appends the chosen rows (real similarity picks or fallback picks) to
-    /// the live queue and records the outcome for the UI. Recording the
-    /// outcome happens even when `rows` is empty — a fallback that found
-    /// nothing to add is still a real, visible result, not silence.
+    /// Appends the chosen rows (real mix picks or fallback picks) to the live
+    /// queue and records the outcome for the UI. Recording the outcome happens
+    /// even when `rows` is empty — a fallback that found nothing to add is
+    /// still a real, visible result, not silence.
     func finishKeepPlayingExtension(
         with rows: [TrackRow], isFallback: Bool, reason: KeepPlayingFallbackReason?,
-        recommendation: KeepPlayingRecommendationReason = .soundSimilar,
+        recommendation: KeepPlayingRecommendationReason = .mixMatched,
         mix: [Int64: DJLoadTrackInfo] = [:]
     ) {
         // Re-apply the horizon budget and diversity rules at append time, so a stale or
@@ -341,14 +245,14 @@ extension AudioPlayer {
         keepPlayingLastExtensionWasFallback = isFallback
         keepPlayingFallbackReason = isFallback ? reason : nil
         // `next()` set this when it hit the end of the queue while this
-        // extension was still running (real report: dead air after a mood
-        // search's matches finish) — clear it either way, since the wait is
+        // extension was still running — clear it either way, since the wait is
         // over regardless of whether it produced anything playable.
         var resumeIndex: Int?
         var exhaustedGeneration: Int?
         if case .waiting(let generation, let terminalIndex) = keepPlayingBoundaryState {
             if generation == keepPlayingBoundaryGeneration, keepPlayingEnabled,
-               terminalIndex == index, terminalIndex == queue.count - 1 {
+                terminalIndex == index, terminalIndex == queue.count - 1
+            {
                 resumeIndex = terminalIndex
                 exhaustedGeneration = generation
             } else {
@@ -393,11 +297,13 @@ extension AudioPlayer {
             guard let id = row.track.id else { return nil }
             return .init(id: id, artist: row.artist?.name ?? row.album?.artist, album: row.album?.title)
         }
-        let lookback = queueEntries.indices.contains(index)
+        let lookback =
+            queueEntries.indices.contains(index)
             ? queueEntries[max(0, index - 2)...index].compactMap { candidate($0.row) } : []
         let excluded = Set(keepPlayingHistory).union(queueEntries.compactMap { $0.row.track.id })
-        let byID = Dictionary(rows.compactMap { r in r.track.id.map { ($0, r) } },
-                              uniquingKeysWith: { first, _ in first })
+        let byID = Dictionary(
+            rows.compactMap { r in r.track.id.map { ($0, r) } },
+            uniquingKeysWith: { first, _ in first })
         let plan = KeepPlayingPicker.plan(
             candidates: rows.compactMap(candidate), excluded: excluded, lookback: lookback,
             budget: keepPlayingHorizonBudget)

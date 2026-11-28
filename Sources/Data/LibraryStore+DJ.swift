@@ -2,36 +2,6 @@ import Foundation
 import GRDB
 
 extension LibraryStore {
-    /// Reads the authoritative discovery embedding in planner-friendly form.
-    /// Quantization is intentionally decoded here so the UI never manufactures
-    /// a similarity score from a track id or a random seed.
-    public func discoveryEmbeddingVector(trackId: Int64) throws -> [Float]? {
-        guard trackId >= 0,
-              let row = try dbQueue.read({ db in try DiscoveryEmbedding.fetchOne(db, key: trackId) }),
-              row.dimensions > 0,
-              row.quantizedVector.count == row.dimensions,
-              row.scale.isFinite else { return nil }
-        return row.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(row.scale) }
-    }
-
-    /// Batch form of `discoveryEmbeddingVector(trackId:)`: one read for a whole Build a Mix source
-    /// (a 1,000-track library made the per-track reads the slowest part of Generate).
-    public func discoveryEmbeddingVectors(trackIds: [Int64]) throws -> [Int64: [Float]] {
-        let ids = Array(Set(trackIds.filter { $0 >= 0 }))
-        guard !ids.isEmpty else { return [:] }
-        return try dbQueue.read { db in
-            var result: [Int64: [Float]] = [:]
-            for chunk in stride(from: 0, to: ids.count, by: 500).map({ Array(ids[$0..<min($0 + 500, ids.count)]) }) {
-                for row in try DiscoveryEmbedding.filter(chunk.contains(Column("trackId"))).fetchAll(db) {
-                    guard row.dimensions > 0, row.quantizedVector.count == row.dimensions,
-                          row.scale.isFinite else { continue }
-                    result[row.trackId] = row.quantizedVector.map { Float(Int8(bitPattern: $0)) * Float(row.scale) }
-                }
-            }
-            return result
-        }
-    }
-
     /// Batch energy values from the local discovery analysis, keyed by track.
     public func discoveryEnergies(trackIds: [Int64]) throws -> [Int64: Double] {
         let ids = Array(Set(trackIds.filter { $0 >= 0 }))
@@ -50,7 +20,7 @@ extension LibraryStore {
     /// Genres that have mixable tracks (a tempo and a Camelot key, by the same rules as
     /// `djLoadTrackInfo`), with their counts, most first. One aggregate query: the Mix builder's
     /// genre list needs no per-track rows (field report: the list took 5–20 s while every track's
-    /// metadata and embedding loaded).
+    /// metadata loaded).
     public func mixableGenreCounts() throws -> [(name: String, count: Int)] {
         try dbQueue.read { db in
             let rows = try Row.fetchAll(db, sql: """

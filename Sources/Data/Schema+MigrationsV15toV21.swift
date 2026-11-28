@@ -693,5 +693,11 @@ extension Schema {
             }
         }
 
+        if shouldRegister("v55", upTo: target) {
+            migrator.registerMigration("v55") { db in
+                try DiscoveryMigrations.v55(db)
+            }
+        }
+
     }
 }

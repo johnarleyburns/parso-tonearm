@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import TonearmCore
 
-/// Keep Playing (main-library queue continuation, reusing the C01–C09 CLAP
-/// vector index via `KeepPlayingSimilarityProviding`). Two layers:
+/// Keep Playing (main-library queue continuation under Build a Mix's BPM/key/
+/// energy rules via `KeepPlayingMixProviding`). Two layers:
 ///
 /// - `KeepPlayingPicker` is pure (no player, no database) and is exercised
 ///   directly — this is where the dedup/no-immediate-repeat/gating
@@ -50,7 +50,7 @@ extension SharedProductionSingletonTests {
 
         private static func resetPlayerForTest(_ player: AudioPlayer) {
             player.keepPlayingEnabled = false
-            player.keepPlayingProvider = nil
+            player.keepPlayingMixProvider = nil
             player.keepPlayingExtensionTask?.cancel()
             player.resetRestoreForTesting()
             if !player.queue.isEmpty {
@@ -142,19 +142,19 @@ extension SharedProductionSingletonTests {
         /// `KeepPlayingPicker` above), this fake exists to drive the fallback and
         /// state-surfacing paths.
         @MainActor
-        private final class FixedProvider: KeepPlayingSimilarityProviding {
-            let result: KeepPlayingLookup
-            private(set) var lastRecentlyPlayed: [Int64] = []
+        private final class FixedProvider: KeepPlayingMixProviding {
+            let result: KeepPlayingMixResult
+            private(set) var lastAnchor: Int64?
             private(set) var lastExcluding: Set<Int64> = []
             private(set) var callCount = 0
 
-            init(_ result: KeepPlayingLookup) { self.result = result }
+            init(_ result: KeepPlayingMixResult) { self.result = result }
 
-            func continuationTrackIDs(
-                after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
-            ) async -> KeepPlayingLookup {
+            func mixContinuation(
+                after trackID: Int64, excluding: Set<Int64>, limit: Int
+            ) async -> KeepPlayingMixResult {
                 callCount += 1
-                lastRecentlyPlayed = recentlyPlayed
+                lastAnchor = trackID
                 lastExcluding = excluding
                 return result
             }
@@ -197,60 +197,45 @@ extension SharedProductionSingletonTests {
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
 
-            let provider = FixedProvider(.ready([100]))
-            player.keepPlayingProvider = provider
+            let provider = FixedProvider(.init(trackIDs: [100]))
+            player.keepPlayingMixProvider = provider
 
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(provider.lastExcluding.isSuperset(of: [1, 2, 3]))
-            #expect(provider.lastRecentlyPlayed.first == 3, "most-recently-played track leads the list")
+            #expect(provider.lastAnchor == 3, "the mix continues from the last queued track")
         }
 
-        // MARK: - Fallback when the model/index isn't available
-
-        /// `.waitingForModel` must never be treated as "nothing to do" — Keep
-        /// Playing falls back to a shuffle-continue and records *why*, per
-        /// CLAUDE.md "no silent/magic background work": a substituted behavior is
-        /// always visible, never silent.
-        @Test func testWaitingForModelFallsBackAndRecordsTheReason() async {
-            let tracks = (1...3).map { makeTrack($0) }
-            playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-            player.keepPlayingProvider = FixedProvider(.waitingForModel)
-
-            await player.extendKeepPlayingQueueForTesting()
-
-            #expect(player.keepPlayingLastExtensionWasFallback)
-            #expect(player.keepPlayingFallbackReason == .waitingForModel)
-        }
+        // MARK: - Fallback when no BPM/key/energy candidate is available
 
         /// A model that's available but genuinely has no candidates is a
         /// different, distinct reason from "still downloading" — both are
         /// fallbacks, but the UI can only tell the user the truth if these stay
         /// separate.
-        @Test func testUnavailableFallsBackWithADistinctReasonFromWaitingForModel() async {
+        @Test func testEmptyMixFallsBackAndRecordsTheReason() async {
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-            player.keepPlayingProvider = FixedProvider(.unavailable)
+            player.keepPlayingMixProvider = FixedProvider(.empty)
 
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(player.keepPlayingLastExtensionWasFallback)
-            #expect(player.keepPlayingFallbackReason == .unavailable)
+            #expect(player.keepPlayingFallbackReason == .noCompatibleTracks)
         }
 
         /// No provider wired at all (the state under `swift test`, and on first
         /// launch before the app finishes assembling Discovery) must behave
         /// exactly like an explicit `.unavailable` answer — never crash, never a
         /// silent no-op.
-        @Test func testNoProviderWiredFallsBackWithoutCrashing() async {
+        @Test func testNoMixProviderWiredFallsBackWithoutCrashing() async {
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-            player.keepPlayingProvider = nil
+            player.keepPlayingMixProvider = nil
 
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(player.keepPlayingLastExtensionWasFallback)
-            #expect(player.keepPlayingFallbackReason == .unavailable)
+            #expect(player.keepPlayingFallbackReason == .noCompatibleTracks)
         }
 
         /// Remote browse queues have no persisted source id to use as a fallback.
@@ -271,26 +256,26 @@ extension SharedProductionSingletonTests {
             #expect(player.keepPlayingFallbackReason == nil)
         }
 
-        /// An empty `.ready([])` result (provider found literally nothing) must
-        /// also fall back rather than silently leaving the queue to run dry.
-        @Test func testEmptyReadyResultFallsBack() async {
+        /// An empty mix result (no analysed candidate at all) must also fall
+        /// back rather than silently leaving the queue to run dry.
+        @Test func testEmptyMixResultFallsBack() async {
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-            player.keepPlayingProvider = FixedProvider(.ready([]))
+            player.keepPlayingMixProvider = FixedProvider(.empty)
 
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(player.keepPlayingLastExtensionWasFallback)
         }
 
-        // MARK: - A real similarity pick appends without a fallback marker
+        // MARK: - A real mix pick appends without a fallback marker
 
         /// Uses ids actually present in the shared `LibraryStore` (so hydration
         /// via `LibraryStore.shared.trackRow(id:)` succeeds for real, rather than
         /// asserting against fixture ids the real on-disk store doesn't know
         /// about) to prove the non-fallback path appends exactly what the
         /// provider returned and marks it as Keep Playing's own.
-        @Test func testReadySimilarityPicksAppendWithoutFallbackMarker() async throws {
+        @Test func testReadyMixPicksAppendWithoutFallbackMarker() async throws {
             // Exclude the fixture ids this suite queues (1...3): another parallel
             // suite's temporary shared-library rows must never be mistaken for
             // new continuation candidates, or the extension correctly dedupes
@@ -302,7 +287,7 @@ extension SharedProductionSingletonTests {
 
             let tracks = (1...3).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 2)
-            player.keepPlayingProvider = FixedProvider(.ready(picks))
+            player.keepPlayingMixProvider = FixedProvider(.init(trackIDs: picks))
 
             await player.extendKeepPlayingQueueForTesting()
 
@@ -329,7 +314,7 @@ extension SharedProductionSingletonTests {
             // must survive turning Keep Playing off.
             player.play(tracks: tracks, startAt: 0)
 
-            player.keepPlayingProvider = FixedProvider(.ready(picks))
+            player.keepPlayingMixProvider = FixedProvider(.init(trackIDs: picks))
             await player.extendKeepPlayingQueueForTesting()
             #expect(player.queue.map(\.id) == [1, 2, 3] + picks)
 
@@ -357,7 +342,7 @@ extension SharedProductionSingletonTests {
             let tracks = (1...2).map { makeTrack($0) }
             playWithoutAutoExtending(player, tracks: tracks, startAt: 1)  // index 1 (last manual track)
 
-            player.keepPlayingProvider = FixedProvider(.ready(picks))
+            player.keepPlayingMixProvider = FixedProvider(.init(trackIDs: picks))
             await player.extendKeepPlayingQueueForTesting()
             #expect(player.queue.map(\.id) == [1, 2] + picks)
 
@@ -374,8 +359,8 @@ extension SharedProductionSingletonTests {
             let tracks = (1...10).map { makeTrack($0) }
             player.play(tracks: tracks, startAt: 0)
 
-            let provider = FixedProvider(.ready([100]))
-            player.keepPlayingProvider = provider
+            let provider = FixedProvider(.init(trackIDs: [100]))
+            player.keepPlayingMixProvider = provider
             player.skipToIndex(3)  // 7 tracks still left — nowhere near the end
 
             // `skipToIndex` -> `loadCurrent` already ran `maybeExtendKeepPlayingQueue`
@@ -390,8 +375,8 @@ extension SharedProductionSingletonTests {
             player.repeatMode = .all
             player.play(tracks: tracks, startAt: 2)  // last track, but repeat-all loops forever
 
-            let provider = FixedProvider(.ready([100]))
-            player.keepPlayingProvider = provider
+            let provider = FixedProvider(.init(trackIDs: [100]))
+            player.keepPlayingMixProvider = provider
             // `play(tracks:startAt:)` already ran `loadCurrent` -> `maybeExtendKeepPlayingQueue`
             // once; re-run the gate explicitly to be sure repeat-all keeps blocking it.
             player.maybeExtendKeepPlayingQueue()
@@ -401,9 +386,7 @@ extension SharedProductionSingletonTests {
         }
 
         // MARK: - Dead air: next() at end of queue must resume once a
-        // still-in-flight extension lands (real report — a mood search's
-        // matches finish before the extension, which re-runs a live query, has
-        // time to complete)
+        // still-in-flight extension lands
 
         @Test func testNextAtEndOfQueueResumesOnceInFlightExtensionLands() async throws {
             // Exclude the fixture ids this suite queues (1...3): another parallel
@@ -419,9 +402,8 @@ extension SharedProductionSingletonTests {
             playWithoutAutoExtending(player, tracks: tracks, startAt: 0)  // the one and only track, already "playing"
 
             // Simulate `maybeExtendKeepPlayingQueue` having already kicked off a
-            // real extension for this position (it re-runs a live query for a
-            // mood queue, so it can genuinely still be running when the last
-            // track ends).
+            // real extension for this position, so it can still be running when
+            // the last track ends.
             player.keepPlayingExtensionInFlight = true
 
             player.next()  // the track just finished; queue is exhausted
@@ -431,7 +413,7 @@ extension SharedProductionSingletonTests {
                            .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0),
                           "next() must remember it stopped only because an extension was still in flight")
 
-            player.keepPlayingProvider = FixedProvider(.ready([pick]))
+            player.keepPlayingMixProvider = FixedProvider(.init(trackIDs: [pick]))
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(player.queue.map(\.id) == [1, pick])
@@ -455,7 +437,7 @@ extension SharedProductionSingletonTests {
             #expect(player.keepPlayingBoundaryState ==
                            .waiting(queueGeneration: player.keepPlayingBoundaryGeneration, terminalIndex: 0))
 
-            player.keepPlayingProvider = FixedProvider(.unavailable)
+            player.keepPlayingMixProvider = FixedProvider(.empty)
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(!player.isPlaying)
@@ -491,7 +473,7 @@ extension SharedProductionSingletonTests {
 
             playWithoutAutoExtending(player, tracks: playlistRows, startAt: 0)
             player.queueSource = .playlist(playlist)
-            player.keepPlayingProvider = nil
+            player.keepPlayingMixProvider = nil
             await player.extendKeepPlayingQueueForTesting()
 
             #expect(player.queue.contains { $0.id == continuationID },

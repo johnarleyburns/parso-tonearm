@@ -206,7 +206,7 @@ extension AppState {
     /// `prefetchBytes` (default `true`, unchanged behavior for favorites/edit-metadata/
     /// custom-artwork/watch-prep): whether to await the full download before returning. Real
     /// report: a direct browse-and-play tap went dead for the entire download — `playRemote`
-    /// and `DiscoveryRuntimeController`'s mood-search `onPlay` await this call's result before
+    /// and playback paths await this call's result before
     /// starting playback at all, and persistence itself only needs a real, positive track id
     /// (so favorite/play-history writes have a valid foreign key) — not the bytes pinned to
     /// disk. Those two callers pass `false`; the DB rows still get persisted and returned
@@ -386,7 +386,7 @@ extension AppState {
     /// regardless of headers. Jamendo already has its own dedicated re-resolution path
     /// (`JamendoLocatorResolver`); this gives every other remote provider the same safety net at
     /// the one call site most real plays go through (`TrackDetailCard`'s Play Now/Play Next/Add
-    /// to Queue — Favorites, Jump Back In, Mood results, Top 10 all route through it per its own
+    /// to Queue — Favorites, Jump Back In, search results, Top 10 all route through it per its own
     /// doc comment). Falls back to the row completely unchanged on any failure — this can only
     /// ever help, never make a play attempt worse than it already was.
     ///

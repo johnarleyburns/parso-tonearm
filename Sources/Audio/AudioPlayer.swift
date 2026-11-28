@@ -65,21 +65,14 @@ public final class AudioPlayer: ObservableObject {
     /// "Extended by Keep Playing" instead of a track the user chose.
     @Published public internal(set) var keepPlayingAutoAddedTrackIDs: Set<Int64> = []
     /// True when the most recent Keep Playing extension had to fall back to a
-    /// shuffle-continue (the CLAP similarity index wasn't available) rather
+    /// shuffle-continue rather
     /// than a real similarity pick — surfaced in the UI per CLAUDE.md
     /// "no silent/magic background work": a substituted behavior is never
     /// silent.
     @Published public internal(set) var keepPlayingLastExtensionWasFallback = false
     /// Why the last fallback happened, `nil` when the last extension was a
-    /// real similarity pick (or nothing has extended yet this session).
+    /// real BPM/key/energy pick (or nothing has extended yet this session).
     @Published public internal(set) var keepPlayingFallbackReason: KeepPlayingFallbackReason?
-    /// The CLAP similarity seam (plan: `SearchService`/`VectorIndex`, C01–C09).
-    /// `TonearmCore` cannot import `TonearmDiscovery` directly — that package
-    /// already depends on `TonearmCore`, so the app wires the real adapter in
-    /// after launch via this seam instead. `nil` (the default, and always the
-    /// case under `swift test`) means Keep Playing always uses the honest
-    /// shuffle-continue fallback.
-    public var keepPlayingProvider: (any KeepPlayingSimilarityProviding)?
     /// Keep Playing's endless-mix continuation (Discovery's mix planner); nil until Discovery is up.
     public var keepPlayingMixProvider: (any KeepPlayingMixProviding)?
     /// Every track that has actually started playing during the current
@@ -89,15 +82,14 @@ public final class AudioPlayer: ObservableObject {
     /// "just-played track" it must never repeat.
     var keepPlayingHistory: [Int64] = []
     var keepPlayingExtensionInFlight = false
-    /// Real report: "Keep Playing is on, but after a mood search's matches
-    /// finish, I get dead air — nothing in the queue." Root cause: `next()`
+    /// Real report: "Keep Playing is on, but after a queue's matches finish,
+    /// I get dead air — nothing in the queue." Root cause: `next()`
     /// below permanently pauses when the queue is exhausted, with no path
     /// back to playing once the in-flight extension (`maybeExtendKeepPlaying
     /// Queue`, triggered when 1-2 tracks remain) finishes appending rows —
     /// `finishKeepPlayingExtension` only mutates `queue`, it never resumes.
-    /// A mood queue's extension re-runs a live query (slower than the local
-    /// vector lookup other sources use), so it's the most likely to still be
-    /// running when the last track ends and lose this race. Set only when
+    /// An extension can still be running when the last track ends. Set only
+    /// when
     /// `next()` pauses specifically because it ran out of queue while an
     /// extension was still in flight; `finishKeepPlayingExtension` checks it
     /// to resume automatically once real tracks land, instead of leaving
@@ -410,27 +402,6 @@ public final class AudioPlayer: ObservableObject {
 
     public func playSingle(_ track: TrackRow) {
         play(tracks: [track], startAt: 0)
-    }
-
-    /// Replaces everything after the currently-playing track with `tracks`
-    /// without interrupting playback — the "Update upcoming" behavior a
-    /// re-rolled mood query needs, as opposed to `play(tracks:startAt:
-    /// source:)`, which always restarts from a fresh index 0 (mirrors
-    /// Acalum's "Update upcoming" vs. "Play now" distinction — docs/plans/
-    /// mood-based-listening-plan.md §3.1 point 5). Falls back to a normal
-    /// `play(tracks:startAt:source:)` when nothing is queued yet, since
-    /// there is no "currently playing track" to preserve.
-    public func updateUpcoming(with tracks: [TrackRow], source: QueueSource) {
-        guard !isAmbient else { return }
-        guard !queue.isEmpty else {
-            play(tracks: tracks, startAt: 0, source: source)
-            return
-        }
-        queueSource = source
-        let kept = Array(queueEntries.prefix(index + 1))
-        let appended = tracks.map { PlaybackQueueEntry(row: $0, origin: .context) }
-        let edited = QueueEditor.State(queue: kept + appended, currentIndex: index)
-        applyQueueEdit(edited, reloadCurrent: false, autoplay: isPlaying)
     }
 
     public func moveQueueItems(fromOffsets offsets: IndexSet, toOffset destination: Int) {

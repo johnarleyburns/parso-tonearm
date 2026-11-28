@@ -217,40 +217,6 @@ final class MutableTestClock: @unchecked Sendable {
         #expect(recovered.leaseExpiresAt == nil)
     }
 
-    @Test func testWindowCheckpointProgressAndStageCompletionIsIndependent() async throws {
-        let queue = try makeQueue()
-        let trackID = try await seedTrack(queue)
-        let repo = IndexJobRepository(writer: queue)
-        _ = try await repo.enqueueOrRestart(
-            trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
-        let claim = try await repo.claimNextJob()!
-
-        try await repo.recordWindowCompletion(
-            jobId: claim.job.id, leaseToken: claim.leaseToken,
-            checkpoint: DiscoveryWindowCheckpoint(
-                jobId: claim.job.id, revisionSignature: "r1", windowIndex: 0, startSeconds: 0,
-                embeddingVector: Data([1, 2, 3]), poolingWeight: 1, completedAt: Date()),
-            totalWindows: 1)
-
-        let indices = try await repo.completedWindowIndices(jobId: claim.job.id)
-        #expect(indices == [0])
-
-        // Musical analysis fails, but embedding completing alone still marks
-        // the job overall complete (plan §4: musicalAnalysisStageState may
-        // be terminal-failed while embedding coverage is independently true).
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis,
-            state: .failed)
-        var job = try await repo.job(id: claim.job.id)!
-        #expect(job.state == .running, "not complete until embedding stage also terminal")
-
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
-        job = try await repo.job(id: claim.job.id)!
-        #expect(job.state == .complete)
-        #expect(job.isComplete)
-    }
-
     @Test func testCoverageCounts() async throws {
         let queue = try makeQueue()
         let clock = MutableTestClock(Date())
@@ -277,11 +243,7 @@ final class MutableTestClock: @unchecked Sendable {
         let claimA = try await repo.claimNextJob()!
         let jobA = try await repo.job(trackId: trackIDs[0], pipelineVersion: 1)!
         #expect(claimA.job.id == jobA.id)
-        try await repo.completeStage(
-            jobId: claimA.job.id, leaseToken: claimA.leaseToken, stage: .embedding, state: .complete)
-        try await repo.completeStage(
-            jobId: claimA.job.id, leaseToken: claimA.leaseToken, stage: .musicalAnalysis,
-            state: .complete)
+        try await repo.completeMusicalAnalysis(jobId: claimA.job.id, leaseToken: claimA.leaseToken, state: .complete)
 
         // Drive trackIDs[1]'s job (next-highest priority) to terminal
         // failure via full retry escalation.
@@ -436,10 +398,7 @@ final class MutableTestClock: @unchecked Sendable {
         _ = try await repo.enqueueOrRestart(
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         let claim = try await repo.claimNextJob()!
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+        try await repo.completeMusicalAnalysis(jobId: claim.job.id, leaseToken: claim.leaseToken, state: .complete)
 
         let coverage = try await repo.coverage(pipelineVersion: 1)
         let list = try await repo.trackSummaries(for: .complete, pipelineVersion: 1)
@@ -512,7 +471,7 @@ final class MutableTestClock: @unchecked Sendable {
     // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
     // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
 
-    @Test func testCurrentlyRunningTrackReflectsTheOneClaimedJobsOwnProgress() async throws {
+    @Test func testCurrentlyRunningTrackReflectsTheOneClaimedJob() async throws {
         let queue = try makeQueue()
         let repo = IndexJobRepository(writer: queue)
         let trackID = try await seedTrack(queue, title: "Now Playing Track")
@@ -526,23 +485,8 @@ final class MutableTestClock: @unchecked Sendable {
         let fresh = try await repo.currentlyRunningTrack(pipelineVersion: 1)
         #expect(fresh?.id == trackID)
         #expect(fresh?.title == "Now Playing Track")
-        #expect(fresh?.fractionComplete == nil, "no window count reported yet -> no fabricated 0%")
 
-        try await repo.recordWindowCompletion(
-            jobId: claim.job.id, leaseToken: claim.leaseToken,
-            checkpoint: DiscoveryWindowCheckpoint(
-                jobId: claim.job.id, revisionSignature: "r1", windowIndex: 0, startSeconds: 0,
-                embeddingVector: Data([1]), poolingWeight: 1, completedAt: Date()),
-            totalWindows: 4)
-        let partial = try await repo.currentlyRunningTrack(pipelineVersion: 1)
-        #expect(partial?.completedWindows == 1)
-        #expect(partial?.totalWindows == 4)
-        #expect(partial?.fractionComplete == 0.25)
-
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+        try await repo.completeMusicalAnalysis(jobId: claim.job.id, leaseToken: claim.leaseToken, state: .complete)
         let afterCompletion = try await repo.currentlyRunningTrack(pipelineVersion: 1)
         #expect(afterCompletion == nil, "a completed job no longer holds a running lease")
     }
@@ -564,10 +508,7 @@ final class MutableTestClock: @unchecked Sendable {
             trackId: trackID, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
         clock.advance(by: 3600) // sits queued for an hour
         let claim = try await repo.claimNextJob()!
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis, state: .complete)
+        try await repo.completeMusicalAnalysis(jobId: claim.job.id, leaseToken: claim.leaseToken, state: .complete)
 
         // One completion inside a 300s trailing window -> rate = 1/300.
         let rate = try await repo.recentCompletionRate(pipelineVersion: 1, window: 300, now: clock.now())

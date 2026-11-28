@@ -86,6 +86,6 @@ import GRDB
     }
 
     @Test func testMigrationListIncludesTheCatalog() {
-        #expect(Schema.migrationOrder.last == "v54")
+        #expect(Schema.migrationOrder.last == "v55")
     }
 }

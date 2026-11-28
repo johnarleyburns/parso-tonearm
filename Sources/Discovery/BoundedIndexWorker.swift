@@ -3,40 +3,29 @@ import Foundation
 import GRDB
 import os.log
 import ParsoAudioAnalysis
-import ParsoAudioNeural
 import StarterGeneratorSupport
 import TonearmCore
 
-/// The real C04 `IndexJobExecuting` implementation: bounded windowed reads
-/// (`WindowedAudioReader`), the shared CLAP encoder (`ModelManager`), and the
-/// shared BPM/key/energy analyzers (`ParsoAudioAnalysis.LeanAnalysis`) over a
-/// bounded sample — never a whole-file decode (plan §6). `LeanAnalysis`
-/// computes only what a BPM/Camelot-compatible next-track picker needs,
-/// skipping `FullAnalysis`'s loudness/phrase/waveform stages (all three
-/// unread by anything downstream of this worker).
+/// The musical-analysis implementation of `IndexJobExecuting`: bounded
+/// windowed reads (`WindowedAudioReader`) and the shared BPM/key/energy
+/// analyzers (`ParsoAudioAnalysis.LeanAnalysis`) over a bounded sample — never
+/// a whole-file decode (plan §6). `LeanAnalysis` computes only what the
+/// BPM/Camelot-compatible mix/queue logic needs, skipping `FullAnalysis`'s
+/// loudness/phrase/waveform stages (all three unread downstream).
 ///
-/// Only ONE analysis job executes at a time (plan §6): this type does not
-/// itself enforce that (the scheduler already only ever has one worker/one
-/// claimed job in flight — plan §7, "only one scheduler exists per
-/// process"), but every heavy call here (`readWindow`, `logMel`,
-/// `embedAudio`, `LeanAnalysis.run`) runs on the caller's (non-MainActor)
+/// Only ONE analysis job executes at a time (the scheduler already only ever
+/// has one worker/one claimed job in flight), and every heavy call here
+/// (`readWindow`, `LeanAnalysis.run`) runs on the caller's (non-MainActor)
 /// task, never main.
 public actor BoundedIndexWorker: IndexJobExecuting {
-    /// A window read and preprocessed to 48 kHz mono covers this many
-    /// seconds (matches the CLAP encoder's `clipSamples` of 10 s at 48 kHz —
-    /// plan §6's fixed v1 window length).
-    public static let embeddingWindowSeconds: Double = 10
     /// Musical analysis samples at most this many seconds from the track
     /// midpoint (plan §6: "up to 60 seconds from the track midpoint, shorter
     /// files in full").
     public static let musicalAnalysisMaxSeconds: Double = 60
 
     private let writer: any DatabaseWriter
-    private let jobs: IndexJobRepository
-    private let models: ModelManager
     private let reader: WindowedAudioReader
     private let resolver: AnalysisAssetResolver
-    private let executionContext: @Sendable () -> ModelManager.ExecutionContext
     private let clock: () -> Date
     /// Remote sparse indexing (docs/plans/remote-sparse-indexing.md) — a
     /// `.remote` asset's PCM comes from here instead of
@@ -44,261 +33,31 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     private let remoteReader: AssetBackedWindowedAudioReader
     private let remoteLoaderQueue = DispatchQueue(label: "guru.parso.tonearm.discovery.remoteLoaders")
     /// One ephemeral `RemoteSparseAssetResolver.Session` per in-flight
-    /// remote job, keyed by job id, reused across that job's ~13 embedding/
-    /// analysis window reads (per the plan's design — re-authenticating and
-    /// rebuilding the `AVAssetReader`/resource-loader stack per window would
-    /// multiply both the re-auth round trips and any per-request fetch
-    /// overhead by ~13x for no benefit). Only ever holds 0–1 entries in
-    /// practice (plan §6: "Only ONE analysis job executes at a time"), but
-    /// keyed by job id rather than a single optional so a job that finishes
-    /// while an unrelated stale entry hasn't been cleaned up yet can never
-    /// clobber the wrong session.
+    /// remote job, keyed by job id, reused across that job's analysis reads.
     private var remoteSessions: [String: RemoteSparseAssetResolver.Session] = [:]
-    /// One `LocalAnalysisReaderSession` per in-flight local job, keyed by job id — the same
-    /// reuse-across-windows rationale as `remoteSessions`, for a local asset's `AVAudioFile`/
-    /// `AVAudioConverter` instead of a remote session's `AVAssetReader`/resource-loader stack.
-    /// See `localSession(jobId:asset:)` for lifecycle.
+    /// One `LocalAnalysisReaderSession` per in-flight local job, keyed by job id.
     private var localSessions: [String: LocalAnalysisReaderSession] = [:]
 
     public init(
         writer: any DatabaseWriter,
-        jobs: IndexJobRepository,
-        models: ModelManager,
         reader: WindowedAudioReader = WindowedAudioReader(),
         resolver: AnalysisAssetResolver = AnalysisAssetResolver(),
         remoteReader: AssetBackedWindowedAudioReader = AssetBackedWindowedAudioReader(),
-        executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
         clock: @escaping () -> Date = Date.init
     ) {
         self.writer = writer
-        self.jobs = jobs
-        self.models = models
         self.reader = reader
         self.resolver = resolver
         self.remoteReader = remoteReader
-        self.executionContext = executionContext
         self.clock = clock
     }
 
     public func processNextUnit(job: DiscoveryIndexJob, leaseToken: String) async -> IndexWorkOutcome {
-        guard job.embeddingStageState == .pending || job.embeddingStageState == .running else {
-            return await processMusicalAnalysis(job: job)
-        }
-        return await processEmbeddingWindow(job: job, leaseToken: leaseToken)
-    }
-
-    // MARK: - Embedding stage
-
-    private func processEmbeddingWindow(
-        job: DiscoveryIndexJob, leaseToken: String
-    ) async -> IndexWorkOutcome {
-        guard let selectedAssetId = job.selectedAssetId, let asset = fetchAsset(id: selectedAssetId)
+        guard job.musicalAnalysisStageState == .pending || job.musicalAnalysisStageState == .running
         else {
-            return .waiting(reason: .waitingForAsset, retryAfterSeconds: nil)
+            return .musicalAnalysisStageFinished(job.musicalAnalysisStageState)
         }
-
-        let encoder: any SemanticModel
-        do {
-            encoder = try await models.audioEncoder(context: executionContext())
-        } catch {
-            return .waiting(reason: .waitingForModel, retryAfterSeconds: nil)
-        }
-
-        let duration: Double
-        do {
-            duration = try await resolvedDuration(
-                jobId: job.id, asset: asset, track: fetchTrack(id: job.trackId), stage: .embedding)
-        } catch let outcome as IndexWorkOutcome {
-            return outcome
-        } catch {
-            return .transientFailure(code: "durationReadFailed", message: error.localizedDescription)
-        }
-
-        let windowStarts = DiscoverySamplingPolicy.windowStarts(durationSeconds: duration)
-        let completed = (try? await jobs.completedWindowIndices(jobId: job.id)) ?? []
-        guard let nextIndex = (0..<windowStarts.count).first(where: { !completed.contains($0) }) else {
-            return await finalizeEmbedding(job: job, encoder: encoder)
-        }
-        let startSeconds = windowStarts[nextIndex]
-
-        let pcm: [Float]
-        if asset.kind == .remote {
-            switch await readRemoteWindow(
-                jobId: job.id, asset: asset, startSeconds: startSeconds,
-                windowSeconds: Self.embeddingWindowSeconds)
-            {
-            case .samples(let samples): pcm = samples
-            case .waitingForAsset: return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
-            case .unsupported:
-                await releaseRemoteSession(jobId: job.id)
-                return .embeddingStageFinished(.unsupported)
-            case .transientFailure(let code, let message):
-                return .transientFailure(code: code, message: message)
-            }
-        } else {
-            let session: LocalAnalysisReaderSession
-            do {
-                guard let opened = try localSession(jobId: job.id, asset: asset) else {
-                    return .waiting(reason: .waitingForAsset, retryAfterSeconds: 300)
-                }
-                session = opened
-            } catch {
-                return mapLocalSessionError(error, terminal: .embeddingStageFinished(.unsupported))
-            }
-            do {
-                pcm = try session.readWindow(
-                    startSeconds: startSeconds, windowSeconds: Self.embeddingWindowSeconds)
-                recordAssetState(assetId: selectedAssetId, revision: job.assetRevision ?? 1, url: session.url)
-            } catch {
-                return mapLocalSessionError(error, terminal: .embeddingStageFinished(.unsupported))
-            }
-        }
-
-        let logMel: [Float]
-        do {
-            logMel = try SemanticPreprocess.logMel(clip: pcm, spec: encoder.spec)
-        } catch {
-            return .transientFailure(code: "preprocessFailed", message: error.localizedDescription)
-        }
-
-        let embedding: [Float]
-        do {
-            embedding = try await encoder.embedAudio(logMel: logMel)
-        } catch let semanticError as SemanticModelError {
-            switch semanticError {
-            case .modelUnavailable:
-                return .waiting(reason: .waitingForModel, retryAfterSeconds: nil)
-            case .modelLoadFailed, .inferenceFailed, .tokenizerUnavailable:
-                return .transientFailure(code: "embedFailed", message: semanticError.errorDescription)
-            }
-        } catch {
-            return .transientFailure(code: "embedFailed", message: error.localizedDescription)
-        }
-        guard embedding.allSatisfy({ $0.isFinite }) else {
-            return .transientFailure(code: "embedNonFinite", message: nil)
-        }
-
-        let vectorData = embedding.withUnsafeBufferPointer { Data(buffer: $0) }
-        let checkpoint = DiscoveryWindowCheckpoint(
-            jobId: job.id,
-            revisionSignature: "\(job.assetRevision ?? 0)",
-            windowIndex: nextIndex,
-            startSeconds: startSeconds,
-            embeddingVector: vectorData,
-            poolingWeight: 1.0,
-            completedAt: clock())
-
-        do {
-            try await jobs.recordWindowCompletion(
-                jobId: job.id, leaseToken: leaseToken, checkpoint: checkpoint,
-                totalWindows: windowStarts.count)
-        } catch {
-            return .transientFailure(code: "checkpointWriteFailed", message: error.localizedDescription)
-        }
-        return .windowCompleted
-    }
-
-    /// Pool every completed window's raw embedding into the final track
-    /// vector, quantize it, and commit `discovery_embedding` (plan §6:
-    /// "quantize only the final normalized pooled vector"). Known gap
-    /// (documented in IMPLEMENTATION_STATUS.md): this commit and the job's
-    /// own `.complete` flip (via `IndexJobRepository.completeStage`, called
-    /// by the scheduler right after this returns) are two separate
-    /// transactions rather than one atomic commit — a crash between them
-    /// just leaves the job re-processed (idempotent overwrite) on retry,
-    /// never a lost or duplicated embedding.
-    /// The embedding stage's window reads are done either way (success or
-    /// failure below) — neither the remote nor the local session (if any)
-    /// has anything left to serve until musical analysis starts its own, so
-    /// both are released here regardless of `finalizeEmbeddingOutcome`'s result.
-    private func finalizeEmbedding(
-        job: DiscoveryIndexJob, encoder: any SemanticModel
-    ) async -> IndexWorkOutcome {
-        let outcome = finalizeEmbeddingOutcome(job: job, encoder: encoder)
-        await releaseRemoteSession(jobId: job.id)
-        releaseLocalSession(jobId: job.id)
-        return outcome
-    }
-
-    private func finalizeEmbeddingOutcome(
-        job: DiscoveryIndexJob, encoder: any SemanticModel
-    ) -> IndexWorkOutcome {
-        guard let assetId = job.selectedAssetId else {
-            return .waiting(reason: .waitingForAsset, retryAfterSeconds: nil)
-        }
-        let vectors: [[Float]]
-        do {
-            vectors = try writer.read { db in
-                try DiscoveryWindowCheckpoint
-                    .filter(Column("jobId") == job.id)
-                    .order(Column("windowIndex"))
-                    .fetchAll(db)
-                    .map { checkpoint in
-                        checkpoint.embeddingVector.withUnsafeBytes { raw in
-                            Array(raw.bindMemory(to: Float.self))
-                        }
-                    }
-            }
-        } catch {
-            return .transientFailure(code: "checkpointReadFailed", message: error.localizedDescription)
-        }
-        guard !vectors.isEmpty else {
-            return .transientFailure(code: "noCheckpoints", message: nil)
-        }
-
-        // Plan §5: compare observed size/mtime before and after processing;
-        // invalidate if the underlying file changed while we were reading it.
-        // Remote assets have no stable local mtime/size to compare (no
-        // `recordAssetState` call is ever made for them — see
-        // `readRemoteWindow`), so this simply never trips for them.
-        if let asset = fetchAsset(id: assetId),
-            let recorded = fetchAssetState(assetId: assetId),
-            let current = currentStat(asset: asset),
-            current.size != recorded.observedSizeBytes
-                || !Self.sameInstant(current.mtime, recorded.observedMTime)
-        {
-            return .transientFailure(
-                code: "assetChangedDuringProcessing",
-                message: "selected asset changed while indexing; will restart")
-        }
-
-        let pooled = SemanticPooling.pool(vectors, strategy: encoder.spec.pooling)
-        guard !pooled.isEmpty, pooled.allSatisfy({ $0.isFinite }) else {
-            return .embeddingStageFinished(.failed)
-        }
-        guard pooled.count == EmbeddingSpace.current.dimensions else {
-            return .embeddingStageFinished(.failed)
-        }
-        let (int8, scale) = VectorQuantization.quantize(pooled)
-
-        let trackId = job.trackId
-        let assetRevision = job.assetRevision ?? 1
-        let dimensions = pooled.count
-        let quantizedVector = VectorQuantization.data(int8)
-        let scaleValue = Double(scale)
-        let completedAt = clock()
-        let jobId = job.id
-
-        do {
-            try writer.write { db in
-                var embeddingRow = DiscoveryEmbedding(
-                    trackId: trackId,
-                    assetId: assetId,
-                    assetRevision: assetRevision,
-                    modelVersion: DiscoveryPipelineVersion.model,
-                    preprocessingVersion: DiscoveryPipelineVersion.preprocessing,
-                    samplingVersion: DiscoveryPipelineVersion.sampling,
-                    dimensions: dimensions,
-                    quantizedVector: quantizedVector,
-                    scale: scaleValue,
-                    completedAt: completedAt)
-                try embeddingRow.upsert(db)
-                try DiscoveryWindowCheckpoint.filter(Column("jobId") == jobId).deleteAll(db)
-            }
-        } catch {
-            return .transientFailure(code: "embeddingCommitFailed", message: error.localizedDescription)
-        }
-        return .embeddingStageFinished(.complete)
+        return await processMusicalAnalysis(job: job)
     }
 
     // MARK: - Musical analysis stage
@@ -322,7 +81,7 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         let duration: Double
         do {
             duration = try await resolvedDuration(
-                jobId: job.id, asset: asset, track: track, stage: .musicalAnalysis)
+                jobId: job.id, asset: asset, track: track)
         } catch let outcome as IndexWorkOutcome {
             return outcome
         } catch {
@@ -347,10 +106,9 @@ public actor BoundedIndexWorker: IndexJobExecuting {
         let assetRevision = job.assetRevision ?? 1
         let bpm = result.bpm
         // Store the Camelot code ("8A") rather than the human-readable
-        // "A minor": the C06 retrieval engine's hard key filter and the
-        // shared `HybridRanker.keyFit` both work in Camelot, so persisting
-        // the code keeps `discovery_track_analysis.key` directly comparable
-        // without re-parsing a prose key name.
+        // "A minor": BPM/Key filtering and the mix planner both work in
+        // Camelot, so persisting the code keeps `discovery_track_analysis.key`
+        // directly comparable without re-parsing a prose key name.
         let key = result.key?.camelot.code
         let energy = result.energy.map { Double($0.scalar) }
         let completedAt = clock()
@@ -434,22 +192,6 @@ public actor BoundedIndexWorker: IndexJobExecuting {
                 analysisScopeSeconds: scopeSeconds,
                 completedAt: completedAt)
             try analysisRow.upsert(db)
-            // Real report: Mood search could return a track with a CLAP embedding but no BPM/
-            // camelot yet, because the embedding commit (`finalizeEmbeddingOutcome`, above) and
-            // this analysis commit are two separate transactions. Musical analysis always runs
-            // strictly after embedding reaches a terminal state within the same job
-            // (`processNextUnit`'s dispatch guard), so this is the one commit that can see BOTH
-            // tables — atomically flip the single `track.indexed` flag Mood's search must gate on
-            // (migration v46) here, but only when the embedding genuinely succeeded: a failed/
-            // unsupported embedding leaves no `discovery_embedding` row, and such a track could
-            // never surface via CLAP search anyway, so it correctly stays un-indexed rather than
-            // being marked ready on the strength of analysis alone.
-            let hasEmbedding = try Int.fetchOne(
-                db, sql: "SELECT 1 FROM discovery_embedding WHERE trackId = ?", arguments: [trackId]
-            ) != nil
-            if hasEmbedding {
-                try db.execute(sql: "UPDATE track SET indexed = 1 WHERE id = ?", arguments: [trackId])
-            }
         }
     }
 
@@ -457,25 +199,6 @@ public actor BoundedIndexWorker: IndexJobExecuting {
 
     private func fetchAsset(id: Int64) -> Asset? {
         try? writer.read { db in try Asset.fetchOne(db, key: id) }
-    }
-
-    private func fetchAssetState(assetId: Int64) -> DiscoveryAssetState? {
-        try? writer.read { db in try DiscoveryAssetState.fetchOne(db, key: assetId) }
-    }
-
-    /// Whether two optional file-modification instants are the same to
-    /// within a second (filesystem mtime granularity varies).
-    private static func sameInstant(_ lhs: Date, _ rhs: Date?) -> Bool {
-        guard let rhs else { return false }
-        return abs(lhs.timeIntervalSince(rhs)) < 1.0
-    }
-
-    private func currentStat(asset: Asset) -> (size: Int64, mtime: Date)? {
-        let resolved = try? resolver.withResolvedURL(for: asset) { url in self.statFile(url) }
-        switch resolved {
-        case .success(let stat): return stat
-        case .failure, .none: return nil
-        }
     }
 
     /// Observed file size + modification time for change detection (plan §5).
@@ -488,8 +211,8 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     }
 
     /// Upsert `discovery_asset_state` with the observed validator for the
-    /// asset currently being read (plan §4/§5). Best-effort: a stat failure
-    /// leaves the row absent, which just disables before/after comparison.
+    /// asset currently being read. Best-effort: a stat failure leaves the row
+    /// absent.
     private nonisolated func recordAssetState(assetId: Int64, revision: Int64, url: URL) {
         guard let stat = statFile(url) else { return }
         try? writer.write { db in
@@ -520,12 +243,9 @@ public actor BoundedIndexWorker: IndexJobExecuting {
     /// "Duration source" section), so the remote fetch branch below is a
     /// rarely-hit fallback, not the common path.
     private func resolvedDuration(
-        jobId: String, asset: Asset, track: Track?, stage: IndexJobRepository.Stage
+        jobId: String, asset: Asset, track: Track?
     ) async throws -> Double {
-        let terminal: IndexWorkOutcome =
-            stage == .embedding
-            ? .embeddingStageFinished(.unsupported)
-            : .musicalAnalysisStageFinished(.unsupported)
+        let terminal: IndexWorkOutcome = .musicalAnalysisStageFinished(.unsupported)
         if let known = track?.durationSec, known.isFinite, known > 0 { return known }
 
         if asset.kind == .remote {

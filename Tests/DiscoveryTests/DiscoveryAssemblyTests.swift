@@ -1,7 +1,6 @@
 #if !os(watchOS)
 import AVFoundation
 import GRDB
-import ParsoAudioNeural
 import Foundation
 import Testing
 
@@ -9,53 +8,15 @@ import Testing
 @testable import TonearmDiscovery
 
 /// C04/C05 seam: the app-owned `DiscoveryAssembly` graph — one repository/
-/// reconciler/scheduler/model set over the single core writer — recovers at
-/// launch and drains the queue end to end against a deterministic synthetic
-/// encoder and real on-disk audio.
+/// reconciler/scheduler over the single core writer — recovers at launch and
+/// drains the queue end to end against real on-disk audio.
 @Suite struct DiscoveryAssemblyTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
         config.foreignKeysEnabled = true
         let queue = try DatabaseQueue(configuration: config)
         try Schema.migrator().migrate(queue)
-        // The contract is already installed on an existing database at launch.
-        try EmbeddingSpace.install(on: queue)
         return queue
-    }
-
-    private func spec() -> EmbeddingModelSpec {
-        let meta = EmbeddingModelSpec.musicCLAPMetadata
-        let bins = meta.fftSize / 2 + 1
-        var spec = EmbeddingModelSpec.musicCLAP(
-            melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
-        spec.dimensions = EmbeddingSpace.current.dimensions
-        return spec
-    }
-
-    private func nominal(paused: Bool = false) -> DiscoverySchedulingSnapshot {
-        DiscoverySchedulingSnapshot(
-            appState: .foreground, thermalState: .nominal, batteryLevel: 0.9, isCharging: true,
-            isLowPowerModeEnabled: false, isPlaybackActive: false, isUserPaused: paused,
-            chargingOnlySetting: false, hasBackgroundProcessingGrant: false, hasMemoryWarning: false,
-            continuousNominalSeconds: 120)
-    }
-
-    private func writeSineWAV(seconds: Double, to url: URL) throws {
-        let sr = 44_100.0
-        let format = AVAudioFormat(standardFormatWithSampleRate: sr, channels: 1)!
-        let file = try AVAudioFile(forWriting: url, settings: format.settings)
-        var remaining = Int((seconds * sr).rounded())
-        var phase = 0.0
-        let inc = 2.0 * Double.pi * 220.0 / sr
-        while remaining > 0 {
-            let n = min(Int(sr), remaining)
-            let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n))!
-            buf.frameLength = AVAudioFrameCount(n)
-            let ch = buf.floatChannelData![0]
-            for i in 0..<n { ch[i] = Float(sin(phase) * 0.25); phase += inc }
-            try file.write(from: buf)
-            remaining -= n
-        }
     }
 
     @discardableResult
@@ -124,16 +85,15 @@ import Testing
 
         let snap = nominal()
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { snap })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
 
         let completed = try await assembly.drainQueue()
         #expect(completed == 2)
 
-        let embeddingCount = try await queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
+        let analysisCount = try await queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_track_analysis")!
         }
-        #expect(embeddingCount == 2)
+        #expect(analysisCount == 2)
         let coverage = try await assembly.jobs.coverage(pipelineVersion: 1)
         #expect(coverage.complete == 2)
     }
@@ -150,7 +110,6 @@ import Testing
 
         let snap = nominal(paused: true)
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { snap })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
 
         let completed = try await assembly.drainQueue()
@@ -181,9 +140,8 @@ import Testing
         // Real-world gate: device thermal state is genuinely `.serious` — one
         // of the two conditions (with `.critical`) `IndexPolicy.decide()`
         // still treats as an unconditional hard block. `.fair` no longer
-        // blocks scheduling at all (see `DiscoveryExecutionPolicy`'s doc
-        // comment) — it only degrades the compute engine — so it would no
-        // longer reproduce this scenario.
+        // blocks scheduling at all. `.serious` is the unconditional hard
+        // block this scenario needs.
         final class SnapshotBox: @unchecked Sendable {
             var value: DiscoverySchedulingSnapshot
             init(_ v: DiscoverySchedulingSnapshot) { value = v }
@@ -195,7 +153,6 @@ import Testing
                 chargingOnlySetting: false, hasBackgroundProcessingGrant: false,
                 hasMemoryWarning: false, continuousNominalSeconds: 5))
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.value })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
 
         let recovery = try await assembly.recoverAndReconcileAtLaunch()
         #expect(recovery.bootstrappedTracks == trackCount, "every pre-existing track got a job")

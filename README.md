@@ -34,7 +34,6 @@ crossfeed · convolution ·
 bit-perfect output · smart playlists · tag editor · bulk edits · duplicate detection ·
 **all 14 remote-library providers (archive.org, Dropbox, Google Drive, OneDrive, pCloud, Box,
 Yandex.Disk, Subsonic/Navidrome, WebDAV, Jellyfin, Emby, Plex, SMB and Jamendo genre libraries)** ·
-semantic vibe search ·
 auto-generated playlists · analysis stages 1–2 (BPM, key, energy) ·
 **Mixes** — build an explainable order from your own music with phrase-aware transitions · zero telemetry, no account.
 
@@ -135,7 +134,7 @@ down.
 
 Platterhead ships in seven languages: English, Deutsch, Español, Français, 日本語, Português (Brasil) and 简体中文. It follows the iPhone's language; to pick a language just for Platterhead, open Settings → Apps → Platterhead → Language. Settings → About → Language lists every language in the build and links there.
 
-Every screen is translated: the iPhone app, Apple Watch app, widgets, Share extension, CarPlay, Siri and App Shortcuts phrases, the sound-index status, and the system permission prompts. Counts use each language's own plural rules. Genre and mood names are translated; provider names, Platterhead, BPM and Camelot keys stay as they are.
+Every screen is translated: the iPhone app, Apple Watch app, widgets, Share extension, CarPlay, Siri and App Shortcuts phrases, the sound-index status, and the system permission prompts. Counts use each language's own plural rules. Genre names are translated; provider names, Platterhead, BPM and Camelot keys stay as they are.
 
 The translations are first drafts. Every entry is marked `needs_review` until a native speaker checks it in context. Strings are extracted by the Swift compiler: after changing UI text, run `scripts/sync-localization-catalogs.sh`, add the new keys in all seven languages, and `scripts/check-localization-catalogs.sh` (part of `make ci-guards`) fails if any language is missing.
 
@@ -148,12 +147,11 @@ swift test             # the only automated test suite in this repo
 ```
 
 **No converted model is in the repository** — GitHub rejects any file over 100 MB.
-`make models` downloads the three Core ML packages pinned in `Config/models.lock`
-(CLAP audio + text and the Demucs stems model, ~460 MB) and checksum-verifies
-them into `Resources/Models/`; a package already on your machine is kept, and
-`scripts/fetch-models.sh --force` replaces it. Without a package, the feature it
-backs reports itself unavailable rather than failing — semantic search says so,
-and the decks play the full mix with the stem faders disabled.
+`make models` downloads the Demucs stems model pinned in `Config/models.lock`
+(~210 MB) and checksum-verifies it into `Resources/Models/`; a package already on
+your machine is kept, and `scripts/fetch-models.sh --force` replaces it. Without
+it, stem separation reports itself unavailable rather than failing, and the decks
+play the full mix with the stem faders disabled.
 
 `make project` rather than bare `xcodegen generate`: it first writes
 `Config/models-odr.yml` from which of those packages are actually on this
@@ -196,7 +194,7 @@ Offline/dev-only tooling lives in `tools/` (none of it runs at app runtime or in
 ```
 tools/
   starter-shards/   Jamendo starter-pack shard build + validate + assemble (build_shard.py,
-                     assemble_starter.py, shardlib.py) — produces the bundled Mood Starter catalog.
+                     assemble_starter.py, shardlib.py) — produces the bundled starter catalog.
                      merge_micro_shard.py merges a standalone micro-batch (one that doesn't belong
                      in the frozen manifest-v1.json cohort — see .github/workflows/
                      build-starter-micro-shard.yml and Config/starter-batches/micro/) into a copy
@@ -214,7 +212,6 @@ tools/
                      Sources/Remote/Providers/JamendoGenreProvider.swift (the sole genre/subgenre
                      authority — see CLAUDE.md). search_tag.py is an ad-hoc single-tag Jamendo
                      search (metadata only) for curating a new blend/cohort addition.
-  clap-coreml/      CLAP audio/text encoder export + Core ML conversion for on-device embeddings.
   demucs-coreml/    Demucs stem-separation model export + Core ML conversion.
   starter-expand/   Expands the starter-pack candidate pool ahead of shard generation.
 ```

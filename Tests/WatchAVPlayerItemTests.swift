@@ -573,21 +573,6 @@ import TonearmWatchProtocol
         #expect(presenter.contains("Go to the track below and try again"))
     }
 
-    /// Field report: every Sound Index job failed with a Core ML ML Program prediction error. The
-    /// shipped encoders output 128-D (not the upstream 512-D metadata width), and the app must use
-    /// the synchronous prediction path rather than the OS 27-failing async overload.
-    @Test func testSoundIndexUses128DOutputAndSynchronousPrediction() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let manager = try String(contentsOf: root.appendingPathComponent("Sources/Discovery/ModelManager.swift"), encoding: .utf8)
-        #expect(manager.contains("outputSpec.dimensions = EmbeddingSpace.current.dimensions"))
-        #expect(manager.contains("SynchronousCoreMLSemanticModel("))
-        #expect(manager.contains("model.prediction(from: provider, options: MLPredictionOptions())"))
-        #expect(manager.contains("forceRecompile: true"))
-        #expect(!manager.contains("try await box.model.prediction(from: provider)"))
-        let cache = try String(contentsOf: root.appendingPathComponent("Sources/StarterGeneratorSupport/CompiledModelCache.swift"), encoding: .utf8)
-        #expect(cache.contains("os-\\(version.majorVersion)"))
-    }
-
     private func waitForStatus(of item: AVPlayerItem) async -> AVPlayerItem.Status {
         // Keep this a bounded readiness assertion, but leave room for the
         // host suite's Core ML and media tests to contend for AVFoundation.

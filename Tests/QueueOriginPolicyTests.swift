@@ -45,12 +45,12 @@ import Testing
     @Test func testKeepPlayingAppendsAtTailAndListenerStaysAhead() {
         var s = context([1, 2])
         s = S.appendingListenerQueued(row(10), in: s)
-        s = S.appendingKeepPlaying([row(20), row(21)], reason: .soundSimilar, in: s)
+        s = S.appendingKeepPlaying([row(20), row(21)], reason: .noMatchShuffle, in: s)
         #expect(ids(s) == [1, 10, 2, 20, 21])
         s = S.insertingListenerNext(row(11), in: s)
         s = S.appendingListenerQueued(row(12), in: s)
         #expect(ids(s) == [1, 11, 10, 12, 2, 20, 21])
-        #expect(origins(s).last == .keepPlaying(.soundSimilar))
+        #expect(origins(s).last == .keepPlaying(.noMatchShuffle))
     }
 
     @Test func testEmptyQueueCreatesSingleListenerEntry() {

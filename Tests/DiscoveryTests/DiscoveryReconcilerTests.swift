@@ -5,11 +5,10 @@ import Testing
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
-/// C03 fixtures for the outbox/bootstrap reconciler (IMPLEMENT_CLAP_PLAN.md
-/// §3/§4/§11): bootstrap covers ALL existing tracks (not just future
-/// imports), bootstrap/outbox replay is idempotent, content replacement
-/// restarts the job, and metadata-only edits/deletes do not create spurious
-/// re-embeds.
+/// C03 fixtures for the outbox/bootstrap reconciler: bootstrap covers ALL
+/// existing tracks (not just future imports), bootstrap/outbox replay is
+/// idempotent, content replacement restarts the job, and metadata-only
+/// edits/deletes do not create spurious re-analysis.
 @Suite struct DiscoveryReconcilerTests {
     private func makeQueue() throws -> DatabaseQueue {
         var config = Configuration()
@@ -70,7 +69,7 @@ import Testing
         #expect(second == 0, "re-running bootstrap must not duplicate jobs")
     }
 
-    @Test func testBootstrapMigratesMissingMusicalAnalysisWithoutResettingEmbedding() async throws {
+    @Test func testBootstrapRequeuesMissingMusicalAnalysis() async throws {
         let queue = try makeQueue()
         let trackID = try await insertTrack(queue, title: "Needs BPM and key")
         let repo = IndexJobRepository(writer: queue)
@@ -82,8 +81,7 @@ import Testing
             try db.execute(
                 sql: """
                     UPDATE discovery_index_job
-                    SET state = 'complete', embeddingStageState = 'complete',
-                        musicalAnalysisStageState = 'unsupported'
+                    SET state = 'complete', musicalAnalysisStageState = 'unsupported'
                     WHERE trackId = ?
                     """, arguments: [trackID])
         }
@@ -94,7 +92,6 @@ import Testing
             trackId: trackID, pipelineVersion: DiscoveryPipelineVersion.pipeline)
         let job = try #require(loadedJob)
         #expect(job.state == .queued)
-        #expect(job.embeddingStageState == .complete)
         #expect(job.musicalAnalysisStageState == .pending)
     }
 
@@ -154,11 +151,8 @@ import Testing
 
         // Simulate the job having completed once already.
         let claim = try await repo.claimNextJob()!
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .embedding, state: .complete)
-        try await repo.completeStage(
-            jobId: claim.job.id, leaseToken: claim.leaseToken, stage: .musicalAnalysis,
-            state: .complete)
+        try await repo.completeMusicalAnalysis(
+            jobId: claim.job.id, leaseToken: claim.leaseToken, state: .complete)
         let completed = try await repo.job(trackId: trackID, pipelineVersion: 1)!
         #expect(completed.state == .complete)
 
@@ -172,7 +166,7 @@ import Testing
         let restarted = try await repo.job(trackId: trackID, pipelineVersion: 1)!
         #expect(restarted.id == completed.id, "same logical job, restarted")
         #expect(restarted.state == .queued)
-        #expect(restarted.embeddingStageState == .pending)
+        #expect(restarted.musicalAnalysisStageState == .pending)
         #expect(restarted.assetRevision ?? 0 > completed.assetRevision ?? 0)
     }
 

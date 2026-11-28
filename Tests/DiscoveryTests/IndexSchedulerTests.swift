@@ -1,5 +1,5 @@
-import GRDB
 import Foundation
+import GRDB
 import Testing
 
 @testable import TonearmCore
@@ -7,8 +7,7 @@ import Testing
 
 /// A scripted `IndexJobExecuting` that returns outcomes from a queue, one
 /// per `processNextUnit` call, so tests can assert the scheduler drives a
-/// job exactly the way each outcome implies (plan §11 C04's own sanctioned
-/// "synthetic test encoders for deterministic automation").
+/// job exactly the way each outcome implies.
 actor ScriptedWorker: IndexJobExecuting {
     private var script: [IndexWorkOutcome]
     private(set) var callCount = 0
@@ -17,7 +16,7 @@ actor ScriptedWorker: IndexJobExecuting {
 
     func processNextUnit(job: DiscoveryIndexJob, leaseToken: String) async -> IndexWorkOutcome {
         callCount += 1
-        guard !script.isEmpty else { return .embeddingStageFinished(.complete) }
+        guard !script.isEmpty else { return .musicalAnalysisStageFinished(.complete) }
         return script.removeFirst()
     }
 }
@@ -40,7 +39,6 @@ final class SendableBox<Value>: @unchecked Sendable {
         value = newValue
     }
 
-    /// Read-modify-write, returning the value AFTER the mutation.
     @discardableResult
     func mutate(_ body: (inout Value) -> Void) -> Value {
         lock.lock(); defer { lock.unlock() }
@@ -50,7 +48,7 @@ final class SendableBox<Value>: @unchecked Sendable {
 }
 
 /// Free function (not a method) so it can be called from a `@Sendable`
-/// closure without capturing a non-Sendable `XCTestCase` instance.
+/// closure without capturing a non-Sendable test instance.
 private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
     DiscoverySchedulingSnapshot(
         appState: .foreground,
@@ -94,8 +92,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
     @Test func testIdleWhenNoJobsQueued() async throws {
         let queue = try makeQueue()
         let jobs = IndexJobRepository(writer: queue)
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: ScriptedWorker([]), sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: ScriptedWorker([]))
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         #expect(outcome == .idle)
     }
@@ -110,8 +107,8 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         var pausedValue = nominalForegroundSnapshot()
         pausedValue.isUserPaused = true
         let paused = pausedValue
-        let worker = ScriptedWorker([.embeddingStageFinished(.complete)])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { paused }
         #expect(outcome == .blocked(.userPaused))
@@ -121,23 +118,15 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         #expect(calls == 0, "paused must never invoke the worker")
     }
 
-    @Test func testDrivesJobThroughWindowsToCompletion() async throws {
+    @Test func testDrivesJobToCompletionWithOneAnalysisUnit() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        let worker = ScriptedWorker([
-            .windowCompleted,
-            .windowCompleted,
-            .embeddingStageFinished(.complete),
-            .musicalAnalysisStageFinished(.complete),
-        ])
-        let sleptDelays = SendableBox<[TimeInterval]>([])
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: worker,
-            sleeper: { seconds in sleptDelays.mutate { $0.append(seconds) } })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobCompleted = outcome else {
@@ -145,33 +134,31 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .complete)
-        #expect(job?.embeddingStageState == .complete)
         #expect(job?.musicalAnalysisStageState == .complete)
-        #expect(sleptDelays.get() == [2, 2], "one inter-window delay per completed window")
+        let calls = await worker.callCount
+        #expect(calls == 1, "one analysis unit per track")
     }
 
-    @Test func testEmbeddingSuccessWithFailedMusicalAnalysisStillCompletesTheJob() async throws {
-        // plan §4: "A musical-analysis failure never blocks embedding-derived
-        // search coverage" — the job as a whole still reaches `.complete`.
+    @Test func testFailedAnalysisMarksTheJobFailedNotComplete() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        let worker = ScriptedWorker([
-            .embeddingStageFinished(.complete),
-            .musicalAnalysisStageFinished(.failed),
-        ])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.failed)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
-        guard case .jobCompleted = outcome else {
-            Issue.record("expected jobCompleted, got \(outcome)"); return
+        guard case .jobFailed = outcome else {
+            Issue.record("expected jobFailed (terminal), got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.musicalAnalysisStageState == .failed)
-        #expect(job?.state == .complete)
+        #expect(job?.state == .failed)
+        let coverage = try await jobs.coverage(pipelineVersion: 1)
+        #expect(coverage.complete == 0)
+        #expect(coverage.failed == 1)
     }
 
     @Test func testTransientFailureSchedulesRetryAndStopsTheTick() async throws {
@@ -182,7 +169,7 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
         let worker = ScriptedWorker([.transientFailure(code: "decodeError", message: "bad frame")])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
         guard case .jobFailed = outcome else {
@@ -201,31 +188,26 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
         let worker = ScriptedWorker([.waiting(reason: .waitingForAsset, retryAfterSeconds: nil)])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let beforeJob = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         let outcome = try await scheduler.tick { nominalForegroundSnapshot() }
-        #expect(
-            outcome == .jobWaiting(jobId: beforeJob!.id, reason: .waitingForAsset))
+        #expect(outcome == .jobWaiting(jobId: beforeJob!.id, reason: .waitingForAsset))
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .waitingForAsset)
-        // Waiting must not consume a retry attempt (plan §11).
         #expect(job?.attemptCount == 0)
     }
 
-    @Test func testThermalDegradingMidRunPreemptsAndReleasesJobToQueuedWithNoPenalty() async throws {
+    @Test func testThermalDegradingBeforeTheUnitPreemptsAndReleasesJobToQueuedWithNoPenalty() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        // First unit succeeds under nominal thermal; the ambient snapshot
-        // degrades to serious thermal before the SECOND policy check (which
-        // happens before every unit, including the one after windowCompleted).
-        let worker = ScriptedWorker([.windowCompleted, .windowCompleted])
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
         let checkCount = SendableBox<Int>(0)
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick {
             let count = checkCount.mutate { $0 += 1 }
@@ -239,28 +221,12 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         }
         #expect(reason == .thermalSerious)
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        // waitingForCooling is the persisted proxy for thermal gates (no
-        // dedicated "preempted" job state exists in the plan's fixed list).
         #expect(job?.state == .waitingForCooling)
-        #expect(job?.attemptCount == 0, "preemption must not consume a retry attempt")
+        #expect(job?.attemptCount == 0)
+        let calls = await worker.callCount
+        #expect(calls == 0, "must preempt before invoking the worker")
     }
 
-    /// Superseded by `testPlaybackActiveDoesNotPreemptARunningJob` below.
-    /// `IndexScheduler` used to preempt a running job the instant playback
-    /// started (mirroring `IndexPolicy`'s old playback-blocks-indexing
-    /// gate — see `IndexPolicy.decide`'s `.foreground` case doc). Real user
-    /// feedback ("I want to index while I'm playing") removed that gate;
-    /// `IndexBlockReason.playbackActive` can no longer be produced by
-    /// `IndexPolicy.decide`, so a job can never actually reach
-    /// `.jobPreempted(_, reason: .playbackActive)` in production anymore.
-    /// The old version of this test asserted exactly that unreachable
-    /// outcome — with the gate gone, `IndexScheduler.tick`'s inner loop
-    /// never breaks on playback becoming active, the scripted worker's
-    /// "script exhausted" fallback (`.embeddingStageFinished(.complete)`,
-    /// which alone never satisfies `isComplete` — see
-    /// `testOnlyOneJobClaimedPerTick`'s doc comment) then repeats forever,
-    /// and the test hung indefinitely instead of failing. Caught by an
-    /// actual hang during a pre-commit test run, not by review.
     @Test func testPlaybackActiveDoesNotPreemptARunningJob() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
@@ -268,12 +234,9 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        let worker = ScriptedWorker([
-            .windowCompleted, .embeddingStageFinished(.complete),
-            .musicalAnalysisStageFinished(.complete),
-        ])
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
         let checkCount = SendableBox<Int>(0)
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick {
             let count = checkCount.mutate { $0 += 1 }
@@ -283,15 +246,12 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         }
 
         guard case .jobCompleted = outcome else {
-            Issue.record("expected jobCompleted — playback becoming active mid-run must not preempt, got \(outcome)"); return
+            Issue.record("expected jobCompleted — playback must not preempt, got \(outcome)"); return
         }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .complete)
     }
 
-    /// `IndexScheduler` must compute `isCurrentJobRemoteSparse` itself, once
-    /// per claim, from the claimed job's actual selected asset — the
-    /// `snapshotProvider` closure has no notion of which job is running.
     @Test func testRemoteAssetJobIsPreemptedOffWiFiWhenWiFiOnlySettingIsOn() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
@@ -309,8 +269,8 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         offWiFiValue.remoteIndexingWiFiOnlySetting = true
         offWiFiValue.isOnWiFi = false
         let offWiFi = offWiFiValue
-        let worker = ScriptedWorker([.windowCompleted])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { offWiFi }
         guard case .jobPreempted(_, let reason) = outcome else {
@@ -320,12 +280,9 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
         #expect(job?.state == .waitingForNetwork)
         let calls = await worker.callCount
-        #expect(calls == 0, "must preempt before ever invoking the worker")
+        #expect(calls == 0)
     }
 
-    /// The same off-Wi-Fi snapshot must NOT preempt a job over a local
-    /// asset — `isCurrentJobRemoteSparse` only becomes true for a job whose
-    /// selected asset is genuinely `.remote`.
     @Test func testLocalAssetJobIsUnaffectedByWiFiGate() async throws {
         let queue = try makeQueue()
         let trackId = try await seedTrack(queue)
@@ -337,10 +294,8 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         offWiFiValue.remoteIndexingWiFiOnlySetting = true
         offWiFiValue.isOnWiFi = false
         let offWiFi = offWiFiValue
-        let worker = ScriptedWorker([
-            .embeddingStageFinished(.complete), .musicalAnalysisStageFinished(.complete),
-        ])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
 
         let outcome = try await scheduler.tick { offWiFi }
         let job = try await jobs.job(trackId: trackId, pipelineVersion: 1)
@@ -348,8 +303,6 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
     }
 
     @Test func testOnlyOneJobClaimedPerTick() async throws {
-        // plan §6: "Only ONE analysis job executes at a time" — a second
-        // enqueued track is untouched by a single tick.
         let queue = try makeQueue()
         let trackA = try await seedTrack(queue)
         let trackB = try await seedTrack(queue)
@@ -359,27 +312,14 @@ private func nominalForegroundSnapshot() -> DiscoverySchedulingSnapshot {
         try await jobs.enqueueOrRestart(
             trackId: trackB, selectedAssetId: nil, assetRevision: nil, pipelineVersion: 1)
 
-        // Both stages must reach a terminal state for the job to become
-        // `.isComplete` (plan §4). Without the second outcome here, the
-        // scripted worker's "script exhausted" fallback keeps returning
-        // `.embeddingStageFinished(.complete)` forever — already terminal,
-        // so it never changes anything — and `IndexScheduler.tick`'s
-        // `while true` loop (which only sleeps on `.windowCompleted`) spins
-        // in a tight, unthrottled loop indefinitely. This was caught by an
-        // actual hang, not just review: an earlier version of this test
-        // omitted `.musicalAnalysisStageFinished` and never terminated.
-        let worker = ScriptedWorker([
-            .embeddingStageFinished(.complete), .musicalAnalysisStageFinished(.complete),
-        ])
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let worker = ScriptedWorker([.musicalAnalysisStageFinished(.complete)])
+        let scheduler = IndexScheduler(jobs: jobs, worker: worker)
         _ = try await scheduler.tick { nominalForegroundSnapshot() }
 
         let jobA = try await jobs.job(trackId: trackA, pipelineVersion: 1)
         let jobB = try await jobs.job(trackId: trackB, pipelineVersion: 1)
-        // Whichever one was claimed (createdAt/priority ordering: A first)
-        // finished; the other remains queued and untouched.
         let states = Set([jobA?.state, jobB?.state])
         #expect(states.contains(.queued))
-        #expect(states.contains(.complete) || states.contains(.running))
+        #expect(states.contains(.complete))
     }
 }

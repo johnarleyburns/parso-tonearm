@@ -9,11 +9,11 @@ import TonearmDiscovery
 /// presented from Listen rather than occupying a browsing tab. Raw values are explicit and
 /// never reused/renumbered: they're persisted under `lastTabKey`, and `AppTab(rawValue:)`
 /// failing closed (restoring nothing, defaulting to `.listen`) only works if a value nobody
-/// holds anymore is never handed to a different case later. `mood` (2) was removed when the
-/// standalone Mood tab was folded into Find — its gap is deliberately left open, not reused, so
-/// a pre-update install's saved "Mood" selection safely falls back to `.listen` instead of
-/// landing on whatever case happened to claim 2 next. `libraries` (4) was folded into My Music
-/// the same way, except the case itself is kept (not left as an open gap like `mood`) because
+/// holds anymore is never handed to a different case later. Raw value 2 belonged to a removed
+/// tab and is deliberately left open, not reused, so a pre-update install's saved selection
+/// safely falls back to `.listen` instead of landing on whatever case happened to claim 2
+/// next. `libraries` (4) was folded into My Music the same way, except the case itself is kept
+/// (not left as an open gap) because
 /// `SourcesView`'s internal `.rootTabChrome(.libraries, ...)` call still needs *some* `AppTab`
 /// value to compare against even though no tab can select it anymore — the `init`'s explicit
 /// `restored == .libraries ? .myMusic : restored` fallback is what actually keeps a persisted
@@ -50,7 +50,7 @@ final class AppState: ObservableObject {
             UserDefaults.standard.set(tab.rawValue, forKey: Self.lastTabKey)
         }
     }
-    // v6: Mood and Find are now first-class tabs and Settings is no longer a
+    // v6: the remaining tabs became first-class and Settings is no longer a
     // tab. The versioned key prevents an old Settings raw value from opening
     // an unrelated new tab after the navigation change.
     private static let lastTabKey = "lastActiveTab.v6"
@@ -99,8 +99,8 @@ final class AppState: ObservableObject {
     @Published var showCreatePlaylist = false
     /// Bumped by the Mac's Edit › Find (⌘F) to focus the toolbar search field.
     @Published var macSearchFocusRequest = 0
-    /// Set by a Top Artist row's tap on the Listen tab (docs/plans/mood-
-    /// based-listening-plan.md §3.5): the artist name to land on. Consumed
+    /// Set by a Top Artist row's tap on the Listen tab: the artist name to
+    /// land on. Consumed
     /// once by `MyMusicView` on appear (switches to the Artists scope,
     /// resolves the name to a `LibraryBrowse.Entry`, pushes it onto the
     /// bound navigation path), then cleared — same one-shot launch-intent
@@ -149,8 +149,8 @@ final class AppState: ObservableObject {
     @AppStorage("artworkLookup") var artworkLookup = true
     @AppStorage("didOnboard") var didOnboard = false
 
-    /// "Keep Playing" (main-library queue continuation, C01–C09 CLAP reuse):
-    /// on by default.
+    /// "Keep Playing" (main-library queue continuation under Build a Mix's
+    /// BPM/key/energy rules): on by default.
     /// the primary discoverable toggle is in Now Playing (CLAUDE.md "no silent/
     /// magic background work" — a settings-only toggle isn't sufficient).
     @AppStorage("keepPlayingEnabled") var keepPlayingEnabled = true
@@ -172,8 +172,8 @@ final class AppState: ObservableObject {
             let restored = AppTab(rawValue: saved)
         {
             // Libraries folded into My Music and no longer has its own tab (see AppTab's own
-            // doc comment on the `mood` case for the same "never reuse, fall back instead"
-            // convention) — a pre-update install's saved Libraries selection lands on My Music,
+            // doc comment for the same "never reuse, fall back instead" convention) — a
+            // pre-update install's saved Libraries selection lands on My Music,
             // where Libraries is now reachable, instead of a tab that no longer exists.
             tab = restored == .libraries ? .myMusic : restored
         }
@@ -197,7 +197,6 @@ final class AppState: ObservableObject {
         await fixLegacySourceTitles()
         await cleanupMergedSourceCredentials()
         await repairDuplicatePlaylistsOnce()
-        await cleanupLegacyMoodStarterIfNeeded()
         // Before DiscoveryRuntimeController.startAfterBootstrap() (called
         // right after this returns, from TonearmApp) runs its launch
         // reconciliation sweep — these need to be real rows already, so
@@ -258,23 +257,6 @@ final class AppState: ObservableObject {
                   remaining.isEmpty {
             UserDefaults.standard.set(true, forKey: key)
         }
-    }
-
-    /// Real report: Libraries > On This Device should no longer show "Mood Starter" (#444 removed
-    /// the feature's merge code, but any device that ran an older build still has the leftover
-    /// `Source(title: "Mood Starter", kind: .local)` row — plus its `Album`/`Track`/`Asset`/
-    /// discovery rows — sitting in the local database). `SourcesView.localSources` already hides
-    /// it going forward; this is the one-time cleanup that actually deletes the leftover data so
-    /// it doesn't keep polluting the device. Reuses `deleteSource(_:)` — the exact cascade-delete
-    /// path the "Remove" context-menu action already uses — rather than new SQL.
-    func cleanupLegacyMoodStarterIfNeeded() async {
-        let key = "cleanup.moodStarterRemoved.v1"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        if let source = try? await store.firstSource(title: "Mood Starter", kind: .local) {
-            await deleteSource(source)
-        }
-        UserDefaults.standard.removeObject(forKey: "builtin.starterLibrary.mergedVersion")
-        UserDefaults.standard.set(true, forKey: key)
     }
 
     private func repairDuplicatePlaylistsOnce() async {
