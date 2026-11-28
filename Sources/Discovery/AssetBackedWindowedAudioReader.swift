@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Produces exactly the same output contract as `WindowedAudioReader`
 /// (mono Float32 at `targetSampleRate`, zero-padded to exactly the
-/// requested window length) so `SemanticPreprocess.logMel` and everything
+/// requested window length) so the analysis pass and everything
 /// downstream of a window read stays unchanged.
 public struct AssetBackedWindowedAudioReader: Sendable {
     public let targetSampleRate: Double

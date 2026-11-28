@@ -55,11 +55,9 @@ struct SourcesView: View {
         }
     }
 
-    /// "Built-in Sounds" is bundled app content (seeded for Sound Index indexing only, never a
-    /// real user folder — `AppState+BuiltInLibrary.swift`) and "Mood Starter" is a removed
-    /// feature's leftover local-row data on upgraded installs (cleaned up once by
-    /// `AppState.cleanupLegacyMoodStarterIfNeeded()`). Neither belongs in "On This Device."
-    private static let hiddenLocalSourceTitles: Set<String> = ["Built-in Sounds", "Mood Starter"]
+    /// "Built-in Sounds" is bundled app content (seeded for analysis only, never a real user
+    /// folder — `AppState+BuiltInLibrary.swift`). It does not belong in "On This Device."
+    private static let hiddenLocalSourceTitles: Set<String> = ["Built-in Sounds"]
 
     private var localSources: [Source] {
         appState.sources.filter { $0.kind == .local && !Self.hiddenLocalSourceTitles.contains($0.title) }

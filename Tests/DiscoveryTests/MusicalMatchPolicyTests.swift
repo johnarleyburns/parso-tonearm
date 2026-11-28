@@ -6,7 +6,7 @@ import TonearmCore
 @testable import TonearmDiscovery
 
 @Suite struct MusicalMatchPolicyTests {
-    @Test func testMoodQueuePreservesOrderAndOnlyIncludesConsecutiveMixCompatibleTracks() {
+    @Test func testQueuePreservesOrderAndOnlyIncludesConsecutiveMixCompatibleTracks() {
         let info: [Int64: DJLoadTrackInfo] = [
             1: .init(bpm: 100, camelotKey: "8A"), 2: .init(bpm: 108, camelotKey: "9A"),
             3: .init(bpm: 92, camelotKey: "8A"), 4: .init(bpm: 108, camelotKey: "9B"),
@@ -82,7 +82,7 @@ import TonearmCore
             "identical energy must not override a BPM mismatch")
     }
 
-    @Test func testMoodQueueEnergyByIDAppliesTheSameNilSafeGate() {
+    @Test func testQueueEnergyByIDAppliesTheSameNilSafeGate() {
         let info: [Int64: DJLoadTrackInfo] = [
             1: .init(bpm: 100, camelotKey: "8A"), 2: .init(bpm: 108, camelotKey: "9A"),
             3: .init(bpm: 108, camelotKey: "9A")]

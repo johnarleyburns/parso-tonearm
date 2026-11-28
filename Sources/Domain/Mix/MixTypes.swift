@@ -23,13 +23,12 @@ public struct MixCandidate: Codable, Sendable, Equatable, Identifiable {
     public var artist: String?
     public var albumID: Int64?
     public var duration: Double
-    public var embedding: [Float]?
 
     public var id: Int64 { trackID }
 
     public init(trackID: Int64, bpm: Double? = nil, camelot: String? = nil,
                 energy: Double? = nil, artist: String? = nil, albumID: Int64? = nil,
-                duration: Double = 0, embedding: [Float]? = nil) {
+                duration: Double = 0) {
         self.trackID = trackID
         self.bpm = bpm
         self.camelot = camelot
@@ -37,7 +36,6 @@ public struct MixCandidate: Codable, Sendable, Equatable, Identifiable {
         self.artist = artist
         self.albumID = albumID
         self.duration = duration
-        self.embedding = embedding
     }
 }
 
@@ -153,25 +151,22 @@ public enum PlacementReason: Codable, Sendable, Equatable {
     case energyFitsCurve
     case lockedByUser
     case onlyRemainingOption
-    case soundsSimilar
 }
 
 public struct EdgeScore: Codable, Sendable, Equatable {
     public var key: KeyRelation
     public var bpmDeltaPct: Double
     public var energyDelta: Double?
-    public var similarity: Double?
     public var shapeDeviation: Double
     public var total: Double
     public var flags: [EdgeFlag]
 
     public init(key: KeyRelation, bpmDeltaPct: Double, energyDelta: Double? = nil,
-                similarity: Double? = nil, shapeDeviation: Double, total: Double,
+                shapeDeviation: Double, total: Double,
                 flags: [EdgeFlag] = []) {
         self.key = key
         self.bpmDeltaPct = bpmDeltaPct
         self.energyDelta = energyDelta
-        self.similarity = similarity
         self.shapeDeviation = shapeDeviation
         self.total = total
         self.flags = flags

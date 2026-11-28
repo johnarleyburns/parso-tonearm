@@ -1,9 +1,9 @@
 # Converted Core ML model packages, pinned.
 #
-# These are build inputs, not source: they are 137–240 MB of converted weights,
-# GitHub rejects any file over 100 MB, and committing them made `git push` fail
-# outright (the third push blocker, found on 2026-08-17). They are delivered as
-# release assets instead and fetched by `scripts/fetch-models.sh`, which is what
+# These are build inputs, not source: the Demucs package is 210 MB of converted
+# weights, GitHub rejects any file over 100 MB, and committing it made `git push`
+# fail outright (the third push blocker, found on 2026-08-17). It is delivered as
+# a release asset instead and fetched by `scripts/fetch-models.sh`, which is what
 # `make models` and the CI archive job run before generating the project.
 #
 # One row per package:
@@ -17,7 +17,7 @@
 # The directory is relative to `Resources/Models/`. The checksum is the contract:
 # a mismatch is a hard failure, never a warning, because a silently absent or
 # corrupt model would ship as the honest-unavailable state and the first anyone
-# would know is a tester reporting that semantic search does nothing.
+# would know is a tester reporting that stem separation does nothing.
 #
 # A full URL rather than a release tag, so where the bytes live is a hosting
 # decision and not a code change — a GitHub release, an R2 bucket, anything that
@@ -33,14 +33,9 @@
 # Hosted in the owner's Cloudflare R2 bucket `parso-platterhead-models`, which
 # exists only for these files: its public r2.dev domain is enabled, and nothing
 # else in the account is exposed by it. Egress is free, which is what makes it a
-# better home than a release asset once the stems model joins the CLAP pair —
-# every archive run pulls ~460 MB.
+# better home than a release asset — every archive run pulls ~210 MB.
 #
-# The CLAP pair is the int4/128-D release assets below (the only production
-# pair); Demucs stays in R2.
-
-https://github.com/johnarleyburns/parso-tonearm/releases/download/clap-audio-int4-128-v1-candidate/clap-audio-int4-128.mlpackage.zip  b69c830c05cc006e380c2f7ab938c2c561721be868f3a45613982c046db93b7a  CLAPAudioEncoder.mlpackage  clap-audio-int4-128.mlpackage
-https://github.com/johnarleyburns/parso-tonearm/releases/download/clap-text-int4-128-v1-candidate/clap-text-int4-128.mlpackage.zip  429a248e33d03b106e4f80a7098c66fdadc022b83eee72710347629fc341fb86  CLAPTextEncoder.mlpackage  clap-text-int4-128.mlpackage
+# The stems model is the only production row; it stays in R2.
 
 # The stems model (plan dj-stems-model S1–S8): htdemucs converted to Core ML
 # FP32, verified against torch at max|d| 1.1e-6. Pinning it here is what puts

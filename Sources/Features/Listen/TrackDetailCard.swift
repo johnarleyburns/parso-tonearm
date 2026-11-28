@@ -1,14 +1,14 @@
 import SwiftUI
 import TonearmCore
 
-/// Shown on tap instead of starting playback instantly (docs/plans/mood-
-/// based-listening-plan.md §3.6). Owner feedback: "it seems jarring to just
+/// Shown on tap instead of starting playback instantly. Owner feedback:
+/// "it seems jarring to just
 /// start playing it — I expect to see details about the song first." Every
 /// action here reuses an existing `AudioPlayer` call already wired to
 /// today's long-press `TrackContextMenu` — this promotes them to the
 /// primary tap, it does not invent new playback logic.
 ///
-/// Wired into the Listen tab's own tap sites first (mood results, Top 10
+/// Wired into the Listen tab's own tap sites first (search results, Top 10
 /// Songs, Jump Back In, Favorites); rolling this out to My Music/search
 /// results is a deliberate follow-up (§3.6's scope note), not done here.
 struct TrackDetailCard: View {

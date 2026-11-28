@@ -457,7 +457,7 @@ extension AudioPlayer {
             }
         }
 
-        // Built-in tracks (docs/plans/builtin-mood-starter-index-plan.md)
+        // Built-in tracks
         // live in the app bundle, not Application Support — `managedURL(_:)`
         // below would silently never find them.
         if asset.kind == .builtIn, let channelId = asset.relPath,

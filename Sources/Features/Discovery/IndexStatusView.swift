@@ -80,9 +80,6 @@ struct IndexStatusView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .glassSurface(cornerRadius: 18)
                     }
-                    if let detail = model.snapshot?.modelDiagnostics {
-                        modelsCard(detail)
-                    }
                     activityCard
                 }
                 .padding(.horizontal, 18)
@@ -167,7 +164,7 @@ struct IndexStatusView: View {
     private func summaryCard(_ p: IndexStatusPresentation) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(p.headline).font(Typography.headline)
-            ProgressView(value: p.modelDownloadFraction ?? p.fractionComplete)
+            ProgressView(value: p.fractionComplete)
                 .tint(Palette.accent)
             Text(p.detail).font(Typography.callout).foregroundStyle(Palette.inkSecondary)
         }
@@ -198,13 +195,7 @@ struct IndexStatusView: View {
                 if let artist = p.currentTrackArtist {
                     Text(artist).font(Typography.caption).foregroundStyle(Palette.inkTertiary).lineLimit(1)
                 }
-                if let fraction = p.currentTrackFraction {
-                    ProgressView(value: fraction).tint(Palette.accent)
-                } else {
-                    // A freshly claimed job, or a track too short to need windowing — real
-                    // state, not a stuck 0%: say so instead of drawing an empty bar.
-                    Text("Starting…").font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
+                ProgressView().tint(Palette.accent)
             }
             .padding(15)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -255,110 +246,6 @@ struct IndexStatusView: View {
         }
         .buttonStyle(.plain)
         .disabled(value == 0)
-    }
-
-    /// The "Models" section — added directly at the user's request for an
-    /// interactive debug session ("show each model, the percentage
-    /// downloaded, MB downloaded, if it's complete or not, any errors, also
-    /// show active downloading, we need this level of detail to know what's
-    /// going on"). Two distinct facts per model, shown separately on
-    /// purpose: the raw ODR download state, and whether the resulting file
-    /// actually resolves on disk — a real device once showed both downloads
-    /// "finished" while every artifact still failed to resolve, and only
-    /// showing one of those two facts would have hidden that gap again.
-    private func modelsCard(_ detail: ModelDiagnosticsDetail) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Models").font(Typography.callout).foregroundStyle(Palette.inkTertiary)
-
-            if let error = detail.downloadError {
-                Text("Download error: \(error)")
-                    .font(Typography.caption)
-                    .foregroundStyle(.red)
-            }
-
-            ForEach(detail.downloadTags) { tag in
-                downloadTagRow(tag)
-                Divider().overlay(Palette.hairline)
-            }
-            ForEach(detail.artifacts) { artifact in
-                artifactRow(artifact)
-            }
-        }
-        .padding(15)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassSurface(cornerRadius: 18)
-    }
-
-    private func downloadTagRow(_ tag: ModelDiagnosticsDetail.DownloadTag) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: downloadStateIcon(tag.state))
-                    .foregroundStyle(downloadStateColor(tag.state))
-                    .font(Typography.callout)
-                Text(tag.tag).font(Typography.callout)
-                Spacer()
-                Text(downloadStateLabel(tag.state))
-                    .font(Typography.caption)
-                    .foregroundStyle(Palette.inkTertiary)
-            }
-            if tag.state == .inProgress {
-                if tag.bytesAreTrustworthy {
-                    let doneMB = Int((Double(tag.completedBytes) / 1_048_576).rounded())
-                    let totalMB = Int((Double(tag.totalBytes) / 1_048_576).rounded())
-                    ProgressView(value: tag.fractionComplete)
-                        .tint(Palette.accent)
-                    Text("\(doneMB) of \(totalMB) MB"
-                        + (tag.fractionComplete.map { " (\(Int(($0 * 100).rounded()))%)" } ?? ""))
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                } else {
-                    // NSBundleResourceRequest's unit isn't guaranteed to be
-                    // real bytes (confirmed on a real device: a literal
-                    // totalUnitCount of 1) — never show a fabricated MB
-                    // count or percentage here.
-                    Text("Downloading — no byte count reported yet")
-                        .font(Typography.caption).foregroundStyle(Palette.inkTertiary)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func downloadStateIcon(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> String {
-        switch state {
-        case .finished: return "checkmark.circle.fill"
-        case .inProgress: return "arrow.down.circle"
-        case .notStarted: return "circle.dashed"
-        }
-    }
-
-    private func downloadStateColor(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> Color {
-        switch state {
-        case .finished: return .green
-        case .inProgress: return Palette.accent
-        case .notStarted: return Palette.inkTertiary
-        }
-    }
-
-    private func downloadStateLabel(_ state: ModelDiagnosticsDetail.DownloadTag.State) -> String {
-        switch state {
-        case .finished: return String(localized: "Finished")
-        case .inProgress: return String(localized: "Downloading…")
-        case .notStarted: return String(localized: "Not started")
-        }
-    }
-
-    private func artifactRow(_ artifact: ModelDiagnosticsDetail.Artifact) -> some View {
-        HStack {
-            Image(systemName: artifact.isResolved ? "doc.fill" : "questionmark.folder")
-                .foregroundStyle(artifact.isResolved ? .green : .orange)
-                .font(Typography.callout)
-            Text(artifact.name).font(Typography.callout)
-            Spacer()
-            Text(artifact.isResolved ? (artifact.resolvedName ?? String(localized: "Found")) : String(localized: "Not found"))
-                .font(Typography.caption)
-                .foregroundStyle(artifact.isResolved ? Palette.inkTertiary : .orange)
-        }
-        .padding(.vertical, 4)
     }
 
     private func actionsCard(_ p: IndexStatusPresentation) -> some View {

@@ -41,16 +41,15 @@ import Testing
         #expect(s.contains("accessibilityValue(selected ? \"selected\" : \"not selected\")"))
     }
 
-    /// Mood and BPM/Key search results are always flat songs — their own controls select a
-    /// mood/BPM/key, not a result shape. Grouping either into albums/artists/genres would
-    /// scatter them across unrelated groups, the same problem the standalone Mood tab never had
-    /// (it never routes through `LibraryBrowse` grouping at all).
-    @Test func testMoodAndMixModeHideTheScopePickerAndForceSongs() throws {
+    /// BPM/Key search results are always flat songs — its own controls select a BPM/key,
+    /// not a result shape. Grouping them into albums/artists/genres would scatter them across
+    /// unrelated groups.
+    @Test func testMixModeHidesTheScopePickerAndForcesSongs() throws {
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/Find/FindView.swift"),
                            encoding: .utf8)
         #expect(s.contains("if mode == .all {"))
-        #expect(s.contains("if newMode == .sound || newMode == .mix { browseMode = .songs }"))
+        #expect(s.contains("if newMode == .mix { browseMode = .songs }"))
     }
 
     /// Genres isn't a useful Find result type; My Music's own Genres browsing is untouched.

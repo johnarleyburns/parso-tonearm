@@ -26,31 +26,11 @@ extension SharedProductionSingletonTests {
     @Suite final class KeepPlayingMandatoryMatchTests {
         private let player = AudioPlayer.makeForTesting()
 
-        private final class ScriptedProvider: KeepPlayingSimilarityProviding, @unchecked Sendable {
-            let strict: KeepPlayingLookup
-            let broader: KeepPlayingLookup
-            private let lock = NSLock()
-            private var _scopes: [KeepPlayingSimilarityScope] = []
-            var scopes: [KeepPlayingSimilarityScope] { lock.lock(); defer { lock.unlock() }; return _scopes }
-            private func record(_ scope: KeepPlayingSimilarityScope) {
-                lock.lock(); _scopes.append(scope); lock.unlock()
-            }
-            init(strict: KeepPlayingLookup, broader: KeepPlayingLookup) {
-                self.strict = strict; self.broader = broader
-            }
-            func continuationTrackIDs(
-                after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope,
-                limit: Int
-            ) async -> KeepPlayingLookup {
-                record(scope)
-                if case .djCompatible = scope { return strict }
-                return broader
-            }
-        }
-
         private struct FixedMix: KeepPlayingMixProviding {
-            let ids: [Int64]
-            func mixContinuation(after trackID: Int64, excluding: Set<Int64>, limit: Int) async -> [Int64] { ids }
+            let result: KeepPlayingMixResult
+            func mixContinuation(
+                after trackID: Int64, excluding: Set<Int64>, limit: Int
+            ) async -> KeepPlayingMixResult { result }
         }
 
         private func makeTrack(_ i: Int64) -> TrackRow {
@@ -64,10 +44,6 @@ extension SharedProductionSingletonTests {
         }
 
         /// A deterministic in-memory Keep Playing library with analyzed picks.
-        /// Using the shared `LibraryStore` here made the mix/sound-similar
-        /// reasons depend on whatever rows a parallel suite had inserted (and
-        /// those rows have no BPM/key, so a `.mixMatched` pick legitimately
-        /// degrades to `.soundSimilar`).
         private func fixtureLibrary(picks: [Int64]) -> KeepPlayingLibrary {
             let rows = picks.map(makeTrack)
             return KeepPlayingLibrary(
@@ -86,12 +62,11 @@ extension SharedProductionSingletonTests {
 
         private let picks: [Int64] = [101, 102]
 
-        private func start(provider: ScriptedProvider?, mix: KeepPlayingMixProviding? = nil) -> AudioPlayer {
+        private func start(mix: KeepPlayingMixProviding?) -> AudioPlayer {
             player.keepPlayingLibrary = fixtureLibrary(picks: picks)
             player.keepPlayingEnabled = false
             player.play(tracks: [1, 2, 3].map { makeTrack(Int64($0)) }, startAt: 2)
             player.keepPlayingEnabled = true
-            player.keepPlayingProvider = provider
             player.keepPlayingMixProvider = mix
             return player
         }
@@ -103,44 +78,24 @@ extension SharedProductionSingletonTests {
             }
         }
 
-        @Test func testMixSequenceSkipsClapProvider() async throws {
-            let provider = ScriptedProvider(strict: .ready([]), broader: .ready([]))
-            let player = start(provider: provider, mix: FixedMix(ids: picks))
+        @Test func testMixSequenceAppendsMixMatched() async throws {
+            let player = start(mix: FixedMix(result: .init(trackIDs: picks)))
             await player.extendKeepPlayingQueueForTesting()
-            #expect(provider.scopes.isEmpty)
-            #expect(Set(keepPlayingReasons(player)) == [.mixMatched])
-        }
-
-        @Test func testStrictClapAppendsMixMatched() async throws {
-            let provider = ScriptedProvider(strict: .ready(picks), broader: .ready([]))
-            let player = start(provider: provider, mix: FixedMix(ids: []))
-            await player.extendKeepPlayingQueueForTesting()
-            #expect(provider.scopes == [.djCompatible(anchorTrackID: 3)])
             #expect(Set(keepPlayingReasons(player)) == [.mixMatched])
             #expect(!player.keepPlayingLastExtensionWasFallback)
         }
 
-        @Test func testBroaderClapAppendsSoundSimilar() async throws {
-            let provider = ScriptedProvider(strict: .unavailable, broader: .ready(picks))
-            let player = start(provider: provider)
+        @Test func testRelaxedMixSequenceAppendsRelaxedMixMatched() async throws {
+            let player = start(mix: FixedMix(result: .init(trackIDs: picks, isRelaxed: true)))
             await player.extendKeepPlayingQueueForTesting()
-            #expect(provider.scopes == [.djCompatible(anchorTrackID: 3), .broaderSimilarity])
-            #expect(Set(keepPlayingReasons(player)) == [.soundSimilar])
+            #expect(Set(keepPlayingReasons(player)) == [.relaxedMixMatched])
+            #expect(!player.keepPlayingLastExtensionWasFallback)
         }
 
-        @Test func testModelNotReadyUsesModelUnavailableShuffleOnly() async throws {
-            let provider = ScriptedProvider(strict: .waitingForModel, broader: .waitingForModel)
-            let player = start(provider: provider)
+        @Test func testEmptyMixUsesNoMatchShuffleOnly() async throws {
+            let player = start(mix: FixedMix(result: .empty))
             await player.extendKeepPlayingQueueForTesting()
-            #expect(player.keepPlayingFallbackReason == .waitingForModel)
-            #expect(keepPlayingReasons(player).allSatisfy { $0 == .modelUnavailableShuffle })
-        }
-
-        @Test func testAvailableButEmptyUsesNoMatchShuffleOnly() async throws {
-            let provider = ScriptedProvider(strict: .unavailable, broader: .unavailable)
-            let player = start(provider: provider)
-            await player.extendKeepPlayingQueueForTesting()
-            #expect(player.keepPlayingFallbackReason == .unavailable)
+            #expect(player.keepPlayingFallbackReason == .noCompatibleTracks)
             #expect(keepPlayingReasons(player).allSatisfy { $0 == .noMatchShuffle })
         }
     }

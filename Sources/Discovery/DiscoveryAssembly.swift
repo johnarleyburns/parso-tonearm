@@ -8,63 +8,30 @@ import TonearmCore
 /// per-screen worker/model instances").
 ///
 /// Owns exactly one `IndexJobRepository`, `ImportJobRepository`,
-/// `DiscoveryReconciler`, `ModelManager` and `IndexScheduler` over the single
-/// core `DatabaseWriter`. The app creates this once at launch and drives it;
+/// `DiscoveryReconciler` and `IndexScheduler` over the single core
+/// `DatabaseWriter`. The app creates this once at launch and drives it;
 /// nothing here touches UIKit/BackgroundTasks (that is the iOS adapter,
-/// `DiscoveryBackgroundController`, C05 — kept separate so this graph stays
+/// `DiscoveryBackgroundController` — kept separate so this graph stays
 /// portable and unit-testable).
 public actor DiscoveryAssembly {
     public let jobs: IndexJobRepository
     public let importJobs: ImportJobRepository
     public let reconciler: DiscoveryReconciler
-    public let models: ModelManager
     public let scheduler: IndexScheduler
     public let settings: DiscoverySettingsStore
-    /// The C06 unified-retrieval derived vector cache (rebuildable from
-    /// `discovery_embedding` rows).
-    public let vectorIndex: VectorIndex
-    /// The one retrieval engine shared by search, similar-track search, saved
-    /// searches and auto-playlist candidate retrieval (plan §9).
-    public let search: SearchService
 
     private let snapshotProvider: @Sendable () -> DiscoverySchedulingSnapshot
-    private let modelDownloadProgressProvider: @Sendable () -> ModelDownloadProgress?
-    private let modelDownloadErrorProvider: @Sendable () -> String?
-    private let modelDownloadTagDebugProvider: @Sendable () -> String?
-    /// Unlike the other model-download providers above, this one is NOT
-    /// gated on `!modelAvailable` — the Sound Index screen's "Models"
-    /// section is meant to stay useful even once everything resolves (so a
-    /// debugging session can confirm "yes, both artifacts are now found"),
-    /// not disappear the moment the problem it was added to diagnose goes
-    /// away.
-    private let modelDiagnosticsProvider: @Sendable () -> ModelDiagnosticsDetail?
-    /// The engine (GPU-preferred vs CPU-only, and why) most recently decided
-    /// for automatic indexing — surfaced on `IndexStatusSnapshot` so "no
-    /// silent/magic background work" extends to compute-engine choice, not
-    /// just whether indexing is running at all. `nil` by default (tests, or
-    /// before the iOS adapter's first decision) rather than a fabricated
-    /// default engine.
-    private let executionEngineProvider: @Sendable () -> DiscoveryExecutionPolicy.Engine?
     private var isDraining = false
 
     /// The reason the scheduler was last unable to make progress — a real
     /// `IndexPolicy` gate that tripped either before any job was claimed
-    /// (`.blocked`) or mid-run (`.jobPreempted`), as reported by the most
-    /// recent `drainQueue()` tick. `nil` once a job actually completes or the
-    /// queue is genuinely idle (nothing eligible, not a policy block), so a
-    /// stale reason never lingers once real progress resumes.
-    ///
-    /// This exists so the status surface can tell "stuck on thermal/battery/
-    /// playback/background-grant" apart from "stuck on nothing in
-    /// particular" — a job blocked before being claimed stays `.queued`
-    /// forever (plan §6: most policy gates are scheduler-level, not a
-    /// persisted per-job state), so `IndexJobRepository.coverage` alone
-    /// cannot distinguish real progress from a queue that is silently wedged.
+    /// (`.blocked`) or mid-run (`.jobPreempted`). `nil` once a job actually
+    /// completes or the queue is genuinely idle (nothing eligible, not a
+    /// policy block), so a stale reason never lingers once real progress
+    /// resumes.
     public private(set) var lastBlockReason: IndexBlockReason?
     /// Real thermal numbers behind `lastBlockReason` when it is a thermal reason — `nil`
-    /// otherwise. Re-sampled from `snapshotProvider` at the moment the reason was recorded (a
-    /// cheap, side-effect-free read), so the status surface can say the actual current thermal
-    /// state and, for `.fair`, real seconds remaining — never collapse it to one generic label.
+    /// otherwise.
     public private(set) var lastThermalDiagnostic: ThermalDiagnostic?
 
     public struct LaunchRecovery: Equatable, Sendable {
@@ -84,29 +51,10 @@ public actor DiscoveryAssembly {
     ///     scheduler policy. Supplied by the iOS adapter in production; a
     ///     deterministic fake in tests. No default — the caller must decide
     ///     (plan §6 forbids fabricated battery/thermal values).
-    ///   - modelResourceProvider: resolves the CLAP encoder/mel-filterbank
-    ///     URLs once acquired (ODR/bundle). Defaults to "unavailable", so
-    ///     indexing parks in `waitingForModel` until real resources resolve.
-    ///   - executionContext: `.foreground` / `.background` for compute-unit
-    ///     selection (plan §7).
     public init(
         writer: any DatabaseWriter,
-        snapshotProvider: @escaping @Sendable () -> DiscoverySchedulingSnapshot,
-        modelResourceProvider: @escaping @Sendable () -> ModelManager.Resources = { .unavailable },
-        executionContext: @escaping @Sendable () -> ModelManager.ExecutionContext = { .foreground },
-        modelDownloadProgressProvider: @escaping @Sendable () -> ModelDownloadProgress? = { nil },
-        modelDownloadErrorProvider: @escaping @Sendable () -> String? = { nil },
-        modelDownloadTagDebugProvider: @escaping @Sendable () -> String? = { nil },
-        modelDiagnosticsProvider: @escaping @Sendable () -> ModelDiagnosticsDetail? = { nil },
-        executionEngineProvider: @escaping @Sendable () -> DiscoveryExecutionPolicy.Engine? = { nil }
+        snapshotProvider: @escaping @Sendable () -> DiscoverySchedulingSnapshot
     ) {
-        self.modelDownloadProgressProvider = modelDownloadProgressProvider
-        self.modelDownloadErrorProvider = modelDownloadErrorProvider
-        self.modelDownloadTagDebugProvider = modelDownloadTagDebugProvider
-        self.modelDiagnosticsProvider = modelDiagnosticsProvider
-        self.executionEngineProvider = executionEngineProvider
-        // Bootstrap: reconcile the persisted embedding-space contract before any work runs.
-        try? EmbeddingSpace.install(on: writer)
         let jobs = IndexJobRepository(writer: writer)
         self.jobs = jobs
         self.importJobs = ImportJobRepository(writer: writer)
@@ -115,16 +63,8 @@ public actor DiscoveryAssembly {
         self.reconciler = DiscoveryReconciler(
             writer: writer, jobs: jobs,
             remoteIndexingEnabled: { (try? await settings.isRemoteIndexingEnabled()) ?? true })
-        let models = ModelManager(resourceProvider: modelResourceProvider)
-        self.models = models
-        let worker = BoundedIndexWorker(
-            writer: writer, jobs: jobs, models: models, executionContext: executionContext)
+        let worker = BoundedIndexWorker(writer: writer)
         self.scheduler = IndexScheduler(jobs: jobs, worker: worker)
-        let vectorIndex = VectorIndex(writer: writer)
-        self.vectorIndex = vectorIndex
-        self.search = SearchService(
-            writer: writer, index: vectorIndex, models: models,
-            executionContext: { executionContext() })
         self.snapshotProvider = snapshotProvider
     }
 
@@ -145,7 +85,6 @@ public actor DiscoveryAssembly {
         let chargingOnly = (try? await settings.isChargingOnly()) ?? false
         let remoteIndexingEnabled = (try? await settings.isRemoteIndexingEnabled()) ?? true
         let remoteIndexingWiFiOnly = (try? await settings.isRemoteIndexingWiFiOnly()) ?? true
-        let modelAvailable = await models.isModelResourceAvailable()
         let runtime = (try? await settings.runtime()) ?? DiscoveryRuntime(id: 1)
         let currentlyIndexingTrack = try? await jobs.currentlyRunningTrack(
             pipelineVersion: DiscoveryPipelineVersion.pipeline)
@@ -157,20 +96,12 @@ public actor DiscoveryAssembly {
             isChargingOnly: chargingOnly,
             isRemoteIndexingEnabled: remoteIndexingEnabled,
             isRemoteIndexingWiFiOnly: remoteIndexingWiFiOnly,
-            modelResourceAvailable: modelAvailable,
-            modelDownloadProgress: modelAvailable ? nil : modelDownloadProgressProvider(),
-            modelDownloadError: modelAvailable ? nil : modelDownloadErrorProvider(),
-            modelDownloadTagDebug: modelAvailable ? nil : modelDownloadTagDebugProvider(),
-            modelDiagnostics: modelDiagnosticsProvider(),
             runtime: runtime,
-            currentEngine: executionEngineProvider(),
             schedulerBlockReason: lastBlockReason,
             // Recomputed fresh on every status read (not `lastThermalDiagnostic`,
             // which is only updated once per `drainQueue()` tick — up to 20s
             // apart) so the "Resuming in Ns" countdown actually counts down as
             // the status screen polls it, instead of freezing between ticks.
-            // Real report: the countdown "doesn't update every 5 sec so I can
-            // see it actually progressing."
             thermalDiagnostic: lastBlockReason.flatMap {
                 Self.thermalDiagnostic(for: $0, snapshotProvider: snapshotProvider)
             },
@@ -195,21 +126,18 @@ public actor DiscoveryAssembly {
     public func recoverAndReconcileAtLaunch() async throws -> LaunchRecovery {
         // A crash/force-quit mid-job can leave a remote-sparse session's
         // ephemeral temp directory behind (its own `shutdown()` never ran)
-        // — swept here so nothing from that path survives across launches
-        // (plan acceptance criteria: verified via a startup sweep, not just
-        // the happy-path cleanup).
+        // — swept here so nothing from that path survives across launches.
         RemoteSparseAssetResolver.sweepStaleEphemeralDirectories()
         let staleLeases = try await jobs.recoverStaleLeasesAtLaunch()
         let interruptedImports = try await importJobs.recoverInterruptedAtLaunch()
         // Migrate pre-v22 remote assets before eligibility reconciliation. This
         // gives older/onboarded rows the provider node reference needed for
-        // remote sampling and the mandatory BPM/key analysis stage.
+        // remote sampling and BPM/key analysis.
         _ = await reconciler.backfillRemoteNodeReferences()
         // Before creating any new jobs, drop existing ones for tracks that
         // are not (and were never) eligible under the "downloaded/on-device
         // only" rule below — otherwise an install from before this change
-        // keeps every one of those jobs sitting in `waitingForAsset` forever
-        // (real report: "2631 tracks waiting on their audio file").
+        // keeps every one of those jobs sitting in `waitingForAsset` forever.
         let pruned = try await reconciler.pruneJobsForUndownloadedTracks()
         let bootstrapped = try await reconciler.bootstrapAllTracks()
         let outbox = try await reconciler.processOutbox()

@@ -1,6 +1,0 @@
-{
-  "dims": 128,
-  "origin": "Extracted from the starter-v3 GitHub release starter_projection table (commit 665b57f introduced this frozen 512-to-128 PCA projection) before the Jamendo starter pack was removed. Format: LE float32, mean (sourceDims) then row-major components (dims x sourceDims).",
-  "sha256": "c271f563cd333a27c9ef25c6ed68e82db690ac8ad305cd1e21e470d56a3cb63d",
-  "sourceDims": 512
-}

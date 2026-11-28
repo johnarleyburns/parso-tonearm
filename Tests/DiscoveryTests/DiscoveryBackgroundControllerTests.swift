@@ -1,19 +1,18 @@
 #if !os(watchOS)
 import AVFoundation
 import GRDB
-import ParsoAudioNeural
 import Foundation
 import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
-/// C05 fault-injection matrix (IMPLEMENT_CLAP_PLAN.md §7/§11 C05): the
+/// C05 fault-injection matrix: the
 /// portable `DiscoveryBackgroundController` — the split-out owner of the iOS
 /// BackgroundTasks lifecycle — driven against an injected
 /// `BackgroundTaskScheduling` fake, the REAL `IndexJobRepository` /
 /// `BoundedIndexWorker` / `DiscoveryReconciler`, real on-disk WAV fixtures
-/// and a deterministic synthetic CLAP encoder. No real `BGTaskScheduler` and
+/// and real on-disk audio. No real `BGTaskScheduler` and
 /// no granted iOS task are needed to exercise:
 ///
 ///  - registration (idempotent, result recorded),
@@ -122,15 +121,6 @@ import Testing
         return queue
     }
 
-    private func spec() -> EmbeddingModelSpec {
-        let meta = EmbeddingModelSpec.musicCLAPMetadata
-        let bins = meta.fftSize / 2 + 1
-        var spec = EmbeddingModelSpec.musicCLAP(
-            melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
-        spec.dimensions = EmbeddingSpace.current.dimensions
-        return spec
-    }
-
     private func backgroundSnapshot(
         charging: Bool = true, grant: Bool = true,
         thermal: DiscoveryThermalState = .nominal
@@ -221,12 +211,6 @@ import Testing
             })
     }
 
-    private func checkpointCount(_ queue: DatabaseQueue) async throws -> Int {
-        try await queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_window_checkpoint")!
-        }
-    }
-
     // MARK: - Registration
 
     @Test func testRegistrationIsIdempotent() async throws {
@@ -314,7 +298,6 @@ import Testing
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.snapshot() })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
         _ = await controller.register()
@@ -325,10 +308,10 @@ import Testing
         #expect(invocation.completeCount == 1, "BG task completed exactly once (plan §7)")
         #expect(invocation.lastSuccess == true)
 
-        let embeddings = try await queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
+        let analyses = try await queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_track_analysis")!
         }
-        #expect(embeddings == 2)
+        #expect(analyses == 2)
         let runtime = try await assembly.settings.runtime()
         #expect(runtime.coverageSnapshot == "2 / 2")
         #expect(runtime.lastStopReason == "background: 2 completed")
@@ -337,31 +320,26 @@ import Testing
 
     // MARK: - Expiration mid-drain
 
-    @Test func testExpirationMidDrainKeepsCheckpointsAndJobResumes() async throws {
+    @Test func testExpirationBeforeTheAnalysisUnitReleasesJobAndResumes() async throws {
         let queue = try makeQueue()
         let dir = tmpDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let wav = dir.appendingPathComponent("long.wav")
-        try writeSineWAV(seconds: 35, to: wav)  // -> 4 embedding windows
+        try writeSineWAV(seconds: 35, to: wav)
         _ = try await seedTrack(queue, fileURL: wav, durationSec: 35)
 
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.snapshot() })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
         _ = await controller.register()
 
         let invocation = FakeInvocation(identifier: "test.discovery-index")
-        // Fire expiration after the first window has had a chance to persist,
-        // while several windows still remain. Tying this to the fourth snapshot
-        // read raced finalization: the last window could already be committed.
+        // Drop the grant before the scheduler's second (pre-unit) policy
+        // check, so the job is released without starting analysis.
         box.onRead = { count, box in
-            if count == 2 {
-                // `handleExpiration` drops the grant asynchronously in
-                // production; drop it synchronously here so the scheduler's
-                // very next window sees the block, not a raced later tick.
+            if count == 1 {
                 box.mutate { $0.hasBackgroundProcessingGrant = false }
                 invocation.fireExpiration()
             }
@@ -374,25 +352,17 @@ import Testing
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
         #expect(job?.state != .complete)
         #expect(job?.attemptCount == 0, "expiration is not a transient failure")
-        let checkpoints = try await checkpointCount(queue)
-        #expect(checkpoints >= 1, "durable window checkpoints survived")
-        #expect(checkpoints < 4, "the job did not finish before expiry")
 
         let runtime = try await assembly.settings.runtime()
         #expect(runtime.lastStopReason?.contains("expired") ?? false)
 
-        // Resume on the next (foreground) drain: it picks up at the next
-        // missing window and completes.
+        // Resume on the next (foreground) drain: it completes in one unit.
         box.onRead = nil
         box.mutate { $0 = self.foregroundSnapshot() }
         let completed = try await assembly.drainQueue()
         #expect(completed == 1)
         let resumed = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
         #expect(resumed?.state == .complete)
-        let embeddings = try await queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_embedding")!
-        }
-        #expect(embeddings == 1)
     }
 
     // MARK: - Grant revoked mid-run
@@ -408,12 +378,11 @@ import Testing
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.snapshot() })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 3 { b.mutate { $0.hasBackgroundProcessingGrant = false } }
+            if count == 1 { b.mutate { $0.hasBackgroundProcessingGrant = false } }
         }
         let invocation = FakeInvocation(identifier: "test.discovery-index")
         await controller.run(invocation)
@@ -422,8 +391,6 @@ import Testing
         let job = try await assembly.jobs.job(trackId: 1, pipelineVersion: 1)
         #expect(job?.state == .queued, "grant loss releases the job, not a waiting state")
         #expect(job?.attemptCount == 0)
-        let checkpoints = try await checkpointCount(queue)
-        #expect(checkpoints >= 1)
     }
 
     // MARK: - Power / thermal transitions mid-run
@@ -439,12 +406,11 @@ import Testing
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.snapshot() })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 3 { b.mutate { $0.isCharging = false } }
+            if count == 1 { b.mutate { $0.isCharging = false } }
         }
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 
@@ -464,12 +430,11 @@ import Testing
         let scheduler = FakeScheduler()
         let box = SnapshotBox(backgroundSnapshot())
         let assembly = DiscoveryAssembly(writer: queue, snapshotProvider: { box.snapshot() })
-        await assembly.models.injectModelForTesting(DeterministicFakeSemanticModel(spec: spec()))
         _ = try await assembly.recoverAndReconcileAtLaunch()
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 3 { b.mutate { $0.thermalState = .serious } }
+            if count == 1 { b.mutate { $0.thermalState = .serious } }
         }
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 

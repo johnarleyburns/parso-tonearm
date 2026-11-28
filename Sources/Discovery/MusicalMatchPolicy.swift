@@ -3,9 +3,9 @@ import Foundation
 import ParsoAudioAnalysis
 import TonearmCore
 
-/// The explicit DJ compatibility gate shared by mood, Keep Playing, and
-/// Find Music. This is intentionally separate from the softer hybrid score:
-/// selecting "matching tracks" means a track either qualifies or it does not.
+/// The explicit DJ compatibility gate shared by Keep Playing and BPM/Key
+/// filtering. Selecting "matching tracks" means a track either qualifies or
+/// it does not.
 public struct MusicalMatchReference: Sendable, Equatable {
     public let bpm: Double
     public let camelot: CamelotKey
@@ -21,9 +21,8 @@ public struct MusicalMatchReference: Sendable, Equatable {
 }
 
 public enum MusicalMatchPolicy {
-    /// Preserve mood ranking while making every consecutive queue transition
-    /// satisfy the same hard BPM/key/energy gate as matching search and Keep
-    /// Playing. `energyByID` is optional per track — tracks with no energy
+    /// Make every consecutive queue transition satisfy the same hard
+    /// BPM/key/energy gate as Keep Playing. `energyByID` is optional per track — tracks with no energy
     /// value are never excluded on that basis.
     public static func queueTrackIDs(_ ids: [Int64], metadata: [Int64: DJLoadTrackInfo],
                                      energyByID: [Int64: Double] = [:],
@@ -48,8 +47,8 @@ public enum MusicalMatchPolicy {
         return queue
     }
     public static let bpmToleranceRatio = 0.08
-    /// The analysis energy scale is 0...10 (`ParsoAudioNeural.HybridRanker`);
-    /// this is the widest gap still treated as "compatible energy."
+    /// The analysis energy scale is 0...10; this is the widest gap still
+    /// treated as "compatible energy."
     public static let energyToleranceAbsolute = 2.0
 
     public static func compatibleKeys(for reference: CamelotKey) -> Set<CamelotKey> {

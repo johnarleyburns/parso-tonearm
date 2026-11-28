@@ -44,7 +44,7 @@ import Testing
 
     @Test func testNominalForegroundProceedsWithTwoSecondDelay() {
         let decision = IndexPolicy.decide(snapshot())
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testUserPauseAlwaysWins() {
@@ -65,23 +65,19 @@ import Testing
         #expect(decision == .blocked(reason: .thermalSerious))
     }
 
-    /// `.fair` no longer halts the scheduler at all (see
-    /// `DiscoveryExecutionPolicy`'s doc comment for the incident this
-    /// replaces) — CPU-only indexing was never what caused a `.fair`
-    /// reading, so there is no reason to stop it too. `.fair`'s reaction
-    /// is now purely a compute-engine choice, decided separately by
-    /// `DiscoveryExecutionPolicy.decide(_:)`.
+    /// `.fair` does not halt the scheduler: the BPM/key/energy pass is a short
+    /// CPU-only measurement, so a `.fair` reading is no reason to stop it.
     @Test func testThermalFairDoesNotBlockScheduling() {
         let decision = IndexPolicy.decide(
             snapshot(thermalState: .fair, isUserSelectedTrackRequest: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testThermalFairInBackgroundStillProceedsWhileCharging() {
         let decision = IndexPolicy.decide(
             snapshot(appState: .background, thermalState: .fair, isCharging: true,
                      hasBackgroundProcessingGrant: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 0))
+        #expect(decision == .proceed)
     }
 
     @Test func testMemoryWarningBlocks() {
@@ -94,7 +90,7 @@ import Testing
     /// `IndexPolicy.decide`'s `.foreground` case doc for the full reasoning/history).
     @Test func testPlaybackActiveDoesNotBlockAutomaticIndexing() {
         let decision = IndexPolicy.decide(snapshot(isPlaybackActive: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testLowPowerModeUnpluggedBlocksAutomaticButSelectedTrackOverrides() {
@@ -106,7 +102,7 @@ import Testing
             snapshot(
                 isCharging: false, isLowPowerModeEnabled: true,
                 isUserSelectedTrackRequest: true))
-        #expect(overridden == .proceed(interWindowDelaySeconds: 2))
+        #expect(overridden == .proceed)
     }
 
     @Test func testLowBatteryUnderThresholdUnpluggedBlocks() {
@@ -122,7 +118,7 @@ import Testing
 
     @Test func testLowBatteryWhileChargingProceeds() {
         let decision = IndexPolicy.decide(snapshot(batteryLevel: 0.1, isCharging: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testChargingOnlySettingBlocksWhenUnplugged() {
@@ -134,7 +130,7 @@ import Testing
     @Test func testChargingOnlySettingProceedsWhenCharging() {
         let decision = IndexPolicy.decide(
             snapshot(isCharging: true, chargingOnlySetting: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testRemoteSparseJobBlocksOffWiFiWhenWiFiOnlySettingIsOn() {
@@ -150,7 +146,7 @@ import Testing
             snapshot(
                 isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: true,
                 isOnWiFi: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testRemoteSparseJobProceedsOffWiFiWhenWiFiOnlySettingIsOff() {
@@ -158,7 +154,7 @@ import Testing
             snapshot(
                 isCurrentJobRemoteSparse: true, remoteIndexingWiFiOnlySetting: false,
                 isOnWiFi: false))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testLocalJobNeverBlockedByWiFiGateRegardlessOfNetwork() {
@@ -166,7 +162,7 @@ import Testing
             snapshot(
                 isCurrentJobRemoteSparse: false, remoteIndexingWiFiOnlySetting: true,
                 isOnWiFi: false))
-        #expect(decision == .proceed(interWindowDelaySeconds: 2))
+        #expect(decision == .proceed)
     }
 
     @Test func testBackgroundWithoutGrantBlocks() {
@@ -190,7 +186,7 @@ import Testing
             snapshot(
                 appState: .background, isCharging: true,
                 hasBackgroundProcessingGrant: true))
-        #expect(decision == .proceed(interWindowDelaySeconds: 0))
+        #expect(decision == .proceed)
     }
 
     // MARK: - ThermalDiagnostic

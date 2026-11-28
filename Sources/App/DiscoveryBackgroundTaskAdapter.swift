@@ -9,7 +9,7 @@ import Foundation
 import TonearmDiscovery
 
 /// Thin `BackgroundTaskScheduling` conformance over the real
-/// `BGTaskScheduler` (IMPLEMENT_CLAP_PLAN.md §7). All of the discovery
+/// `BGTaskScheduler`. All of the discovery
 /// background *policy* lives in the portable `DiscoveryBackgroundController`;
 /// this file only translates its abstract calls into `BackgroundTasks`
 /// symbols so that logic stays unit-testable without a device.

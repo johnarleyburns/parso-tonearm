@@ -63,8 +63,6 @@ public actor DiscoveryReconciler {
                 if let existing = try await jobs.job(trackId: trackId, pipelineVersion: pipelineVersion) {
                     guard existing.musicalAnalysisStageState != .pending else { continue }
                     if existing.selectedAssetId == selection.assetId,
-                       (existing.embeddingStageState == .complete
-                        || existing.embeddingStageState == .unsupported),
                        let requeued = try await jobs.requeueMusicalAnalysis(
                            trackId: trackId, selectedAssetId: selection.assetId,
                            assetRevision: existing.assetRevision ?? revision,
@@ -73,8 +71,7 @@ public actor DiscoveryReconciler {
                         enqueued += 1
                     } else {
                         // A different preferred asset is a content revision,
-                        // so the embedding and musical stages must restart
-                        // together rather than preserving an old vector.
+                        // so analysis must restart against the new bytes.
                         try await jobs.enqueueOrRestart(
                             trackId: trackId, selectedAssetId: selection.assetId,
                             assetRevision: revision, pipelineVersion: pipelineVersion,
@@ -215,7 +212,7 @@ public actor DiscoveryReconciler {
     /// Drain the `discovery_change` outbox, translating each entry into a
     /// job mutation, then delete the processed rows. Content replacement
     /// restarts the job (new revision); metadata edits and deletions do not
-    /// re-embed audio (plan §4: "Do not make every metadata edit
+    /// re-analyze audio (plan §4: "Do not make every metadata edit
     /// re-embed audio").
     @discardableResult
     public func processOutbox(pageSize: Int = 200) async throws -> Int {
@@ -274,7 +271,7 @@ public actor DiscoveryReconciler {
                 // further to reconcile.
                 break
             case .trackMetadataUpdated:
-                // Presentation-only; does not touch analysis/embeddings.
+                // Presentation-only; does not touch analysis.
                 break
             }
         }

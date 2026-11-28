@@ -15,9 +15,9 @@ import Testing
             searchText: "lofi", searchRows: nil, filter: MyMusicFilter()))
     }
 
-    @Test func testMoodSearchWithNoMatchesIsNotUnfilteredBrowsing() {
-        // Find's Mood mode: searchText is often empty (the query came from mood pills), but
-        // `searchRows` is a non-nil (possibly empty) array once a search actually ran.
+    @Test func testExplicitEmptyResultSetIsNotUnfilteredBrowsing() {
+        // An explicit result set (possibly empty) is a real query outcome, not an unfiltered
+        // browse, even when the text field itself is empty.
         #expect(!LibraryEmptyStatePolicy.isUnfilteredBrowsing(
             searchText: "", searchRows: [], filter: MyMusicFilter()))
     }

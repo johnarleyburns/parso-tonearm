@@ -224,9 +224,8 @@ struct PrivacyView: View {
 
 /// Third-party model/library notices (Settings → Terms). Stem separation in
 /// particular gets its own, non-buried explanation — see
-/// `parso-audio-engine`'s README "On-device neural: CLAP search, and stem
-/// separation" and `current_status.md` "Phase 7" for the full citation trail
-/// behind these determinations.
+/// `parso-audio-engine`'s README and `current_status.md` "Phase 7" for the
+/// full citation trail behind these determinations.
 struct ThirdPartyNoticesView: View {
     @Environment(\.dismiss) private var dismiss
     /// Settings pushes this (it already owns a `NavigationStack`) rather than presenting it as a
@@ -251,8 +250,6 @@ struct ThirdPartyNoticesView: View {
                     .font(Typography.headline)
                 privacyPoint("License — GNU GPL v3.0 or later",
                     "Platterhead is free software: the complete source code is public at github.com/johnarleyburns/parso-tonearm, under the GNU General Public License v3.0 or later. Because the GPL's own terms conflict with the App Store's distribution terms, an additional permission under GPLv3 §7 specifically allows distributing Platterhead through the App Store, provided the source of the exact version distributed stays publicly available under this License — which it does, at the address above. Full text, including that permission: the LICENSE file in the repository.")
-                privacyPoint("Semantic / vibe search",
-                    "Vibe search uses LAION CLAP (music_audioset_epoch_15_esc_90.14, HTSAT-base), licensed Apache-2.0.")
                 privacyPoint("Stem separation — Demucs (current default)",
                     "Splitting a track into vocals/drums/bass/other uses Demucs/htdemucs (Meta). Spleeter (Deezer, MIT code and weights) ships alongside it as a fallback backend. Demucs's pretrained weights are not established as commercially clean — Meta's own maintainers have stated on record that the released weights are provided for scientific purposes only — so shipping Demucs as the default here reflects this app's own licensing determination, made independently of parso-audio-engine's own stance (that engine still recommends Spleeter as its default for anyone who hasn't made that determination themselves). See docs/GPL-BACKENDS.md in this app's source for the full reasoning and how to switch back.")
                 privacyPoint("MP3 export — LAME",

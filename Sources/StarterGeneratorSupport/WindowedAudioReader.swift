@@ -2,7 +2,7 @@
 import AVFoundation
 import Foundation
 
-/// Bounded-memory windowed PCM reader (IMPLEMENT_CLAP_PLAN.md §6): decodes
+/// Bounded-memory windowed PCM reader: decodes
 /// and resamples exactly one requested window's worth of audio into mono
 /// Float32 samples at a time — never the whole file. This replaces the
 /// forbidden "decode the entire file, build all windows" shape

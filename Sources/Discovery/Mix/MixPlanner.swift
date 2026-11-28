@@ -1,4 +1,3 @@
-import Accelerate
 import Foundation
 import ParsoAudioAnalysis
 import TonearmCore
@@ -11,7 +10,6 @@ public struct MixPlannerWeights: Codable, Sendable, Equatable {
     public var tempoPerPercent: Double = 10
     public var againstShapeMultiplier: Double = 3
     public var energy: Double = 1
-    public var similarity: Double = 2
     public var sameArtist: Double = 3
     public var shapeDeviation: Double = 10
 
@@ -113,9 +111,6 @@ public struct MixPlanner: Sendable {
 
                 let positionTarget = target(position, Double(pool.count))
                 let previous = orderedIndices.last
-                // One matrix-vector product scores the previous track's sound against every
-                // candidate (a 4,000-track library was a minute of per-pair cosines).
-                let distances = previous.map { fast.cosineDistances(from: $0) }
                 var selected: Int?
                 var selectedCost = Double.infinity
                 for index in pool.indices {
@@ -124,7 +119,7 @@ public struct MixPlanner: Sendable {
                     let cost: Double
                     if let previous {
                         cost = fast.edgeTotal(from: previous, to: index, target: positionTarget,
-                                              shape: request.shape, distance: distances?[index])
+                                              shape: request.shape)
                             + tieBreaks[index]
                     } else {
                         cost = startCost(pool[index], shape: request.shape, target: positionTarget,
@@ -162,20 +157,15 @@ public struct MixPlanner: Sendable {
         var scores: [EdgeScore] = []
         for (position, candidate) in ordered.enumerated() {
             let previous = position > 0 ? ordered[position - 1] : nil
-            // Every explanation edge from `previous` reuses one matrix-vector product of sound
-            // distances instead of a per-pair cosine.
-            let distances = previous.flatMap { indexByID[$0.trackID] }.map {
-                StepDistances(byIndex: fast.cosineDistances(from: $0), indexByID: indexByID)
-            }
             let score = previous.map { previousCandidate in
                 let raw = edge(from: previousCandidate, to: candidate,
                                target: target(position, Double(ordered.count)),
                                shape: request.shape, isFirst: false,
-                               camelotKeys: camelotKeys, distances: distances)
+                               camelotKeys: camelotKeys)
                 return markUnavoidableIfForced(raw, from: previousCandidate,
                                                remaining: ordered.dropFirst(position + 1),
                                                target: target(position, Double(ordered.count)),
-                                               shape: request.shape, distances: distances,
+                                               shape: request.shape,
                                                camelotKeys: camelotKeys)
             }
             if let score { scores.append(score) }
@@ -205,7 +195,6 @@ public struct MixPlanner: Sendable {
                                                     target: target(position, Double(ordered.count)),
                                                     shape: request.shape,
                                                     camelotKeys: camelotKeys,
-                                                    distances: distances,
                                                     compatibility: request.compatibility) } ?? []
             let relation: MixTempoRelation = position == 0 ? .same : .keyTempo
             let effective = referenceBPM > 0 ? referenceBPM : candidate.bpm!
@@ -278,7 +267,6 @@ public struct MixPlanner: Sendable {
             }
             let previous = orderedIndices[orderedIndices.count - 1]
             let positionTarget = target(position, max(expectedCount, Double(position + 1)))
-            let distances = fast.cosineDistances(from: previous)
             var selected: Int?
             var selectedCost = Double.infinity
             for index in pool.indices where !used[index] {
@@ -286,7 +274,7 @@ public struct MixPlanner: Sendable {
                       MixCompatibility.keysCompatible(codes[previous], codes[index]) else { continue }
                 if let goal, total + max(0, pool[index].duration) > goal * 1.1 { continue }
                 let cost = fast.edgeTotal(from: previous, to: index, target: positionTarget,
-                                          shape: request.shape, distance: distances[index]) + tieBreaks[index]
+                                          shape: request.shape) + tieBreaks[index]
                 if cost < selectedCost
                     || (cost == selectedCost && pool[index].trackID < selected.map { pool[$0].trackID } ?? .max) {
                     selected = index
@@ -427,8 +415,7 @@ public struct MixPlanner: Sendable {
 
     private func edge(from: MixCandidate, to: MixCandidate, target: Double,
                       shape: MixShape, isFirst: Bool,
-                      camelotKeys: [Int64: CamelotKey] = [:],
-                      distances: StepDistances? = nil) -> EdgeScore {
+                      camelotKeys: [Int64: CamelotKey] = [:]) -> EdgeScore {
         let relation = keyRelation(camelotKeys[from.trackID], camelotKeys[to.trackID])
         let effective = effectiveBPM(from: from.bpm!, to: to.bpm!)
         let delta = abs(effective.bpm / from.bpm! - 1)
@@ -443,8 +430,6 @@ public struct MixPlanner: Sendable {
         }()
         let againstShape = expectedDirection != 0 && direction * expectedDirection < -0.0001
         let energyDelta: Double? = if let a = from.energy, let b = to.energy { b - a } else { nil }
-        let similarity = distances.map { $0.distance(to: to.trackID) }
-            ?? cosineDistance(from.embedding, to.embedding)
         var flags: [EdgeFlag] = []
         if againstShape { flags.append(.againstShape) }
         if delta > 0.08 { flags.append(.tempoJump) }
@@ -457,15 +442,14 @@ public struct MixPlanner: Sendable {
         }
         let shapeDeviation = abs(effective.bpm - target) / max(1, target)
         let energyCost = energyDelta.map { abs($0 - expectedEnergyDelta(from: from, to: to, shape: shape)) * Self.weights.energy } ?? 0
-        let similarityCost = similarity.map { $0 * Self.weights.similarity } ?? 0
         let total = keyCost(relation)
             + delta * 100 * Self.weights.tempoPerPercent / 100
                 * (againstShape ? Self.weights.againstShapeMultiplier : 1)
-            + energyCost + similarityCost
+            + energyCost
             + (flags.contains(.sameArtistBackToBack) ? Self.weights.sameArtist : 0)
             + shapeDeviation * Self.weights.shapeDeviation
         return EdgeScore(key: relation, bpmDeltaPct: delta * 100,
-                         energyDelta: energyDelta, similarity: similarity,
+                         energyDelta: energyDelta,
                          shapeDeviation: shapeDeviation, total: total, flags: flags)
     }
 
@@ -481,7 +465,6 @@ public struct MixPlanner: Sendable {
         return Self.edgeCost(fromBPM: from.bpm!, toBPM: to.bpm!,
                              fromKey: camelotKeys[from.trackID], toKey: camelotKeys[to.trackID],
                              fromEnergy: from.energy, toEnergy: to.energy, sameArtist: sameArtist,
-                             similarityDistance: cosineDistance(from.embedding, to.embedding),
                              target: target, shape: shape)
     }
 
@@ -489,7 +472,7 @@ public struct MixPlanner: Sendable {
     /// so both rank candidates identically.
     static func edgeCost(fromBPM: Double, toBPM: Double, fromKey: CamelotKey?, toKey: CamelotKey?,
                          fromEnergy: Double?, toEnergy: Double?, sameArtist: Bool,
-                         similarityDistance: Double?, target: Double, shape: MixShape) -> Double {
+                         target: Double, shape: MixShape) -> Double {
         let planner = MixPlanner()
         let relation = planner.keyRelation(fromKey, toKey)
         let effective = planner.effectiveBPM(from: fromBPM, to: toBPM)
@@ -514,19 +497,18 @@ public struct MixPlanner: Sendable {
         } else {
             energyCost = 0
         }
-        let similarityCost = similarityDistance.map { $0 * weights.similarity } ?? 0
         let shapeDeviation = abs(effective.bpm - target) / max(1, target)
         return planner.keyCost(relation)
             + delta * weights.tempoPerPercent
                 * (againstShape ? weights.againstShapeMultiplier : 1)
-            + energyCost + similarityCost
+            + energyCost
             + (sameArtist ? weights.sameArtist : 0)
             + shapeDeviation * weights.shapeDeviation
     }
 
     private func markUnavoidableIfForced(_ score: EdgeScore, from: MixCandidate,
                                          remaining: ArraySlice<MixCandidate>, target: Double,
-                                         shape: MixShape, distances: StepDistances? = nil,
+                                         shape: MixShape,
                                          camelotKeys: [Int64: CamelotKey]) -> EdgeScore {
         // The explanation is intentionally bounded for large libraries. The
         // solve is already deterministic and the user-facing runners-up scan
@@ -536,7 +518,7 @@ public struct MixPlanner: Sendable {
         guard score.flags.contains(.tempoJump),
               !considered.contains(where: {
                   !edge(from: from, to: $0, target: target, shape: shape, isFirst: false,
-                       camelotKeys: camelotKeys, distances: distances).flags.contains(.tempoJump)
+                       camelotKeys: camelotKeys).flags.contains(.tempoJump)
               }) else { return score }
         var marked = score
         marked.flags.append(.unavoidable(.onlyRemainingOption))
@@ -556,7 +538,6 @@ public struct MixPlanner: Sendable {
                            pool: [MixCandidate], position: Int, target: Double,
                            shape: MixShape,
                            camelotKeys: [Int64: CamelotKey],
-                           distances: StepDistances? = nil,
                            compatibility: MixCompatibility? = nil) -> [RunnerUp] {
         // Under mixing rules a runner-up (and so a Swap) must obey them too.
         let admissible = compatibility.map { rules in
@@ -573,7 +554,7 @@ public struct MixPlanner: Sendable {
             .map { candidate in
                 let score = edge(from: previous, to: candidate, target: target,
                                  shape: shape, isFirst: false,
-                                 camelotKeys: camelotKeys, distances: distances)
+                                 camelotKeys: camelotKeys)
                 return RunnerUp(trackID: candidate.trackID, total: score.total,
                                 lostBecause: score.flags, keyRelation: score.key,
                                 bpmDeltaPct: score.bpmDeltaPct)
@@ -626,20 +607,6 @@ public struct MixPlanner: Sendable {
         }
     }
 
-    private func cosineDistance(_ lhs: [Float]?, _ rhs: [Float]?) -> Double? {
-        guard let lhs, let rhs, lhs.count == rhs.count, !lhs.isEmpty else { return nil }
-        var dot = 0.0
-        var left = 0.0
-        var right = 0.0
-        for (a, b) in zip(lhs, rhs) {
-            dot += Double(a * b)
-            left += Double(a * a)
-            right += Double(b * b)
-        }
-        let denominator = sqrt(left) * sqrt(right)
-        return denominator > 0 ? 1 - dot / denominator : 1
-    }
-
     private func seededTieBreak(_ trackID: Int64, seed: UInt64) -> Double {
         var value = UInt64(bitPattern: trackID) ^ seed &* 0x9E37_79B9_7F4A_7C15
         value ^= value >> 30
@@ -652,18 +619,13 @@ public struct MixPlanner: Sendable {
 }
 
 /// The greedy solve's inputs laid out for speed: per-track arrays instead of dictionary and string
-/// work in the n² inner loop, and unit-length embeddings in one row-major matrix so each step's
-/// sound distances are a single BLAS matrix-vector product. `edgeTotal` scores exactly what
-/// `MixPlanner.edgeTotal` scores.
+/// work in the n² inner loop. `edgeTotal` scores exactly what `MixPlanner.edgeTotal` scores.
 struct MixPlannerFastPool {
     let bpm: [Double]
     let energy: [Double?]
     let artistID: [Int?]
     let keys: [CamelotKey?]
     let artists: [String?]
-    private let dimensions: Int
-    private let unitEmbeddings: [Float]
-    private let hasEmbedding: [Bool]
 
     init(pool: [MixCandidate], camelotKeys: [Int64: CamelotKey]) {
         bpm = pool.map { $0.bpm ?? 120 }
@@ -679,57 +641,12 @@ struct MixPlannerFastPool {
             artistIDs[folded] = id
             return id
         }
-        // Embeddings of the most common width take part; others (a mismatched model) score as
-        // "no similarity", exactly as the pairwise cosine treated a width mismatch.
-        let widths = pool.compactMap { $0.embedding?.count }.filter { $0 > 0 }
-        let width = Dictionary(widths.map { ($0, 1) }, uniquingKeysWith: +).max { $0.value < $1.value }?.key ?? 0
-        dimensions = width
-        var matrix = [Float](repeating: 0, count: pool.count * max(width, 1))
-        var present = [Bool](repeating: false, count: pool.count)
-        if width > 0 {
-            for (row, candidate) in pool.enumerated() {
-                guard let vector = candidate.embedding, vector.count == width else { continue }
-                present[row] = true
-                var norm: Float = 0
-                vDSP_svesq(vector, 1, &norm, vDSP_Length(width))
-                norm = norm.squareRoot()
-                guard norm > 0 else { continue }  // zero vector: distance 1, as before
-                var scale = 1 / norm
-                matrix.withUnsafeMutableBufferPointer { buffer in
-                    vDSP_vsmul(vector, 1, &scale, buffer.baseAddress! + row * width, 1, vDSP_Length(width))
-                }
-            }
-        }
-        unitEmbeddings = matrix
-        hasEmbedding = present
     }
 
-    /// Cosine distance from track `index` to every track (nil where either has no embedding).
-    func cosineDistances(from index: Int) -> [Double?] {
-        let count = hasEmbedding.count
-        guard dimensions > 0, hasEmbedding[index] else { return [Double?](repeating: nil, count: count) }
-        var similarities = [Float](repeating: 0, count: count)
-        unitEmbeddings.withUnsafeBufferPointer { matrix in
-            // (count × dimensions) · (dimensions × 1); vDSP_mmul replaces the deprecated cblas_sgemv.
-            vDSP_mmul(matrix.baseAddress!, 1, matrix.baseAddress! + index * dimensions, 1,
-                      &similarities, 1, vDSP_Length(count), 1, vDSP_Length(dimensions))
-        }
-        return (0..<count).map { hasEmbedding[$0] ? 1 - Double(similarities[$0]) : nil }
-    }
-
-    func edgeTotal(from: Int, to: Int, target: Double, shape: MixShape, distance: Double?) -> Double {
+    func edgeTotal(from: Int, to: Int, target: Double, shape: MixShape) -> Double {
         MixPlanner.edgeCost(fromBPM: bpm[from], toBPM: bpm[to], fromKey: keys[from], toKey: keys[to],
                             fromEnergy: energy[from], toEnergy: energy[to],
                             sameArtist: artistID[from] != nil && artistID[from] == artistID[to],
-                            similarityDistance: distance, target: target, shape: shape)
-    }
-}
-
-/// Sound distances from one track to every track in the pool, looked up by track id.
-struct StepDistances {
-    let byIndex: [Double?]
-    let indexByID: [Int64: Int]
-    func distance(to trackID: Int64) -> Double? {
-        indexByID[trackID].flatMap { byIndex[$0] }
+                            target: target, shape: shape)
     }
 }

@@ -1,21 +1,16 @@
 #if !os(watchOS)
 import AVFoundation
-import GRDB
-import ParsoAudioNeural
 import Foundation
+import GRDB
 import Testing
 
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
-/// C04 end-to-end fixtures (IMPLEMENT_CLAP_PLAN.md §6/§7/§8/§11): the real
-/// `BoundedIndexWorker` driven through `IndexScheduler`, against a
-/// deterministic synthetic CLAP encoder injected via
-/// `ModelManager.injectModelForTesting` (the plan's own sanctioned seam for
-/// "synthetic test encoders for deterministic automation") and real audio
-/// fixtures generated on disk. Also covers the C03/C04 fixtures that the
-/// windowed reader now unblocks: corrupt-audio handling and checkpoint
-/// rollback/resume.
+/// End-to-end fixtures for the musical-analysis worker: the real
+/// `BoundedIndexWorker` driven through `IndexScheduler`, against real audio
+/// fixtures generated on disk. Covers the bounded-read/analysis path,
+/// corrupt-audio handling, content replacement, and asset selection.
 @Suite struct BoundedIndexWorkerTests {
     // MARK: - Harness
 
@@ -25,19 +20,6 @@ import Testing
         let queue = try DatabaseQueue(configuration: config)
         try Schema.migrator().migrate(queue)
         return queue
-    }
-
-    private func syntheticSpec() -> EmbeddingModelSpec {
-        // logMel(clip:spec:) requires a filterbank of exactly
-        // (fftSize/2 + 1) * melBins entries; the values themselves are
-        // irrelevant to the deterministic fake encoder (it hashes the
-        // resulting log-mel bytes), only the shape must be valid.
-        let meta = EmbeddingModelSpec.musicCLAPMetadata
-        let bins = meta.fftSize / 2 + 1
-        var spec = EmbeddingModelSpec.musicCLAP(
-            melFilterBank: [Float](repeating: 0.01, count: bins * meta.melBins))
-        spec.dimensions = EmbeddingSpace.current.dimensions
-        return spec
     }
 
     @discardableResult
@@ -82,7 +64,7 @@ import Testing
         let sampleRate = 44_100.0
         let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
         let file = try AVAudioFile(forWriting: url, settings: format.settings)
-        let chunkFrames = AVAudioFrameCount(sampleRate)  // 1 s at a time
+        let chunkFrames = AVAudioFrameCount(sampleRate)
         var remaining = Int((seconds * sampleRate).rounded())
         var phase = 0.0
         let increment = 2.0 * Double.pi * 220.0 / sampleRate
@@ -131,11 +113,9 @@ import Testing
         }
     }
 
-    /// Real report follow-up: once indexing switched from `FullAnalysis` to `LeanAnalysis`
-    /// (minimal bpm/beatgrid/key/energy sampling) and the dead `discovery_transition_profile`
-    /// chain was removed, this pins that a real rhythmic fixture still gets a real bpm through
-    /// the full `BoundedIndexWorker` pipeline, and that no `discovery_transition_profile` write
-    /// is ever attempted (the table no longer exists at all — see `MigrationV43Tests`).
+    /// A real rhythmic fixture gets a real bpm through the full worker, and no
+    /// `discovery_transition_profile` write is ever attempted (the table no
+    /// longer exists — see `MigrationV43Tests`).
     @Test func testMusicalAnalysisWritesRealBPMViaLeanAnalysisAndNeverTouchesTransitionProfile() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
@@ -150,11 +130,7 @@ import Testing
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
-            sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: BoundedIndexWorker(writer: queue))
 
         let outcome = try await runToCompletion(scheduler)
         guard case .jobCompleted = outcome else {
@@ -167,8 +143,6 @@ import Testing
         let bpm = try #require(foundAnalysis.bpm, "LeanAnalysis should find a real bpm")
         #expect(abs(bpm - 128) <= 2)
 
-        // The table itself no longer exists (v43) — confirms nothing in the lean path tries to
-        // write to it (that would throw "no such table" and fail the job above, not silently).
         let hasTable = try await queue.read { db in try db.tableExists("discovery_transition_profile") }
         #expect(!hasTable)
     }
@@ -202,53 +176,40 @@ import Testing
 
     // MARK: - Tests
 
-    /// Full pipeline: bounded windowed reads → synthetic CLAP → pooled,
-    /// quantized `discovery_embedding`; then real BPM/key/energy →
-    /// `discovery_track_analysis`; plus `discovery_asset_state` populated from
-    /// the actual file it read.
-    @Test func testEndToEndPopulatesEmbeddingAnalysisAndAssetStateRows() async throws {
+    /// End-to-end: one analysis read → `discovery_track_analysis` +
+    /// `discovery_asset_state`, with no semantic tables or `track.indexed`
+    /// column left in the schema.
+    @Test func testEndToEndPopulatesAnalysisAndAssetStateRows() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let wav = dir.appendingPathComponent("song.wav")
-        try writeSineWAV(seconds: 35, to: wav)  // > 10 s → multiple windows
+        try writeSineWAV(seconds: 35, to: wav)
 
         let (trackId, assetId) = try await seedTrackWithAsset(
             queue, fileURL: wav, durationSec: 35)
-
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let worker = BoundedIndexWorker(writer: queue, jobs: jobs, models: models)
-        let scheduler = IndexScheduler(jobs: jobs, worker: worker, sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: BoundedIndexWorker(writer: queue))
 
         let outcome = try await runToCompletion(scheduler)
         guard case .jobCompleted = outcome else {
             let j = try await jobs.job(trackId: trackId, pipelineVersion: 1)
             Issue.record(
-                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") msg=\(j?.errorMessage ?? "nil") emb=\(j?.embeddingStageState.rawValue ?? "?") mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
+                "expected jobCompleted, got \(outcome); errorCode=\(j?.errorCode ?? "nil") msg=\(j?.errorMessage ?? "nil") mus=\(j?.musicalAnalysisStageState.rawValue ?? "?")")
             return
         }
 
-        let (embedding, analysis, assetState) = try await queue.read {
-            db -> (DiscoveryEmbedding?, DiscoveryTrackAnalysis?, DiscoveryAssetState?) in
+        let (analysis, assetState) = try await queue.read {
+            db -> (DiscoveryTrackAnalysis?, DiscoveryAssetState?) in
             (
-                try DiscoveryEmbedding.fetchOne(db, key: trackId),
                 try DiscoveryTrackAnalysis.fetchOne(db, key: trackId),
                 try DiscoveryAssetState.fetchOne(db, key: assetId)
             )
         }
-
-        let vec = try #require(embedding)
-        #expect(vec.dimensions == syntheticSpec().dimensions)
-        #expect(vec.quantizedVector.count == vec.dimensions, "one int8 per dimension")
-        #expect(vec.scale > 0)
-        #expect(vec.samplingVersion == DiscoveryPipelineVersion.sampling)
 
         let ana = try #require(analysis)
         #expect(ana.analysisVersion == DiscoveryPipelineVersion.musicalAnalysis)
@@ -260,29 +221,26 @@ import Testing
         #expect(state.observedSizeBytes == Int64((try Data(contentsOf: wav)).count))
         #expect(state.observedMTime != nil)
 
-        // Real report (owner's own words): "why would mood EVER return non bpm/camelot tracks:
-        // don't we index clap and bpm/camelot at the same time..." -- `commitAnalysis` atomically
-        // flips `track.indexed` once both the embedding (above) and this analysis row exist;
-        // Mood's search gates on exactly this flag (migration v46).
-        let indexedFlag = try await queue.read { db in
-            try Bool.fetchOne(db, sql: "SELECT indexed FROM track WHERE id = ?", arguments: [trackId])
+        let (hasEmbedding, hasCheckpoints, hasEmbeddingSpace, hasIndexedColumn) = try await queue.read { db in
+            (
+                try db.tableExists("discovery_embedding"),
+                try db.tableExists("discovery_window_checkpoint"),
+                try db.tableExists("discovery_embedding_space"),
+                try db.columns(in: "track").contains { $0.name == "indexed" }
+            )
         }
-        #expect(indexedFlag == true, "both embedding and analysis landed -- track must be marked indexed")
-
-        // No window checkpoints survive a finalized embedding (plan §6).
-        let leftoverCheckpoints = try await queue.read { db in
-            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM discovery_window_checkpoint")!
-        }
-        #expect(leftoverCheckpoints == 0)
+        #expect(!hasEmbedding)
+        #expect(!hasCheckpoints)
+        #expect(!hasEmbeddingSpace)
+        #expect(!hasIndexedColumn)
 
         let coverage = try await jobs.coverage(pipelineVersion: 1)
         #expect(coverage.complete == 1)
         #expect(coverage.failed == 0)
     }
 
-    /// A short track (<= 10 s) yields exactly one zero-padded window and still
-    /// produces a valid finite, non-zero-norm embedding.
-    @Test func testShortTrackProducesOneWindowEmbedding() async throws {
+    /// A short track (<= 10 s) is analyzed in full and still completes.
+    @Test func testShortTrackCompletesWithFullScope() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -295,22 +253,17 @@ import Testing
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
-            sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: BoundedIndexWorker(writer: queue))
 
         _ = try await runToCompletion(scheduler)
-        let vec = try await queue.read { db in try DiscoveryEmbedding.fetchOne(db, key: trackId) }
-        let embedding = try #require(vec)
-        let ints = embedding.quantizedVector.map { Int8(bitPattern: $0) }
-        #expect(ints.contains { $0 != 0 }, "non-zero-norm vector")
+        let analysis = try await queue.read { db in try DiscoveryTrackAnalysis.fetchOne(db, key: trackId) }
+        let ana = try #require(analysis)
+        #expect(abs((ana.analysisScopeSeconds ?? 0) - 4) <= 0.5)
     }
 
     /// Corrupt/unsupported audio must terminate the stage explicitly — never
-    /// a fake embedding, never an infinite retry (plan §6/§8/§11).
-    @Test func testCorruptAudioTerminatesWithoutEmbedding() async throws {
+    /// an infinite retry or a fabricated analysis row (plan §6/§8/§11).
+    @Test func testCorruptAudioTerminatesUnsupported() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -323,27 +276,23 @@ import Testing
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
-            sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: BoundedIndexWorker(writer: queue))
 
         _ = try await runToCompletion(scheduler)
 
-        let jobRow = try await jobs.job(trackId: trackId, pipelineVersion: 1)
-        let job = try #require(jobRow)
-        #expect(job.embeddingStageState == .unsupported)
-        let embedding = try await queue.read { db in
-            try DiscoveryEmbedding.fetchOne(db, key: trackId)
+        let job = try #require(try await jobs.job(trackId: trackId, pipelineVersion: 1))
+        #expect(job.musicalAnalysisStageState == .unsupported)
+        let analysis = try await queue.read { db in
+            try DiscoveryTrackAnalysis.fetchOne(db, key: trackId)
         }
-        #expect(embedding == nil, "no fabricated embedding for undecodable audio")
+        #expect(analysis == nil, "no fabricated analysis for undecodable audio")
+        let coverage = try await jobs.coverage(pipelineVersion: 1)
+        #expect(coverage.failed == 1)
     }
 
-    /// Checkpoint rollback: a content replacement (`restart: true`) clears
-    /// prior window checkpoints and the stale embedding, and a fresh run
-    /// re-derives everything against the new revision (plan §4/§11).
-    @Test func testContentReplacementRollsBackCheckpointsAndReindexes() async throws {
+    /// A content replacement (`restart: true`) re-analyzes against the new
+    /// revision rather than preserving stale BPM/key facts.
+    @Test func testContentReplacementReanalyzes() async throws {
         let queue = try makeQueue()
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -356,79 +305,23 @@ import Testing
         let jobs = IndexJobRepository(writer: queue)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
-            sleeper: { _ in })
+        let scheduler = IndexScheduler(jobs: jobs, worker: BoundedIndexWorker(writer: queue))
 
         _ = try await runToCompletion(scheduler)
-        let firstVec = try await queue.read { db in
-            try DiscoveryEmbedding.fetchOne(db, key: trackId)
-        }
-        #expect(firstVec != nil)
+        let first = try #require(
+            try await queue.read { db in try DiscoveryTrackAnalysis.fetchOne(db, key: trackId) })
+        #expect(first.assetRevision == 1)
 
-        // Simulate a real content replacement.
         try writeSineWAV(seconds: 22, to: wav)
         try await jobs.enqueueOrRestart(
             trackId: trackId, selectedAssetId: assetId, assetRevision: 2, pipelineVersion: 1,
             restart: true)
 
-        let completedAfterRestart = try await jobs.completedWindowIndices(jobId: firstJobId(queue, trackId))
-        #expect(completedAfterRestart.isEmpty, "restart clears window checkpoints")
-
         _ = try await runToCompletion(scheduler)
-        let secondRow = try await queue.read { db in
-            try DiscoveryEmbedding.fetchOne(db, key: trackId)
-        }
-        let secondEmbedding = try #require(secondRow)
-        #expect(secondEmbedding.assetRevision == 2)
-    }
-
-    /// A pre-existing checkpoint for window 0 is not re-read: the worker
-    /// resumes at the next missing window after a simulated relaunch
-    /// (plan §6: "Resume at the next missing window after relaunch").
-    @Test func testResumesAtNextMissingWindow() async throws {
-        let queue = try makeQueue()
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let wav = dir.appendingPathComponent("song.wav")
-        try writeSineWAV(seconds: 35, to: wav)
-        let (trackId, assetId) = try await seedTrackWithAsset(queue, fileURL: wav, durationSec: 35)
-
-        let jobs = IndexJobRepository(writer: queue)
-        try await jobs.enqueueOrRestart(
-            trackId: trackId, selectedAssetId: assetId, assetRevision: 1, pipelineVersion: 1)
-        let jobId = firstJobId(queue, trackId)
-
-        // Pre-seed a checkpoint for window index 0 with a sentinel vector, as
-        // though a prior process had completed it before being killed.
-        let sentinel = [Float](repeating: 0.5, count: syntheticSpec().dimensions)
-        try await queue.write { db in
-            var cp = DiscoveryWindowCheckpoint(
-                jobId: jobId, revisionSignature: "1", windowIndex: 0, startSeconds: 0,
-                embeddingVector: sentinel.withUnsafeBufferPointer { Data(buffer: $0) },
-                poolingWeight: 1, completedAt: Date())
-            try cp.insert(db)
-        }
-
-        let before = try await jobs.completedWindowIndices(jobId: jobId)
-        #expect(before == [0])
-
-        let models = ModelManager(resourceProvider: { .unavailable })
-        await models.injectModelForTesting(DeterministicFakeSemanticModel(spec: syntheticSpec()))
-        let scheduler = IndexScheduler(
-            jobs: jobs, worker: BoundedIndexWorker(writer: queue, jobs: jobs, models: models),
-            sleeper: { _ in })
-        _ = try await runToCompletion(scheduler)
-
-        let vecRow = try await queue.read { db in
-            try DiscoveryEmbedding.fetchOne(db, key: trackId)
-        }
-        let vec = try #require(vecRow)
-        #expect(vec.dimensions == syntheticSpec().dimensions)
+        let second = try #require(
+            try await queue.read { db in try DiscoveryTrackAnalysis.fetchOne(db, key: trackId) })
+        #expect(second.assetRevision == 2)
+        #expect(second.completedAt != nil)
     }
 
     /// Deterministic preferred-asset selection (plan §5): a valid local
@@ -455,26 +348,9 @@ import Testing
         let unsupported = Asset(
             id: 1, trackId: 1, kind: .localRef, bookmark: Data([9]), relPath: nil, remoteURL: nil,
             altRemoteURL: nil, sizeBytes: nil, unsupportedReason: "drm")
-        // Real report: "I want to only index downloaded / on-device tracks"
-        // — a bare remote/undownloaded asset is no longer a valid fallback
-        // pick at all (it previously ranked as a lower-priority "tier 2"
-        // choice, which is exactly what left tracks permanently parked in
-        // `waitingForAsset`: nothing was ever going to make that asset
-        // locally resolvable on its own). With only an unsupported asset and
-        // a remote-only one to choose from, neither qualifies.
         #expect(
             DiscoveryReconciler.preferredAsset(from: [unsupported, remote]) == nil,
             "neither an unsupported nor a remote-only asset is a valid pick")
-    }
-
-    // MARK: - small async helpers
-
-    private func firstJobId(_ queue: DatabaseQueue, _ trackId: Int64) -> String {
-        (try? queue.read { db in
-            try String.fetchOne(
-                db, sql: "SELECT id FROM discovery_index_job WHERE trackId = ? LIMIT 1",
-                arguments: [trackId])
-        }) ?? ""
     }
 }
 #endif

@@ -42,7 +42,7 @@ import Testing
     }
 
     @Test func testReorderedKeepPlayingStaysKeepPlaying() {
-        let p = project([.context, .keepPlaying(.soundSimilar), .context])
+        let p = project([.context, .keepPlaying(.noMatchShuffle), .context])
         #expect(p.sections.map(\.kind) == [.context, .keepPlaying])
         #expect(p.sections[1].offsets == [1])
         #expect(p.sections[0].offsets == [2])

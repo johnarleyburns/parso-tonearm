@@ -19,13 +19,13 @@ private actor AsyncGate {
     }
 }
 
-private final class DeferredKeepPlayingProvider: KeepPlayingSimilarityProviding, @unchecked Sendable {
+private final class DeferredKeepPlayingProvider: KeepPlayingMixProviding, @unchecked Sendable {
     private let gate: AsyncGate
-    private let result: KeepPlayingLookup
+    private let result: KeepPlayingMixResult
     private let lock = NSLock()
     private var calls = 0
 
-    init(gate: AsyncGate, result: KeepPlayingLookup) {
+    init(gate: AsyncGate, result: KeepPlayingMixResult) {
         self.gate = gate
         self.result = result
     }
@@ -34,20 +34,20 @@ private final class DeferredKeepPlayingProvider: KeepPlayingSimilarityProviding,
 
     var callCount: Int { lock.lock(); defer { lock.unlock() }; return calls }
 
-    func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
-    ) async -> KeepPlayingLookup {
+    func mixContinuation(
+        after trackID: Int64, excluding: Set<Int64>, limit: Int
+    ) async -> KeepPlayingMixResult {
         recordCall()
         await gate.wait()
         return result
     }
 }
 
-private struct ImmediateKeepPlayingProvider: KeepPlayingSimilarityProviding {
-    let result: KeepPlayingLookup
-    func continuationTrackIDs(
-        after recentlyPlayed: [Int64], excluding: Set<Int64>, scope: KeepPlayingSimilarityScope, limit: Int
-    ) async -> KeepPlayingLookup { result }
+private struct ImmediateKeepPlayingProvider: KeepPlayingMixProviding {
+    let result: KeepPlayingMixResult
+    func mixContinuation(
+        after trackID: Int64, excluding: Set<Int64>, limit: Int
+    ) async -> KeepPlayingMixResult { result }
 }
 
 extension SharedProductionSingletonTests {
@@ -73,7 +73,7 @@ extension SharedProductionSingletonTests {
 
         private func reset(_ player: AudioPlayer) {
             player.keepPlayingEnabled = false
-            player.keepPlayingProvider = nil
+            player.keepPlayingMixProvider = nil
             player.resetRestoreForTesting()
             if !player.queue.isEmpty { player.removeFromQueue(atOffsets: IndexSet(0..<player.queue.count)) }
             player.repeatMode = .off
@@ -104,8 +104,8 @@ extension SharedProductionSingletonTests {
             if library.isEmpty { try Test.cancel("Needs a library track to hydrate against") }
             let pick = try #require(library.first?.track.id)
             let gate = AsyncGate()
-            let provider = DeferredKeepPlayingProvider(gate: gate, result: .ready([pick]))
-            player.keepPlayingProvider = provider
+            let provider = DeferredKeepPlayingProvider(gate: gate, result: .init(trackIDs: [pick]))
+            player.keepPlayingMixProvider = provider
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)
 
@@ -123,13 +123,13 @@ extension SharedProductionSingletonTests {
         @Test func testTerminalEmptyResultBecomesExplicitExhaustedStateWithoutHiddenRetryLoop() async throws {
             // Deliberately no shared-library fallback; see KeepPlayingLibrary.
             player.keepPlayingLibrary = .empty
-            player.keepPlayingProvider = ImmediateKeepPlayingProvider(result: .unavailable)
+            player.keepPlayingMixProvider = ImmediateKeepPlayingProvider(result: .empty)
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)
             player.next()
             try await eventually { player.keepPlayingBoundaryState.isExhausted && !player.keepPlayingExtensionInFlight }
             #expect(!player.isPlaying)
-            #expect(player.keepPlayingFallbackReason == .unavailable)
+            #expect(player.keepPlayingFallbackReason == .noCompatibleTracks)
 
             // A further terminal next() must not start another attempt.
             let state = player.keepPlayingBoundaryState
@@ -142,7 +142,7 @@ extension SharedProductionSingletonTests {
         @Test func testStaleContinuationCannotResumeReplacementQueueOrDisabledKeepPlaying() async throws {
             // Queue replacement.
             let gate = AsyncGate()
-            player.keepPlayingProvider = DeferredKeepPlayingProvider(gate: gate, result: .ready([2]))
+            player.keepPlayingMixProvider = DeferredKeepPlayingProvider(gate: gate, result: .init(trackIDs: [2]))
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)
             player.next()
@@ -161,7 +161,7 @@ extension SharedProductionSingletonTests {
 
             // Keep Playing disabled while waiting.
             let gate2 = AsyncGate()
-            player.keepPlayingProvider = DeferredKeepPlayingProvider(gate: gate2, result: .ready([2]))
+            player.keepPlayingMixProvider = DeferredKeepPlayingProvider(gate: gate2, result: .init(trackIDs: [2]))
             player.keepPlayingEnabled = true
             player.play(tracks: [fixtureRows[0]], startAt: 0)
             player.next()

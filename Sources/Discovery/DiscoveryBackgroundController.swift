@@ -3,7 +3,7 @@ import Foundation
 import StarterGeneratorSupport
 
 /// A `BGProcessingTaskRequest` reduced to the fields the discovery subsystem
-/// actually sets (IMPLEMENT_CLAP_PLAN.md §7). The iOS adapter maps this to a
+/// actually sets. The iOS adapter maps this to a
 /// real `BGProcessingTaskRequest`; tests capture it directly.
 public struct BackgroundProcessingRequest: Equatable, Sendable {
     public var identifier: String

@@ -37,9 +37,9 @@ struct TonearmApp: App {
         SupportDevelopmentStore.shared.start()
         AudioPlayer.shared.attachPlatformBridge(SystemPlaybackBridge())
 
-        // Discovery/CLAP indexing (IMPLEMENT_CLAP_PLAN.md §7): the BGTask
-        // handler must be registered before the app finishes launching, from a
-        // controller reachable in a headless launch.
+        // Discovery/indexing: the BGTask handler must be registered before the
+        // app finishes launching, from a controller reachable in a headless
+        // launch.
         DiscoveryRuntimeController.shared.registerBackgroundTask()
     }
 

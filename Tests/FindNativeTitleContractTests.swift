@@ -24,14 +24,14 @@ import Testing
         let s = try String(contentsOf: repo.appendingPathComponent("Sources/Features/MyMusic/MyMusicSearchControls.swift"),
                            encoding: .utf8)
         #expect(s.contains("case all = \"Name\""))
-        #expect(s.contains("case sound = \"Mood\""))
         #expect(s.contains("case mix = \"BPM/Key\""))
+        #expect(!s.contains("case sound"))
         #expect(!s.contains("case all = \"All\""))
         #expect(!s.contains("Find Mood"))
         #expect(!s.contains("Find Mix"))
         #expect(!s.contains("Find by BPM/Key"))
-        #expect(s.contains("\"find.mode.mood\"") && s.contains("\"find.mode.mix\"") && s.contains("\"find.mode.all\""),
-                      "find.mode.all/mood/mix identifiers must stay unchanged")
+        #expect(s.contains("\"find.mode.mix\"") && s.contains("\"find.mode.all\""))
+        #expect(!s.contains("\"find.mode.mood\""))
     }
 }
 #endif

@@ -1,7 +1,6 @@
 ## Release readiness — 2026-11-24
 
 - CloudKit/iCloud sync is removed; the app entitlements no longer request iCloud.
-- Background CLAP indexing is CPU-only when the app is backgrounded or a BGProcessingTask is active (build 1038 MPSGraph crash fix).
 - App Store distribution profiles were regenerated with the existing Apple Distribution certificate and refreshed in GitHub Actions.
 - The next TestFlight build is the clean submission candidate.
 
@@ -10,7 +9,7 @@
 **Date:** 2026-09-11
 **Scope:** fix the silent custom-artwork failure for remote/streamed (Internet Archive) tracks, and
 add album- and source-level custom artwork as a new resolver tier. Worked on top of the existing
-uncommitted Pro-removal + CLAP/Discovery tree without touching CLAP/Discovery files.
+uncommitted Pro-removal + Discovery tree without touching Discovery files.
 **Branch:** `main` (uncommitted)
 
 ## A — remote-track custom-artwork bug (fixed)
@@ -122,7 +121,7 @@ also fixes the same staleness for source tiles' existing embedded/iTunes/IA art.
 - `swift build`: **passed**.
 - `swift build --build-tests`: **passed**.
 - `swift test --filter TonearmDiscoveryTests` (baseline, before any further changes that round):
-  **192 tests, 0 failures** — unchanged from the stated baseline; the concurrent CLAP/Discovery work
+  **192 tests, 0 failures** — unchanged from the stated baseline; the concurrent Discovery work
   was not touched and its test count is confirmed unchanged.
 - `swift test` (full repo): **1,827 tests executed, 8 skipped, 0 failures** when run with
   `--skip PlaylistCrateImporterTests`. That skip is a **pre-existing, unrelated crash**, confirmed
@@ -153,7 +152,7 @@ also fixes the same staleness for source tiles' existing embedded/iTunes/IA art.
   dependency-injection design to reach `AppState` from `TonearmDJ`.
 - **Pre-existing `PlaylistCrateImporterTests` crash** (unrelated to this work, in `TonearmDJTests`,
   blocks `swift test` and `make test-local` from completing cleanly): left as found per the "don't
-  touch CLAP/DJ work" instruction; flagging here since it currently blocks CI-shaped verification for
+  touch Discovery/DJ work" instruction; flagging here since it currently blocks CI-shaped verification for
   anyone running the full suite until it's investigated separately.
 
 

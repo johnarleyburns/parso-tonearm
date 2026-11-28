@@ -2,10 +2,17 @@ import Foundation
 
 /// Why Keep Playing chose a track. Closed on purpose: UI labels switch over it exhaustively.
 public enum KeepPlayingRecommendationReason: String, Codable, Equatable, Sendable {
+    /// Strict Build-a-Mix rules: ±8% BPM and a compatible Camelot key.
     case mixMatched
-    case soundSimilar
-    case modelUnavailableShuffle
+    /// No strict pair was available, so the nearest analysed track by BPM,
+    /// key and energy was used. Still a musical pick, not a shuffle.
+    case relaxedMixMatched
+    /// Nothing in the analysed library was usable; plain shuffle.
     case noMatchShuffle
+
+    var needsMusicalFacts: Bool {
+        self == .mixMatched || self == .relaxedMixMatched
+    }
 }
 
 /// Immutable snapshot of why one queue occurrence was auto-added. The BPM/key shown for a mix
@@ -16,9 +23,9 @@ public struct KeepPlayingProvenance: Codable, Equatable, Sendable {
     public let bpm: Double?
     public let camelotKey: String?
 
-    /// Failable: a `.mixMatched` provenance requires a finite positive BPM and a Camelot key.
+    /// Failable: a musical match requires a finite positive BPM and a Camelot key.
     public init?(reason: KeepPlayingRecommendationReason, bpm: Double? = nil, camelotKey: String? = nil) {
-        if reason == .mixMatched {
+        if reason.needsMusicalFacts {
             guard let bpm, bpm.isFinite, bpm > 0,
                   let camelotKey, !camelotKey.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
             self.bpm = bpm
@@ -40,9 +47,10 @@ public struct KeepPlayingProvenance: Codable, Equatable, Sendable {
         switch reason {
         case .mixMatched:
             return "Mix match · \(Self.formatBPM(bpm ?? 0)) BPM · \(camelotKey ?? "")"
-        case .soundSimilar: return "Sound similar · no BPM/key match available"
-        case .modelUnavailableShuffle: return "Shuffled · sound model is not ready"
-        case .noMatchShuffle: return "Shuffled · no compatible recommendation was available"
+        case .relaxedMixMatched:
+            return "Nearest match · \(Self.formatBPM(bpm ?? 0)) BPM · \(camelotKey ?? "")"
+        case .noMatchShuffle:
+            return "Shuffled · no BPM/key-compatible track was available"
         }
     }
 
@@ -55,12 +63,13 @@ public struct KeepPlayingProvenance: Codable, Equatable, Sendable {
             return ["Recommendation: \(subtitle)",
                     "BPM: \(Self.formatBPM(bpm ?? 0))",
                     "Camelot key: \(camelotKey ?? "")"]
-        case .soundSimilar:
-            return ["Recommendation: \(subtitle)", "No DJ-compatible candidate was available"]
-        case .modelUnavailableShuffle:
-            return ["Recommendation: \(subtitle)", "Reason: the sound model is not ready"]
+        case .relaxedMixMatched:
+            return ["Recommendation: \(subtitle)",
+                    "BPM: \(Self.formatBPM(bpm ?? 0))",
+                    "Camelot key: \(camelotKey ?? "")",
+                    "No track satisfied the strict ±8% / compatible-key rule"]
         case .noMatchShuffle:
-            return ["Recommendation: \(subtitle)", "Reason: no compatible recommendation was available"]
+            return ["Recommendation: \(subtitle)", "Reason: the library has no usable BPM/key analysis"]
         }
     }
 

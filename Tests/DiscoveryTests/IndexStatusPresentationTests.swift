@@ -5,7 +5,7 @@ import Testing
 @testable import TonearmCore
 @testable import TonearmDiscovery
 
-/// C07 status-surface view-model mapping (IMPLEMENT_CLAP_PLAN.md §10): the
+/// C07 status-surface view-model mapping: the
 /// distinct response states must map to distinct display, and diagnostics
 /// export must stay redacted (aggregate counts only, no track identity).
 @Suite struct IndexStatusPresentationTests {
@@ -22,8 +22,7 @@ import Testing
 
     private func snapshot(
         _ coverage: IndexJobRepository.Coverage,
-        paused: Bool = false, chargingOnly: Bool = false, modelAvailable: Bool = true,
-        downloadProgress: ModelDownloadProgress? = nil,
+        paused: Bool = false, chargingOnly: Bool = false,
         runtime: DiscoveryRuntime = DiscoveryRuntime(id: 1),
         blockReason: IndexBlockReason? = nil,
         thermal: ThermalDiagnostic? = nil,
@@ -32,82 +31,12 @@ import Testing
     ) -> IndexStatusSnapshot {
         IndexStatusSnapshot(
             coverage: coverage, isPaused: paused, isChargingOnly: chargingOnly,
-            modelResourceAvailable: modelAvailable, modelDownloadProgress: downloadProgress,
             runtime: runtime,
             capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
             schedulerBlockReason: blockReason,
             thermalDiagnostic: thermal,
             currentlyIndexingTrack: currentlyIndexingTrack,
             recentCompletionRate: recentCompletionRate)
-    }
-
-    /// Reproduces the user's actual follow-up request: "downloading" with no
-    /// size/percentage gives no way to know when it will finish. Real ODR
-    /// bytes must flow through to both the detail text and a real progress
-    /// fraction — never a fabricated one.
-    @Test func testWaitingForModelShowsRealByteProgress() {
-        let progress = ModelDownloadProgress(completedBytes: 42 * 1_048_576, totalBytes: 137 * 1_048_576)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
-                modelAvailable: false, downloadProgress: progress))
-        #expect(p.phase == .waitingForModel)
-        #expect(abs((p.modelDownloadFraction ?? -1) - 42.0 / 137.0) <= 0.001)
-        #expect(p.detail.contains("42"))
-        #expect(p.detail.contains("137"))
-        #expect(p.detail.contains("%"))
-    }
-
-    /// Before the system has reported any real byte count, the detail stays
-    /// honest ("Downloading…", no fabricated 0/0 or 0%) and the fraction is
-    /// nil so the view falls back to an indeterminate spinner.
-    @Test func testWaitingForModelWithNoByteCountYetShowsNoFabricatedPercentage() {
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 100, complete: 0, waiting: 100),
-                modelAvailable: false, downloadProgress: nil))
-        #expect(p.phase == .waitingForModel)
-        #expect(p.modelDownloadFraction == nil)
-        #expect(!p.detail.contains("%"))
-    }
-
-    /// Real-world regression: "it says 'Downloading the sound-search model
-    /// - 0 of 0 MB (100%)' and never changes." A negligible total (one tiny
-    /// tag finished, the ~137 MB tag never started) must fall back to the
-    /// plain "Downloading…" text and a nil progress fraction — never a
-    /// nonsensical, actively misleading "0 of 0 MB (100%)."
-    @Test func testNegligibleTotalNeverRendersAsFalseCompletion() {
-        let negligible = ModelDownloadProgress(completedBytes: 400_000, totalBytes: 400_000)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
-                modelAvailable: false, downloadProgress: negligible))
-        #expect(p.phase == .waitingForModel)
-        #expect(p.modelDownloadFraction == nil, "a negligible total must never render as a real percentage")
-        #expect(!p.detail.contains("100%"))
-        #expect(!p.detail.contains("0 of 0"))
-        #expect(p.detail == "Downloading the sound-search model…")
-    }
-
-    /// Real device diagnostics export (build 368): "no progress on the
-    /// download, same thing" — `clap-audio: 1/1 bytes (finished);
-    /// clap-text: 0/1 bytes (in progress)`. `NSBundleResourceRequest`
-    /// doesn't guarantee real bytes here (Apple: implementation-defined,
-    /// "often simply 1"), so `isNegligibleTotal` is true and the previous
-    /// "0 of 0 MB (100%)" fix already stops it from lying — but a flat
-    /// "Downloading…" with no numbers throws away the one thing that IS
-    /// real here: one of the two components has genuinely finished. The
-    /// detail must say so.
-    @Test func testNegligibleTotalFallsBackToComponentCountNotSilence() {
-        let coarseUnits = ModelDownloadProgress(
-            completedBytes: 1, totalBytes: 2, componentsFinished: 1, componentsTotal: 2)
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
-                modelAvailable: false, downloadProgress: coarseUnits))
-        #expect(p.phase == .waitingForModel)
-        #expect(p.modelDownloadFraction == nil, "coarse unit counts must never render as a real percentage bar")
-        #expect(p.detail == "Downloading the sound-search model — 1 of 2 components ready.")
     }
 
     @Test func testEmptyLibrary() {
@@ -146,35 +75,11 @@ import Testing
         #expect(!p.canPause)
     }
 
-    @Test func testWaitingForModelWhenResourcesAbsent() {
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 100, complete: 0, waiting: 100), modelAvailable: false))
-        #expect(p.phase == .waitingForModel)
-        #expect(p.detail.lowercased().contains("model"))
-    }
-
-    /// Reproduces a real production report: bootstrap enqueues every track as
-    /// `queuedOrRunning` (only a handful land in the separate `waiting`
-    /// bucket), so `queuedOrRunning > 0` was true well before the model ever
-    /// resolved — and the generic "Indexing…" branch, checked first, silently
-    /// swallowed the model-missing state. Every claimed job re-parks waiting
-    /// for the model, so this is permanent, not transient — it must never
-    /// read as ordinary progress.
-    @Test func testWaitingForModelTakesPrecedenceOverQueuedOrRunning() {
-        let p = IndexStatusPresentation.make(
-            from: snapshot(
-                coverage(total: 2694, complete: 0, queuedOrRunning: 2693, waiting: 1),
-                modelAvailable: false))
-        #expect(p.phase == .waitingForModel)
-        #expect(p.detail.lowercased().contains("model"))
-    }
-
-    @Test func testWaitingForPowerIsDistinctFromWaitingForModel() {
+    @Test func testWaitingForPowerIsDistinct() {
         let p = IndexStatusPresentation.make(
             from: snapshot(
                 coverage(total: 100, complete: 40, waiting: 60),
-                chargingOnly: true, modelAvailable: true))
+                chargingOnly: true))
         #expect(p.phase == .waiting)
         #expect(p.detail.lowercased().contains("power"))
     }
@@ -234,9 +139,9 @@ import Testing
                 coverage(
                     total: 100, complete: 95, failed: 5,
                     mostRecentFailureError: IndexJobRepository.JobErrorSample(
-                        code: "embedFailed", message: "Model inference failed."))))
+                        code: "decodeFailed", message: "Audio decode failed."))))
         #expect(p.phase == .needsAttention)
-        #expect(p.detail.contains("Model inference failed."), "\(p.detail)")
+        #expect(p.detail.contains("Audio decode failed."), "\(p.detail)")
     }
 
     @Test func testNeedsAttentionWhenOnlyFailures() {
@@ -306,7 +211,7 @@ import Testing
 
     @Test func testEachPolicyBlockReasonHasADistinctNonGenericDetail() {
         let reasons: [IndexBlockReason] = [
-            .playbackActive, .thermalFair, .thermalSerious, .thermalCritical,
+            .thermalFair, .thermalSerious, .thermalCritical,
             .memoryWarning, .lowBatteryOrLowPowerMode, .chargingOnlyRequired,
             .backgroundGrantMissing,
         ]
@@ -341,7 +246,7 @@ import Testing
             id: 1, lastRunAt: Date(timeIntervalSince1970: 1_700_000_100),
             lastStopReason: "background: 3 completed")
         let snap = snapshot(
-            coverage(total: 10, complete: 4, waiting: 6), modelAvailable: false, runtime: runtime)
+            coverage(total: 10, complete: 4, waiting: 6), runtime: runtime)
         let diag = DiscoveryDiagnostics.make(
             snapshot: snap, appVersion: "1.2.3", buildNumber: "456",
             osVersion: "iOS 18.5", deviceFamily: "iPhone")
@@ -360,13 +265,39 @@ import Testing
         #expect(text.contains("10 total"))
         #expect(text.contains("1.2.3 (456)"))
     }
+}
 
-    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
-    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing")
+/// ETA + current-track presentation. A single analysis unit has no window
+/// fraction, so the current track is identified without a fabricated %.
+@Suite struct IndexStatusETATests {
+    private func coverage(
+        total: Int, complete: Int = 0, queuedOrRunning: Int = 0, waiting: Int = 0, failed: Int = 0
+    ) -> IndexJobRepository.Coverage {
+        IndexJobRepository.Coverage(
+            total: total, complete: complete, queuedOrRunning: queuedOrRunning,
+            waiting: waiting, failed: failed,
+            waitingBreakdown: [:], mostRecentFailureError: nil)
+    }
+
+    private func snapshot(
+        _ coverage: IndexJobRepository.Coverage,
+        blockReason: IndexBlockReason? = nil,
+        currentlyIndexingTrack: IndexJobRepository.RunningTrackSummary? = nil,
+        recentCompletionRate: Double? = nil
+    ) -> IndexStatusSnapshot {
+        IndexStatusSnapshot(
+            coverage: coverage, isPaused: false, isChargingOnly: false,
+            runtime: DiscoveryRuntime(id: 1),
+            capturedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            schedulerBlockReason: blockReason,
+            thermalDiagnostic: nil,
+            currentlyIndexingTrack: currentlyIndexingTrack,
+            recentCompletionRate: recentCompletionRate)
+    }
 
     @Test func testCurrentTrackAndETAShowOnlyWhileActivelyIndexing() {
         let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Some Song", artistName: "Some Artist", completedWindows: 3, totalWindows: 10)
+            id: 1, title: "Some Song", artistName: "Some Artist")
         let p = IndexStatusPresentation.make(
             from: snapshot(
                 coverage(total: 50, complete: 10, queuedOrRunning: 40),
@@ -374,17 +305,12 @@ import Testing
         #expect(p.phase == .indexing)
         #expect(p.currentTrackTitle == "Some Song")
         #expect(p.currentTrackArtist == "Some Artist")
-        #expect(p.currentTrackFraction == 0.3)
         #expect(p.estimatedTimeRemainingText != nil)
     }
 
-    /// Real risk this guards against: a job can hold a `running` lease while the scheduler is
-    /// genuinely blocked (thermal/battery/playback) — `coverage` alone can't tell that apart from
-    /// real progress. Showing "30%" and an ETA for a track that is NOT actually advancing would be
-    /// exactly the fabricated-progress CLAUDE.md forbids.
-    @Test func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicyDespiteARunningLease() {
+    @Test func testCurrentTrackAndETAAreSuppressedWhenBlockedByPolicy() {
         let track = IndexJobRepository.RunningTrackSummary(
-            id: 1, title: "Stuck Song", artistName: nil, completedWindows: 1, totalWindows: 10)
+            id: 1, title: "Stuck Song", artistName: nil)
         let p = IndexStatusPresentation.make(
             from: snapshot(
                 coverage(total: 50, complete: 10, queuedOrRunning: 40),
@@ -394,104 +320,6 @@ import Testing
         #expect(p.currentTrackTitle == nil)
         #expect(p.estimatedTimeRemainingText == nil)
     }
-}
-
-/// `ModelDownloadProgress.aggregate(_:)` turns the live
-/// `NSBundleResourceRequest.progress` objects (Xcode-only,
-/// `Sources/App/DiscoveryModelResources.swift`, not reachable from
-/// `swift test`) into `RequestSample` values first specifically so this
-/// byte-math has a real regression test — the previous version of this
-/// logic lived entirely in that untestable file and shipped a bug that
-/// only a real device could surface.
-@Suite struct ModelDownloadProgressAggregateTests {
-    private typealias Sample = ModelDownloadProgress.RequestSample
-
-    /// The exact real-world report this regression test is for: "0%, then
-    /// 50%, then 'Downloading the sound-search model...' with no progress
-    /// update ever again." The `clap-audio` tag (~137 MB) finishes while
-    /// `clap-text` (a few KB) hasn't reported a byte count yet — the old
-    /// `aggregate` required at least one sample to still be `!isFinished`
-    /// before returning anything, so this combination (one finished, one
-    /// not-yet-started) satisfied neither branch and silently produced
-    /// `nil`, regressing the status surface from a real percentage back to
-    /// a bare "Downloading…" for as long as the second tag took to start.
-    @Test func testFinishedTagStillCountsWhileTheOtherHasNotStartedYet() {
-        let audioFinished = Sample(
-            completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true)
-        let textNotStarted = Sample(completedBytes: 0, totalBytes: 0, isFinished: false)
-
-        let result = ModelDownloadProgress.aggregate([audioFinished, textNotStarted])
-
-        #expect(result != nil, "a finished tag's bytes must not disappear from the total")
-        #expect(result?.completedBytes == Int64(137 * 1_048_576))
-        #expect(result?.totalBytes == Int64(137 * 1_048_576))
-    }
-
-    /// Once the second tag starts reporting its own (small) total, it joins
-    /// the running total rather than replacing it.
-    @Test func testBothTagsSumOnceTheSecondOneStarts() {
-        let audioFinished = Sample(
-            completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true)
-        let textInProgress = Sample(
-            completedBytes: 1 * 1_048_576, totalBytes: 4 * 1_048_576, isFinished: false)
-
-        let result = ModelDownloadProgress.aggregate([audioFinished, textInProgress])
-
-        #expect(result?.completedBytes == Int64(138 * 1_048_576))
-        #expect(result?.totalBytes == Int64(141 * 1_048_576))
-    }
-
-    /// Before either tag has reported a byte count at all (both still
-    /// `totalBytes == 0`), there is nothing real to show — `nil`, never a
-    /// fabricated 0%.
-    @Test func testNilBeforeEitherTagReportsAnyBytes() {
-        let neitherStarted = [Sample(completedBytes: 0, totalBytes: 0, isFinished: false),
-            Sample(completedBytes: 0, totalBytes: 0, isFinished: false)]
-        #expect(ModelDownloadProgress.aggregate(neitherStarted) == nil)
-    }
-
-    /// Once every tag is finished, both are still summed (100%) — the
-    /// caller (`DiscoveryAssembly.statusSnapshot()`) is what stops asking
-    /// for this once `modelResourceAvailable` is true, not this function.
-    @Test func testBothTagsFinishedStillReportsAFullFraction() {
-        let bothDone = [
-            Sample(completedBytes: 137 * 1_048_576, totalBytes: 137 * 1_048_576, isFinished: true),
-            Sample(completedBytes: 4 * 1_048_576, totalBytes: 4 * 1_048_576, isFinished: true),
-        ]
-        let result = ModelDownloadProgress.aggregate(bothDone)
-        #expect(result?.fractionComplete == 1.0)
-    }
-
-    /// The very next real-world report after the fix above shipped: "it
-    /// says 'Downloading the sound-search model - 0 of 0 MB (100%)' and
-    /// never changes." The small `clap-text` tag finished (or reported a
-    /// trivial total under 1 MB) while the ~137 MB `clap-audio` tag never
-    /// reported any bytes at all (`totalBytes == 0`) — `aggregate` correctly
-    /// summed only the finished sliver, so `completed == total` and
-    /// `fractionComplete` legitimately computed to 1.0, but both numbers
-    /// round to 0 MB. Displaying that combination ("0 of 0 MB (100%)") is
-    /// actively misleading, not just uninformative — it implies the
-    /// download is done when the large component hasn't even started.
-    /// `isNegligibleTotal` is the guard the presentation layer must check
-    /// before trusting this progress for display.
-    @Test func testTotalUnderOneMBIsNegligible() {
-        let textFinishedAudioNeverStarted = ModelDownloadProgress(
-            completedBytes: 400_000, totalBytes: 400_000)
-        #expect(textFinishedAudioNeverStarted.isNegligibleTotal)
-        #expect(textFinishedAudioNeverStarted.fractionComplete == 1.0,
-            "the math itself is correct — isNegligibleTotal is what must gate display, not fractionComplete")
-    }
-
-    @Test func testTotalOfSeveralMBIsNotNegligible() {
-        let real = ModelDownloadProgress(completedBytes: 42 * 1_048_576, totalBytes: 137 * 1_048_576)
-        #expect(!real.isNegligibleTotal)
-    }
-
-    // MARK: - Live per-track progress + ETA (real report: "what track is being indexed, the %
-    // progress of the INDIVIDUAL TRACK... ETAs for completing all indexing") -- the two tests
-    // actually requiring IndexStatusPresentationTests' own coverage()/snapshot() helpers live
-    // there instead (this class has no access to another class' private members); these two
-    // below are pure IndexStatusPresentation statics, which don't need those helpers at all.
 
     @Test func testEstimatedTimeRemainingTextIsNeverFabricatedWithoutARealRate() {
         #expect(IndexStatusPresentation.estimatedTimeRemainingText(remaining: 100, rate: nil) == nil)
@@ -500,15 +328,10 @@ import Testing
     }
 
     @Test func testEstimatedTimeRemainingTextRoundsToCoarseHonestUnits() {
-        // 10 remaining at 1 track/10s = 100s -> minutes bucket, rounds to nearest minute.
         let minutes = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 10, rate: 1.0 / 10)
         #expect(minutes == "About 2 min remaining")
-
-        // 1000 remaining at 1 track/10s = 10,000s (~2.78h) -> hours bucket.
         let hours = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1000, rate: 1.0 / 10)
         #expect(hours == "About 3 hr remaining")
-
-        // Under a minute remaining -> no false minute-precision, just "finishing up".
         let soon = IndexStatusPresentation.estimatedTimeRemainingText(remaining: 1, rate: 1.0 / 10)
         #expect(soon == "Finishing up…")
     }

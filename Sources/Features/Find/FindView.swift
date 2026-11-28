@@ -2,8 +2,8 @@ import SwiftUI
 import TonearmCore
 import TonearmDiscovery
 
-/// Search and discovery surface. My Music intentionally remains a browsing
-/// surface; all text, mix, and sound search controls live here.
+/// Search surface. My Music intentionally remains a browsing surface; all
+/// text and BPM/key search controls live here.
 struct FindView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var player: AudioPlayer
@@ -11,8 +11,6 @@ struct FindView: View {
     @State private var browseMode: LibraryBrowseMode = FindResultScopePolicy.initialMode
     @State private var bpmPreset: MixBPMPreset?
     @State private var mixKey: String?
-    @State private var soundSearchRows: [TrackRow]?
-    @State private var soundSearchRevision = 0
     @State private var queryFocused = false
 
     // Reduced from 320 — a tall header (BPM/Key's two chip rows) plus a 320pt floor could still
@@ -35,7 +33,6 @@ struct FindView: View {
         switch mode {
         case .all: LibrarySearchPolicy.shouldSearch(appState.searchText)
         case .mix: bpmPreset != nil || mixKey != nil
-        case .sound: soundSearchRows != nil
         }
     }
 
@@ -45,15 +42,11 @@ struct FindView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         MyMusicSearchControls(mode: $mode, bpmPreset: $bpmPreset,
                                               mixKey: $mixKey,
-                                              onSoundRows: { rows in
-                                                  soundSearchRows = rows
-                                                  soundSearchRevision &+= 1
-                                              },
                                               isQueryFocused: $queryFocused)
-                        // Mood and BPM/Key results are always flat songs (their own controls
-                        // above replace this picker entirely) — grouping a single mood's picks,
-                        // or a BPM/Key filter, into albums/artists would scatter them across
-                        // unrelated groups. Only Name search has a meaningful type to pick.
+                        // BPM/Key results are always flat songs (their own controls above
+                        // replace this picker entirely) — grouping a filter into
+                        // albums/artists would scatter them across unrelated groups. Only
+                        // Name search has a meaningful type to pick.
                         if mode == .all {
                             findScopePicker
                         }
@@ -64,8 +57,6 @@ struct FindView: View {
                 LibraryView(ownsNavigationStack: false,
                             externalMode: $browseMode,
                             filter: filter,
-                            searchRows: mode == .sound ? soundSearchRows : nil,
-                            searchRowsRevision: soundSearchRevision,
                             showsSearchField: false,
                             showsHeader: false,
                             showsPlayAllButton: true)
@@ -94,7 +85,7 @@ struct FindView: View {
             if tab != .find { queryFocused = false }
         }
         .onChange(of: mode) { _, newMode in
-            if newMode == .sound || newMode == .mix { browseMode = .songs }
+            if newMode == .mix { browseMode = .songs }
         }
         .onChange(of: appState.showNowPlaying) { _, showing in
             if showing { queryFocused = false }
@@ -150,7 +141,7 @@ struct FindView: View {
 /// `@EnvironmentObject`, not just the ones Find actually reads. `AppState.startWatchTransferTick()`
 /// alone mutates several of those every 5 seconds, for the app's entire lifetime, regardless of
 /// which tab is visible. A standalone `View` fed only the one binding it needs isolates it from
-/// that unrelated churn — replaces the old inline Name/Mood/BPM-Key row with a compact glass menu
+/// that unrelated churn — replaces the old inline Name/BPM-Key row with a compact glass menu
 /// in the nav bar instead of a row competing with the search field/pills/BPM-Key chips for space.
 private struct FindModeMenu: View {
     @Binding var mode: MyMusicSearchMode

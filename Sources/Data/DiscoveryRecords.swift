@@ -1,18 +1,16 @@
 import Foundation
 import GRDB
 
-// Unified-library CLAP indexing/search persistence (IMPLEMENT_CLAP_PLAN.md §4).
-// These types live in TonearmCore alongside `Records.swift` because they are
-// core-schema tables (foreign keys to `track`/`asset`), even though the
-// algorithms that populate/consume them live in the `TonearmDiscovery`
-// package target added alongside this file. TonearmCore itself has no
-// dependency on TonearmDiscovery — these are plain persistence DTOs.
+// Unified-library indexing persistence: the BPM/key/energy analysis job queue
+// and its derived rows. These types live in TonearmCore alongside
+// `Records.swift` because they are core-schema tables (foreign keys to
+// `track`/`asset`), even though the algorithms that populate/consume them
+// live in the `TonearmDiscovery` package target.
 
 /// One-active-logical-job-per-(track, pipelineVersion) state machine (plan §4).
 public enum DiscoveryJobState: String, Codable, Sendable, CaseIterable {
     case queued
     case running
-    case waitingForModel
     case waitingForAsset
     case waitingForNetwork
     case waitingForPower
@@ -23,9 +21,8 @@ public enum DiscoveryJobState: String, Codable, Sendable, CaseIterable {
     case unsupported
 }
 
-/// Per-stage state within a job: embedding and musical-analysis are tracked
-/// independently so embedding coverage never depends on musical-analysis
-/// success (plan §4/§6).
+/// State of the musical-analysis stage within a job. BPM/key/energy are the
+/// only derived track facts the app indexes now.
 public enum DiscoveryStageState: String, Codable, Sendable, CaseIterable {
     case pending
     case running
@@ -86,8 +83,8 @@ public struct DiscoveryAssetState: Codable, Equatable, Sendable, FetchableRecord
     }
 }
 
-/// Musical BPM/key/energy analysis, checkpointed separately from embeddings
-/// (plan §6). Unknown values stay NULL rather than a guessed default.
+/// Musical BPM/key/energy analysis. Unknown values stay NULL rather than a
+/// guessed default.
 public struct DiscoveryTrackAnalysis: Codable, Equatable, Sendable, FetchableRecord,
     MutablePersistableRecord
 {
@@ -136,56 +133,6 @@ public struct DiscoveryTrackAnalysis: Codable, Equatable, Sendable, FetchableRec
     }
 }
 
-/// The quantized CLAP audio embedding for a track's selected asset revision.
-/// Authoritative store; the mmap/vector cache (VectorIndex, C06/§8) is
-/// rebuildable from these rows and is never a second source of truth.
-public struct DiscoveryEmbedding: Codable, Equatable, Sendable, FetchableRecord,
-    MutablePersistableRecord
-{
-    public static let databaseTableName = "discovery_embedding"
-
-    public var trackId: Int64
-    public var assetId: Int64
-    public var assetRevision: Int64
-    public var modelVersion: Int
-    public var preprocessingVersion: Int
-    public var samplingVersion: Int
-    public var dimensions: Int
-    public var quantizedVector: Data
-    public var scale: Double
-    public var completedAt: Date
-    /// docs/plans/macos-app-cloud-sync-plan.md §4.1 — see
-    /// `DiscoveryTrackAnalysis.syncID`'s doc for why this table (and that
-    /// one) sync while their siblings don't.
-    public var syncID: String? = nil
-
-    public init(
-        trackId: Int64,
-        assetId: Int64,
-        assetRevision: Int64,
-        modelVersion: Int,
-        preprocessingVersion: Int,
-        samplingVersion: Int,
-        dimensions: Int,
-        quantizedVector: Data,
-        scale: Double,
-        completedAt: Date,
-        syncID: String? = nil
-    ) {
-        self.trackId = trackId
-        self.assetId = assetId
-        self.assetRevision = assetRevision
-        self.modelVersion = modelVersion
-        self.preprocessingVersion = preprocessingVersion
-        self.samplingVersion = samplingVersion
-        self.dimensions = dimensions
-        self.quantizedVector = quantizedVector
-        self.scale = scale
-        self.completedAt = completedAt
-        self.syncID = syncID
-    }
-}
-
 /// One logical indexing job per (track, pipelineVersion). Restarted, not
 /// duplicated, when the selected asset's content revision changes.
 public struct DiscoveryIndexJob: Codable, Equatable, Sendable, Identifiable, FetchableRecord,
@@ -206,9 +153,6 @@ public struct DiscoveryIndexJob: Codable, Equatable, Sendable, Identifiable, Fet
     public var attemptCount: Int
     public var leaseToken: String?
     public var leaseExpiresAt: Date?
-    public var completedWindows: Int
-    public var totalWindows: Int
-    public var embeddingStageState: DiscoveryStageState
     public var musicalAnalysisStageState: DiscoveryStageState
     public var errorCode: String?
     public var errorMessage: String?
@@ -227,9 +171,6 @@ public struct DiscoveryIndexJob: Codable, Equatable, Sendable, Identifiable, Fet
         attemptCount: Int = 0,
         leaseToken: String? = nil,
         leaseExpiresAt: Date? = nil,
-        completedWindows: Int = 0,
-        totalWindows: Int = 0,
-        embeddingStageState: DiscoveryStageState = .pending,
         musicalAnalysisStageState: DiscoveryStageState = .pending,
         errorCode: String? = nil,
         errorMessage: String? = nil
@@ -247,67 +188,22 @@ public struct DiscoveryIndexJob: Codable, Equatable, Sendable, Identifiable, Fet
         self.attemptCount = attemptCount
         self.leaseToken = leaseToken
         self.leaseExpiresAt = leaseExpiresAt
-        self.completedWindows = completedWindows
-        self.totalWindows = totalWindows
-        self.embeddingStageState = embeddingStageState
         self.musicalAnalysisStageState = musicalAnalysisStageState
         self.errorCode = errorCode
         self.errorMessage = errorMessage
     }
 
-    /// A job is complete when BOTH stages are terminal (plan §4/§6): a
-    /// terminal state is `complete`, `failed` or `unsupported`. Terminal
-    /// failures stay separately counted (see `IndexJobRepository.Coverage`)
-    /// and manually retryable; they do not keep the job forever runnable
-    /// (which would spin `IndexScheduler.tick`). Embedding-derived search
-    /// coverage still counts only a `complete` embedding stage, independently
-    /// of the musical stage's outcome.
+    /// A job is complete when its one remaining stage is terminal: `complete`,
+    /// `failed` or `unsupported`. Terminal failures stay separately counted
+    /// (see `IndexJobRepository.Coverage`) and manually retryable; they do not
+    /// keep the job forever runnable (which would spin `IndexScheduler.tick`).
     public var isComplete: Bool {
-        Self.isTerminal(embeddingStageState) && Self.isTerminal(musicalAnalysisStageState)
+        Self.isTerminal(musicalAnalysisStageState)
     }
 
     private static func isTerminal(_ state: DiscoveryStageState) -> Bool {
         state == .complete || state == .failed || state == .unsupported
     }
-}
-
-/// Durable intermediate per-window embedding — resumable after relaunch.
-/// Not searchable partial-track output (plan §4/§6).
-public struct DiscoveryWindowCheckpoint: Codable, Equatable, Sendable, FetchableRecord,
-    MutablePersistableRecord
-{
-    public static let databaseTableName = "discovery_window_checkpoint"
-
-    public var id: Int64?
-    public var jobId: String
-    public var revisionSignature: String
-    public var windowIndex: Int
-    public var startSeconds: Double
-    public var embeddingVector: Data
-    public var poolingWeight: Double
-    public var completedAt: Date
-
-    public init(
-        id: Int64? = nil,
-        jobId: String,
-        revisionSignature: String,
-        windowIndex: Int,
-        startSeconds: Double,
-        embeddingVector: Data,
-        poolingWeight: Double,
-        completedAt: Date
-    ) {
-        self.id = id
-        self.jobId = jobId
-        self.revisionSignature = revisionSignature
-        self.windowIndex = windowIndex
-        self.startSeconds = startSeconds
-        self.embeddingVector = embeddingVector
-        self.poolingWeight = poolingWeight
-        self.completedAt = completedAt
-    }
-
-    public mutating func didInsert(_ inserted: InsertionSuccess) { id = inserted.rowID }
 }
 
 public enum DiscoveryChangeKind: String, Codable, Sendable {
@@ -357,7 +253,6 @@ public struct DiscoverySetting: Codable, Equatable, Sendable, FetchableRecord,
 
     public enum Key {
         public static let paused = "discovery.paused"
-        public static let modelDownloadConsent = "discovery.modelDownloadConsent"
         public static let chargingOnly = "discovery.chargingOnly"
         /// Master switch for indexing tracks that only exist on a remote
         /// library (sparse sampling — see docs/plans/remote-sparse-indexing.md).

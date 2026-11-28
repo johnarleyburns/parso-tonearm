@@ -3,18 +3,14 @@ import Foundation
 import TonearmCore
 
 extension AppState {
-    /// Real gap this closes (docs/plans/builtin-mood-starter-index-plan.md):
     /// `BuiltInContentProvider`'s three CC0 ambient tracks were purely
     /// synthetic `TrackRow`s, never real `track`/`album`/`source`/`asset`
-    /// rows — invisible to search/indexing entirely, playable only through
+    /// rows — invisible to search/analysis entirely, playable only through
     /// the separate ambient-loop path. Seeding them as real rows once lets
-    /// the existing, already-correct `DiscoveryReconciler`/
-    /// `BoundedIndexWorker` pipeline index them like any other local file —
-    /// no new embedding code needed. They are tiny, local, and
-    /// network-independent, so they should finish indexing within seconds
-    /// of first launch, giving the Listen tab's mood entry point (which
-    /// gates on `coverage.complete > 0`) something real to show almost
-    /// immediately, before the owner's own library necessarily finishes.
+    /// the existing `DiscoveryReconciler`/`BoundedIndexWorker` pipeline
+    /// analyze them like any other local file. They are tiny, local, and
+    /// network-independent, so they should finish analysis within seconds of
+    /// first launch.
     ///
     /// Idempotent — checks for the "Built-in Sounds" source first (matching
     /// `fixLegacySourceTitles()`/`repairDuplicatePlaylistsOnce()`'s existing

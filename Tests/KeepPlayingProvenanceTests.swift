@@ -27,15 +27,16 @@ import Testing
     }
 
     @Test func testOtherReasonSubtitles() {
-        #expect(entry(1, .soundSimilar).provenance?.subtitle == "Sound similar · no BPM/key match available")
-        #expect(entry(1, .modelUnavailableShuffle).provenance?.subtitle == "Shuffled · sound model is not ready")
+        #expect(entry(1, .relaxedMixMatched, bpm: 121, key: "8A").provenance?.subtitle ==
+                       "Nearest match · 121 BPM · 8A")
         #expect(entry(1, .noMatchShuffle).provenance?.subtitle ==
-                       "Shuffled · no compatible recommendation was available")
+                       "Shuffled · no BPM/key-compatible track was available")
     }
 
     @Test func testMixedTailHasDistinctSubtitles() {
-        let subs = [entry(1, .mixMatched, bpm: 120, key: "8B"), entry(2, .soundSimilar),
-                    entry(3, .modelUnavailableShuffle)].compactMap { $0.provenance?.subtitle }
+        let subs = [entry(1, .mixMatched, bpm: 120, key: "8B"),
+                    entry(2, .relaxedMixMatched, bpm: 121, key: "8A"),
+                    entry(3, .noMatchShuffle)].compactMap { $0.provenance?.subtitle }
         #expect(Set(subs).count == 3)
     }
 
@@ -44,13 +45,13 @@ import Testing
         #expect(KeepPlayingProvenance(reason: .mixMatched, bpm: 120, camelotKey: nil) == nil)
         #expect(KeepPlayingProvenance(reason: .mixMatched, bpm: .nan, camelotKey: "9A") == nil)
         let e = entry(1, .mixMatched)
-        #expect(e.origin == .keepPlaying(.soundSimilar))
+        #expect(e.origin == .keepPlaying(.noMatchShuffle))
     }
 
     @Test func testProvenanceSurvivesReorderAndRemovalByOccurrence() {
         let a = entry(1, .mixMatched, bpm: 120, key: "8B")
         let b = entry(1, .noMatchShuffle)
-        var state = QueueEditor.State<PlaybackQueueEntry>(queue: [entry(9, .soundSimilar), a, b], currentIndex: 0)
+        var state = QueueEditor.State<PlaybackQueueEntry>(queue: [entry(9, .noMatchShuffle), a, b], currentIndex: 0)
         state = QueueEditor.State(queue: [state.queue[2], state.queue[1], state.queue[0]], currentIndex: 2)
         #expect(state.queue.first { $0.id == a.id }?.provenance == a.provenance)
         state.queue.removeAll { $0.id == a.id }
@@ -72,9 +73,9 @@ import Testing
     }
 
     @Test func testAccessibilityAndSourceContract() throws {
-        let p = try #require(KeepPlayingProvenance(reason: .soundSimilar))
+        let p = try #require(KeepPlayingProvenance(reason: .noMatchShuffle))
         #expect(QueueAccessibility.rowLabel(position: 2, title: "T", artist: "A", provenance: p) ==
-                       "2, T, A, Recommended by Keep Playing: Sound similar · no BPM/key match available")
+                       "2, T, A, Recommended by Keep Playing: Shuffled · no BPM/key-compatible track was available")
         #expect(QueueAccessibility.rowLabel(position: 2, title: "T", artist: "A") == "2, T, A")
         #expect(KeepPlayingProvenance.whyActionName == "Why this track?")
         let src = try String(contentsOfFile: #filePath.replacingOccurrences(

@@ -46,12 +46,6 @@ import Testing
             "playRemote must not block the tap that starts playback on the full download")
     }
 
-    @Test func testMoodSearchOnPlayDoesNotWaitForTheDownloadBeforeStartingPlayback() throws {
-        let discoveryRuntime = try source("Sources/App/DiscoveryRuntimeController.swift")
-        #expect(discoveryRuntime.contains("appState.persistRemoteTrack(row, prefetchBytes: false)"),
-            "onPlay must not block starting playback on the full download, same as playRemote")
-    }
-
     /// Every OTHER caller must keep its existing default (await the full download) — this isn't
     /// a bug, favorites/edit-metadata/custom-artwork/watch-prep all still need the bytes.
     @Test func testOtherPersistRemoteTrackCallersStillDefaultToWaitingForTheDownload() throws {

@@ -5,12 +5,11 @@ import Testing
 @Suite struct MixValueCodableTests {
     @Test func testMixValuesRoundTrip() throws {
         let candidate = MixCandidate(trackID: 1, bpm: 124, camelot: "8A", energy: 0.7,
-                                     artist: "Artist", albumID: 2, duration: 180,
-                                     embedding: [0.1, 0.2])
+                                     artist: "Artist", albumID: 2, duration: 180)
         let request = MixRequest(candidates: [candidate], shape: .warmUpPeakCoolDown,
                                  targetDuration: 900, lockedFirst: 1, locks: [1: 0], seed: 42)
         let edge = EdgeScore(key: .adjacentUp, bpmDeltaPct: 2, energyDelta: 0.1,
-                             similarity: 0.2, shapeDeviation: 0.03, total: 1.2,
+                             shapeDeviation: 0.03, total: 1.2,
                              flags: [.tempoJump, .unavoidable(.limitedTempoPool)])
         let runner = RunnerUp(trackID: 2, total: 3, lostBecause: [.keyClash],
                               keyRelation: .clash(steps: 4), bpmDeltaPct: 12)
@@ -29,7 +28,7 @@ import Testing
         try assertRoundTrip(KeyRelation.energyBoost)
         try assertRoundTrip(EdgeFlag.againstShape)
         try assertRoundTrip(UnavoidableReason.onlyRemainingOption)
-        try assertRoundTrip(PlacementReason.soundsSimilar)
+        try assertRoundTrip(PlacementReason.energyFitsCurve)
         try assertRoundTrip(MixExclusionReason.overTargetLength)
         try assertRoundTrip(candidate)
         try assertRoundTrip(request)

@@ -20,8 +20,8 @@ public enum RemoteSparseAssetResolver {
     /// (`AVAssetResourceLoaderDelegate` registration is already per-`AVURLAsset`).
     public static let scheme = "tonearm-index-scratch"
 
-    /// Comfortably above the ~180s/track worst case (`BoundedIndexWorker`'s
-    /// embedding + musical-analysis windows) at a generous bitrate — the cap
+    /// Comfortably above the ~60s/track worst case (`BoundedIndexWorker`'s
+    /// single musical-analysis window) at a generous bitrate — the cap
     /// exists only to bound a single track's ephemeral store, never to limit
     /// how much of a window gets fetched.
     static let ephemeralStoreLimitBytes: Int64 = 24 * 1024 * 1024
@@ -44,10 +44,10 @@ public enum RemoteSparseAssetResolver {
     }
 
     /// One track's worth of ephemeral streaming state — built once per job
-    /// (not once per window) so the ~13 embedding/analysis window reads
-    /// share one on-disk sparse cache and one re-authenticated URL, per the
-    /// plan's design. Must be torn down via `shutdown()` when the job's
-    /// work is done, success or failure — never left to accumulate.
+    /// (not once per window) so the analysis read shares one on-disk sparse
+    /// cache and one re-authenticated URL, per the plan's design. Must be
+    /// torn down via `shutdown()` when the job's work is done, success or
+    /// failure — never left to accumulate.
     public struct Session: Sendable {
         public let avAsset: AVURLAsset
         let loader: CachingResourceLoader

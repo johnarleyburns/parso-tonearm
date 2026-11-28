@@ -128,7 +128,6 @@ public struct ThermalDiagnostic: Equatable, Sendable {
 
 public enum IndexBlockReason: Equatable, Sendable {
     case userPaused
-    case playbackActive
     case thermalFair
     case thermalSerious
     case thermalCritical
@@ -143,17 +142,14 @@ public enum IndexBlockReason: Equatable, Sendable {
 }
 
 public enum IndexPolicyDecision: Equatable, Sendable {
-    /// Allowed to claim/continue work, waiting this long between windows.
-    case proceed(interWindowDelaySeconds: TimeInterval)
+    /// Allowed to claim/continue work.
+    case proceed
     case blocked(reason: IndexBlockReason)
 }
 
 public enum IndexPolicy {
-    public static let foregroundInterWindowDelaySeconds: TimeInterval = 2
     public static let thermalFairRecoverySeconds: TimeInterval = 60
     public static let lowBatteryThreshold: Double = 0.30
-    public static let foregroundRunLimitSeconds: TimeInterval = 120
-    public static let foregroundCooldownSeconds: TimeInterval = 30
 
     public static func decide(_ s: DiscoverySchedulingSnapshot) -> IndexPolicyDecision {
         if s.isUserPaused { return .blocked(reason: .userPaused) }
@@ -163,13 +159,9 @@ public enum IndexPolicy {
         if s.thermalState == .critical { return .blocked(reason: .thermalCritical) }
         if s.thermalState == .serious { return .blocked(reason: .thermalSerious) }
         if s.hasMemoryWarning { return .blocked(reason: .memoryWarning) }
-        // `.fair` no longer halts indexing outright (see
-        // DiscoveryExecutionPolicy's doc comment for the incident this
-        // replaces): CPU-only indexing was never what caused a `.fair`
-        // reading, so there is no reason to also stop CPU-only progress
-        // while GPU/ANE backs off. `DiscoveryExecutionPolicy.decide(_:)`
-        // is what actually reacts to `.fair` now, by falling back to
-        // CPU-only compute rather than blocking the scheduler.
+        // `.fair` never halts indexing outright: the BPM/key/energy pass is a
+        // short CPU-only DSP measurement, and CPU-only work was never what
+        // caused a `.fair` reading.
 
         // Only ever gates the job the scheduler has actually claimed when
         // that job needs remote bytes — a local/downloaded job is never
@@ -188,25 +180,17 @@ public enum IndexPolicy {
             // charging-only user setting (plan §7:
             // "requiresExternalPower=true ... for the local indexing task").
             guard s.isCharging else { return .blocked(reason: .chargingOnlyRequired) }
-            return .proceed(interWindowDelaySeconds: 0)
+            return .proceed
 
         case .foreground:
-            // Deliberately does NOT block on `s.isPlaybackActive`. The original plan paused
-            // automatic indexing during playback (IMPLEMENT_CLAP_PLAN.md §6: "Pause automatic
-            // audio analysis to prioritize listening"), reasoning that decode+CLAP inference
-            // competing with the real-time audio render thread risked glitches. Real user
-            // feedback: listening while the library builds its sound index is a main use case,
-            // not an edge case — indexing must keep running while a track plays. `.background`
-            // execution context (CPU-only, no GPU/ANE — see `DiscoveryRuntimeController`) is
-            // lighter-weight than the old GPU/ANE path this rule was originally written against,
-            // which reduces (does not guarantee zero) contention risk with the playback thread.
-            // `IndexBlockReason.playbackActive` and `isUserSelectedTrackRequest`'s bypass of it
-            // are kept (tests, exhaustive switches) in case this needs to be revisited.
+            // Playback never blocks BPM/key/energy analysis: it is a short,
+            // CPU-only DSP pass, and building the index while listening is a
+            // main use case rather than an edge case.
 
             let batteryLow = s.isLowPowerModeEnabled || (s.batteryLevel ?? 0) < lowBatteryThreshold
             if batteryLow && !s.isCharging {
                 if s.isUserSelectedTrackRequest {
-                    return .proceed(interWindowDelaySeconds: foregroundInterWindowDelaySeconds)
+                    return .proceed
                 }
                 return .blocked(reason: .lowBatteryOrLowPowerMode)
             }
@@ -215,7 +199,7 @@ public enum IndexPolicy {
                 return .blocked(reason: .chargingOnlyRequired)
             }
 
-            return .proceed(interWindowDelaySeconds: foregroundInterWindowDelaySeconds)
+            return .proceed
         }
     }
 }

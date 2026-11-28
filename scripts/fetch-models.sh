@@ -2,27 +2,19 @@
 # Fetch the converted Core ML model packages named in Config/models.lock —
 # `make models`, and the step the CI archive job runs before `make project`.
 #
-# WHY THIS EXISTS. The CLAP encoders were committed to the repository until
-# 2026-08-17, when the first `git push` of the DJ work was rejected outright:
-#
-#   remote: error: File Resources/Models/CLAPTextEncoder.mlpackage/.../weight.bin
-#           is 239.13 MB; this exceeds GitHub's file size limit of 100.00 MB
-#   ! [remote rejected] main -> main (pre-receive hook declined)
-#
-# So the packages are release assets now, pinned by tag and sha256, and this
-# script puts them where the build expects them. Same treatment the 210 MB
-# Demucs package already had by being gitignored — the difference is that these
-# are fetched rather than merely absent, so a CI build still ships semantic
-# search.
+# WHY THIS EXISTS. The Demucs stems model is 210 MB of FP32 weights and was
+# always gitignored (plan dj-stems-model S6); committing it would exceed
+# GitHub's 100 MB file limit. It is a release asset now, pinned by tag and
+# sha256, and this script puts it where the build expects it.
 #
 # A package already on this machine is left alone: the owner converts models
-# locally with tools/clap-coreml/ and tools/demucs-coreml/, and re-downloading
-# 370 MB over their conversion would be both slow and wrong. Pass --force to
-# replace what is there with the pinned asset.
+# locally with tools/demucs-coreml/, and re-downloading 210 MB over their
+# conversion would be both slow and wrong. Pass --force to replace what is
+# there with the pinned asset.
 #
 # Failure is always hard. An absent or corrupt model is not a warning: it would
 # build cleanly and ship as the honest-unavailable state, and the first anyone
-# would hear of it is a tester saying semantic search does nothing — which is
+# would hear of it is a tester saying stem separation does nothing — which is
 # exactly how the empty Jamendo key nearly shipped (alpha phase 1).
 
 set -euo pipefail
@@ -84,7 +76,7 @@ while read -r url sha dir root || [[ -n "${url:-}" ]]; do
   [[ -z "${url:-}" || "${url:0:1}" == "#" ]] && continue
 
   target="$DEST_ROOT/$dir"
-  # Rows with an archive root are the pinned CLAP pair: the directory is only
+  # Rows with an archive root are pinned release assets: the directory is only
   # kept when it was installed from this exact archive (marker), so a model from
   # an earlier lock is replaced rather than kept.
   marker="$DEST_ROOT/.$dir.sha256"

@@ -55,7 +55,7 @@ public struct AnalysisAssetResolver: Sendable {
     }
 
     private func resolveURL(for asset: Asset) -> ResolvedURL? {
-        // Built-in tracks (docs/plans/builtin-mood-starter-index-plan.md)
+        // Built-in tracks
         // live in the app bundle, not Application Support — the generic
         // `relPath` fallback below would silently never find them. Real
         // gap found wiring this up: `.builtIn` was already an eligible

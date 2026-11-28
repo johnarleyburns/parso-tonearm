@@ -70,7 +70,7 @@ import Testing
         let ok = DiscoverySchedulingSnapshot.from(
             inputs(rawBatteryLevel: 0.9, isCharging: true,
                    nominalSince: now.addingTimeInterval(-120), now: now))
-        #expect(IndexPolicy.decide(ok) == .proceed(interWindowDelaySeconds: 2))
+        #expect(IndexPolicy.decide(ok) == .proceed)
 
         let unknownUnplugged = DiscoverySchedulingSnapshot.from(
             inputs(rawBatteryLevel: -1, isCharging: false,

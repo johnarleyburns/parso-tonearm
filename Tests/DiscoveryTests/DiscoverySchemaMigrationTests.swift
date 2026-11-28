@@ -87,17 +87,21 @@ import Testing
         #expect(after.syncIDs == snapshot.syncIDs)
     }
 
-    @Test func testV18CreatesAllDiscoveryTables() throws {
+    @Test func testHeadHasOnlyTheSurvivingDiscoveryTables() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db throws in
             for table in [
-                "discovery_asset_state", "discovery_track_analysis", "discovery_embedding",
-                "discovery_index_job", "discovery_window_checkpoint", "discovery_change",
-                "discovery_setting", "discovery_import_job", "discovery_import_item",
-                "discovery_runtime",
+                "discovery_asset_state", "discovery_track_analysis", "discovery_index_job",
+                "discovery_change", "discovery_setting", "discovery_import_job",
+                "discovery_import_item", "discovery_runtime",
             ] {
-                #expect(try db.tableExists(table), "\(table) should exist after v18")
+                #expect(try db.tableExists(table), "\(table) should exist at head")
+            }
+            for gone in [
+                "discovery_embedding", "discovery_window_checkpoint", "discovery_embedding_space",
+            ] {
+                #expect(try !db.tableExists(gone), "\(gone) must not exist after v55")
             }
         }
     }
@@ -107,18 +111,16 @@ import Testing
         // This repo's sync export list is keyed off syncID columns (v7), so
         // the absence of syncID is the structural guarantee.
         //
-        // discovery_track_analysis and discovery_embedding are the
-        // deliberate exception as of migration v25
-        // (docs/plans/macos-app-cloud-sync-plan.md §4.1): they hold indexing
-        // *outcomes*, not device-local queue/lease/scratch state, so they
-        // sync — see testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn
-        // below for their matching positive assertion.
+        // discovery_track_analysis is the deliberate exception as of migration
+        // v25: it holds an indexing *outcome*, not device-local queue/lease/
+        // scratch state, so it syncs — see the matching positive assertion
+        // below.
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db throws in
             for table in [
                 "discovery_asset_state",
-                "discovery_index_job", "discovery_window_checkpoint", "discovery_change",
+                "discovery_index_job", "discovery_change",
                 "discovery_setting", "discovery_import_job", "discovery_import_item",
                 "discovery_runtime",
             ] {
@@ -129,15 +131,13 @@ import Testing
         }
     }
 
-    @Test func testDiscoveryEmbeddingAndTrackAnalysisHaveSyncIDColumn() throws {
+    @Test func testTrackAnalysisHasSyncIDColumn() throws {
         let queue = try makeQueue()
         try Schema.migrator().migrate(queue)
         try queue.read { db throws in
-            for table in ["discovery_embedding", "discovery_track_analysis"] {
-                #expect(
-                    try db.columns(in: table).contains { $0.name == "syncID" },
-                    "\(table) is meant to sync its indexing outcome (plan §4.1)")
-            }
+            #expect(
+                try db.columns(in: "discovery_track_analysis").contains { $0.name == "syncID" },
+                "analysis is meant to sync its indexing outcome (plan §4.1)")
         }
     }
 
@@ -159,8 +159,8 @@ import Testing
             try db.execute(
                 sql: """
                     INSERT INTO discovery_index_job (id, trackId, pipelineVersion, state,
-                        createdAt, updatedAt, embeddingStageState, musicalAnalysisStageState)
-                    VALUES (?, ?, 1, 'queued', ?, ?, 'pending', 'pending')
+                        createdAt, updatedAt, musicalAnalysisStageState)
+                    VALUES (?, ?, 1, 'queued', ?, ?, 'pending')
                     """,
                 arguments: [UUID().uuidString, trackID, Date(), Date()])
 
@@ -190,8 +190,8 @@ import Testing
             try db.execute(
                 sql: """
                     INSERT INTO discovery_index_job (id, trackId, pipelineVersion, state,
-                        createdAt, updatedAt, embeddingStageState, musicalAnalysisStageState)
-                    VALUES (?, ?, 1, 'queued', ?, ?, 'pending', 'pending')
+                        createdAt, updatedAt, musicalAnalysisStageState)
+                    VALUES (?, ?, 1, 'queued', ?, ?, 'pending')
                     """,
                 arguments: [UUID().uuidString, trackID, Date(), Date()])
 
@@ -199,8 +199,8 @@ import Testing
                 try db.execute(
                     sql: """
                         INSERT INTO discovery_index_job (id, trackId, pipelineVersion, state,
-                            createdAt, updatedAt, embeddingStageState, musicalAnalysisStageState)
-                        VALUES (?, ?, 1, 'queued', ?, ?, 'pending', 'pending')
+                            createdAt, updatedAt, musicalAnalysisStageState)
+                        VALUES (?, ?, 1, 'queued', ?, ?, 'pending')
                         """,
                     arguments: [UUID().uuidString, trackID, Date(), Date()])
                 Issue.record("a second job for the same (trackId, pipelineVersion) must be rejected")
