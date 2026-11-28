@@ -5,9 +5,11 @@ import Testing
 
 @Suite struct FindSearchChromeStateTests {
     private func state(find: Bool = true, focused: Bool, track: Bool = true,
-                       nowPlaying: Bool = false) -> FindSearchChromeState {
+                       nowPlaying: Bool = false, listen: Bool = false,
+                       continueCard: Bool = false) -> FindSearchChromeState {
         .init(isFindActive: find, isQueryFocused: focused, hasCurrentTrack: track,
-              isNowPlayingPresented: nowPlaying)
+              isNowPlayingPresented: nowPlaying, isListenActive: listen,
+              showsListenContinue: continueCard)
     }
 
     @Test func testFocusedFindHidesEverything() {
@@ -46,6 +48,24 @@ import Testing
         let s = state(focused: true, nowPlaying: true)
         #expect(!s.hidesNavigationChrome)
         #expect(s.accessoryHeight == 0)
+    }
+
+    /// The Listen tab swaps the mini player for the larger Continue card, so
+    /// there is exactly one resume surface on that screen.
+    @Test func testListenContinueCardSuppressesMiniPlayerOnListenOnly() {
+        let onListen = state(find: false, focused: false, listen: true, continueCard: true)
+        #expect(!onListen.showsMiniPlayer)
+        #expect(onListen.accessoryHeight == 0)
+
+        let onMyMusic = state(find: false, focused: false, listen: false, continueCard: true)
+        #expect(onMyMusic.showsMiniPlayer)
+        #expect(onMyMusic.accessoryHeight > 0)
+    }
+
+    @Test func testListenWithoutContinueCardKeepsMiniPlayer() {
+        let s = state(find: false, focused: false, listen: true, continueCard: false)
+        #expect(s.showsMiniPlayer)
+        #expect(s.accessoryHeight > 0)
     }
 }
 
