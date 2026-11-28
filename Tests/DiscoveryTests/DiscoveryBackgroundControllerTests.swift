@@ -339,7 +339,7 @@ import Testing
         // Drop the grant before the scheduler's second (pre-unit) policy
         // check, so the job is released without starting analysis.
         box.onRead = { count, box in
-            if count == 2 {
+            if count == 1 {
                 box.mutate { $0.hasBackgroundProcessingGrant = false }
                 invocation.fireExpiration()
             }
@@ -382,7 +382,7 @@ import Testing
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 2 { b.mutate { $0.hasBackgroundProcessingGrant = false } }
+            if count == 1 { b.mutate { $0.hasBackgroundProcessingGrant = false } }
         }
         let invocation = FakeInvocation(identifier: "test.discovery-index")
         await controller.run(invocation)
@@ -410,7 +410,7 @@ import Testing
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 2 { b.mutate { $0.isCharging = false } }
+            if count == 1 { b.mutate { $0.isCharging = false } }
         }
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 
@@ -434,7 +434,7 @@ import Testing
         let controller = await makeController(assembly: assembly, scheduler: scheduler, box: box)
 
         box.onRead = { count, b in
-            if count == 2 { b.mutate { $0.thermalState = .serious } }
+            if count == 1 { b.mutate { $0.thermalState = .serious } }
         }
         await controller.run(FakeInvocation(identifier: "test.discovery-index"))
 
