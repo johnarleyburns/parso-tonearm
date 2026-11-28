@@ -102,6 +102,10 @@ public struct IndexStatusPresentation: Equatable, Sendable {
     public var canResume: Bool
     public var canRetryFailed: Bool
     public var failedCount: Int
+    /// The individual track currently being worked on. Only populated while
+    /// `phase == .indexing`; a single analysis unit has no honest fraction.
+    public var currentTrackTitle: String?
+    public var currentTrackArtist: String?
     /// A rough, honestly-labeled estimate — never shown as a precise countdown. `nil` whenever an
     /// estimate wouldn't be honest: not actively `.indexing`, or no track has finished recently
     /// enough to measure a real rate yet.
