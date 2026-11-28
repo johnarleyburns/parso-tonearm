@@ -18,7 +18,9 @@ struct RootView: View {
             isFindActive: appState.tab == .find,
             isQueryFocused: appState.findQueryFocused,
             hasCurrentTrack: player.currentTrack != nil,
-            isNowPlayingPresented: appState.showNowPlaying)
+            isNowPlayingPresented: appState.showNowPlaying,
+            isListenActive: appState.tab == .listen,
+            showsListenContinue: player.continueListeningPresentation != nil)
     }
 
     private var accessoryHeight: CGFloat { chrome.accessoryHeight }
