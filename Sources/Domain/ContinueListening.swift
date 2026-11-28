@@ -1,3 +1,4 @@
+#if !os(watchOS)
 import Foundation
 
 /// What the Listen tab's single resume surface should say. Pure value derived
@@ -122,3 +123,4 @@ public struct ContinueListeningPresentation: Equatable, Sendable {
         return title
     }
 }
+#endif
